@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, Play, BookOpen } from 'lucide-react';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { getDb } from '../services/db';
 import { useReadingStore } from '../stores/useReadingStore';
 import { useVideoStore } from '../stores/useVideoStore';
@@ -18,20 +19,38 @@ interface HistoryItem {
   filePath: string;
 }
 
+interface MangaHistoryRow {
+  id: string;
+  seriesId: string;
+  chapterTitle: string;
+  seriesTitle: string;
+  coverPath?: string;
+  currentPage: number;
+  totalPages: number;
+  lastReadAt: string;
+  filePath: string;
+}
+
+interface VideoHistoryRow {
+  id: string;
+  folderId: string;
+  title: string;
+  thumbnailPath?: string;
+  lastPosition: number;
+  duration: number;
+  filePath: string;
+}
+
 export function HistoryView() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const { openFolder } = useReadingStore();
   const { playVideo, folders } = useVideoStore();
 
-  useEffect(() => {
-    loadHistory();
-  }, []);
-
-  const loadHistory = async () => {
+  async function loadHistory(): Promise<HistoryItem[]> {
     const db = getDb();
     
     // 1. Fetch Manga History
-    const mangaHistory = await db.select<any[]>(`
+    const mangaHistory = await db.select<MangaHistoryRow[]>(`
       SELECT 
         rp.chapterId as id, 
         rp.seriesId, 
@@ -55,7 +74,7 @@ export function HistoryView() {
     // For now, let's just show videos with progress > 0.
     // Ideally we should have a 'History' table or 'lastPlayedAt' column.
     // Let's use what we have:
-    const videoHistory = await db.select<any[]>(`
+    const videoHistory = await db.select<VideoHistoryRow[]>(`
         SELECT 
             id, folderId, title, thumbnailPath, lastPosition, duration, filePath
         FROM Videos 
@@ -64,7 +83,7 @@ export function HistoryView() {
         LIMIT 20
     `);
 
-    const items: HistoryItem[] = [
+    return [
         ...mangaHistory.map(m => ({
             id: m.id,
             seriesId: m.seriesId,
@@ -88,9 +107,21 @@ export function HistoryView() {
             filePath: v.filePath
         }))
     ].sort((a, b) => new Date(b.lastReadAt).getTime() - new Date(a.lastReadAt).getTime());
+  }
 
-    setHistory(items);
-  };
+  useEffect(() => {
+    let cancelled = false;
+
+    void loadHistory().then((items) => {
+      if (!cancelled) {
+        setHistory(items);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleOpen = async (item: HistoryItem) => {
       if (item.type === 'manga') {
@@ -114,6 +145,11 @@ export function HistoryView() {
       }
   };
 
+  const getCoverSrc = (coverPath?: string) => {
+    if (!coverPath) return '';
+    return coverPath.startsWith('http') ? coverPath : convertFileSrc(coverPath);
+  };
+
   return (
     <div className="h-full overflow-y-auto p-8 custom-scrollbar">
       <div className="flex items-center gap-4 mb-8">
@@ -133,7 +169,7 @@ export function HistoryView() {
           >
             <div className="aspect-video bg-black relative">
                {item.coverPath ? (
-                 <img src={`https://asset.localhost/${item.coverPath}`} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" />
+                 <img src={getCoverSrc(item.coverPath)} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" />
                ) : (
                  <div className="w-full h-full flex items-center justify-center bg-neutral-900">
                     {item.type === 'manga' ? <BookOpen size={40} className="text-neutral-700" /> : <Play size={40} className="text-neutral-700" />}

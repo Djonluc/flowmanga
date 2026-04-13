@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useAnimationControls } from 'framer-motion';
+import { Play } from 'lucide-react';
 import { useReadingStore } from '../stores/useReadingStore';
 import { useReaderStore } from '../stores/useReaderStore'; // New V2 Store
 import { useAnalyticsStore } from '../stores/useAnalyticsStore';
@@ -212,41 +213,43 @@ export const Reader = () => {
 
 const ChapterTransitionOverlay = () => {
     const { chapters, currentChapterIndex } = useReadingStore();
-    const [visible, setVisible] = useState(false);
     const prevIndex = useRef(currentChapterIndex);
+    const controls = useAnimationControls();
 
     useEffect(() => {
         if (currentChapterIndex !== prevIndex.current) {
-            setVisible(true);
-            const timer = setTimeout(() => setVisible(false), 3000);
             prevIndex.current = currentChapterIndex;
-            return () => clearTimeout(timer);
+            void controls.start({
+                opacity: [0, 1, 1, 0],
+                y: [100, -120, -120, -40],
+                x: ['-50%', '-50%', '-50%', '-50%'],
+                scale: [0.8, 1, 1, 1.1],
+                transition: {
+                    duration: 3,
+                    times: [0, 0.12, 0.85, 1],
+                    ease: 'easeInOut',
+                },
+            });
         }
-    }, [currentChapterIndex]);
+    }, [controls, currentChapterIndex]);
 
     const title = chapters[currentChapterIndex]?.title;
     if (!title) return null;
 
     return (
-        <AnimatePresence>
-            {visible && (
-                <motion.div 
-                    initial={{ opacity: 0, y: 100, x: '-50%', scale: 0.8 }}
-                    animate={{ opacity: 1, y: -120, x: '-50%', scale: 1 }}
-                    exit={{ opacity: 0, y: -40, x: '-50%', scale: 1.1 }}
-                    transition={{ type: 'spring', damping: 20, stiffness: 100 }}
-                    className="fixed bottom-0 left-1/2 z-[100] px-8 py-4 bg-black/60 backdrop-blur-3xl rounded-[32px] border border-white/20 text-white shadow-[0_32px_128px_rgba(0,0,0,1)] pointer-events-none select-none flex items-center gap-4"
-                >
-                    <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
-                        <Play size={18} fill="currentColor" />
-                    </div>
-                    <div className="flex flex-col">
-                        <span className="text-[8px] font-black text-blue-500 uppercase tracking-[0.4em]">Chapter Transition</span>
-                        <span className="text-sm font-black uppercase italic tracking-tighter">{title}</span>
-                    </div>
-                </motion.div>
-            )}
-        </AnimatePresence>
+        <motion.div 
+            initial={{ opacity: 0, y: 100, x: '-50%', scale: 0.8 }}
+            animate={controls}
+            className="fixed bottom-0 left-1/2 z-[100] px-8 py-4 bg-black/60 backdrop-blur-3xl rounded-[32px] border border-white/20 text-white shadow-[0_32px_128px_rgba(0,0,0,1)] pointer-events-none select-none flex items-center gap-4"
+        >
+            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
+                <Play size={18} fill="currentColor" />
+            </div>
+            <div className="flex flex-col">
+                <span className="text-[8px] font-black text-blue-500 uppercase tracking-[0.4em]">Chapter Transition</span>
+                <span className="text-sm font-black uppercase italic tracking-tighter">{title}</span>
+            </div>
+        </motion.div>
     );
 };
 

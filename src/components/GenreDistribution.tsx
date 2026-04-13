@@ -69,8 +69,16 @@ export const GenreDistribution = () => {
     const center = size / 2;
     const radius = (size - strokeWidth) / 2;
     const circumference = 2 * Math.PI * radius;
+    const chartSegments = genreStats.map((stat, index) => {
+        const previousPercent = genreStats
+            .slice(0, index)
+            .reduce((sum, current) => sum + current.percentage, 0);
 
-    let cumulativePercentage = 0;
+        return {
+            ...stat,
+            offset: (previousPercent / 100) * circumference,
+        };
+    });
 
     return (
         <div className="flex flex-col gap-8 h-full">
@@ -80,27 +88,22 @@ export const GenreDistribution = () => {
                 {/* Donut Chart */}
                 <div className="relative w-[200px] h-[200px] flex-shrink-0 group">
                     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="transform -rotate-90 drop-shadow-2xl">
-                        {genreStats.map((stat) => {
-                            const offset = (cumulativePercentage / 100) * circumference;
-                            cumulativePercentage += stat.percentage;
-                            
-                            return (
-                                <motion.circle
-                                    key={stat.name}
-                                    initial={{ strokeDasharray: `0 ${circumference}` }}
-                                    animate={{ strokeDasharray: `${(stat.percentage / 100) * circumference} ${circumference}` }}
-                                    transition={{ duration: 1, ease: 'easeOut', delay: 0.5 }}
-                                    cx={center}
-                                    cy={center}
-                                    r={radius}
-                                    fill="transparent"
-                                    stroke={stat.color}
-                                    strokeWidth={strokeWidth}
-                                    strokeDashoffset={-offset}
-                                    className="scale-95 origin-center group-hover:scale-100 transition-transform duration-500"
-                                />
-                            );
-                        })}
+                        {chartSegments.map((stat) => (
+                            <motion.circle
+                                key={stat.name}
+                                initial={{ strokeDasharray: `0 ${circumference}` }}
+                                animate={{ strokeDasharray: `${(stat.percentage / 100) * circumference} ${circumference}` }}
+                                transition={{ duration: 1, ease: 'easeOut', delay: 0.5 }}
+                                cx={center}
+                                cy={center}
+                                r={radius}
+                                fill="transparent"
+                                stroke={stat.color}
+                                strokeWidth={strokeWidth}
+                                strokeDashoffset={-stat.offset}
+                                className="scale-95 origin-center group-hover:scale-100 transition-transform duration-500"
+                            />
+                        ))}
                     </svg>
                     
                     {/* Center Overlay */}

@@ -48,6 +48,18 @@ export const VideoPlayer: React.FC = () => {
     }, 2000);
   }, [isPlaying, showPlaylist]);
 
+  async function toggleFullscreen() {
+    if (!containerRef.current) return;
+    
+    if (!document.fullscreenElement) {
+       await containerRef.current.requestFullscreen();
+       setIsFullscreen(true);
+    } else {
+       await document.exitFullscreen();
+       setIsFullscreen(false);
+    }
+  }
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!currentVideo) return;
@@ -72,18 +84,6 @@ export const VideoPlayer: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentVideo, togglePlay]);
-
-  const toggleFullscreen = async () => {
-    if (!containerRef.current) return;
-    
-    if (!document.fullscreenElement) {
-       await containerRef.current.requestFullscreen();
-       setIsFullscreen(true);
-    } else {
-       await document.exitFullscreen();
-       setIsFullscreen(false);
-    }
-  };
 
   const handleTimeUpdate = () => {
      if (videoRef.current) {
