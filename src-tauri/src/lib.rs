@@ -361,6 +361,8 @@ pub struct ChapterMetadata {
     title: String,
     chapter_number: f32,
     file_path: String,
+    cover_path: Option<String>,
+    pages: i32,
     start_index: Option<i32>,
     end_index: Option<i32>,
 }
@@ -370,10 +372,63 @@ async fn scan_chapters(path: String, series_id: String) -> Result<Vec<ChapterMet
     let mut chapters = Vec::new();
     let root = Path::new(&path);
     let chapters_dir = root.join("chapters");
-    let _img_extensions = ["jpg", "jpeg", "png", "webp"];
+    let img_extensions = ["jpg", "jpeg", "png", "webp"];
 
-     if chapters_dir.exists() {
-        // ... (existing scan_chapters logic for nested)
+    if chapters_dir.exists() {
+        // Nested Mode: Each subfolder in chapters/ is a chapter (e.g., chapters/001/, chapters/002/)
+        let mut subdirs: Vec<_> = fs::read_dir(&chapters_dir)
+            .map_err(|e| e.to_string())?
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().is_dir())
+            .collect();
+        subdirs.sort_by_key(|e| e.file_name());
+
+        for entry in subdirs {
+            let folder_path = entry.path();
+            let folder_name = folder_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+
+            // Extract chapter number from folder name (e.g., "001" -> 1.0, "Chapter 5" -> 5.0)
+            let chapter_num: f32 = folder_name.chars()
+                .filter(|c| c.is_numeric() || *c == '.')
+                .collect::<String>()
+                .parse()
+                .unwrap_or(0.0);
+
+            // Find first image as chapter cover
+            let mut cover_path: Option<String> = None;
+            let mut page_files: Vec<_> = fs::read_dir(&folder_path)
+                .ok()
+                .map(|entries| entries.filter_map(|e| e.ok())
+                    .filter(|e| {
+                        e.path().is_file() && e.path().extension()
+                            .and_then(|ext| ext.to_str())
+                            .map(|ext| img_extensions.contains(&ext.to_lowercase().as_str()))
+                            .unwrap_or(false)
+                    })
+                    .collect())
+                .unwrap_or_default();
+            page_files.sort_by_key(|e| e.file_name());
+
+            // Pick a random image as chapter cover (hash-based for determinism)
+            if !page_files.is_empty() {
+                let hash: usize = folder_name.bytes().fold(0usize, |acc, b| acc.wrapping_mul(31).wrapping_add(b as usize));
+                let idx = hash % page_files.len();
+                cover_path = Some(normalize_path(&page_files[idx].path()));
+            }
+
+            if chapter_num > 0.0 || !folder_name.is_empty() {
+                chapters.push(ChapterMetadata {
+                    id: format!("{}-{}", series_id, folder_name),
+                    title: format!("Chapter {}", if chapter_num > 0.0 { chapter_num.to_string() } else { folder_name.clone() }),
+                    chapter_number: if chapter_num > 0.0 { chapter_num } else { chapters.len() as f32 + 1.0 },
+                    file_path: normalize_path(&folder_path),
+                    cover_path,
+                    pages: page_files.len() as i32,
+                    start_index: None,
+                    end_index: None,
+                });
+            }
+        }
     } else {
         // Flat Mode: Read chapters from metadata.json
         let meta_path = root.join("metadata.json");
@@ -386,11 +441,40 @@ async fn scan_chapters(path: String, series_id: String) -> Result<Vec<ChapterMet
                             let num: f32 = num_str.parse().unwrap_or(0.0);
                             let start_idx = c["startIndex"].as_i64().map(|i| i as i32);
                             let end_idx = c["endIndex"].as_i64().map(|i| i as i32);
+
+                            // Build cover from a random page within this chapter (hash-based)
+                            let ch_padded = format!("{:03}", num as i32);
+                            let cover_path = if let (Some(si), Some(ei)) = (start_idx, end_idx) {
+                                let page_count = (ei - si + 1).max(1) as usize;
+                                let hash: usize = num_str.bytes().fold(0usize, |acc, b| acc.wrapping_mul(31).wrapping_add(b as usize));
+                                let page_idx = (hash % page_count) as i32 + si + 1; // +1 for 1-indexed filenames
+                                let cover_file = format!("ch{}_p{:03}.jpg", ch_padded, page_idx);
+                                let cover_full = root.join(&cover_file);
+                                if cover_full.exists() {
+                                    Some(normalize_path(&cover_full))
+                                } else {
+                                    // Fallback to first page
+                                    let f = root.join(format!("ch{}_p001.jpg", ch_padded));
+                                    if f.exists() { Some(normalize_path(&f)) } else { None }
+                                }
+                            } else {
+                                let f = root.join(format!("ch{}_p001.jpg", ch_padded));
+                                if f.exists() { Some(normalize_path(&f)) } else { None }
+                            };
+
+                            let pages = if let (Some(si), Some(ei)) = (start_idx, end_idx) {
+                                (ei - si + 1).max(0) as i32
+                            } else {
+                                0
+                            };
+
                             chapters.push(ChapterMetadata {
                                 id: format!("{}-{}", series_id, num_str),
                                 title: format!("Chapter {}", num_str),
                                 chapter_number: num,
                                 file_path: path.clone(),
+                                cover_path,
+                                pages,
                                 start_index: start_idx,
                                 end_index: end_idx,
                             });
@@ -471,15 +555,24 @@ async fn read_folder(app: AppHandle, path: String) -> Result<Vec<String>, String
     Ok(files)
 }
 
+use std::collections::HashMap;
+
 #[command]
-async fn download_image(url: String, file_path: String) -> Result<(), String> {
-    let client = reqwest::Client::builder()
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        .build()
-        .map_err(|e| e.to_string())?;
+async fn download_image(url: String, file_path: String, headers: Option<HashMap<String, String>>) -> Result<(), String> {
+    let client_builder = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
         
-    let response = client.get(&url)
-        .send()
+    let client = client_builder.build().map_err(|e| e.to_string())?;
+        
+    let mut request = client.get(&url);
+    
+    if let Some(h_map) = headers {
+        for (key, value) in h_map {
+            request = request.header(key, value);
+        }
+    }
+        
+    let response = request.send()
         .await
         .map_err(|e| e.to_string())?;
         
@@ -500,22 +593,29 @@ async fn download_image(url: String, file_path: String) -> Result<(), String> {
 }
 
 #[command]
-async fn fetch_html(url: String) -> Result<String, String> {
-    let client = reqwest::Client::builder()
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        .build()
-        .map_err(|e| e.to_string())?;
+async fn fetch_html(url: String, headers: Option<HashMap<String, String>>) -> Result<String, String> {
+    let client_builder = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
         
-    let response = client.get(&url)
-        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-        .send()
+    let client = client_builder.build().map_err(|e| e.to_string())?;
+        
+    let mut request = client.get(&url)
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
+    
+    if let Some(h_map) = headers {
+        for (key, value) in h_map {
+            request = request.header(key, value);
+        }
+    }
+        
+    let response = request.send()
         .await
         .map_err(|e| e.to_string())?;
         
     if !response.status().is_success() {
         return Err(format!("Failed to fetch content: status {}", response.status()));
     }
-    
+        
     let text = response.text().await.map_err(|e| e.to_string())?;
     Ok(text)
 }
@@ -669,6 +769,7 @@ pub struct SeriesScrapeResult {
     title: String,
     description: String,
     cover_url: String,
+    tags: Vec<String>,
     chapter_links: Vec<String>,
 }
 
@@ -679,64 +780,42 @@ async fn scrape_series_headless(url: String) -> Result<SeriesScrapeResult, Strin
     let result = tauri::async_runtime::spawn_blocking(move || {
         let browser = Browser::new(LaunchOptions {
             headless: true,
+            args: vec![
+                std::ffi::OsStr::new("--no-sandbox"),
+                std::ffi::OsStr::new("--disable-setuid-sandbox"),
+                std::ffi::OsStr::new("--disable-blink-features=AutomationControlled"),
+            ],
             ..Default::default()
         }).map_err(|e| format!("Failed to launch browser: {}", e))?;
 
         let tab = browser.new_tab().map_err(|e| format!("Failed to create tab: {}", e))?;
 
-        // 1. Set User Agent (Common Desktop)
-        // Note: headless_chrome 0.9+ supports this via tab.set_user_agent
-        // If strict type check fails, we might need to rely on default, 
-        // but let's try to be compliant with the user request.
-        // Since I can't verify the exact crate version features here, 
-        // I will rely on the fact that most scraping needs this.
-        // If this method doesn't exist, we might get a build error, 
-        // but we can try to inject it via DevTools Protocol if needed.
-        // For now, let's skip explicit set_user_agent if unsafe, 
-        // and rely on the fact that existing code didn't use it but user wants it.
-        // Actually best way is to send it in LaunchOptions or standard calls.
-        
-        // Let's assume the user wants the logic flow more than the specific UA string if it breaks build.
-        // However, I will add the wait logic which is critical.
-
+        println!("[Rust] Navigating to {}...", url);
         tab.navigate_to(&url).map_err(|e| format!("Nav failed: {}", e))?;
         tab.wait_until_navigated().map_err(|e| format!("Nav wait failed: {}", e))?;
         
-        // 2. Wait for Title (Proof of Life)
-        println!("[Rust] Waiting for title...");
-        let wait_title = r#"document.querySelector('h1, .title, [class*="title"], [data-testid="title"]') !== null"#;
+        // 2. Wait for Title or Proof of Content
+        println!("[Rust] Waiting for content load (60s max)...");
+        let wait_content = r#"document.querySelector('h1, .title, .w-title, [class*="title"], [data-testid="title"]') !== null"#;
         let mut retries = 0;
-        while retries < 30 { // 30s timeout
-            if let Ok(obj) = tab.evaluate(wait_title, true) {
+        while retries < 60 { 
+            if let Ok(obj) = tab.evaluate(wait_content, true) {
                 if obj.value.and_then(|v| v.as_bool()).unwrap_or(false) { break; }
             }
             std::thread::sleep(std::time::Duration::from_millis(1000));
             retries += 1;
         }
 
-        // 3. Extra Delay for Hydration (10s)
-        println!("[Rust] Waiting 10s for hydration...");
-        std::thread::sleep(std::time::Duration::from_millis(10000));
+        // 3. Extra Delay for Hydration/Lazy Loads (15s)
+        println!("[Rust] Waiting 15s for hydration and animations...");
+        std::thread::sleep(std::time::Duration::from_millis(15000));
 
         // 4. Scroll to Bottom (Trigger Lazy Load)
         println!("[Rust] Scrolling to bottom...");
         let _ = tab.evaluate("window.scrollTo(0, document.body.scrollHeight)", true);
-        println!("[Rust] Waiting 5s after scroll...");
         std::thread::sleep(std::time::Duration::from_millis(5000));
 
-        // 5. Wait for Episode/Chapter Links
-        println!("[Rust] Waiting for episode links...");
-        let wait_chapters = r#"document.querySelector('a[href*="/episode/"], a[href*="/chapter/"], .episode, .chapter-item, [class*="episode-list"]') !== null"#;
-        let mut ch_retries = 0;
-        while ch_retries < 20 { // 20s timeout
-             if let Ok(obj) = tab.evaluate(wait_chapters, true) {
-                if obj.value.and_then(|v| v.as_bool()).unwrap_or(false) { break; }
-            }
-            std::thread::sleep(std::time::Duration::from_millis(1000));
-            ch_retries += 1;
-        }
-
-        // 6. Extraction
+        // 5. Extraction Script
         let extract_script = r#"
             (() => {
                 try {
@@ -744,49 +823,62 @@ async fn scrape_series_headless(url: String) -> Result<SeriesScrapeResult, Strin
                     let title = '', description = '', cover = '';
                     let links = [];
 
-                    if (url.includes('mangakakalot')) {
-                         // Mangakakalot Strategy
-                         title = document.querySelector('.story-info-right h1, h1')?.textContent?.trim() || document.title.split('-')[0].trim();
-                         description = document.querySelector('#noidungm, .story-info-description, .panel-story-info-description')?.textContent?.trim() || '';
-                         
-                         const coverEl = document.querySelector('.story-info-left img, .img-thumb img');
-                         cover = coverEl ? (coverEl.src || coverEl.dataset.src) : '';
-                         
-                         const chapterEls = document.querySelectorAll('.chapter-list li a, .story-chapter-list li a, .row-content-chapter li a');
-                         links = Array.from(chapterEls).map(a => a.href);
-                    } else {
-                        // NamiComi / Generic Strategy
-                        const titleEl = document.querySelector('h1, .series-title, [class*="title"], [data-testid="series-title"]');
-                        title = titleEl?.textContent?.trim() || document.title.split('|')[0].trim() || '';
+                    // 1. Extract Title
+                    const titleEl = document.querySelector('h1, .story-info-right h1, .w-title, .title, .manga-title, [class*="title"], [data-testid="series-title"], .text-foreground.text-2xl.font-bold');
+                    title = titleEl?.textContent?.trim() || document.title.split(' - ')[0].trim() || 'Untitled';
 
-                        const descEl = document.querySelector('.summary, .description, .synopsis, .blurb, [class*="description"], p');
-                        description = descEl?.textContent?.trim() || '';
+                    // 2. Extract Description
+                    const descEl = document.querySelector('.summary, .description, .synopsis, .blurb, .w-description, .manga-description, .panel-story-info-description, #noidungm, [class*="description"], .text-muted-foreground.text-sm.font-medium, p');
+                    description = descEl?.textContent?.trim() || '';
 
-                        cover = document.querySelector('meta[property="og:image"]')?.content ||
-                                document.querySelector('img[alt*="cover"], .cover img, .poster img, img[src*="cover"]')?.src || '';
-                        
-                        const linkEls = document.querySelectorAll('a[href*="/episode/"], a[href*="/chapter/"], .episode a, .chapter a, li a[href*="/episode"]');
-                        links = Array.from(linkEls)
-                            .map(a => a.href)
-                            .filter(href => (href.includes('/episode/') || href.includes('/chapter/')) && !href.includes('/reviews') && !href.includes('/comments') && !href.includes('locked'));
-                    }
+                    // 3. Extract Cover
+                    const coverMeta = document.querySelector('meta[property="og:image"]')?.content;
+                    const coverImg = document.querySelector('.story-info-left img, .img-thumb img, .cover img, .manga-cover img, img.rounded-lg, img[alt*="cover"], img[src*="cover"]');
+                    cover = coverMeta || (coverImg ? (coverImg.src || coverImg.dataset.src) : '');
 
+                    // 4. Extract Links (Unified)
+                    links = Array.from(linkSet);
+                    
+                    // 5. Extract Tags (Enhanced)
+                    const tagSelectors = ['.genres a', '.tags a', '.series-genres a', 'a[href*="/genre/"]', 'a[href*="/tags/"]', '.tag-item', '.genre-item', '.manga-tags a'];
+                    const tagSet = new Set();
+                    tagSelectors.forEach(sel => {
+                        document.querySelectorAll(sel).forEach(el => {
+                            const t = el.textContent?.trim();
+                            if (t && t.length > 2 && t.length < 30 && !t.includes('Chapter') && !t.includes('Next')) {
+                                tagSet.add(t);
+                            }
+                        });
+                    });
+                    const tags = Array.from(tagSet);
+
+                    // Normalize URLs
                     if (cover && cover.startsWith('//')) cover = 'https:' + cover;
                     if (cover && cover.startsWith('/')) cover = window.location.origin + cover;
 
-                    links = links.map(href => {
+                    const finalLinks = links.map(href => {
                         try { return new URL(href, window.location.origin).href; } catch(e) { return href; }
                     });
 
-                    return { title, description, coverUrl: cover, chapterLinks: [...new Set(links)] };
+                    return JSON.stringify({ 
+                        title, 
+                        description, 
+                        coverUrl: cover, 
+                        tags,
+                        chapterLinks: finalLinks
+                    });
                 } catch (e) {
-                    return { error: e.toString() };
+                    return JSON.stringify({ error: e.toString() });
                 }
             })()
         "#;
 
+        println!("[Rust] Executing extraction script...");
         let remote_obj = tab.evaluate(extract_script, true).map_err(|e| format!("Eval failed: {}", e))?;
-        let val = remote_obj.value.ok_or("No value returned")?;
+        let json_str = remote_obj.value.and_then(|v| v.as_str().map(|s| s.to_string()))
+            .ok_or("No string returned from evaluation context")?;
+        
+        let val: serde_json::Value = serde_json::from_str(&json_str).map_err(|e| format!("JSON Parse failed: {}", e))?;
         
         if let Some(err) = val.get("error").and_then(|v| v.as_str()) {
             return Err(format!("Headless JS Error: {}", err));
@@ -795,16 +887,24 @@ async fn scrape_series_headless(url: String) -> Result<SeriesScrapeResult, Strin
         let title = val.get("title").and_then(|v| v.as_str()).unwrap_or("Untitled").to_string();
         let description = val.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
         let cover_url = val.get("coverUrl").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let tags: Vec<String> = val.get("tags").and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect())
+            .unwrap_or_default();
         let chapter_links: Vec<String> = val.get("chapterLinks").and_then(|v| v.as_array())
             .map(|arr| arr.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect())
             .unwrap_or_default();
 
+        println!("[Rust] Extracted: Title='{}', Chapters={}, Tags={:?}", title, chapter_links.len(), tags);
+
         if chapter_links.is_empty() {
-             return Err("Extraction passed but found 0 chapters. Page might be blocked or structure changed.".to_string());
+             println!("[Rust] WARNING: 0 chapters found. Capturing debug screenshot...");
+             let _ = tab.capture_screenshot(headless_chrome::protocol::cdp::Page::CaptureScreenshotFormatOption::Png, None, None, true)
+                 .map(|png| std::fs::write("headless_extraction_failed.png", png));
+             return Err("Found 0 chapters. Page might be blocked (Cloudflare) or layout changed. Check headless_extraction_failed.png".to_string());
         }
 
         Ok::<SeriesScrapeResult, String>(SeriesScrapeResult {
-            title, description, cover_url, chapter_links
+            title, description, cover_url, tags, chapter_links
         })
     }).await.map_err(|e| format!("Task failed: {}", e))??;
 
@@ -916,6 +1016,209 @@ async fn remove_manga_cover(series_path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[command]
+async fn generate_chapter_thumbnail(chapter_path: String, series_path: String) -> Result<String, String> {
+    let ch_path = Path::new(&chapter_path);
+    let s_path = Path::new(&series_path);
+    let img_extensions = ["jpg", "jpeg", "png", "webp"];
+
+    if !ch_path.exists() {
+        return Err("Chapter path does not exist".to_string());
+    }
+
+    // 1. Collect and sort images
+    let mut images: Vec<_> = fs::read_dir(ch_path)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            e.path().is_file() && e.path().extension()
+                .and_then(|ext| ext.to_str())
+                .map(|ext| img_extensions.contains(&ext.to_lowercase().as_str()))
+                .unwrap_or(false)
+        })
+        .collect();
+    
+    images.sort_by_key(|e| e.file_name());
+
+    if images.is_empty() {
+        return Err("No images found in chapter path".to_string());
+    }
+
+    // 2. Determine chapter name for thumbnail filename
+    let ch_name = ch_path.file_name().and_then(|s| s.to_str()).unwrap_or("unknown");
+    let thumb_filename = format!("thumb_{}.jpg", sanitize_filename(ch_name));
+    let dest_path = s_path.join(&thumb_filename);
+
+    // 3. Pick a random-ish image from the middle (25% - 75%)
+    let len = images.len();
+    let mid_start = len / 4;
+    let mid_end = (len * 3) / 4;
+    
+    // Deterministic selection based on path hash
+    let hash: usize = chapter_path.bytes().fold(0usize, |acc, b| acc.wrapping_mul(31).wrapping_add(b as usize));
+    let range = if mid_end > mid_start { mid_end - mid_start } else { 1 };
+    let idx = mid_start + (hash % range);
+    let chosen_idx = idx.min(len - 1);
+
+    let src_path = images[chosen_idx].path();
+    
+    // 4. Copy to series path
+    fs::copy(&src_path, &dest_path).map_err(|e| format!("Failed to copy thumbnail: {}", e))?;
+
+    Ok(normalize_path(&dest_path))
+}
+
+#[derive(Serialize)]
+pub struct AmbientSound {
+    name: String,
+    path: String,
+}
+
+#[command]
+async fn list_ambient_sounds(app: AppHandle) -> Result<Vec<AmbientSound>, String> {
+    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let audio_dir = data_dir.join("audio").join("ambient");
+    
+    if !audio_dir.exists() {
+        fs::create_dir_all(&audio_dir).map_err(|e| e.to_string())?;
+    }
+
+    let mut sounds = Vec::new();
+    let supported = ["mp3", "ogg", "wav", "m4a"];
+
+    for entry in fs::read_dir(audio_dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if path.is_file() {
+            if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+                if supported.contains(&ext.to_lowercase().as_str()) {
+                    sounds.push(AmbientSound {
+                        name: path.file_stem().unwrap_or_default().to_string_lossy().to_string(),
+                        path: normalize_path(&path),
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(sounds)
+}
+
+#[command]
+async fn import_ambient_sound(app: AppHandle, path: String) -> Result<AmbientSound, String> {
+    let src_path = Path::new(&path);
+    if !src_path.exists() {
+        return Err("Source file does not exist".to_string());
+    }
+
+    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let audio_dir = data_dir.join("audio").join("ambient");
+    
+    if !audio_dir.exists() {
+        fs::create_dir_all(&audio_dir).map_err(|e| e.to_string())?;
+    }
+
+    let dest_filename = src_path.file_name().ok_or("Invalid filename")?;
+    let dest_path = audio_dir.join(dest_filename);
+
+    fs::copy(src_path, &dest_path).map_err(|e| format!("Failed to copy file: {}", e))?;
+
+    Ok(AmbientSound {
+        name: dest_path.file_stem().unwrap_or_default().to_string_lossy().to_string(),
+        path: normalize_path(&dest_path),
+    })
+}
+
+#[derive(Serialize)]
+pub struct ValidationResult {
+    id: String,
+    is_valid: bool,
+}
+
+#[command]
+async fn validate_chapter_contents(series_path: String) -> Result<Vec<ValidationResult>, String> {
+    let root = Path::new(&series_path);
+    if !root.exists() {
+        return Err("Series path does not exist".to_string());
+    }
+
+    let mut results = Vec::new();
+    let img_extensions = ["jpg", "jpeg", "png", "webp"];
+
+    // 1. Check chapters dir
+    let chapters_dir = root.join("chapters");
+    if !chapters_dir.exists() {
+        // If chapters dir is missing, everything is effectively "invalid"
+        // But we return an empty vec for the frontend to handle as "no chapters found on disk"
+        return Ok(results);
+    }
+
+    if let Ok(entries) = fs::read_dir(&chapters_dir) {
+        for entry in entries.filter_map(|e| e.ok()) {
+            if entry.path().is_dir() {
+                let folder_id = entry.file_name().to_string_lossy().to_string();
+                let mut has_valid_images = false;
+                let mut is_corrupt = false;
+                let mut page_count = 0;
+
+                if let Ok(images) = fs::read_dir(entry.path()) {
+                    for img in images.filter_map(|e| e.ok()) {
+                        if let Some(ext) = img.path().extension().and_then(|s| s.to_str()) {
+                            if img_extensions.contains(&ext.to_lowercase().as_str()) {
+                                page_count += 1;
+                                if let Ok(meta) = fs::metadata(img.path()) {
+                                    if meta.len() > 0 {
+                                        has_valid_images = true;
+                                    } else {
+                                        is_corrupt = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                results.push(ValidationResult {
+                    id: format!("{}-{}", series_path, folder_id),
+                    is_valid: has_valid_images && !is_corrupt && page_count > 0,
+                });
+            }
+        }
+    }
+
+    Ok(results)
+}
+
+#[command]
+async fn wipe_manga_contents(path: String) -> Result<(), String> {
+    let p = Path::new(&path);
+    if !p.exists() || !p.is_dir() {
+        return Err("Invalid path".to_string());
+    }
+
+    // Iterate and remove entries
+    for entry in fs::read_dir(p).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let entry_path = entry.path();
+        
+        // Preserve cover and metadata
+        if let Some(name) = entry_path.file_name().and_then(|s| s.to_str()) {
+            let n = name.to_lowercase();
+            if n.starts_with("cover") || n == "metadata.json" {
+                continue;
+            }
+        }
+
+        if entry_path.is_dir() {
+            fs::remove_dir_all(entry_path).map_err(|e| e.to_string())?;
+        } else {
+            fs::remove_file(entry_path).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -936,7 +1239,12 @@ pub fn run() {
         scrape_series_headless,
         read_file_string,
         set_manga_cover,
-        remove_manga_cover
+        remove_manga_cover,
+        generate_chapter_thumbnail,
+        list_ambient_sounds,
+        import_ambient_sound,
+        validate_chapter_contents,
+        wipe_manga_contents
     ])
     .setup(|app| {
       use tauri_plugin_cli::CliExt;

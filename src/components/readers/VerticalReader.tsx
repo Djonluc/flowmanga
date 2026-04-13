@@ -1,16 +1,41 @@
 import React, { useEffect, useRef } from 'react';
 import { useReadingStore } from '../../stores/useReadingStore';
 import { useReaderStore } from '../../stores/useReaderStore';
+import { useSettingsStore } from '../../stores/useSettingsStore';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import clsx from 'clsx';
 import { SmartImage } from '../SmartImage';
 import { motion } from 'framer-motion';
 
 export const VerticalReader = () => {
   const { images } = useReadingStore();
-  const { autoScroll, scrollSpeed, setAutoScroll, isBoosted } = useReaderStore();
+  const { autoScroll, scrollSpeed, setAutoScroll, isBoosted, imageFit, zoomLevel } = useReaderStore();
+  const { gapSize } = useSettingsStore();
   const readerRef = useRef<HTMLDivElement>(null);
   
   const actualSpeed = isBoosted ? scrollSpeed * 4 : scrollSpeed;
+
+  const getPageStyle = (): React.CSSProperties => {
+    const baseStyle: React.CSSProperties = {
+        paddingTop: `${gapSize / 2}px`,
+        paddingBottom: `${gapSize / 2}px`
+    };
+
+    if (imageFit === 'width' || imageFit === 'stretch') {
+        return { ...baseStyle, width: '100%', display: 'flex', justifyContent: 'center' };
+    }
+    return { ...baseStyle, display: 'flex', justifyContent: 'center' };
+  };
+
+  const getImageClass = () => {
+    switch (imageFit) {
+        case 'width': return "w-full h-auto object-contain";
+        case 'stretch': return "w-full h-full object-fill";
+        case 'height': return "h-screen w-auto object-contain";
+        case 'original': return "w-auto h-auto";
+        default: return "max-w-full h-auto object-contain";
+    }
+  };
   
   // V2 AUTO-SCROLL ENGINE
   useEffect(() => {
@@ -60,10 +85,21 @@ export const VerticalReader = () => {
       };
   }, [setAutoScroll]);
 
-  // Scroll to top on chapter change (Prevent infinite loop at bottom)
+  // Scroll to resumed position or top on chapter/image change
   useEffect(() => {
-      if (readerRef.current) {
-          readerRef.current.scrollTo({ top: 0, behavior: 'auto' });
+      const state = useReadingStore.getState();
+      const targetIndex = state.currentPageIndex;
+      
+      if (readerRef.current && images.length > 0) {
+          // Small delay to ensure images are in the DOM for scrolling
+          setTimeout(() => {
+              const targetEl = readerRef.current?.querySelector(`[data-index="${targetIndex}"]`);
+              if (targetEl) {
+                  targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
+              } else {
+                  readerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+              }
+          }, 100);
       }
   }, [images]);
 
@@ -104,15 +140,26 @@ export const VerticalReader = () => {
           <React.Fragment key={imagePath}>
             <motion.div
                 data-index={index}
-                className="manga-page w-full flex justify-center py-2"
+                className={clsx(
+                    "manga-page transition-all duration-500",
+                    (imageFit === 'width' || imageFit === 'stretch') ? "w-full" : "max-w-7xl px-4"
+                )}
+                style={getPageStyle()}
                 initial={{ opacity: 0 }}
                 whileInView={{ opacity: 1 }}
-                viewport={{ once: true, margin: "200px" }}
+                viewport={{ once: true, margin: "800px" }}
             >
                 <SmartImage
                     src={imagePath.startsWith('http') ? imagePath : convertFileSrc(imagePath)}
                     alt={`Page ${index + 1}`}
-                    className="max-w-full h-auto object-contain shadow-2xl transition-transform duration-700"
+                    className={clsx(
+                        getImageClass(),
+                        "shadow-2xl transition-all duration-700"
+                    )}
+                    style={{ 
+                        zoom: zoomLevel !== 100 ? `${zoomLevel}%` : undefined,
+                        transform: zoomLevel !== 100 ? `scale(${zoomLevel / 100})` : undefined
+                    }}
                 />
             </motion.div>
 

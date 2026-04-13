@@ -7,6 +7,7 @@ import { ShortcutsGuide } from './ShortcutsGuide';
 import { ShortcutsManager } from './ShortcutsManager';
 import { CommandPalette } from './CommandPalette';
 import { DownloadPanel } from './DownloadPanel';
+import { DownloadIndicator } from './DownloadIndicator';
 import { SettingsModal } from './settings/SettingsModal';
 
 interface LayoutProps {
@@ -28,6 +29,7 @@ export const Layout = ({ children, hideSidebar = false }: LayoutProps) => {
             <ShortcutsGuide />
             <ToastContainer />
             <DownloadPanel />
+            <DownloadIndicator />
             <SettingsModal />
 
             {/* V3 Layout Roots */}

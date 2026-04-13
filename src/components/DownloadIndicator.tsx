@@ -1,73 +1,93 @@
 import { useDownloadStore } from '../stores/useDownloadStore';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Download } from 'lucide-react';
-import { useState } from 'react';
-import { DownloadPanel } from './DownloadPanel';
+import { useSettingsStore } from '../stores/useSettingsStore';
+import { motion } from 'framer-motion';
+import { Download, Loader2, AlertCircle } from 'lucide-react';
 
 export const DownloadIndicator = () => {
-    const { queue, activeJobIds } = useDownloadStore();
-    const isProcessing = activeJobIds.length > 0;
-    const [isPanelOpen, setIsPanelOpen] = useState(false);
+    const { queue } = useDownloadStore();
+    const { toggleDownloadPanel } = useSettingsStore();
 
-    // Filter interesting jobs (active or queued)
-    const activeJobs = queue.filter(j => j.status === 'downloading' || j.status === 'queued');
-    const completedJobs = queue.filter(j => j.status === 'completed');
+    // Filter jobs that are currently active or were just completed (briefly)
+    const activeJobs = queue.filter(j => j.status === 'downloading');
+    const queuedJobs = queue.filter(j => j.status === 'queued');
+    const failedJobs = queue.filter(j => j.status === 'failed');
+    
+    const isActive = activeJobs.length > 0;
+    const totalCount = activeJobs.length + queuedJobs.length;
 
-    const totalActive = activeJobs.length;
-    const currentJob = queue.find(j => j.id === activeJobIds[0]);
-    
-    // Auto-hide when empty? Or show icon always?
-    // User requested "Downloads (2)" in sidebar/topbar.
-    // Let's make a floating pill or sidebar item.
-    // For now, a floating indicator bottom-right or top-right.
-    
-    if (queue.length === 0) return null;
+    if (totalCount === 0 && failedJobs.length === 0) return null;
 
     return (
-        <>
+        <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-8 right-8 z-[60]"
+        >
             <motion.button
-                layout
-                onClick={() => setIsPanelOpen(true)}
-                className="fixed top-6 right-6 z-50 flex items-center gap-3 px-4 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-full shadow-2xl hover:bg-white/20 transition-colors group"
-                initial={{ scale: 0.8, opacity: 0, y: 20 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.8, opacity: 0, y: 20 }}
+                onClick={toggleDownloadPanel}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="flex items-center gap-4 pl-4 pr-5 py-3 bg-neutral-900/80 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] group overflow-hidden relative"
             >
+                {/* Accent Glow */}
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
                 <div className="relative">
-                    <Download className={`w-5 h-5 ${isProcessing ? 'animate-bounce' : 'text-gray-400'}`} />
-                    {totalActive > 0 && (
-                        <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                            {totalActive}
-                        </span>
-                    )}
+                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center relative">
+                        {isActive ? (
+                            <Loader2 size={18} className="text-blue-500 animate-spin" />
+                        ) : failedJobs.length > 0 ? (
+                            <AlertCircle size={18} className="text-red-500" />
+                        ) : (
+                            <Download size={18} className="text-neutral-500" />
+                        )}
+                        
+                        {totalCount > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 bg-blue-500 text-white text-[9px] font-black w-4 h-4 rounded-full border-2 border-neutral-900 flex items-center justify-center">
+                                {totalCount}
+                            </span>
+                        )}
+                    </div>
                 </div>
 
-                <div className="flex flex-col items-start text-xs">
-                    {currentJob ? (
-                        <>
-                            <span className="font-bold max-w-[120px] truncate">{currentJob.title}</span>
-                            <div className="flex items-center gap-2 w-full">
-                                <div className="h-1 flex-1 bg-white/20 rounded-full w-[80px] overflow-hidden">
+                <div className="flex flex-col items-start min-w-[140px]">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500 group-hover:text-blue-400 transition-colors">
+                        {isActive ? 'Downloading' : failedJobs.length > 0 ? 'Action Required' : 'Download Queue'}
+                    </span>
+                    
+                    <div className="flex flex-col w-full gap-1 mt-0.5">
+                        {activeJobs.length > 0 ? (
+                            <>
+                                <span className="text-xs font-bold text-white max-w-[120px] truncate">
+                                    {activeJobs[0].title}
+                                </span>
+                                <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
                                     <motion.div 
-                                        className="h-full bg-blue-500"
+                                        className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
                                         initial={{ width: 0 }}
-                                        animate={{ width: `${currentJob.progress}%` }}
+                                        animate={{ width: `${activeJobs[0].progress}%` }}
+                                        transition={{ type: 'spring', damping: 20 }}
                                     />
                                 </div>
-                                <span className="opacity-70">{currentJob.progress.toFixed(0)}%</span>
-                            </div>
-                        </>
-                    ) : (
-                        <span className="font-medium text-gray-300">
-                             {completedJobs.length > 0 ? 'Downloads Complete' : 'Downloads Queued'}
-                        </span>
-                    )}
+                            </>
+                        ) : (
+                            <span className="text-xs font-medium text-neutral-300">
+                                {failedJobs.length > 0 ? `${failedJobs.length} Failed Items` : `${queuedJobs.length} Items Enqueued`}
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                {/* Status Indicator */}
+                <div className="flex items-center ml-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                    <motion.div
+                        animate={isActive ? { scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] } : {}}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                        className="w-1.5 h-1.5 rounded-full bg-blue-500"
+                    />
                 </div>
             </motion.button>
-
-            <AnimatePresence>
-                {isPanelOpen && <DownloadPanel onClose={() => setIsPanelOpen(false)} />}
-            </AnimatePresence>
-        </>
+        </motion.div>
     );
 };

@@ -14,10 +14,10 @@ root.render(
 );
 
 const init = async () => {
-  console.log('[Main] Initializing database...');
+  // console.log('[Main] Initializing database...');
   try {
     await initDatabase();
-    console.log('[Main] Database initialized.');
+    // console.log('[Main] Database initialized.');
     // Notify the app that initialisation is complete
     useSettingsStore.getState().setInitializing(false);
   } catch (err) {

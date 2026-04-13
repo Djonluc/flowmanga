@@ -8,7 +8,10 @@ interface SeriesSettings {
   speed: number;
   mode: ReaderMode;
   zoom: number;
+  imageFit: ImageFit;
 }
+
+export type ImageFit = 'width' | 'height' | 'contain' | 'original' | 'stretch';
 
 interface ReaderState {
   // Mode & Navigation
@@ -20,6 +23,7 @@ interface ReaderState {
   autoScroll: boolean;
   scrollSpeed: number; // pixels per second
   zoomLevel: number;
+  imageFit: ImageFit;
   isBoosted: boolean;
   
   // Slideshow
@@ -34,6 +38,7 @@ interface ReaderState {
   setAutoScroll: (active: boolean) => void;
   setScrollSpeed: (speed: number) => void;
   setZoomLevel: (zoom: number) => void;
+  setImageFit: (fit: ImageFit) => void;
   setSlideshowActive: (active: boolean) => void;
   setTotalPages: (total: number) => void;
   setIsBoosted: (boosted: boolean) => void;
@@ -44,8 +49,12 @@ interface ReaderState {
   saveSeriesConfig: (seriesId: string) => void;
   
   // HUD Feedback
-  feedback: { type: 'speed' | 'mode' | 'zoom', value: string } | null;
-  setFeedback: (feedback: { type: 'speed' | 'mode' | 'zoom', value: string } | null) => void;
+  feedback: { type: 'speed' | 'mode' | 'zoom' | 'fit', value: string } | null;
+  setFeedback: (feedback: { type: 'speed' | 'mode' | 'zoom' | 'fit', value: string } | null) => void;
+
+  // Adaptive UI
+  currentThemeColor: string;
+  setCurrentThemeColor: (color: string) => void;
 }
 
 export const useReaderStore = create<ReaderState>()(
@@ -57,6 +66,7 @@ export const useReaderStore = create<ReaderState>()(
       autoScroll: false,
       scrollSpeed: 40,
       zoomLevel: 100,
+      imageFit: 'width',
       isBoosted: false,
       
       slideshowActive: false,
@@ -65,12 +75,17 @@ export const useReaderStore = create<ReaderState>()(
       activeSeriesId: null,
       feedback: null,
       
+      currentThemeColor: '#000000',
+      setCurrentThemeColor: (color: string) => set({ currentThemeColor: color }),
+
       setMode: (mode) => {
           useSettingsStore.getState().setReadingMode(mode as any);
+          const defaultFit = mode === 'vertical' ? 'width' : 'contain';
           set({ 
               mode, 
               autoScroll: false, 
-              slideshowActive: false 
+              slideshowActive: false,
+              imageFit: defaultFit
           });
           const { activeSeriesId, saveSeriesConfig } = get();
           if (activeSeriesId) saveSeriesConfig(activeSeriesId);
@@ -92,6 +107,12 @@ export const useReaderStore = create<ReaderState>()(
           const { activeSeriesId, saveSeriesConfig } = get();
           if (activeSeriesId) saveSeriesConfig(activeSeriesId);
           get().setFeedback({ type: 'zoom', value: `${z}%` });
+      },
+      setImageFit: (imageFit) => {
+          set({ imageFit });
+          const { activeSeriesId, saveSeriesConfig } = get();
+          if (activeSeriesId) saveSeriesConfig(activeSeriesId);
+          get().setFeedback({ type: 'fit', value: imageFit.toUpperCase() });
       },
       setSlideshowActive: (slideshowActive) => set({ slideshowActive }),
       setTotalPages: (totalPages) => set({ totalPages }),
@@ -117,6 +138,7 @@ export const useReaderStore = create<ReaderState>()(
                   mode: config.mode,
                   scrollSpeed: config.speed,
                   zoomLevel: config.zoom,
+                  imageFit: config.imageFit || (config.mode === 'vertical' ? 'width' : 'contain'),
                   autoScroll: false
               });
           }
@@ -130,7 +152,8 @@ export const useReaderStore = create<ReaderState>()(
                   [seriesId]: {
                       mode,
                       speed: scrollSpeed,
-                      zoom: zoomLevel
+                      zoom: zoomLevel,
+                      imageFit: get().imageFit
                   }
               }
           });
@@ -141,4 +164,3 @@ export const useReaderStore = create<ReaderState>()(
     }
   )
 );
-

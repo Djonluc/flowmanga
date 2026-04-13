@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { readTextFile, writeTextFile, mkdir } from '@tauri-apps/plugin-fs';
+import { useSettingsStore } from '../stores/useSettingsStore';
 import { type DownloadJob } from '../types';
 
 export class DownloadService {
@@ -19,7 +20,7 @@ export class DownloadService {
             existingMeta = JSON.parse(content);
         } catch (e) {
             // New download or corrupted metadata, start fresh is acceptable here
-            console.log(`[Download] No existing metadata found for ${metadata.title}, creating new.`);
+            // console.log(`[Download] No existing metadata found for ${metadata.title}, creating new.`);
         }
 
         // Merge Metadata (Prefer new remote metadata but keep local overrides if we were tracking them)
@@ -34,9 +35,7 @@ export class DownloadService {
 
         // Determine Global Index from Existing
         let globalIndex = mergedMeta.totalPages || 0;
-        
-        // Tracking strictly for this job's batch
-        const newChaptersMetadata: any[] = [];
+
 
         try {
             // 3. Cover Logic
@@ -45,7 +44,8 @@ export class DownloadService {
                     const coverPath = `${mangaRoot}/cover.jpg`;
                     await invoke('download_image', {
                         url: metadata.coverUrl,
-                        filePath: coverPath 
+                        filePath: coverPath,
+                        headers: metadata.source === 'mangago.me' ? { 'Referer': metadata.sourceUrl } : null
                     });
                     mergedMeta.coverFile = 'cover.jpg';
                 } catch (e) {
@@ -53,63 +53,101 @@ export class DownloadService {
                 }
             }
 
-            // 4. Sequential Chapter Processing
-            // Sort by chapter number to ensure we append in order
-            const sortedChapters = [...chapterList].sort((a, b) => parseFloat(a.number || a.attributes?.chapter || '0') - parseFloat(b.number || b.attributes?.chapter || '0'));
+            // 4. Parallel Chapter Processing (Batched)
+            const { maxConcurrentChapters } = useSettingsStore.getState();
+            const sortedChapters = [...chapterList].sort((a, b) => 
+                parseFloat(a.number || a.attributes?.chapter || '0') - 
+                parseFloat(b.number || b.attributes?.chapter || '0')
+            );
 
-             for (const chapter of sortedChapters) {
-                // Check if chapter already exists in metadata to avoid duplicates (Idempotency)
-                const chNum = chapter.number || chapter.attributes?.chapter || '1';
-                const existingChapter = mergedMeta.chapters.find((c: any) => c.number === chNum);
+            for (let i = 0; i < sortedChapters.length; i += maxConcurrentChapters) {
+                const chunk = sortedChapters.slice(i, i + maxConcurrentChapters);
                 
-                if (existingChapter) {
-                    console.log(`[Download] Chapter ${chNum} already exists in metadata. Skipping download.`);
-                    totalDownloaded++;
-                     store.updateJobProgress(job.id, Math.min(100, Math.round((totalDownloaded / job.totalChapters) * 100)), totalDownloaded);
-                    continue; 
-                }
-
-                // Check Paused State
-                if (store.queue.find((j: any) => j.id === job.id)?.status === 'paused') {
-                    console.log(`[Download] Job ${job.id} paused.`);
-                    await this.writeMetadata(mangaRoot, mergedMeta); // Save what we have
-                    return; 
-                }
-
-                try {
-                    const startIndex = globalIndex;
+                // Phase A: Scrape/Fetch Data in parallel
+                const chapterResults = await Promise.all(chunk.map(async (chapter) => {
+                    const chNum = chapter.number || chapter.attributes?.chapter || '1';
                     
-                    const pagesCount = await this.downloadChapterFlat(chapter, mangaRoot, job.id, store);
-                    
-                    if (pagesCount > 0) {
-                        globalIndex += pagesCount;
-                        const endIndex = globalIndex - 1;
-
-                        const newChapterMeta = {
-                            number: chNum,
-                            startIndex,
-                            endIndex,
-                            fileName: `Chapter ${chNum}` // Optional friendly name
-                        };
-
-                        // Append to our working list AND the master list
-                        newChaptersMetadata.push(newChapterMeta);
-                        mergedMeta.chapters.push(newChapterMeta);
-                        mergedMeta.totalPages = globalIndex;
-
-                        // Periodically save metadata (e.g. every chapter) to prevent data loss on crash
-                        await this.writeMetadata(mangaRoot, mergedMeta);
+                    // Idempotency check (Skip if already in metadata, unless force is true OR folder is missing)
+                    const existingCh = mergedMeta.chapters.find((c: any) => c.number === chNum);
+                    if (!job.force && existingCh) {
+                        const { exists } = await import('@tauri-apps/plugin-fs');
+                        const chPath = existingCh.path || `${mangaRoot}/Ch ${chNum}`;
+                        if (await exists(chPath)) {
+                            return { skipped: true, chNum };
+                        }
+                        // console.log(`[Download] Folder missing for Ch ${chNum}, re-downloading...`);
                     }
 
-                    totalDownloaded++;
-                    
-                    // Update Progress
-                    const progress = Math.min(100, Math.round((totalDownloaded / job.totalChapters) * 100));
-                    store.updateJobProgress(job.id, progress, totalDownloaded);
-                    
-                } catch (err) {
-                    console.error(`[Download] Failed chapter ${chapter.id}`, err);
+                    try {
+                        const data = await this.fetchChapterData(chapter, metadata);
+                        return { ...data, chapter, chNum };
+                    } catch (err) {
+                        console.error(`[Download] Failed to fetch data for ch ${chNum}`, err);
+                        return { error: true, chNum };
+                    }
+                }));
+
+                // Phase B: Assign Indices Sequentially (Ensures data integrity)
+                const downloadTasks: any[] = [];
+                for (const res of chapterResults) {
+                    if ('skipped' in res || 'error' in res || !('images' in res) || !res.images || res.images.length === 0) {
+                        if ('skipped' in res) totalDownloaded++;
+                        continue;
+                    }
+
+                    const startIndex = globalIndex;
+                    globalIndex += res.images.length;
+                    const endIndex = globalIndex - 1;
+
+                    downloadTasks.push({
+                        ...res,
+                        startIndex,
+                        endIndex
+                    });
                 }
+
+                // Phase C: Download Pages in parallel
+                if (downloadTasks.length > 0) {
+                    await Promise.all(downloadTasks.map(async (task) => {
+                        // Check Paused State
+                        if (store.queue.find((j: any) => j.id === job.id)?.status === 'paused') {
+                            return;
+                        }
+
+                        try {
+                            const thumbFile = await this.downloadChapterPages(
+                                task.images, 
+                                task.chNum, 
+                                mangaRoot, 
+                                job.id, 
+                                store, 
+                                metadata
+                            );
+
+                            const newChapterMeta = {
+                                number: task.chNum,
+                                startIndex: task.startIndex,
+                                endIndex: task.endIndex,
+                                fileName: `Chapter ${task.chNum}`, 
+                                coverFile: thumbFile,
+                                sourceId: task.chapter.id || task.chapter.url
+                            };
+
+                            mergedMeta.chapters.push(newChapterMeta);
+                            mergedMeta.totalPages = globalIndex;
+                            
+                            await this.writeMetadata(mangaRoot, mergedMeta);
+                            
+                            totalDownloaded++;
+                            store.updateJobProgress(job.id, Math.min(100, Math.round((totalDownloaded / job.totalChapters) * 100)), totalDownloaded);
+                        } catch (err) {
+                            console.error(`[Download] Failed to download pages for ch ${task.chNum}`, err);
+                        }
+                    }));
+                }
+
+                // Sync progress after chunk
+                store.updateJobProgress(job.id, Math.min(100, Math.round((totalDownloaded / job.totalChapters) * 100)), totalDownloaded);
             }
 
             // 5. Finalize
@@ -121,20 +159,22 @@ export class DownloadService {
             
             // Register with Library & Notify
             import('../stores/useLibraryStore').then(async ({ useLibraryStore }) => {
-                 const { join } = await import('@tauri-apps/api/path');
-                 // Ensure we use the correct cover file from metadata
-                 const coverFile = mergedMeta.coverFile || 'cover.jpg';
-                 const absoluteCoverPath = await join(mangaRoot, coverFile);
+                  const { join } = await import('@tauri-apps/api/path');
+                  // Ensure we use the correct cover file from metadata
+                  const coverFile = mergedMeta.coverFile || 'cover.jpg';
+                  const absoluteCoverPath = await join(mangaRoot, coverFile);
 
-                 await useLibraryStore.getState().registerDownloadedSeries(
-                     { ...mergedMeta, rootPath: mangaRoot, coverPath: absoluteCoverPath }, 
-                     mergedMeta.chapters.map((ch: any) => ({
-                         id: `${mergedMeta.mangaId}-${ch.number}`,
-                         title: `Chapter ${ch.number}`,
-                         chapterNumber: parseFloat(ch.number),
-                         filePath: mangaRoot
-                     }))
-                 );
+                  await useLibraryStore.getState().registerDownloadedSeries(
+                      { ...mergedMeta, rootPath: mangaRoot, coverPath: absoluteCoverPath }, 
+                      await Promise.all(mergedMeta.chapters.map(async (ch: any) => ({
+                          id: `${mergedMeta.mangaId}-${ch.number}`,
+                          title: `Chapter ${ch.number}`,
+                          chapterNumber: parseFloat(ch.number),
+                          filePath: mangaRoot,
+                          coverPath: ch.coverFile ? await join(mangaRoot, ch.coverFile) : null,
+                          sourceId: ch.sourceId
+                      })))
+                  );
                  
                  const { emit } = await import('@tauri-apps/api/event');
                  await emit('library:updated');
@@ -146,42 +186,45 @@ export class DownloadService {
         }
     }
 
-    private static async downloadChapterFlat(chapter: any, mangaRoot: string, jobId: string, store: any): Promise<number> {
-        const chapterNum = chapter.number || chapter.attributes?.chapter || '1';
-        const chPadded = parseFloat(chapterNum).toString().split('.')[0].padStart(3, '0');
-        
-        // 1. Fetch/Prepare Pages
-        let images: { url: string; pageNumber: number }[] = [];
-        
+    private static async fetchChapterData(chapter: any, _metadata: any): Promise<{ images: any[] }> {
         if (chapter.isManual && chapter.images) {
-            images = chapter.images;
-        } else {
-            try {
-                const chapRes = await fetch(`https://api.mangadex.org/at-home/server/${chapter.id}`);
-                const atHome = await chapRes.json();
-                if (atHome.result === 'ok') {
-                    const { baseUrl, chapter: chData } = atHome;
-                    images = chData.data.map((file: string, index: number) => ({
-                        url: `${baseUrl}/data/${chData.hash}/${file}`,
-                        pageNumber: index + 1
-                    }));
-                } else {
-                    throw new Error(`Mangadex API Error: ${atHome.result}`);
-                }
-            } catch (e) {
-                console.error("Failed to fetch chapter data", e);
-                // Don't throw logic error effectively skips channel
-                return 0; 
-            }
+            return { images: chapter.images };
+        }
+        
+        const { ScraperService } = await import('./ScraperService');
+        const sourceId = chapter.sourceId || chapter.id || chapter.url;
+        
+        if (!sourceId) throw new Error("No source identifier for chapter");
+
+        const res = await ScraperService.scrapeChapter(sourceId.startsWith('http') ? sourceId : `https://mangadex.org/chapter/${sourceId}`);
+        
+        if (res.images && res.images.length > 0) {
+            return { images: res.images };
+        }
+        throw new Error("No images found for chapter");
+    }
+
+    private static async downloadChapterPages(images: any[], chapterNum: string, mangaRoot: string, jobId: string, store: any, metadata: any): Promise<string | null> {
+        const chPadded = parseFloat(chapterNum).toString().split('.')[0].padStart(3, '0');
+        const { maxConcurrentPages } = useSettingsStore.getState();
+
+        // Choose a page from the middle for the thumbnail (Skip first 3 and last 4)
+        const startOffset = 3;
+        const endOffset = 4;
+        const availableCount = images.length - startOffset - endOffset;
+        
+        let thumbIndex = Math.floor(images.length / 2); // Default to middle
+        if (availableCount > 0) {
+            thumbIndex = startOffset + Math.floor(Math.random() * availableCount);
         }
 
-        if (images.length === 0) return 0;
+        const thumbPadded = (thumbIndex + 1).toString().padStart(3, '0');
+        const thumbFileName = `ch${chPadded}_p${thumbPadded}.jpg`;
 
-        // 2. Download Pages (Concurrency: 3)
-        const concurrency = 3;
+        // 2. Download Pages (Concurrency from Settings)
         const chunks = [];
-        for (let i = 0; i < images.length; i += concurrency) {
-            chunks.push(images.slice(i, i + concurrency));
+        for (let i = 0; i < images.length; i += maxConcurrentPages) {
+            chunks.push(images.slice(i, i + maxConcurrentPages));
         }
 
         for (const chunk of chunks) {
@@ -199,14 +242,105 @@ export class DownloadService {
                     await invoke('download_image', {
                         url: img.url,
                         filePath: filePath,
+                        headers: (metadata.source !== 'mangadex' && metadata.sourceUrl) ? { 'Referer': metadata.sourceUrl } : null
                     });
+
                 } catch (e) {
                     console.error(`Failed to download ${fileName}`, e);
                 }
             }));
         }
 
-        return images.length;
+        return thumbFileName;
+    }
+
+    static async repairChapter(seriesId: string, chapterId: string) {
+        // console.log(`[Download] Repairing Chapter ${chapterId} for series ${seriesId}...`);
+        
+        const { useLibraryStore } = await import('../stores/useLibraryStore');
+        const series = useLibraryStore.getState().series.find(s => s.id === seriesId);
+        if (!series) {
+            console.error("[Download] Repair failed: Series not found in library");
+            return false;
+        }
+
+        const book = series.books.find(b => b.id === chapterId);
+        if (!book) {
+            console.error("[Download] Repair failed: Chapter not found in series");
+            return false;
+        }
+
+        const mangaRoot = series.path;
+        const metadata = {
+            source: series.source,
+            sourceUrl: series.seriesUrl,
+            mangaId: series.mangaId
+        };
+
+        const chapter = {
+            id: book.id,
+            number: book.meta.chapter || '1',
+            sourceId: book.sourceId
+        };
+        
+        // 1. Re-download the chapter
+        // We need a dummy job id or the original one. We'll use a unique repair id.
+        const repairJobId = `repair-${Date.now()}`;
+        
+        // Mock a store-like object for the downloadChapterFlat
+        const mockStore = {
+            queue: [{ id: repairJobId, status: 'running' }],
+            updateJobProgress: () => {},
+            updateJobStatus: () => {}
+        };
+
+        try {
+            const { images } = await this.fetchChapterData(chapter, metadata);
+            const thumbFile = await this.downloadChapterPages(images, chapter.number, mangaRoot, repairJobId, mockStore, metadata);
+            
+            if (images.length > 0) {
+                // Update metadata if needed (e.g. if page count changed)
+                const content = await readTextFile(`${mangaRoot}/metadata.json`);
+                const meta = JSON.parse(content);
+                
+                const chIdx = meta.chapters.findIndex((c: any) => c.number === chapter.number);
+                if (chIdx !== -1) {
+                    const ch = meta.chapters[chIdx];
+                    ch.coverFile = thumbFile || ch.coverFile;
+                    // Recalculate range if needed? 
+                    // Actually, if it's a repair, we assume indices are mostly valid but the files were bad.
+                    // If pagesCount is different, we have a bigger problem with global indices.
+                    // For now, let's just focus on fixing the files.
+                }
+                
+                await this.writeMetadata(mangaRoot, meta);
+                return true;
+            }
+        } catch (err) {
+            console.error(`[Download] Repair failed for chapter ${chapter.number}`, err);
+        }
+        return false;
+    }
+
+    static async wipeAndRedownload(seriesId: string, seriesPath: string, sourceUrl: string) {
+        // console.log(`[Download] NUCLEAR WIPE initiated for ${seriesId} at ${seriesPath}`);
+        try {
+            // 1. Wipe Disk (Preserves cover)
+            await invoke('wipe_manga_contents', { path: seriesPath });
+            
+            // 2. Clear DB
+            const { useLibraryStore } = await import('../stores/useLibraryStore');
+            await useLibraryStore.getState().deleteSeries(seriesId);
+            
+            // 3. Set Scraper URL (Frontend will handle the rest via ImportModal)
+            const { useScraperStore } = await import('../stores/useScraperStore');
+            useScraperStore.getState().setUrl(sourceUrl);
+            
+            return true;
+        } catch (err) {
+            console.error(`[Download] Nuclear Wipe failed`, err);
+            return false;
+        }
     }
 
     private static async writeMetadata(mangaRoot: string, metadata: any) {

@@ -54,15 +54,16 @@ export const FeaturedCarousel = () => {
                 >
                     {currentItem.cover ? (
                         <img 
-                            src={convertFileSrc(currentItem.cover)} 
-                            className="w-full h-full object-cover blur-sm opacity-30 scale-105" 
+                            src={currentItem.cover.startsWith('http') ? currentItem.cover : convertFileSrc(currentItem.cover)} 
+                            className="w-full h-full object-cover opacity-50 scale-100" 
                             alt="Background"
                         />
                     ) : (
                         <div className="w-full h-full bg-neutral-900" />
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/60 to-transparent" />
-                    <div className="absolute inset-0 bg-gradient-to-r from-[#0A0A0A] via-[#0A0A0A]/40 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/20 to-transparent" />
+                    <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-[#0A0A0A] to-transparent pointer-events-none" />
+                    <div className="absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-[#0A0A0A] to-transparent pointer-events-none" />
                 </motion.div>
             </AnimatePresence>
 
@@ -153,7 +154,7 @@ export const FeaturedCarousel = () => {
             </div>
 
             {/* Cover Art Spotlight (Right Side) */}
-             <div className="absolute right-32 top-1/2 -translate-y-1/2 z-0 hidden lg:block opacity-40 mix-blend-overlay pointer-events-none">
+            <div className="absolute right-32 top-1/2 -translate-y-1/2 z-0 hidden lg:block opacity-100 mix-blend-normal pointer-events-none">
                  <AnimatePresence mode="wait">
                     <motion.div
                         key={currentItem.id}
@@ -165,7 +166,7 @@ export const FeaturedCarousel = () => {
                          {currentItem.cover && (
                             <img 
                                 src={convertFileSrc(currentItem.cover)} 
-                                className="h-[600px] w-auto rounded-[40px] shadow-2xl rotate-6 grayscale contrast-125" 
+                                className="h-[600px] w-auto rounded-[40px] shadow-2xl rotate-6" 
                                 alt="Cover Art"
                             />
                         )}

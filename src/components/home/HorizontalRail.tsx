@@ -10,6 +10,7 @@ interface HorizontalRailProps {
     items: any[];
     onItemClick: (item: any) => void;
     onViewAll?: () => void;
+    onMenuClick?: (item: any, e: React.MouseEvent) => void;
     emptyMessage?: string;
     accentColor?: string;
 }
@@ -20,6 +21,7 @@ export const HorizontalRail = ({
     items, 
     onItemClick, 
     onViewAll, 
+    onMenuClick,
     emptyMessage = "No items found",
     accentColor = "text-white"
 }: HorizontalRailProps) => {
@@ -86,6 +88,7 @@ export const HorizontalRail = ({
                             <MangaCard 
                                 item={item} 
                                 onClick={() => onItemClick(item)} 
+                                onMenuClick={onMenuClick ? (e) => onMenuClick(item, e) : undefined}
                                 density="compact"
                             />
                         </motion.div>

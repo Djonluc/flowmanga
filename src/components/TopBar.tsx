@@ -6,7 +6,7 @@ import { Search, Command, LayoutGrid, SlidersHorizontal, Download } from 'lucide
 import clsx from 'clsx';
 
 export const TopBar = () => {
-    const { activeView, toggleDownloadPanel } = useSettingsStore();
+    const { activeView, toggleDownloadPanel, toggleSettings, libraryViewMode, setLibraryViewMode } = useSettingsStore();
     const { images } = useReadingStore();
     const { activeJobIds, queue } = useDownloadStore();
 
@@ -21,7 +21,12 @@ export const TopBar = () => {
         <div className="h-16 border-b border-white/5 bg-background/40 backdrop-blur-3xl flex items-center justify-between px-10 sticky top-0 z-30 no-drag">
             <div className="flex items-center gap-4">
                 <h1 className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-500 italic">
-                    {activeView === 'home' ? 'Core Dashboard' : `${activeView} Environment`.toUpperCase()}
+                    {activeView === 'home' ? 'Discover' : 
+                     activeView === 'library' ? 'My Collection' :
+                     activeView === 'videos' ? 'Screenroom' :
+                     activeView === 'history' ? 'Recents' :
+                     activeView === 'stats' ? 'Stats' :
+                     (activeView as string).toUpperCase()}
                 </h1>
             </div>
 
@@ -62,10 +67,18 @@ export const TopBar = () => {
                 <div className="h-4 w-px bg-white/10" />
 
                 <div className="flex items-center gap-2">
-                    <button className="p-2 rounded-lg hover:bg-white/5 text-neutral-400 transition-colors">
+                    <button 
+                        onClick={toggleSettings}
+                        className="p-2 rounded-lg hover:bg-white/5 text-neutral-400 hover:text-white transition-colors"
+                        title="Settings"
+                    >
                         <SlidersHorizontal size={18} />
                     </button>
-                    <button className="p-2 rounded-lg hover:bg-white/5 text-neutral-400 transition-colors">
+                    <button 
+                        onClick={() => setLibraryViewMode(libraryViewMode === 'grid' ? 'shelf' : 'grid')}
+                        className="p-2 rounded-lg hover:bg-white/5 text-neutral-400 hover:text-white transition-colors"
+                        title={`Switch to ${libraryViewMode === 'grid' ? 'Shelf' : 'Grid'} view`}
+                    >
                         <LayoutGrid size={18} />
                     </button>
                 </div>

@@ -4,48 +4,123 @@ import { ScraperService } from './ScraperService';
 import { readTextFile } from '@tauri-apps/plugin-fs';
 
 export class UpdateManager {
+    static async resolveSeriesUrl(seriesId: string): Promise<string | null> {
+        const library = useLibraryStore.getState();
+        const series = library.series.find(s => s.id === seriesId);
+        if (!series) return null;
+
+        // 1. Check Store/DB
+        let seriesUrl = series.seriesUrl;
+        let mangaId = series.mangaId;
+
+        // 2. Try to load from metadata.json on disk
+        try {
+            const content = await readTextFile(`${series.path}/metadata.json`);
+            const metadata = JSON.parse(content);
+            seriesUrl = metadata.sourceUrl || metadata.seriesUrl || metadata.source?.url || seriesUrl;
+            mangaId = metadata.mangaId || metadata.source?.mangaId || mangaId;
+        } catch (e) {
+            // Ignore missing metadata
+        }
+
+        // 3. Smart Fallbacks
+        if (seriesUrl) return seriesUrl;
+        
+        if (mangaId) {
+            if (mangaId.startsWith('http')) return mangaId;
+            if (mangaId.length === 36 || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(mangaId)) {
+                return `https://mangadex.org/title/${mangaId}`;
+            }
+        }
+
+        return null;
+    }
+
     static async checkForUpdates(seriesId: string, limit?: number) {
         const library = useLibraryStore.getState();
         const series = library.series.find(s => s.id === seriesId);
         if (!series) return 0;
 
-        console.log(`[UpdateManager] Checking updates for ${series.title}...`);
+        // console.log(`[UpdateManager] Checking updates for ${series.title}...`);
 
         try {
-            // 1. Load Metadata
-            let metadata;
+            // 1. Resolve Source Info
+            const seriesUrl = await this.resolveSeriesUrl(seriesId);
+            let mangaId = series.mangaId;
+            let provider = series.source?.toLowerCase() || 'mangadex';
+
             try {
                 const content = await readTextFile(`${series.path}/metadata.json`);
-                metadata = JSON.parse(content);
-            } catch (e) {
-                console.warn(`[UpdateManager] No metadata found for ${series.id}`);
-                return 0;
-            }
+                const metadata = JSON.parse(content);
+                mangaId = metadata.mangaId || metadata.source?.mangaId || mangaId;
+                provider = metadata.source?.provider || provider;
+            } catch (e) {}
 
-            if (!metadata.source?.mangaId || metadata.source.provider !== 'mangadex') {
-               console.log(`[UpdateManager] Skipping non-mangadex series: ${series.title}`);
-               return 0; 
+            if (!mangaId || mangaId === 'local') {
+                // If it's a URL-based series, the URL is the ID
+                if (seriesUrl?.startsWith('http')) {
+                    mangaId = seriesUrl;
+                } else {
+                    // console.log(`[UpdateManager] Skipping local series: ${series.title}`);
+                    return 0; 
+                }
             }
 
             // 2. Fetch Remote Feed
-            const remoteFeed = await ScraperService.getChapterFeed(metadata.source.mangaId);
+            let remoteFeed: any[] = [];
+            if (provider.includes('mangadex')) {
+                remoteFeed = await ScraperService.getChapterFeed(mangaId);
+            } else {
+                // For other sources, we scrape the series page again
+                let result;
+                try {
+                    result = await ScraperService.scrapeChapter(seriesUrl || mangaId);
+                } catch (e) {
+                    console.warn(`[UpdateManager] Direct scrape failed for ${series.title}, trying search fallback...`);
+                    // Fallback: Search by title if we have no valid URL or it's failing
+                    const searchResults = await ScraperService.search(series.title);
+                    const bestMatch = searchResults.find(r => 
+                        r.title.toLowerCase().includes(series.title.toLowerCase()) ||
+                        series.title.toLowerCase().includes(r.title.toLowerCase())
+                    );
+                    
+                    if (bestMatch && bestMatch.source.includes('mangadex')) {
+                         // console.log(`[UpdateManager] Restore fallback found for ${series.title}: ${bestMatch.id}`);
+                        // Update the series in DB so it doesn't fail next time
+                        const db = (await import('./db')).getDb();
+                        await db.execute('UPDATE Series SET mangaId = ?, source = ? WHERE id = ?', [bestMatch.id, 'mangadex.org', series.id]);
+                        remoteFeed = await ScraperService.getChapterFeed(bestMatch.id);
+                    } else {
+                        throw e; // Fail if search also found nothing
+                    }
+                }
+
+                if (!remoteFeed && result?.series) {
+                    remoteFeed = result.series.chapters.map(ch => ({
+                        id: ch.id,
+                        attributes: { chapter: ch.number, title: ch.title },
+                        chUrl: ch.url,
+                        source: ch.source
+                    }));
+                }
+            }
             
-            // 3. Determine Highest Local Chapter
-            const localChapters = series.books.map(b => {
-                const num = parseFloat(b.meta.chapter || '0');
-                return isNaN(num) ? 0 : num;
-            });
-            const maxLocal = Math.max(0, ...localChapters);
+            if (remoteFeed.length === 0) {
+                // console.log(`[UpdateManager] ${series.title} is up to date.`);
+                return 0;
+            }
 
-            console.log(`[UpdateManager] Max Local: ${maxLocal}. Remote Feed: ${remoteFeed.length} chapters.`);
+             // console.log(`[UpdateManager] Found ${remoteFeed.length} potential chapters, checking vs local...`);
 
-            // 4. Find Missing Chapters
+            // 3. Find Missing Chapters (All gaps, not just latest)
+            const existingChapterNums = new Set(series.books.map(b => b.meta.chapter));
+            
             let missingChapters = remoteFeed.filter(remote => {
-                const remoteNum = parseFloat(remote.attributes.chapter || '0');
-                return remoteNum > maxLocal && !isNaN(remoteNum);
+                const remoteNum = remote.attributes.chapter || '0';
+                return !existingChapterNums.has(remoteNum.toString());
             });
-
-            // Sort by chapter number ascending to get the "next" chapters
+            
+            // Sort by chapter number ascending
             missingChapters.sort((a, b) => {
                 const numA = parseFloat(a.attributes.chapter || '0');
                 const numB = parseFloat(b.attributes.chapter || '0');
@@ -61,16 +136,23 @@ export class UpdateManager {
                 return 0;
             }
 
-            console.log(`[UpdateManager] Found ${missingChapters.length} new chapters to download for ${series.title}`);
+            // console.log(`[UpdateManager] Found ${missingChapters.length} new chapters to download for ${series.title}`);
+
+            // Load metadata for the job
+            let jobMetadata = {};
+            try {
+                const content = await readTextFile(`${series.path}/metadata.json`);
+                jobMetadata = JSON.parse(content);
+            } catch (e) {}
 
             // 5. Queue Download Job
             const updateJob: any = {
-                id: `${metadata.source.mangaId}-update-${Date.now()}`,
+                id: `${mangaId}-update-${Date.now()}`,
                 title: `Update: ${series.title} (${missingChapters.length} ch)`,
                 coverUrl: series.cover || undefined,
                 totalChapters: missingChapters.length,
                 metadata: {
-                    ...metadata,
+                    ...jobMetadata,
                     lastChecked: new Date().toISOString(),
                 },
                 chapterList: missingChapters, 

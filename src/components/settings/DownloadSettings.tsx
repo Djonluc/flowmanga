@@ -6,6 +6,9 @@ export const DownloadSettings = () => {
     const { 
         downloadPath, 
         setDownloadPath, 
+        maxConcurrentJobs, setMaxConcurrentJobs,
+        maxConcurrentChapters, setMaxConcurrentChapters,
+        maxConcurrentPages, setMaxConcurrentPages
     } = useSettingsStore();
 
     const handleBrowseDownloads = async () => {
@@ -48,6 +51,72 @@ export const DownloadSettings = () => {
                     >
                         Change
                     </button>
+                </div>
+            </section>
+
+            {/* Global Concurrency */}
+            <section className="space-y-4">
+                <h4 className="text-white font-black uppercase tracking-widest text-xs border-b border-white/10 pb-2">
+                    Global Concurrency
+                </h4>
+                <div className="bg-white/5 p-6 rounded-[32px] border border-white/5 space-y-6">
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                                <span className="text-white text-xs font-bold uppercase tracking-wider">Concurrent Downloads</span>
+                                <span className="text-neutral-500 text-[10px]">How many manga can download at once.</span>
+                            </div>
+                            <span className="text-sm font-black text-purple-500 italic">{maxConcurrentJobs}</span>
+                        </div>
+                        <input 
+                            type="range" min="1" max="5" step="1"
+                            value={maxConcurrentJobs}
+                            onChange={(e) => setMaxConcurrentJobs(parseInt(e.target.value))}
+                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-purple-500"
+                        />
+                    </div>
+                </div>
+            </section>
+
+            {/* Item Concurrency */}
+            <section className="space-y-4">
+                <h4 className="text-white font-black uppercase tracking-widest text-xs border-b border-white/10 pb-2">
+                    Internal Parallelism
+                </h4>
+                <div className="bg-white/5 p-6 rounded-[32px] border border-white/5 space-y-8">
+                    {/* Chapters */}
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                                <span className="text-white text-xs font-bold uppercase tracking-wider">Parallel Chapters</span>
+                                <span className="text-neutral-500 text-[10px]">Chapters per manga processed simultaneously.</span>
+                            </div>
+                            <span className="text-sm font-black text-blue-500 italic">{maxConcurrentChapters}</span>
+                        </div>
+                        <input 
+                            type="range" min="1" max="10" step="1"
+                            value={maxConcurrentChapters}
+                            onChange={(e) => setMaxConcurrentChapters(parseInt(e.target.value))}
+                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
+                        />
+                    </div>
+
+                    {/* Pages */}
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                                <span className="text-white text-xs font-bold uppercase tracking-wider">Parallel Pages</span>
+                                <span className="text-neutral-500 text-[10px]">Images per chapter downloaded simultaneously.</span>
+                            </div>
+                            <span className="text-sm font-black text-accent italic">{maxConcurrentPages}</span>
+                        </div>
+                        <input 
+                            type="range" min="1" max="20" step="1"
+                            value={maxConcurrentPages}
+                            onChange={(e) => setMaxConcurrentPages(parseInt(e.target.value))}
+                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-accent"
+                        />
+                    </div>
                 </div>
             </section>
 

@@ -1,7 +1,8 @@
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useReadingStore } from '../stores/useReadingStore';
-import { Home, Library, FolderOpen, Activity, Settings, Zap, Film, Clock, Lock, SidebarClose, MousePointer2, ExternalLink, CheckCircle2 } from 'lucide-react';
+import { Home, Library, FolderOpen, Activity, Settings, Zap, Film, Lock, SidebarClose, MousePointer2, ExternalLink, CheckCircle2, Download } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useDownloadStore } from '../stores/useDownloadStore';
 import { useState } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
@@ -12,8 +13,10 @@ import type { SidebarMode } from '../stores/useSettingsStore';
 export const Sidebar = () => {
     const { 
         sidebarMode, setSidebarMode, activeView, setActiveView,
-        isSettingsOpen, toggleSettings
+        isSettingsOpen, toggleSettings,
+        toggleDownloadPanel
     } = useSettingsStore();
+    const { queue } = useDownloadStore();
 
     const [isHovered, setIsHovered] = useState(false);
     
@@ -22,10 +25,9 @@ export const Sidebar = () => {
 
     const navItems = [
         { icon: <Home size={20} />, label: 'Home', view: 'home' as const },
-        { icon: <Library size={20} />, label: 'Library', view: 'library' as const },
+        { icon: <Library size={20} />, label: 'My Manga', view: 'library' as const },
         { icon: <Film size={20} />, label: 'Videos', view: 'videos' as const },
-        { icon: <Clock size={20} />, label: 'History', view: 'history' as const },
-        { icon: <Activity size={20} />, label: 'Analytics', view: 'analytics' as const },
+        { icon: <Activity size={20} />, label: 'Stats', view: 'stats' as const },
     ];
 
     const cycleMode = () => {
@@ -98,7 +100,7 @@ export const Sidebar = () => {
                             FLOW<span className="text-indigo-400">MANGA</span>
                        </span>
                        <span className="text-[10px] text-neutral-500 uppercase tracking-widest font-medium leading-none mt-1">
-                            Media Engine
+                            My Reader
                        </span>
                    </motion.div>
                </div>
@@ -143,9 +145,18 @@ export const Sidebar = () => {
                     </div>
                     
                     <div className={clsx("space-y-1", !isExpanded && "flex flex-col items-center")}>
-                         <SourceItem name="MangaDex" color="bg-orange-500" expanded={isExpanded} />
-                         <SourceItem name="NamiComi" color="bg-yellow-500" expanded={isExpanded} />
-                         <SourceItem name="Coming Soon" color="bg-neutral-700" expanded={isExpanded} disabled />
+                         <SourceItem 
+                            name="MangaDex" 
+                            color="bg-[#FF6740]" 
+                            expanded={isExpanded} 
+                            onClick={() => openShell('https://mangadex.org')}
+                         />
+                         <SourceItem 
+                            name="LuaComic" 
+                            color="bg-blue-500" 
+                            expanded={isExpanded} 
+                            onClick={() => openShell('https://luacomic.org')}
+                         />
                     </div>
 
                      <NavButton 
@@ -156,6 +167,39 @@ export const Sidebar = () => {
                         className="mt-2 text-neutral-500 hover:text-white"
                     />
                 </div>
+
+                {/* Downloads Section (Conditional) */}
+                {(queue.length > 0) && (
+                    <div className="mt-6 space-y-1">
+                        <div className={clsx(
+                            "text-[10px] font-bold text-neutral-500 uppercase tracking-wider px-3 py-2 transition-opacity duration-300",
+                             isExpanded ? "opacity-100" : "opacity-0 hidden"
+                        )}>
+                            Downloads
+                        </div>
+                        <NavButton 
+                            icon={<Download size={20} className={queue.some(j => j.status === 'downloading') ? "text-blue-500" : ""} />} 
+                            label={`Downloads (${queue.length})`} 
+                            expanded={isExpanded}
+                            onClick={toggleDownloadPanel}
+                            className={queue.some(j => j.status === 'downloading') ? "text-blue-400" : ""}
+                        />
+                        {isExpanded && queue.some(j => j.status === 'downloading') && (
+                            <motion.div 
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="px-3 py-2"
+                            >
+                                <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                                    <motion.div 
+                                        className="h-full bg-blue-500"
+                                        animate={{ width: `${queue.find(j => j.status === 'downloading')?.progress || 0}%` }}
+                                    />
+                                </div>
+                            </motion.div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Bottom Actions */}
@@ -229,12 +273,15 @@ const NavButton = ({ icon, label, active, onClick, expanded, className }: { icon
     </button>
 );
 
-const SourceItem = ({ name, color, expanded, disabled }: { name: string, color: string, expanded: boolean, disabled?: boolean }) => (
-    <div className={clsx(
-        "flex items-center h-9 w-full rounded-lg transition-all duration-200 px-3 gap-3",
-        disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-white/5 cursor-pointer",
-        !expanded && "justify-center px-0"
-    )}>
+const SourceItem = ({ name, color, expanded, disabled, onClick }: { name: string, color: string, expanded: boolean, disabled?: boolean, onClick?: () => void }) => (
+    <div 
+        onClick={onClick}
+        className={clsx(
+            "flex items-center h-9 w-full rounded-lg transition-all duration-200 px-3 gap-3",
+            disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-white/5 cursor-pointer",
+            !expanded && "justify-center px-0"
+        )}
+    >
          <div className={clsx("w-2 h-2 rounded-full", color)} />
          
          <motion.div 

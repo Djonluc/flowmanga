@@ -62,7 +62,7 @@ export const CommandPalette = () => {
             { id: 'nav-library', title: 'Go to Library', icon: <BookOpen size={16} />, action: () => setActiveView('library') },
             { id: 'nav-videos', title: 'Go to Videos', icon: <Film size={16} />, action: () => setActiveView('videos') },
             { id: 'nav-history', title: 'Go to History', icon: <History size={16} />, action: () => setActiveView('history') },
-            { id: 'nav-analytics', title: 'Go to Analytics', icon: <Activity size={16} />, action: () => setActiveView('analytics') },
+            { id: 'nav-stats', title: 'Go to Stats', icon: <Activity size={16} />, action: () => setActiveView('stats') },
         ];
 
         views.forEach(v => {

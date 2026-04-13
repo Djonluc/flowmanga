@@ -20,10 +20,14 @@ export interface Book {
     currentPage: number;
     totalPages: number;
   };
+  totalPages?: number;
+  sourceId?: string; // Original UUID or URL
 }
 
 export interface Series {
   id: string;
+  mangaId?: string; // Cross-source identifier
+  seriesUrl?: string; // Original scraping URL
   title: string;
   path: string;
   displayName: string;
@@ -44,6 +48,7 @@ interface LibraryState {
   
   // Library State
   searchQuery: string;
+  filterTags: string[];
   filterGenre: string | null;
   filterStatus: string | null;
   filterSource: string | null;
@@ -51,6 +56,8 @@ interface LibraryState {
 
   setSearchQuery: (query: string) => void;
   setFilterGenre: (genre: string | null) => void;
+  toggleFilterTag: (tag: string) => void;
+  clearFilterTags: () => void;
   setFilterStatus: (status: string | null) => void;
   setFilterSource: (source: string | null) => void;
   setSelectedSeriesId: (id: string | null) => void;
@@ -63,11 +70,14 @@ interface LibraryState {
   updateReadingProgress: (seriesId: string, chapterId: string, page: number) => Promise<void>;
   updateTags: (seriesId: string, tags: string[]) => Promise<void>;
   renameSeries: (seriesId: string, newTitle: string) => Promise<void>;
-  deleteSeries: (seriesId: string) => Promise<void>;
+  deleteSeries: (seriesId: string, path?: string) => Promise<void>;
   setSeriesCover: (seriesId: string, sourcePath: string) => Promise<void>;
   removeSeriesCover: (seriesId: string) => Promise<void>;
   registerDownloadedSeries: (metadata: any, chapters: any[]) => Promise<void>;
   scanLibrary: (path?: string) => Promise<void>;
+  refreshMangaMetadata: (seriesId: string) => Promise<void>;
+  refreshChapterThumbnails: (seriesId: string) => Promise<void>;
+  bulkRefreshMetadata: () => Promise<void>;
 }
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
@@ -76,18 +86,28 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   isLoading: false,
 
   searchQuery: '',
+  filterTags: [],
   filterGenre: null,
   filterStatus: null,
   filterSource: null,
 
   setSearchQuery: (q) => set({ searchQuery: q }),
   setFilterGenre: (g) => set({ filterGenre: g }),
+  toggleFilterTag: (tag) => {
+    const { filterTags } = get();
+    if (filterTags.includes(tag)) {
+        set({ filterTags: filterTags.filter(t => t !== tag) });
+    } else {
+        set({ filterTags: [...filterTags, tag] });
+    }
+  },
+  clearFilterTags: () => set({ filterTags: [] }),
   setFilterStatus: (s) => set({ filterStatus: s }),
   setFilterSource: (src) => set({ filterSource: src }),
 
   loadFromDb: async () => {
     const db = getDb();
-    const series = await db.select<any[]>('SELECT * FROM Series WHERE type = "manga"');
+    const series = await db.select<any[]>('SELECT * FROM Series WHERE type = "manga" ORDER BY updatedAt DESC');
     const enrichedSeries: Series[] = [];
 
     for (const s of series) {
@@ -108,6 +128,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         description: s.description,
         tags: s.tags ? s.tags.split(',').filter((t: string) => t) : [],
         source: s.source,
+        mangaId: s.mangaId,
+        seriesUrl: s.seriesUrl,
         createdAt: s.createdAt,
         updatedAt: s.updatedAt,
         books: chapters.map(c => ({
@@ -115,12 +137,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
           seriesId: s.id,
           path: c.filePath,
           title: c.title,
-          cover: s.coverPath,
+          cover: c.coverPath || s.coverPath,
           meta: { series: s.title, chapter: c.chapterNumber.toString() },
           progress: c.currentPage !== null ? {
             currentPage: c.currentPage,
             totalPages: c.totalPages || c.savedTotalPages || 0
-          } : undefined
+          } : undefined,
+          totalPages: c.totalPages || 0,
+          sourceId: c.sourceId
         }))
       });
     }
@@ -158,8 +182,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         const chapters: any[] = await invoke('scan_chapters', { path: m.file_path, seriesId: m.id });
         for (const c of chapters) {
             await db.execute(
-              'INSERT OR IGNORE INTO Chapters (id, seriesId, title, chapterNumber, filePath) VALUES (?, ?, ?, ?, ?)',
-              [c.id, m.id, c.title, c.chapter_number, c.file_path]
+              'INSERT OR IGNORE INTO Chapters (id, seriesId, title, chapterNumber, filePath, coverPath, totalPages) VALUES (?, ?, ?, ?, ?, ?, ?)',
+              [c.id, m.id, c.title, c.chapter_number, c.file_path, c.cover_path || null, c.pages || 0]
             );
         }
       }
@@ -174,9 +198,11 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   updateReadingProgress: async (seriesId, chapterId, page) => {
     const db = getDb();
     await db.execute(
-      'INSERT OR REPLACE INTO ReadingProgress (id, seriesId, chapterId, currentPage) VALUES (?, ?, ?, ?)',
+      'INSERT OR REPLACE INTO ReadingProgress (id, seriesId, chapterId, currentPage, lastReadAt) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
       [`${seriesId}-${chapterId}`, seriesId, chapterId, page]
     );
+    // Touch the series updatedAt to bring it to the top of the library
+    await db.execute('UPDATE Series SET updatedAt = CURRENT_TIMESTAMP WHERE id = ?', [seriesId]);
   },
 
   updateTags: async (seriesId, tags) => {
@@ -192,12 +218,40 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       await get().loadFromDb();
   },
 
-  deleteSeries: async (seriesId) => {
+  deleteSeries: async (seriesId, path) => {
       const db = getDb();
-      // CASCADE should handle Chapters and ReadingProgress if setup correctly, 
-      // but we'll be explicit or rely on the established CASCADE.
-      await db.execute('DELETE FROM Series WHERE id = ?', [seriesId]);
-      await get().loadFromDb();
+      try {
+        // Use path as fallback when id is null (SQLite TEXT PK allows nulls)
+        const whereClause = seriesId ? 'id = ?' : 'path = ?';
+        const whereParam = seriesId || path;
+        if (!whereParam) {
+          throw new Error('Cannot delete series: both id and path are null');
+        }
+
+        // Look up the seriesId by path if needed, for child record cleanup
+        let resolvedId = seriesId;
+        if (!resolvedId && path) {
+          const rows = await db.select<any[]>('SELECT id FROM Series WHERE path = ?', [path]);
+          resolvedId = rows.length > 0 ? rows[0].id : null;
+        }
+
+        // Explicitly delete child records (handles both null-id and normal cases)
+        if (resolvedId) {
+          await db.execute('DELETE FROM ReadingProgress WHERE seriesId = ?', [resolvedId]);
+          await db.execute('DELETE FROM Chapters WHERE seriesId = ?', [resolvedId]);
+        } else {
+          // For null-id series, find chapters by joining on the series path
+          await db.execute(`DELETE FROM ReadingProgress WHERE seriesId IN (SELECT id FROM Series WHERE ${whereClause})`, [whereParam]);
+          await db.execute(`DELETE FROM Chapters WHERE seriesId IN (SELECT id FROM Series WHERE ${whereClause})`, [whereParam]);
+        }
+
+        await db.execute(`DELETE FROM Series WHERE ${whereClause}`, [whereParam]);
+        // console.log('[LibraryStore] Successfully deleted series:', whereParam);
+        await get().loadFromDb();
+      } catch (err) {
+        console.error('[LibraryStore] Failed to delete series:', err);
+        throw err;
+      }
   },
 
   setSeriesCover: async (seriesId, sourcePath) => {
@@ -251,27 +305,33 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   registerDownloadedSeries: async (metadata: any, chapters: any[]) => {
       const db = getDb();
       try {
-          // 1. Insert/Update Series
+          // 1. Insert/Update Series (Avoid REPLACE to prevent cascade delete of chapters)
           await db.execute(
-            'INSERT OR REPLACE INTO Series (id, title, path, author, type, coverPath, source, tags, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT OR IGNORE INTO Series (id, title, path, type, source) VALUES (?, ?, ?, ?, ?)',
+            [metadata.mangaId, metadata.title, metadata.rootPath, 'manga', metadata.source || 'mangadex']
+          );
+
+          await db.execute(
+            'UPDATE Series SET title = ?, path = ?, author = ?, coverPath = ?, source = ?, tags = ?, description = ?, seriesUrl = ?, mangaId = ? WHERE id = ?',
             [
-                metadata.mangaId, 
                 metadata.title, 
                 metadata.rootPath, 
                 metadata.author || '', 
-                'manga', 
                 metadata.coverPath, 
-                'mangadex', 
+                metadata.source || 'mangadex', 
                 (metadata.tags || []).join(','), 
-                metadata.description || ''
+                metadata.description || '',
+                metadata.sourceUrl || metadata.seriesUrl || '',
+                metadata.mangaId,
+                metadata.mangaId
             ]
           );
 
           // 2. Insert Chapters
           for (const c of chapters) {
               await db.execute(
-                'INSERT OR IGNORE INTO Chapters (id, seriesId, title, chapterNumber, filePath) VALUES (?, ?, ?, ?, ?)',
-                [c.id, metadata.mangaId, c.title, c.chapterNumber, c.filePath]
+                'INSERT OR REPLACE INTO Chapters (id, seriesId, title, chapterNumber, filePath, coverPath, sourceId, totalPages) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [c.id, metadata.mangaId, c.title, c.chapterNumber, c.filePath, c.coverPath || null, c.sourceId || null, c.totalPages || 0]
               );
           }
           
@@ -292,6 +352,128 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
                 await get().addMangaFolder(libraryPath);
             }
         }
+  },
+
+  refreshMangaMetadata: async (seriesId) => {
+    const series = get().series.find(s => s.id === seriesId);
+    if (!series || !series.mangaId || series.mangaId === 'local') return;
+
+    try {
+        const { ScraperService } = await import('../services/ScraperService');
+        const db = getDb();
+        let details: any = null;
+        let sourceName = 'mangadex';
+
+        if (series.mangaId.length === 36) {
+            // MangaDex
+            details = await ScraperService.getMangaDetails(series.mangaId);
+            sourceName = 'mangadex';
+        } else if (series.mangaId.startsWith('http')) {
+            // URL-based (LuaComic, Headless, etc.)
+            const result = await ScraperService.scrapeChapter(series.mangaId);
+            if (result.series) {
+                details = {
+                    title: result.series.title,
+                    description: result.series.description,
+                    author: '', // We don't usually scrape author from generic series yet
+                    tags: result.series.tags || [],
+                    coverUrl: result.series.coverUrl
+                };
+                sourceName = result.series.source || 'scraped';
+            } else if (result.metadata) {
+                details = {
+                    title: result.metadata.title || series.title,
+                    description: result.metadata.description || '',
+                    author: result.metadata.author || '',
+                    tags: result.metadata.tags || [],
+                    coverUrl: result.metadata.coverUrl
+                };
+            }
+        }
+
+        if (details) {
+            // Normalize tags
+            const tags = Array.from(new Set([
+                ...(series.tags || []),
+                ...(details.tags || [])
+            ])).filter(t => t).join(',');
+
+            await db.execute(
+                'UPDATE Series SET title = ?, description = ?, author = ?, tags = ?, coverPath = ? WHERE id = ?',
+                [
+                    details.title,
+                    details.description,
+                    details.author || series.author || '',
+                    tags,
+                    details.coverUrl || series.cover,
+                    seriesId
+                ]
+            );
+
+            // Also update local metadata.json if it exists
+            const { writeTextFile, exists } = await import('@tauri-apps/plugin-fs');
+            const metaPath = `${series.path}/metadata.json`;
+            if (await exists(metaPath)) {
+                const newMeta = {
+                    title: details.title,
+                    description: details.description,
+                    author: details.author || series.author || '',
+                    tags: tags.split(','),
+                    mangaId: series.mangaId,
+                    coverFile: 'cover.jpg',
+                    source: sourceName,
+                    version: 3.0
+                };
+                await writeTextFile(metaPath, JSON.stringify(newMeta, null, 2));
+            }
+
+            // Also try to generate thumbnails if missing
+            await get().refreshChapterThumbnails(seriesId);
+            await get().loadFromDb();
+        }
+    } catch (err) {
+        console.error('[LibraryStore] Failed to refresh metadata:', err);
+    }
+  },
+
+  refreshChapterThumbnails: async (seriesId) => {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const series = get().series.find(s => s.id === seriesId);
+      if (!series) return;
+
+      const db = getDb();
+      for (const book of series.books) {
+          // If cover is just the series cover, it's effectively "missing" a per-chapter one
+          if (!book.cover || book.cover === series.cover) {
+              try {
+                  // Reuse the same logic as DownloadService but via Rust backend directly for efficiency
+                  const newThumb: string = await invoke('generate_chapter_thumbnail', { 
+                      chapterPath: book.path, 
+                      seriesPath: series.path 
+                  });
+                  
+                  if (newThumb) {
+                      await db.execute('UPDATE Chapters SET coverPath = ? WHERE id = ?', [newThumb, book.id]);
+                  }
+              } catch (e) {
+                  console.warn(`[LibraryStore] Failed to generate thumbnail for ${book.title}`, e);
+              }
+          }
+      }
+  },
+
+  bulkRefreshMetadata: async () => {
+      set({ isLoading: true });
+      const allSeries = get().series;
+      for (const s of allSeries) {
+          if (s.mangaId && (s.mangaId.length === 36 || s.mangaId.startsWith('http'))) {
+              await get().refreshMangaMetadata(s.id);
+          } else {
+              // Local only updates
+              await get().refreshChapterThumbnails(s.id);
+          }
+      }
+      set({ isLoading: false });
   },
 
   // Navigation State

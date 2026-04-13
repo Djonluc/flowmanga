@@ -21,13 +21,18 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
       downloadPath, failedCount, metadata, chapterFeed, selectedChapterKeys, setSelectedChapters
   } = useScraperStore();
 
-  // Reset store when modal opens/closes
+  // Reset store when modal opens/closes, or trigger scrape if prefilled
   useEffect(() => {
-      if (!isOpen) {
-          setMode('choose');
-          setLocalUrl('');
-          reset();
+    if (isOpen) {
+      if (useScraperStore.getState().url) {
+        setMode('web');
+        scrape();
       }
+    } else {
+        setMode('choose');
+        setLocalUrl('');
+        reset();
+    }
   }, [isOpen]);
 
   const handleWebSubmit = async (e: React.FormEvent) => {
@@ -45,8 +50,15 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
   };
   
   const handleDownload = async () => {
-      await download();
-      if (!useScraperStore.getState().error) {
+      const result = await download();
+      
+      if (result === 'prompted') {
+          // Immediately close this modal so the SafetyCheckModal is focused and clean
+          onClose();
+          return;
+      }
+
+      if (result === 'started' && !useScraperStore.getState().error) {
            setTimeout(() => {
                onClose();
            }, 2000);
@@ -111,7 +123,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                     <Globe size={18} className="text-blue-400" />
                   </div>
                   <h2 className="text-xl font-black text-white italic tracking-tighter uppercase">
-                    {mode === 'choose' ? 'Import Manga' : 'Web Scraper v3'}
+                    {mode === 'choose' ? 'Add Manga' : 'Online Link'}
                   </h2>
                 </div>
                 <button
@@ -151,7 +163,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                           <Globe size={28} className="text-purple-400" />
                         </div>
                         <h3 className="font-bold text-white text-lg">Online Link</h3>
-                        <p className="text-sm text-neutral-500 leading-relaxed">Scrape MangaDex, NamiComi & Official sites</p>
+                        <p className="text-sm text-neutral-500 leading-relaxed">Scrape MangaDex & Official digital sources</p>
                       </button>
                     </div>
                   </div>
@@ -165,7 +177,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                 type="text"
                                 value={localUrl}
                                 onChange={(e) => setLocalUrl(e.target.value)}
-                                placeholder="Paste MangaDex / NamiComi link here..."
+                                placeholder="Paste MangaDex link here..."
                                 autoFocus
                                 className="w-full px-5 py-4 bg-black/40 border border-white/10 rounded-xl text-white placeholder-neutral-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-medium"
                             />
@@ -196,7 +208,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                               disabled={!localUrl.trim()}
                               className="flex-[2] px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:shadow-[0_0_20px_rgba(37,99,235,0.4)] disabled:opacity-50 disabled:cursor-not-allowed transition-all font-black uppercase tracking-widest text-sm"
                               >
-                              Analyze Source
+                              Check Link
                               </button>
                           </div>
                         </form>
@@ -209,8 +221,8 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                       <Globe size={24} className="absolute inset-0 m-auto text-white animate-pulse" />
                                     </div>
                                     <div className="space-y-2">
-                                      <p className="text-xl font-black text-white italic tracking-tighter uppercase">Initializing Engine</p>
-                                      <p className="text-neutral-500 text-sm">Bypassing restrictions and fetching full feed...</p>
+                                      <p className="text-xl font-black text-white italic tracking-tighter uppercase">Searching...</p>
+                                      <p className="text-neutral-500 text-sm">Getting things ready...</p>
                                     </div>
                                 </div>
                             )}
@@ -371,7 +383,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                           <span>
                                             {selectedChapterKeys.length > 1 
                                               ? `Download ${selectedChapterKeys.length} Chapters` 
-                                              : 'Initialize Download'}
+                                              : 'Start Download'}
                                           </span>
                                       </button>
                                       
@@ -380,7 +392,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                             Start Over
                                         </button>
                                         <span className="text-neutral-800">|</span>
-                                        <p className="text-[10px] text-neutral-600 font-medium">Automatic Folder Naming & Metadata Attachment Enabled</p>
+                                         <p className="text-[10px] text-neutral-600 font-medium">Auto-naming and tags enabled</p>
                                       </div>
                                     </div>
                                 </div>
@@ -391,8 +403,8 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                     <div className="space-y-4">
                                         <div className="flex justify-between items-end">
                                             <div className="space-y-1">
-                                              <p className="text-xs font-black text-blue-400 uppercase tracking-widest">Process Active</p>
-                                              <h3 className="text-2xl font-black text-white italic tracking-tighter uppercase leading-none">Downloading Library</h3>
+                                              <p className="text-xs font-black text-blue-400 uppercase tracking-widest">In Progress</p>
+                                              <h3 className="text-2xl font-black text-white italic tracking-tighter uppercase leading-none">Downloading</h3>
                                             </div>
                                             <span className="text-4xl font-black text-white italic">{Math.round(progress)}%</span>
                                         </div>

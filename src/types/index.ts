@@ -10,4 +10,5 @@ export interface DownloadJob {
     metadata: any; 
     chapterList: any[]; // List of chapters to download
     path: string; // Destination path
+    force?: boolean; // If true, ignore skip checks
 }

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useScraperStore } from '../stores/useScraperStore';
 import { useLibraryStore } from '../stores/useLibraryStore';
 import { useReadingStore } from '../stores/useReadingStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
-import { FolderOpen, PlusCircle, LayoutGrid, Library as LibraryIcon, Tag, Edit2, Trash2, X } from 'lucide-react';
+import { FolderOpen, PlusCircle, LayoutGrid, Library as LibraryIcon, Tag, Edit2, Trash2, X, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShelfView } from './library/ShelfView';
 import { GridView } from './library/GridView';
@@ -11,6 +12,7 @@ import { toast } from './Toast';
 import { InputModal } from './InputModal';
 import { ImportModal } from './ImportModal';
 import { MangaDetails } from './library/MangaDetails';
+import { ScraperService } from '../services/ScraperService';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import clsx from 'clsx';
 import type { Series } from '../stores/useLibraryStore';
@@ -19,12 +21,13 @@ import { DeleteConfirmModal } from './library/DeleteConfirmModal';
 export const LibraryGrid = () => {
     const { 
         series, addMangaFolder, loadFromDb, isLoading, setLoading,
-        searchQuery, filterGenre, filterStatus, filterSource,
+        searchQuery, filterGenre, filterTags, filterSource,
         selectedSeriesId,
-        setSearchQuery, setFilterGenre, setFilterSource, setSelectedSeriesId,
-        renameSeries, deleteSeries
+        setSearchQuery, setFilterGenre, toggleFilterTag, clearFilterTags, setFilterSource, setSelectedSeriesId,
+        renameSeries, deleteSeries, refreshMangaMetadata, bulkRefreshMetadata
     } = useLibraryStore();
     
+    const { setUrl, setAutoOpenModal, autoOpenModal } = useScraperStore();
     const { openFolder } = useReadingStore();
     const { libraryViewMode, libraryDensity, setLibraryViewMode, setLibraryDensity } = useSettingsStore();
 
@@ -36,11 +39,43 @@ export const LibraryGrid = () => {
     const [tagManagerItem, setTagManagerItem] = useState<{ id: string, tags: string[] } | null>(null);
     const [renameItem, setRenameItem] = useState<{ id: string, title: string } | null>(null);
     const [activeMenu, setActiveMenu] = useState<{ x: number, y: number, item: any } | null>(null);
-    const [deleteModalItem, setDeleteModalItem] = useState<{ id: string, title: string, count: number, isSeries: boolean } | null>(null);
+    const [deleteModalItem, setDeleteModalItem] = useState<{ id: string, path: string, title: string, count: number, isSeries: boolean } | null>(null);
+
+    // External Recommendations
+    const [externalResults, setExternalResults] = useState<any[]>([]);
+    const [isSearchingExternal, setIsSearchingExternal] = useState(false);
+
+    useEffect(() => {
+        if (filterTags.length > 0) {
+            const fetchExternal = async () => {
+                setIsSearchingExternal(true);
+                try {
+                    const results = await ScraperService.searchByTags(filterTags, 12);
+                    // Filter out what's already in library (by title or ID if available)
+                    const filtered = results.filter(ext => !series.some(s => s.mangaId === ext.id || s.title.toLowerCase() === ext.title.toLowerCase()));
+                    setExternalResults(filtered);
+                } catch (e) {
+                    console.error("Failed to fetch external recommendations", e);
+                } finally {
+                    setIsSearchingExternal(false);
+                }
+            };
+            fetchExternal();
+        } else {
+            setExternalResults([]);
+        }
+    }, [filterTags, series]);
 
     useEffect(() => {
         loadFromDb();
     }, [loadFromDb]);
+
+    useEffect(() => {
+        if (autoOpenModal) {
+            setShowImportModal(true);
+            setAutoOpenModal(false);
+        }
+    }, [autoOpenModal, setAutoOpenModal]);
 
     // --- Filtering Logic ---
     const getFilteredItems = () => {
@@ -58,26 +93,32 @@ export const LibraryGrid = () => {
             const matchesSearch = s.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                                   (s.author && s.author.toLowerCase().includes(searchQuery.toLowerCase()));
             
-            const matchesGenre = !filterGenre || (s.tags && s.tags.includes(filterGenre));
+            // Multi-tag filtering: series must have ALL selected tags
+            const matchesTags = filterTags.length === 0 || filterTags.every(tag => s.tags && s.tags.includes(tag));
             const matchesSource = !filterSource || s.source === filterSource;
             
-            return matchesSearch && matchesGenre && matchesSource;
+            return matchesSearch && matchesTags && matchesSource;
         });
     };
 
     const displayItems = getFilteredItems();
     const allTags = Array.from(new Set(series.flatMap(s => s.tags || []))).sort();
 
-    const handleAction = async (action: 'tag' | 'rename' | 'delete', item: any) => {
+    const handleAction = async (action: 'tag' | 'rename' | 'delete' | 'refresh', item: any) => {
         setActiveMenu(null);
         if (action === 'tag') {
             setTagManagerItem({ id: item.id, tags: item.tags || [] });
         } else if (action === 'rename') {
             setRenameItem({ id: item.id, title: item.title });
+        } else if (action === 'refresh') {
+            toast.info(`Refreshing metadata for ${item.title}...`);
+            await refreshMangaMetadata(item.id);
+            toast.success('Metadata updated');
         } else if (action === 'delete') {
             const isSeries = 'books' in item;
             setDeleteModalItem({
                 id: item.id,
+                path: item.path,
                 title: item.title,
                 count: isSeries ? item.books.length : 1,
                 isSeries
@@ -85,7 +126,7 @@ export const LibraryGrid = () => {
         }
     };
 
-    const handleMenuClick = (item: any, action?: 'rename' | 'delete' | 'tag', e?: React.MouseEvent) => {
+    const handleMenuClick = (item: any, action?: 'rename' | 'delete' | 'tag' | 'refresh', e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
         if (action) {
             handleAction(action, item);
@@ -135,14 +176,12 @@ export const LibraryGrid = () => {
     };
 
     const handleOpenBook = async (book: any) => {
-        console.log('[Tauri] Opening book at path:', book.path);
+        // console.log('[Tauri] Opening book at path:', book.path);
         await openFolder(book.path, book.seriesId, book.id); 
     };
 
     return (
         <div className="h-full relative overflow-hidden">
-            {/* ... existing render ... */}
-            
             <AnimatePresence mode="wait">
                 {selectedSeriesId ? (
                     <MangaDetails 
@@ -165,17 +204,17 @@ export const LibraryGrid = () => {
                             <EmptyState onImport={setShowImportModal} onLink={handleSelectLibrary} />
                         ) : (
                             <div 
-                                className="h-full p-4 overflow-hidden flex flex-col relative"
+                                className="h-full p-4 overflow-y-auto no-scrollbar flex flex-col relative"
                                 onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
                             >
                                 {isDragging && <DragOverlay />}
 
                                 {/* HEADER & TOOLBAR */}
-                                <div className="flex flex-col gap-6 mb-4 px-4 pt-2 z-10">
+                                <div className="flex flex-col gap-6 mb-4 px-4 pt-2 z-10 shrink-0">
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <h2 className="text-4xl font-black tracking-tighter text-white leading-none uppercase italic">
-                                                My <span className="text-accent">Archive</span>
+                                                My <span className="text-accent">Library</span>
                                             </h2>
                                             <div className="flex items-center gap-2 mt-2">
                                                  <p className="text-neutral-500 font-bold text-[10px] uppercase tracking-[0.2em]">
@@ -216,6 +255,19 @@ export const LibraryGrid = () => {
                                             </div>
 
                                             <button 
+                                                onClick={async () => {
+                                                    toast.info('Refreshing all MangaDex metadata...');
+                                                    await bulkRefreshMetadata();
+                                                    toast.success('Library metadata sync complete');
+                                                }}
+                                                className="h-[40px] px-4 bg-accent/10 text-accent hover:bg-accent/20 border border-accent/20 rounded-[12px] text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-accent/5"
+                                                title="Refresh all metadata from MangaDex"
+                                            >
+                                                <Sparkles size={16} />
+                                                <span className="hidden md:inline">Refresh All</span>
+                                            </button>
+
+                                            <button 
                                                 onClick={() => setShowImportModal(true)}
                                                 className="h-[40px] px-6 bg-white text-black hover:bg-neutral-200 rounded-[12px] text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-white/5"
                                             >
@@ -228,28 +280,38 @@ export const LibraryGrid = () => {
                                     {/* FILTER BAR using Store State */}
                                     <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2">
                                         {/* Reset */}
-                                        {(filterGenre || searchQuery) && (
+                                        {(filterGenre || searchQuery || filterTags.length > 0) && (
                                             <button
-                                                onClick={() => { setFilterGenre(null); setSearchQuery(''); }}
+                                                onClick={() => { setFilterGenre(null); setSearchQuery(''); clearFilterTags(); }}
                                                 className="flex-shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center gap-1"
                                             >
                                                 <X size={12} /> Clear
                                             </button>
                                         )}
 
-                                        {/* Genres */}
+                                        {/* Selected Tags Pills */}
+                                        {filterTags.length > 0 && (
+                                            <div className="flex items-center gap-2 px-2 border-l border-white/10">
+                                                {filterTags.map(tag => (
+                                                    <button
+                                                        key={`selected-${tag}`}
+                                                        onClick={() => toggleFilterTag(tag)}
+                                                        className="flex-shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-accent border border-accent text-white shadow-lg shadow-accent/20 flex items-center gap-1"
+                                                    >
+                                                        {tag} <X size={10} />
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Tag Suggestions */}
                                         <div className="flex items-center gap-2 px-2 border-l border-white/10">
-                                            <span className="text-[10px] text-neutral-600 font-bold uppercase mr-1">Tags</span>
-                                            {allTags.slice(0, 8).map(tag => (
+                                            <span className="text-[10px] text-neutral-600 font-bold uppercase mr-1">Browse Tags</span>
+                                            {allTags.filter(t => !filterTags.includes(t)).slice(0, 10).map(tag => (
                                                 <button
                                                     key={tag}
-                                                    onClick={() => setFilterGenre(filterGenre === tag ? null : tag)}
-                                                    className={clsx(
-                                                        "flex-shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border",
-                                                        filterGenre === tag 
-                                                            ? "bg-accent border-accent text-white shadow-lg shadow-accent/20" 
-                                                            : "bg-white/5 border-white/5 text-neutral-500 hover:text-white hover:bg-white/10"
-                                                    )}
+                                                    onClick={() => toggleFilterTag(tag)}
+                                                    className="flex-shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/5 border border-white/5 text-neutral-500 hover:text-white hover:bg-white/10 transition-all"
                                                 >
                                                     {tag}
                                                 </button>
@@ -264,7 +326,7 @@ export const LibraryGrid = () => {
                                                     key={src}
                                                     onClick={() => setFilterSource(filterSource === src ? null : src)}
                                                     className={clsx(
-                                                        "flex-shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border",
+                                                        "flex-shrink-0 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border",
                                                         filterSource === src 
                                                             ? "bg-purple-500 border-purple-500 text-white shadow-lg shadow-purple-500/20" 
                                                             : "bg-white/5 border-white/5 text-neutral-500 hover:text-white hover:bg-white/10"
@@ -277,7 +339,7 @@ export const LibraryGrid = () => {
                                     </div>
                                 </div>
 
-                                <div className="flex-1 relative min-h-0">
+                                <div className="flex-1 min-h-0">
                                     {isLoading ? (
                                         <LoadingDisplay />
                                     ) : displayItems.length === 0 ? (
@@ -293,6 +355,57 @@ export const LibraryGrid = () => {
                                         />
                                     )}
                                 </div>
+
+                                {/* MangaDex Recommendations */}
+                                {filterTags.length > 0 && externalResults.length > 0 && (
+                                    <div className="mt-12 space-y-6 shrink-0">
+                                        <div className="flex items-center gap-4 px-4">
+                                            <div className="flex flex-col">
+                                                <h3 className="text-xl font-black text-white uppercase italic tracking-tight">
+                                                    Discover on <span className="text-accent underline decoration-accent/30 underline-offset-4">MangaDex</span>
+                                                </h3>
+                                                <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mt-1">
+                                                    Matching your active tags: {filterTags.join(', ')}
+                                                </p>
+                                            </div>
+                                            <div className="h-px flex-1 bg-white/5" />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6 px-4 pb-20">
+                                            {externalResults.map((item) => (
+                                                <motion.button
+                                                    key={item.id}
+                                                    initial={{ opacity: 0, y: 20 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    onClick={() => {
+                                                        setUrl(`https://mangadex.org/title/${item.id}`);
+                                                        setAutoOpenModal(true);
+                                                    }}
+                                                    className="group relative flex flex-col gap-3 text-left"
+                                                >
+                                                    <div className="aspect-[2/3] rounded-2xl overflow-hidden bg-white/5 border border-white/10 group-hover:border-accent/50 transition-all shadow-lg group-hover:shadow-accent/10 relative">
+                                                        {item.coverUrl ? (
+                                                            <img src={item.coverUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-60 group-hover:opacity-100" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                <Sparkles size={24} className="text-neutral-700" />
+                                                            </div>
+                                                        )}
+                                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
+                                                    </div>
+                                                    <div className="px-1">
+                                                        <h4 className="text-xs font-black text-white uppercase italic line-clamp-1 group-hover:text-accent transition-colors">
+                                                            {item.title}
+                                                        </h4>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className="text-[8px] font-bold text-neutral-500 uppercase tracking-widest">External Source</span>
+                                                        </div>
+                                                    </div>
+                                                </motion.button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </motion.div>
@@ -335,9 +448,10 @@ export const LibraryGrid = () => {
                 onConfirm={async () => {
                     if (deleteModalItem) {
                         try {
-                            await deleteSeries(deleteModalItem.id);
+                            await deleteSeries(deleteModalItem.id, deleteModalItem.path);
                             toast.success('Deleted successfully');
                         } catch (e) {
+                            console.error('[LibraryGrid] Delete error:', e);
                             toast.error('Failed to delete');
                         }
                         setDeleteModalItem(null);
@@ -369,7 +483,7 @@ const EmptyState = ({ onImport, onLink }: { onImport: (v: boolean) => void, onLi
             </div>
 
             <h1 className="text-4xl font-black text-white tracking-tight uppercase italic mb-4">
-                Visual <span className="text-blue-500">Archive</span> Empty
+                Library <span className="text-blue-500">Empty</span>
             </h1>
             
             <p className="text-neutral-500 font-bold text-sm tracking-wide leading-relaxed mb-10 max-w-sm">
@@ -448,6 +562,13 @@ const ContextMenu = ({ activeMenu, onAction, onClose }: { activeMenu: any, onAct
                 >
                     <Edit2 size={16} className="text-purple-400" />
                     Rename Series
+                </button>
+                <button 
+                onClick={() => onAction('refresh', activeMenu.item)}
+                className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 text-white hover:bg-white/10 transition-colors"
+                >
+                    <Sparkles size={16} className="text-accent" />
+                    Refresh Metadata
                 </button>
                 <div className="h-px bg-white/5 my-1" />
                 <button 

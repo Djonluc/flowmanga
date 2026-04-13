@@ -23,9 +23,9 @@ interface ReadingState {
   currentFolderPath: string | null;
 
   // Actions
-  openFolder: (path: string, seriesId?: string, chapterId?: string, sequence?: { id: string, path: string, title: string }[]) => Promise<void>;
+  openFolder: (path: string, seriesId?: string, chapterId?: string, sequence?: { id: string, path: string, title: string }[], startPageIndex?: number) => Promise<void>;
   
-  loadChapter: (index: number) => Promise<void>;
+  loadChapter: (index: number, startPageIndex?: number) => Promise<void>;
   goToNextChapter: () => Promise<void>;
   goToPrevChapter: () => Promise<void>;
   
@@ -48,14 +48,29 @@ export const useReadingStore = create<ReadingState>((set, get) => ({
   isFlatMode: false,
   metadata: null,
 
-  openFolder: async (path, seriesId, chapterId, sequence) => {
+  openFolder: async (path, seriesId, chapterId, sequence, startPageIndex) => {
+    const { useLibraryStore } = await import('./useLibraryStore');
+    
+    // Auto-resolve sequence if missing but seriesId exists
+    let finalSequence = sequence || [];
+    if (finalSequence.length === 0 && seriesId) {
+        const series = useLibraryStore.getState().series.find(s => s.id === seriesId);
+        if (series) {
+            finalSequence = series.books.map(b => ({
+                id: b.id,
+                path: b.path,
+                title: b.title
+            }));
+        }
+    }
+
     set({ 
       isLoading: true, 
       seriesId: seriesId || null,
-      chapters: sequence || [],
+      chapters: finalSequence,
       currentChapterPages: [], 
       images: [],
-      currentPageIndex: 0,
+      currentPageIndex: startPageIndex || 0,
       currentFolderPath: path,
       isFlatMode: false,
       metadata: null
@@ -89,14 +104,15 @@ export const useReadingStore = create<ReadingState>((set, get) => ({
             isLoading: false
         });
 
-        // Determine Start Index from chapterId
-        let startPage = 0;
-        if (chapterId && metadataV3.chapters) {
+        // Determine Start Index (prefer startPageIndex if provided, else chapter start)
+        let finalStartPage = startPageIndex ?? 0;
+        
+        if (startPageIndex === undefined && chapterId && metadataV3.chapters) {
             const ch = metadataV3.chapters.find((c: any) => c.number === chapterId || `${seriesId}-${c.number}` === chapterId);
-            if (ch) startPage = ch.startIndex;
+            if (ch) finalStartPage = ch.startIndex;
         }
         
-        get().setPageIndex(startPage);
+        get().setPageIndex(finalStartPage);
 
     } else {
         // Legacy Nested Mode
@@ -106,11 +122,11 @@ export const useReadingStore = create<ReadingState>((set, get) => ({
             if (startIndex === -1) startIndex = 0;
         }
         set({ currentChapterIndex: startIndex });
-        await get().loadChapter(startIndex);
+        await get().loadChapter(startIndex, startPageIndex);
     }
   },
 
-  loadChapter: async (index: number) => {
+  loadChapter: async (index: number, startPageIndex?: number) => {
       const state = get();
       if (state.isFlatMode) return; // No-op in flat mode
 
@@ -128,7 +144,7 @@ export const useReadingStore = create<ReadingState>((set, get) => ({
           set({ 
               currentChapterPages: pages,
               images: pages,
-              currentPageIndex: 0,
+              currentPageIndex: startPageIndex || 0,
               isLoading: false 
           });
       } catch (err) {

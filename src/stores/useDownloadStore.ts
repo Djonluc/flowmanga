@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useSettingsStore } from './useSettingsStore';
 import { type DownloadJob } from '../types';
 
 interface DownloadState {
     queue: DownloadJob[];
     activeJobIds: string[];
     
-    addJob: (job: Omit<DownloadJob, 'status' | 'progress' | 'downloadedChapters'>) => void;
+    addJob: (job: Omit<DownloadJob, 'status' | 'progress' | 'downloadedChapters'> & { force?: boolean }) => void;
     removeJob: (id: string) => void;
     pauseJob: (id: string) => void;
     resumeJob: (id: string) => void;
@@ -17,7 +18,6 @@ interface DownloadState {
     clearCompleted: () => void;
 }
 
-const MAX_CONCURRENT_JOBS = 3;
 
 export const useDownloadStore = create<DownloadState>()(
     persist(
@@ -31,6 +31,7 @@ export const useDownloadStore = create<DownloadState>()(
                     status: 'queued',
                     progress: 0,
                     downloadedChapters: 0,
+                    force: jobData.force
                 };
                 
                 set((state) => ({ queue: [...state.queue, newJob] }));
@@ -104,18 +105,19 @@ export const useDownloadStore = create<DownloadState>()(
 
             startQueue: async () => {
                 const { queue, activeJobIds } = get();
+                const { maxConcurrentJobs } = useSettingsStore.getState();
                 
                 // 1. Clean up activeJobIds from state (just in case)
                 const currentActive = activeJobIds.filter(id => 
                     queue.find(j => j.id === id && j.status === 'downloading')
                 );
 
-                if (currentActive.length >= MAX_CONCURRENT_JOBS) return;
+                if (currentActive.length >= maxConcurrentJobs) return;
 
                 // 2. Find next available jobs
                 const nextJobs = queue
                     .filter(j => j.status === 'queued')
-                    .slice(0, MAX_CONCURRENT_JOBS - currentActive.length);
+                    .slice(0, maxConcurrentJobs - currentActive.length);
 
                 if (nextJobs.length === 0) return;
 

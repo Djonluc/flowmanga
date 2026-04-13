@@ -17,7 +17,6 @@ import { VideoLibrary } from './components/video/VideoLibrary';
 import { HistoryView } from './components/HistoryView';
 import { AmbientBackground } from './components/AmbientBackground';
 import { AmbientSoundPlayer } from './components/AmbientSoundPlayer';
-import { AmbientControlPanel } from './components/AmbientControlPanel';
 import { useVideoStore } from './stores/useVideoStore';
 import { LocationModal } from './components/modals/LocationModal';
 import { SafetyCheckModal } from './components/modals/SafetyCheckModal';
@@ -65,7 +64,6 @@ function App() {
     <>
         <AmbientBackground />
         <AmbientSoundPlayer />
-        <AmbientControlPanel />
         <MainContent />
     </>
   );
@@ -90,9 +88,10 @@ function MainContent() {
             {images.length > 0 ? (
                 <motion.div 
                     key="reader"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                    initial={{ opacity: 0, scale: 1.05, filter: 'blur(20px)' }}
+                    animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                    exit={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
+                    transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
                     className="h-full w-full"
                 >
                     <Reader />
@@ -106,7 +105,7 @@ function MainContent() {
                     transition={{ duration: 0.3, ease: "easeInOut" }}
                     className="h-full w-full"
                 >
-                    {activeView === 'analytics' ? (
+                    {activeView === 'stats' ? (
                         <AnalyticsDashboard />
                     ) : activeView === 'history' ? (
                         <HistoryView />
@@ -124,7 +123,7 @@ function MainContent() {
         <LocationModal 
             isOpen={isLocationModalOpen} 
             onClose={() => setLocationModalOpen(false)}
-            onSuccess={(path) => console.log('Download path set to:', path)}
+            onSuccess={() => {} /* console.log('Download path set to:', path) */}
         />
         <SafetyCheckModal 
             isOpen={isSafetyCheckModalOpen}

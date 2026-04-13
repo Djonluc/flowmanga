@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 // Placeholder sounds (Creative Commons or Free use where possible, or generated noise)
 // For now, we use online samples. In production, these should be local assets.
@@ -25,7 +26,12 @@ export const AmbientSoundPlayer = () => {
 
         if (shouldPlay) {
             if (selectedAmbientSound !== 'none') {
-                soundUrl = SOUNDS[selectedAmbientSound] || '';
+                // If it's a path (contains slashes or starts with drive letter)
+                if (selectedAmbientSound.includes('/') || selectedAmbientSound.includes('\\')) {
+                    soundUrl = convertFileSrc(selectedAmbientSound);
+                } else {
+                    soundUrl = SOUNDS[selectedAmbientSound] || '';
+                }
             } else {
                 // Default to a cozy lofi/rain vibe for slideshow if no manual sound is set
                 soundUrl = SOUNDS.lofi; 

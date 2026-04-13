@@ -18,7 +18,7 @@ export const useLibraryEvents = () => {
     const setupListeners = async () => {
       unlistenOpenPath = await listen<string>('open-path', async (event) => {
         const path = event.payload;
-        console.log('[Native] Received open-path:', path);
+        // console.log('[Native] Received open-path:', path);
 
         try {
           const lowerPath = path.toLowerCase();
@@ -39,7 +39,7 @@ export const useLibraryEvents = () => {
       });
 
       unlistenUpdate = await listen('library:updated', async () => {
-        console.log('[Native] Library updated event received');
+        // console.log('[Native] Library updated event received');
         await loadFromDb();
       });
     };

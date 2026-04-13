@@ -5,6 +5,7 @@ import { useReaderStore } from '../stores/useReaderStore'; // New V2 Store
 import { useAnalyticsStore } from '../stores/useAnalyticsStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { usePreloader } from '../hooks/usePreloader';
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 import { VerticalReader } from './readers/VerticalReader';
 import { SinglePageReader } from './readers/SinglePageReader';
@@ -13,6 +14,7 @@ import { SlideshowReader } from './readers/SlideshowReader';
 import { ReaderTopBar } from './reader/ReaderTopBar';
 import { ReaderBottomBar } from './reader/ReaderBottomBar';
 import { QuickSettings } from './reader/QuickSettings';
+import { AdaptiveUI } from './reader/AdaptiveUI';
 import { useReaderEngine } from '../hooks/useReaderEngine';
 
 export const Reader = () => {
@@ -20,11 +22,16 @@ export const Reader = () => {
   usePreloader(5); 
   const { startSession, addReadingTime } = useAnalyticsStore();
   const { images, currentPageIndex: currentIndex, reset, seriesId } = useReadingStore(); 
-  const { mode, setCurrentPage, setTotalPages } = useReaderStore();
-  const { setAmbientImage } = useSettingsStore();
+  const { 
+    mode, setCurrentPage, setTotalPages, 
+    currentThemeColor
+  } = useReaderStore();
+  const { setAmbientImage, ambientMode } = useSettingsStore();
   
   // UI Visibility State
   const [showControls, setShowControls] = useState(true);
+  const [prevSrc, setPrevSrc] = useState('');
+  const [bgFlip, setBgFlip] = useState(false); // dual-layer flip for crossfade
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Sync internal storage index with Reader V2 Store on load
@@ -34,6 +41,18 @@ export const Reader = () => {
         setCurrentPage(currentIndex);
     }
   }, [images.length, currentIndex]);
+
+  const currentSrc = images[currentIndex] 
+      ? (images[currentIndex].startsWith('http') ? images[currentIndex] : (() => { try { return convertFileSrc(images[currentIndex]); } catch { return ''; } })())
+      : '';
+
+  // Drive the ambient background crossfade
+  useEffect(() => {
+      if (currentSrc && currentSrc !== prevSrc) {
+          setPrevSrc(currentSrc);
+          setBgFlip(f => !f);
+      }
+  }, [currentSrc]);
 
   // Sync Global Ambient Image
   useEffect(() => {
@@ -106,29 +125,83 @@ export const Reader = () => {
   };
 
   return (
-      <div className="fixed inset-0 z-50 w-screen h-screen bg-transparent overflow-hidden select-none flex flex-col items-center justify-center">
+      <div className="fixed inset-0 z-50 w-screen h-screen bg-black overflow-hidden select-none flex flex-col items-center justify-center">
           
+          {/* Ambient Blurred Page Background (replaces black borders) */}
+          {ambientMode === 'adaptive-vibrant' ? (
+              <motion.div
+                  key="adaptive-bg"
+                  initial={false}
+                  animate={{ backgroundColor: currentThemeColor }}
+                  transition={{ duration: 0.6, ease: "easeInOut" }}
+                  className="absolute inset-0 z-0"
+              />
+          ) : currentSrc && (
+              <>
+                  {/* Dual-layer crossfade: avoids abrupt remount flicker */}
+                  <motion.div
+                      key="bg-layer-a"
+                      animate={{ opacity: bgFlip ? 0 : 0.5 }}
+                      transition={{ duration: 0.8, ease: "easeInOut" }}
+                      className="absolute inset-0 z-0 will-change-transform"
+                      style={{
+                          backgroundImage: `url('${bgFlip ? prevSrc : currentSrc}')`,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          filter: 'blur(50px) brightness(0.4) saturate(1.3)',
+                          transform: 'scale(1.2)',
+                      }}
+                  />
+                  <motion.div
+                      key="bg-layer-b"
+                      animate={{ opacity: bgFlip ? 0.5 : 0 }}
+                      transition={{ duration: 0.8, ease: "easeInOut" }}
+                      className="absolute inset-0 z-0 will-change-transform"
+                      style={{
+                          backgroundImage: `url('${bgFlip ? currentSrc : prevSrc}')`,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          filter: 'blur(50px) brightness(0.4) saturate(1.3)',
+                          transform: 'scale(1.2)',
+                      }}
+                  />
+              </>
+          )}
+
+          <AdaptiveUI />
+
           <ReaderTopBar visible={showControls} onBack={reset} />
           
           <QuickSettings />
 
-          {/* Overlay Controls */}
-          <div className="absolute inset-0 z-40 flex pointer-events-none">
-              {/* Interaction areas should probably be handled by specific readers if they need scrolling 
-                  but for Single/Slideshow we can have global tap zones */}
-              {mode !== 'vertical' && (
-                  <div className="absolute inset-0 flex pointer-events-auto">
-                      <div className="w-[15%] h-full cursor-w-resize" onClick={() => useReadingStore.getState().prevPage()} />
-                      <div className="flex-1 h-full" onClick={() => setShowControls(!showControls)} />
-                      <div className="w-[15%] h-full cursor-e-resize" onClick={() => useReadingStore.getState().nextPage()} />
-                  </div>
-              )}
-          </div>
+          {/* Overlay Controls (Tap Zones for Single/Slideshow) */}
+          <AnimatePresence>
+            {(mode !== 'vertical' && !showControls) && (
+                <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 z-40 flex pointer-events-auto"
+                >
+                    <div className="w-[15%] h-full cursor-w-resize" onClick={() => useReadingStore.getState().prevPage()} />
+                    <div className="flex-1 h-full" onClick={() => setShowControls(true)} />
+                    <div className="w-[15%] h-full cursor-e-resize" onClick={() => useReadingStore.getState().nextPage()} />
+                </motion.div>
+            )}
+          </AnimatePresence>
 
-          <div className="w-full h-full flex items-center justify-center relative z-0">
+          {/* Center Tap to Toggle UI */}
+          {!showControls && mode === 'vertical' && (
+              <div 
+                className="absolute inset-0 z-30 pointer-events-auto cursor-pointer" 
+                onClick={() => setShowControls(true)} 
+              />
+          )}
+
+          <div className="w-full h-full flex items-center justify-center relative z-10">
                 {renderReader()}
           </div>
-          
+
           <ChapterTransitionOverlay />
           <FeedbackHUD />
 
@@ -138,11 +211,6 @@ export const Reader = () => {
 };
 
 const ChapterTransitionOverlay = () => {
-    // We access store via hook inside component to subscribe to changes
-    // But we need to use ref to track previous value because 
-    // currentChapterIndex changes instantly on transition.
-    
-    // We need to import useReadingStore inside or outside? outside.
     const { chapters, currentChapterIndex } = useReadingStore();
     const [visible, setVisible] = useState(false);
     const prevIndex = useRef(currentChapterIndex);
@@ -150,7 +218,7 @@ const ChapterTransitionOverlay = () => {
     useEffect(() => {
         if (currentChapterIndex !== prevIndex.current) {
             setVisible(true);
-            const timer = setTimeout(() => setVisible(false), 2000); // 2s duration
+            const timer = setTimeout(() => setVisible(false), 3000);
             prevIndex.current = currentChapterIndex;
             return () => clearTimeout(timer);
         }
@@ -163,14 +231,19 @@ const ChapterTransitionOverlay = () => {
         <AnimatePresence>
             {visible && (
                 <motion.div 
-                    initial={{ opacity: 0, y: -20, x: '-50%' }}
-                    animate={{ opacity: 1, y: 32, x: '-50%' }}
-                    exit={{ opacity: 0, y: -10, x: '-50%' }}
-                    className="absolute top-0 left-1/2 z-[60] px-6 py-3 bg-black/80 backdrop-blur-md rounded-full border border-white/10 text-white font-black uppercase tracking-widest text-xs shadow-2xl pointer-events-none select-none whitespace-nowrap flex items-center gap-3"
+                    initial={{ opacity: 0, y: 100, x: '-50%', scale: 0.8 }}
+                    animate={{ opacity: 1, y: -120, x: '-50%', scale: 1 }}
+                    exit={{ opacity: 0, y: -40, x: '-50%', scale: 1.1 }}
+                    transition={{ type: 'spring', damping: 20, stiffness: 100 }}
+                    className="fixed bottom-0 left-1/2 z-[100] px-8 py-4 bg-black/60 backdrop-blur-3xl rounded-[32px] border border-white/20 text-white shadow-[0_32px_128px_rgba(0,0,0,1)] pointer-events-none select-none flex items-center gap-4"
                 >
-                    <span className="text-blue-500">NOW READING</span>
-                    <span className="opacity-80">|</span>
-                    {title}
+                    <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
+                        <Play size={18} fill="currentColor" />
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-[8px] font-black text-blue-500 uppercase tracking-[0.4em]">Chapter Transition</span>
+                        <span className="text-sm font-black uppercase italic tracking-tighter">{title}</span>
+                    </div>
                 </motion.div>
             )}
         </AnimatePresence>
@@ -181,17 +254,20 @@ const FeedbackHUD = () => {
     const { feedback } = useReaderStore();
     
     return (
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
             {feedback && (
                 <motion.div
                     key={feedback.type + feedback.value}
-                    initial={{ opacity: 0, scale: 0.8, y: 50, x: '-50%' }}
-                    animate={{ opacity: 1, scale: 1, y: 0, x: '-50%' }}
-                    exit={{ opacity: 0, scale: 0.8, y: -20, x: '-50%' }}
-                    className="fixed bottom-32 left-1/2 z-[100] px-8 py-4 bg-black/60 backdrop-blur-2xl border border-white/10 rounded-[32px] flex flex-col items-center gap-0 shadow-2xl pointer-events-none select-none min-w-[160px]"
+                    initial={{ opacity: 0, scale: 0.5, y: -20, x: '-50%' }}
+                    animate={{ opacity: 1, scale: 1, y: 32, x: '-50%' }}
+                    exit={{ opacity: 0, scale: 1.2, y: -20, x: '-50%' }}
+                    transition={{ type: 'spring', damping: 15, stiffness: 200 }}
+                    className="fixed top-0 left-1/2 z-[101] px-10 py-4 bg-accent shadow-[0_32px_64px_rgba(59,130,246,0.5)] rounded-[32px] flex items-center gap-6 pointer-events-none select-none border border-white/20"
                 >
-                    <span className="text-[10px] font-black text-blue-500 uppercase tracking-[0.3em] mb-1">{feedback.type}</span>
-                    <span className="text-3xl font-black text-white italic tracking-tighter">{feedback.value}</span>
+                    <div className="flex flex-col items-center">
+                        <span className="text-[7px] font-black text-white/60 uppercase tracking-[0.5em] mb-0.5">{feedback.type}</span>
+                        <span className="text-2xl font-black text-white italic tracking-tighter tabular-nums">{feedback.value}</span>
+                    </div>
                 </motion.div>
             )}
         </AnimatePresence>

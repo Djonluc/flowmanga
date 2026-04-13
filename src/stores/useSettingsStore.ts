@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 
 export type ReadingMode = 'vertical' | 'single' | 'dual' | 'slideshow' | 'horizontal';
 export type Theme = 'dark' | 'light' | 'oled' | 'paper' | 'cyberpunk';
-export type AmbientMode = 'solid' | 'blurred-page' | 'blurred-cover' | 'gradient' | 'oled';
+export type AmbientMode = 'solid' | 'blurred-page' | 'blurred-cover' | 'gradient' | 'oled' | 'adaptive-vibrant';
 export type SidebarMode = 'expanded' | 'collapsed' | 'hover';
 
 interface SettingsState {
@@ -16,8 +16,8 @@ interface SettingsState {
   fitMode: 'width' | 'height' | 'original' | 'smart';
   zoomScale: number; // Global zoom preference
   sidebarOpen: boolean;
-  activeView: 'home' | 'library' | 'analytics' | 'videos' | 'history';
-  setActiveView: (view: 'home' | 'library' | 'analytics' | 'videos' | 'history') => void;
+  activeView: 'home' | 'library' | 'stats' | 'videos' | 'history';
+  setActiveView: (view: 'home' | 'library' | 'stats' | 'videos' | 'history') => void;
   
   libraryViewMode: 'grid' | 'shelf';
   libraryDensity: 'compact' | 'comfortable' | 'cinematic';
@@ -107,6 +107,18 @@ interface SettingsState {
   getRecommendedPath: () => Promise<string>;
   setLocationModalOpen: (open: boolean) => void;
   setSafetyCheckModal: (open: boolean, title?: string, callback?: (action: 'update' | 'redownload') => void) => void;
+  
+  availableSounds: { name: string, path: string }[];
+  loadAvailableSounds: () => Promise<void>;
+  importSound: (path: string) => Promise<void>;
+
+  // Download Concurrency
+  maxConcurrentJobs: number;
+  maxConcurrentChapters: number;
+  maxConcurrentPages: number;
+  setMaxConcurrentJobs: (val: number) => void;
+  setMaxConcurrentChapters: (val: number) => void;
+  setMaxConcurrentPages: (val: number) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -235,6 +247,37 @@ export const useSettingsStore = create<SettingsState>()(
           safetyCheckTitle: title,
           onSafetyCheckResolved: callback
       }),
+
+      availableSounds: [],
+      loadAvailableSounds: async () => {
+          try {
+              const { invoke } = await import('@tauri-apps/api/core');
+              const sounds = await invoke<any[]>('list_ambient_sounds');
+              set({ availableSounds: sounds });
+          } catch (err) {
+              console.error('[Settings] Failed to load ambient sounds:', err);
+          }
+      },
+      importSound: async (path: string) => {
+          try {
+              const { invoke } = await import('@tauri-apps/api/core');
+              await invoke('import_ambient_sound', { path });
+              // Refresh the list
+              const sounds = await invoke<any[]>('list_ambient_sounds');
+              set({ availableSounds: sounds });
+          } catch (err) {
+              console.error('[Settings] Failed to import ambient sound:', err);
+              throw err;
+          }
+      },
+
+      // Download Concurrency Defaults
+      maxConcurrentJobs: 2,
+      maxConcurrentChapters: 3,
+      maxConcurrentPages: 3,
+      setMaxConcurrentJobs: (val) => set({ maxConcurrentJobs: val }),
+      setMaxConcurrentChapters: (val) => set({ maxConcurrentChapters: val }),
+      setMaxConcurrentPages: (val) => set({ maxConcurrentPages: val }),
     }),
     {
       name: 'flowmanga-settings',

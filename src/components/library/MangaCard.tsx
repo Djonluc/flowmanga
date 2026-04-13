@@ -60,6 +60,7 @@ export const MangaCard = ({ item, onClick, onMenuClick, density = 'comfortable' 
                     <motion.button
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
+                        onClick={(e) => { e.stopPropagation(); onClick(); }}
                         className="w-14 h-14 rounded-full bg-white text-black flex items-center justify-center shadow-[0_0_30px_rgba(255,255,255,0.3)]"
                         title="Continue Reading"
                     >
@@ -90,9 +91,9 @@ export const MangaCard = ({ item, onClick, onMenuClick, density = 'comfortable' 
                          </span>
                      )}
 
-                     {!isSeries && item.meta?.chapter && (
+                     {(!isSeries && (item.chapterNumber !== undefined || item.meta?.chapter)) && (
                          <span className="px-2 py-1 rounded-md bg-accent text-[9px] font-black text-white shadow-lg uppercase tracking-widest">
-                             CH {item.meta.chapter}
+                             CH {item.chapterNumber || item.meta?.chapter}
                          </span>
                      )}
                 </div>
@@ -120,14 +121,27 @@ export const MangaCard = ({ item, onClick, onMenuClick, density = 'comfortable' 
                 </h3>
                 
                 <div className="flex items-center justify-between gap-2 overflow-hidden">
-                    <p className="text-[10px] text-neutral-600 font-black uppercase tracking-[0.15em] truncate">
-                        {isSeries ? 'Series Archive' : (item.meta?.series || 'Single Issue')}
+                    <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-[0.1em] truncate">
+                        {isSeries ? 'Series' : (item.seriesTitle || item.meta?.series || 'Single Issue')}
                     </p>
                     
-                    {tags.length > 0 && density !== 'compact' && (
-                        <span className="flex-shrink-0 px-1.5 py-0.5 rounded-md bg-white/5 border border-white/5 text-[8px] font-black text-neutral-500 uppercase tracking-tighter">
-                            {tags[0]}
-                        </span>
+                    {tags && tags.length > 0 && (
+                        <div className={clsx(
+                            "flex overflow-hidden flex-wrap",
+                            density === 'compact' ? "gap-1 max-h-4 ml-auto" : "gap-1.5 max-h-5"
+                        )}>
+                            {tags.slice(0, density === 'compact' ? 1 : 3).map((tag: string) => (
+                                <span 
+                                    key={tag} 
+                                    className={clsx(
+                                        "flex-shrink-0 px-1.5 py-0.5 rounded-md bg-white/5 border border-white/5 font-black uppercase tracking-tight transition-colors",
+                                        density === 'compact' ? "text-[7px] text-neutral-600" : "text-[8px] text-neutral-400 hover:text-white"
+                                    )}
+                                >
+                                    {tag}
+                                </span>
+                            ))}
+                        </div>
                     )}
                 </div>
             </div>

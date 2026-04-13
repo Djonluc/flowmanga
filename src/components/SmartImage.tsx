@@ -15,29 +15,39 @@ export const SmartImage = ({ src, alt, className, style, onLoad }: SmartImagePro
     const [isLoaded, setIsLoaded] = useState(false);
     const { brightness, contrast, saturation, autoCrop } = useSettingsStore(); 
 
+    const cleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
     useEffect(() => {
         const observer = new IntersectionObserver((entries) => {
             if (entries[0].isIntersecting) {
                 setIsVisible(true);
+                if (cleanupTimeoutRef.current) {
+                    clearTimeout(cleanupTimeoutRef.current);
+                    cleanupTimeoutRef.current = null;
+                }
             } else {
-                setIsVisible(false);
+                // Delayed cleanup: Keep canvas in memory for 20s after leaving viewport
+                // to prevent "flashing" if the user scrolls back quickly.
+                cleanupTimeoutRef.current = setTimeout(() => {
+                    setIsVisible(false);
+                    const canvas = canvasRef.current;
+                    if (canvas) {
+                        const ctx = canvas.getContext('2d');
+                        ctx?.clearRect(0, 0, canvas.width, canvas.height);
+                    }
+                }, 20000);
             }
-        }, { rootMargin: '400px' });
+        }, { rootMargin: '2000px' });
 
         if (canvasRef.current) observer.observe(canvasRef.current);
-        return () => observer.disconnect();
+        return () => {
+            observer.disconnect();
+            if (cleanupTimeoutRef.current) clearTimeout(cleanupTimeoutRef.current);
+        };
     }, []);
 
     useEffect(() => {
-        if (!isVisible) {
-            // Clear canvas to free memory when off-screen
-            const canvas = canvasRef.current;
-            if (canvas) {
-                const ctx = canvas.getContext('2d');
-                ctx?.clearRect(0, 0, canvas.width, canvas.height);
-            }
-            return;
-        }
+        if (!isVisible) return;
         
         const img = new Image();
         img.src = src;
@@ -106,12 +116,17 @@ export const SmartImage = ({ src, alt, className, style, onLoad }: SmartImagePro
         const data = imageData.data;
         
         // Helper to check if pixel is "same" as background (assumed top-left pixel)
-        // Simple tolerance check
-        const tolerance = 20;
+        // Simple tolerance check - Increased for common scan aging
+        const tolerance = 40; 
         const r0 = data[0], g0 = data[1], b0 = data[2];
 
         const isBackground = (r: number, g: number, b: number) => {
-             return Math.abs(r - r0) < tolerance && Math.abs(g - g0) < tolerance && Math.abs(b - b0) < tolerance;
+             const diff = Math.sqrt(
+                Math.pow(r - r0, 2) + 
+                Math.pow(g - g0, 2) + 
+                Math.pow(b - b0, 2)
+             );
+             return diff < tolerance;
         };
 
         // Scan Top

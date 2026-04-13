@@ -194,7 +194,7 @@ export async function fetchMangaMetadata(title: string): Promise<MangaMetadata |
     try {
       const result = await fetchFn(title);
       if (result) {
-        console.log(`✅ Found metadata from ${result.source} for: ${title}`);
+        // console.log(`✅ Found metadata from ${result.source} for: ${title}`);
         return result;
       }
     } catch (error) {

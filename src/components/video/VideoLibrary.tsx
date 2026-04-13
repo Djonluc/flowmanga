@@ -47,7 +47,7 @@ export const VideoLibrary: React.FC = () => {
              )}
              <div>
                 <h1 className="text-3xl font-black tracking-tight text-white leading-none">
-                    {selectedFolder ? selectedFolder.name : 'VIDEO ARCHIVE'}
+                    {selectedFolder ? selectedFolder.name : 'VIDEOS'}
                 </h1>
                 <p className="text-neutral-500 font-bold text-xs uppercase tracking-widest mt-2">
                     {selectedFolder ? `${selectedFolder.videos.length} items discovered` : `${folders.length} linked sources`}
@@ -89,8 +89,8 @@ export const VideoLibrary: React.FC = () => {
                           <div className="w-20 h-20 rounded-3xl bg-blue-600/20 flex items-center justify-center mb-6">
                               <Plus className="w-10 h-10 text-blue-500" />
                           </div>
-                          <h2 className="text-2xl font-black text-white uppercase tracking-tight mb-2">Archive Depleted</h2>
-                          <p className="text-neutral-500 font-bold text-xs uppercase tracking-widest mb-8">No video sources detected in the registry.</p>
+                           <h2 className="text-2xl font-black text-white uppercase tracking-tight mb-2">No Videos Yet</h2>
+                          <p className="text-neutral-500 font-bold text-xs uppercase tracking-widest mb-8">Link a folder to populate your archive.</p>
                           <button 
                             onClick={handleScanFolder}
                             className="w-full py-4 bg-white text-black rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-neutral-200 transition-all active:scale-95"

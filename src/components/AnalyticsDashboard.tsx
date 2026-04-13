@@ -41,14 +41,14 @@ export const AnalyticsDashboard = () => {
             <header className="mb-16">
                 <div className="flex items-center gap-3 mb-2">
                     <Target size={16} className="text-blue-500" />
-                    <span className="text-[10px] font-black text-blue-500 uppercase tracking-[0.4em]">Personal Performance</span>
+                    <span className="text-[10px] font-black text-blue-500 uppercase tracking-[0.4em]">My Activity</span>
                 </div>
                 <motion.h2 
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     className="text-6xl font-black tracking-tighter text-white uppercase italic"
                 >
-                    ELITE <span className="text-blue-500">INSIGHTS</span>
+                    MY <span className="text-blue-500">STATS</span>
                 </motion.h2>
                 <div className="h-0.5 w-24 bg-blue-500/50 mt-4 rounded-full" />
             </header>
