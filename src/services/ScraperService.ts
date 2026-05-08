@@ -32,12 +32,14 @@ const siteConfigs: Record<string, SiteConfig> = {
     imageAttr: "src",
     isVerticalWebtoon: true,
   },
+  /*
   "comix.to": {
     domain: "comix.to",
     imageSelector: "div.reader-image img, .reading-content img",
     imageAttr: "src",
     isVerticalWebtoon: true,
   },
+  */
 };
 
 export interface SeriesScrapedChapter {
@@ -106,9 +108,12 @@ export class ScraperService {
         return await this.scrapeManhwaRead(url);
       }
 
+      /*
       if (domain.includes("comix.to")) {
         return await this.scrapeComixTo(url);
       }
+      */
+
 
       // 0. Auto-detect Series Pages for Headless sites
       if (

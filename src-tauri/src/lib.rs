@@ -749,6 +749,7 @@ async fn scrape_images_headless(url: String) -> Result<Vec<String>, String> {
                         .map(i => i.currentSrc || i.src || i.dataset?.src || i.dataset?.lazySrc || '')
                         .filter(s => s.length > 50));
 
+                    /*
                     const initial = document.getElementById('initial-data');
                     if (location.hostname.includes('comix.to') && initial?.textContent) {
                         try {
@@ -779,6 +780,7 @@ async fn scrape_images_headless(url: String) -> Result<Vec<String>, String> {
                             console.warn('Comix pages API extraction failed', e);
                         }
                     }
+                    */
                     return Array.from(urls);
                 })()
              "#;
@@ -888,6 +890,7 @@ async fn scrape_series_headless(url: String) -> Result<SeriesScrapeResult, Strin
                         }
                     });
 
+                    /*
                     const initial = document.getElementById('initial-data');
                     if (location.hostname.includes('comix.to') && initial?.textContent) {
                         try {
@@ -922,6 +925,7 @@ async fn scrape_series_headless(url: String) -> Result<SeriesScrapeResult, Strin
                             console.warn('Comix chapter API extraction failed', e);
                         }
                     }
+                    */
 
                     links = Array.from(linkSet);
                     
