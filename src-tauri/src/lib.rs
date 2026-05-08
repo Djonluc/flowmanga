@@ -855,7 +855,7 @@ async fn scrape_series_headless(url: String) -> Result<SeriesScrapeResult, Strin
 
         // 5. Extraction Script
         let extract_script = r#"
-            (() => {
+            (async () => {
                 try {
                     const url = window.location.href;
                     let title = '', description = '', cover = '';

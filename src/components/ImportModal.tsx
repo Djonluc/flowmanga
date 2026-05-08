@@ -346,9 +346,9 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                         </div>
                                         
                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto custom-scrollbar pr-2 p-1">
-                                          {chapterFeed.map(chapter => (
+                                          {chapterFeed.map((chapter, idx) => (
                                             <button
-                                              key={chapter.id}
+                                              key={`${chapter.id}-${idx}`}
                                               onClick={() => handleToggleChapter(chapter.id)}
                                               className={`p-3 rounded-xl border text-left transition-all relative ${
                                                 selectedChapterKeys.includes(chapter.id)

@@ -1240,6 +1240,7 @@ export class ScraperService {
     const rawUrl = pathOrUrl.startsWith("http")
       ? pathOrUrl
       : `https://www.comix.to${pathOrUrl}`;
+    
     const urlObj = new URL(rawUrl);
     urlObj.searchParams.set("_", this.comixApiSignature(urlObj.pathname));
     const url = urlObj.href;
@@ -1249,6 +1250,8 @@ export class ScraperService {
         Accept: "application/json",
         "X-Requested-With": "XMLHttpRequest",
         Referer: referer,
+        Cookie: (import.meta.env.VITE_COMIX_COOKIE as string) || "",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
       });
       const parsed = JSON.parse(text);
       return parsed?.result ?? parsed;
@@ -1404,8 +1407,43 @@ export class ScraperService {
       let chapters: SeriesScrapedChapter[] = [];
       let chapterLinks: string[] = [];
 
-      // 2. Deep JSON Extraction
-      if (chapterLinks.length === 0) {
+      // 1. Try Headless First (Cloudflare Bypass)
+      try {
+        console.log("[Comix] Attempting headless series scrape...");
+        const res = await invoke<any>("scrape_series_headless", { url });
+        if (res && res.chapterLinks && res.chapterLinks.length > 0) {
+          title = res.title || title;
+          description = res.description || description;
+          coverUrl = res.cover_url || res.coverUrl || coverUrl;
+          
+          chapters = res.chapterLinks.map((link: string, i: number) => {
+            const numMatch = link.match(/chapter-(\d+(\.\d+)?)/);
+            const num = numMatch ? numMatch[1] : (res.chapterLinks.length - i).toString();
+            return {
+              id: link,
+              number: num,
+              url: link,
+              source: domain,
+            };
+          });
+          
+          return {
+            series: {
+              title,
+              description,
+              coverUrl,
+              seriesUrl: url,
+              source: domain,
+              chapters,
+            },
+          };
+        }
+      } catch (e) {
+        console.warn("[Comix] Headless series scrape failed, falling back to static...", e);
+      }
+
+      // 2. Deep JSON Extraction (Static Fallback)
+      if (chapters.length === 0) {
         const html = await this.asyncFetchHtml(url);
         const initialData = this.parseComixInitialData(html);
         const parser = new DOMParser();
@@ -1444,18 +1482,14 @@ export class ScraperService {
         // Deep Script Analysis: Parse all JSON scripts
         doc.querySelectorAll('script').forEach(script => {
           const content = script.textContent || "";
-          if (content.includes("chapter") || content.includes("hid")) {
-            // Try to find full URLs
-            const urlMatches = content.match(/(?:https?:\/\/[^\/ ]+)?\\?\/title\\?\/[^\s\"'\\ ]+?-chapter-[\d.]+/g) || [];
-            urlMatches.forEach(m => {
-              let clean = m.replace(/\\/g, "");
+          if (content.includes("chapter") || content.includes("hid") || content.includes("title")) {
+            // Find anything that looks like a chapter URL or path
+            const matches = content.match(/["'](\/title\/[^\s"']+?-chapter-[\d.]+)["']/g) || [];
+            matches.forEach(m => {
+              let clean = m.replace(/["']/g, "").replace(/\\/g, "");
               if (!clean.startsWith('http')) clean = `https://www.comix.to${clean}`;
               chapterLinks.push(clean);
             });
-
-            // Try to find chapter objects {"id":123,"hid":"...","number":1}
-            const hidMatches = content.match(/\"hid\":\"([^\"]+)\",\"title\":\"([^\"]+)\"/g) || [];
-            // This is just a hint that chapters might be here
           }
         });
 
@@ -1464,6 +1498,7 @@ export class ScraperService {
 
       if (chapters.length === 0 && chapterLinks.length === 0) {
         try {
+          console.log("[Comix] Final Headless fallback for series...");
           const res = await invoke<any>("scrape_series_headless", { url });
           if (res && res.chapterLinks && res.chapterLinks.length > 0) {
             title = res.title || title;

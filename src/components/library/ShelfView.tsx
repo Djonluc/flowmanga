@@ -33,9 +33,9 @@ export const ShelfView = ({ allSeries, onOpenItem }: ShelfViewProps) => {
                         <div className="absolute -bottom-8 left-4 right-4 h-4 bg-black/40 blur-md rounded-full shadow-2xl" />
 
                         <div className="flex justify-start gap-8 items-end px-4">
-                            {shelf.map((item) => (
+                            {shelf.map((item, itemIdx) => (
                                 <Book 
-                                    key={item.id || item.path} 
+                                    key={`${item.id || item.path}-${shelfIndex}-${itemIdx}`} 
                                     item={item} 
                                     onClick={() => onOpenItem(item)} 
                                 />

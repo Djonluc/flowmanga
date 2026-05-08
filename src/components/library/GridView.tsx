@@ -41,7 +41,7 @@ export const GridView = ({ items, onOpenItem, onMenuClick, density }: GridViewPr
         )}>
             {items.map((item, i) => (
                 <MangaCard 
-                    key={item.id || i} 
+                    key={`${item.id || i}-${i}`} 
                     item={item} 
                     onClick={() => onOpenItem(item)}
                     onMenuClick={(e, action) => onMenuClick ? onMenuClick(item, action, e) : undefined}

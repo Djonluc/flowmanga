@@ -38,10 +38,12 @@
 - **Ambient Audio**: Built-in soundscapes (Rain, Lo-Fi, Nature) to enhance your reading atmosphere.
 - **Distraction-Free**: Fullscreen mode tailored for deep immersion.
 - **Keyboard Control**: Complete shortcut support for power users.
+- **3D Cinematic Shelf**: A high-performance 3D visualization of your collection.
 
-### 📊 Analytics & Insights (Coming Soon)
-- **Reading Stats**: Track your journey with detailed reading logs.
-- **Gamification**: Earn achievements and milestones.
+### 🕵️ Stealth Scraping & Security
+- **Headless-First Engine**: Bypasses aggressive Cloudflare "403 Forbidden" blocks using browser-level emulation.
+- **Session Injection**: Support for manual cookie injection to access authenticated user accounts on remote sources.
+- **Privacy Centric**: All data and downloads stay on your local machine.
 
 ---
 
@@ -55,12 +57,13 @@
 
 ### Native Power (Tauri 2)
 - **Rust Core**: Blazing fast backend logic for file operations and networking.
+- **Headless Chrome**: Native browser integration for stealth data extraction.
 - **SQLite**: Reliable, persistent local database.
 - **Asynchronous I/O**: Non-blocking operations for a responsive UI.
 
 ### Integration
 - **MangaDex API**: Seamless search and download integration.
-- **Web Scrapers**: Extensible architecture for future sources.
+- **Comix.to Stealth Scraper**: Advanced regex and headless fallback for protected sources.
 
 ---
 
@@ -151,7 +154,11 @@ Create a `.env` file in the root directory:
 
 ```env
 VITE_APP_NAME=FlowManga
-VITE_APP_VERSION=2.1.0
+VITE_APP_VERSION=2.2.0
+
+# Scraper Authentication (Optional)
+# For sites like Comix.to, paste your session and cf_clearance cookies here
+VITE_COMIX_COOKIE="session=...; cf_clearance=..."
 ```
 
 ---
