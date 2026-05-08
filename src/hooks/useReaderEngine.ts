@@ -5,10 +5,12 @@ import { useReadingStore } from '../stores/useReadingStore';
 export const useReaderEngine = () => {
     const { seriesId } = useReadingStore();
     const { 
+        mode,
         autoScroll, setAutoScroll, 
         scrollSpeed, setScrollSpeed,
         loadSeriesConfig,
-        isBoosted, setIsBoosted
+        isBoosted, setIsBoosted,
+        slideshowActive, setSlideshowActive
     } = useReaderStore();
 
     // Sync config when series ID is available
@@ -28,6 +30,16 @@ export const useReaderEngine = () => {
             if (e.code === 'Space' && !e.repeat) {
                 e.preventDefault();
                 setAutoScroll(!autoScroll);
+            }
+
+            // P: Toggle Pause Play
+            if (e.code === 'KeyP' && !e.repeat) {
+                e.preventDefault();
+                if (mode === 'slideshow') {
+                    setSlideshowActive(!slideshowActive);
+                } else {
+                    setAutoScroll(!autoScroll);
+                }
             }
 
             // Arrow Keys: Speed Control
@@ -58,7 +70,7 @@ export const useReaderEngine = () => {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
         };
-    }, [autoScroll, scrollSpeed, setAutoScroll, setScrollSpeed]);
+    }, [autoScroll, scrollSpeed, setAutoScroll, setScrollSpeed, mode, slideshowActive, setSlideshowActive]);
 
     // Derived State
     const actualSpeed = isBoosted ? scrollSpeed * 4 : scrollSpeed;

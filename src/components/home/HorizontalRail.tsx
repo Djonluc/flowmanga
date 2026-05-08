@@ -37,19 +37,19 @@ export const HorizontalRail = ({
 
     return (
         <section className="space-y-6">
-            <div className="flex items-center justify-between px-16">
-                <div className="flex items-center gap-4">
+            <div className="flex items-center justify-between gap-4 px-4 md:px-16">
+                <div className="flex min-w-0 items-center gap-3 md:gap-4">
                     {icon && (
-                        <div className={`w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center ${accentColor} shadow-lg`}>
+                        <div className={`w-10 h-10 flex-shrink-0 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center ${accentColor} shadow-lg`}>
                             {icon}
                         </div>
                     )}
-                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tight">{title}</h2>
+                    <h2 className="min-w-0 truncate text-2xl font-black text-white uppercase italic tracking-tight md:text-3xl">{title}</h2>
                 </div>
                 
                 {items.length > 0 && (
-                    <div className="flex items-center gap-4">
-                        <div className="flex gap-2">
+                    <div className="flex flex-shrink-0 items-center gap-4">
+                        <div className="hidden gap-2 sm:flex">
                             <button 
                                 onClick={() => scroll('left')}
                                 className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-all"
@@ -65,7 +65,7 @@ export const HorizontalRail = ({
                         </div>
                         {onViewAll && (
                             <Button variant="ghost" size="sm" className="text-neutral-600 hover:text-white font-black uppercase tracking-widest text-[10px]" onClick={onViewAll}>
-                                VIEW ALL <ArrowRight size={14} className="ml-2" />
+                                <span className="hidden sm:inline">VIEW ALL</span> <ArrowRight size={14} className="sm:ml-2" />
                             </Button>
                         )}
                     </div>
@@ -75,12 +75,12 @@ export const HorizontalRail = ({
             {items.length > 0 ? (
                 <div 
                     ref={scrollRef}
-                    className="flex gap-6 overflow-x-auto no-scrollbar px-16 pb-8 snap-x snap-mandatory"
+                    className="flex gap-4 overflow-x-auto no-scrollbar px-4 pb-8 snap-x snap-mandatory md:gap-6 md:px-16"
                 >
                     {items.map((item, idx) => (
                         <motion.div 
-                            key={item.id || idx}
-                            className="min-w-[200px] snap-start"
+                            key={`${item.id}-${idx}`}
+                            className="min-w-[160px] snap-start sm:min-w-[200px]"
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: idx * 0.05 }}
@@ -95,9 +95,9 @@ export const HorizontalRail = ({
                     ))}
                 </div>
             ) : (
-                <div className="px-16 pb-8">
-                     <div className="w-full py-12 border-2 border-dashed border-white/5 rounded-[32px] flex flex-col items-center justify-center text-neutral-600 gap-4 bg-white/[0.01]">
-                        <p className="font-black uppercase tracking-[0.2em] text-xs opacity-60">{emptyMessage}</p>
+                <div className="px-4 pb-8 md:px-16">
+                     <div className="w-full px-4 py-10 border-2 border-dashed border-white/5 rounded-2xl flex flex-col items-center justify-center text-neutral-600 gap-4 bg-white/[0.01] md:py-12 md:rounded-[32px]">
+                        <p className="max-w-[260px] text-center font-black uppercase leading-relaxed tracking-[0.16em] text-xs opacity-60 md:max-w-none md:tracking-[0.2em]">{emptyMessage}</p>
                         {onViewAll && (
                              <Button variant="secondary" size="sm" onClick={onViewAll} className="opacity-50 hover:opacity-100">
                                 Explore Library

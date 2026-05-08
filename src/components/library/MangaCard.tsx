@@ -15,7 +15,7 @@ export const MangaCard = ({ item, onClick, onMenuClick, density = 'comfortable' 
     
     // Derived state
     const title = item.title;
-    const coverSrc = item.cover ? (item.cover.startsWith('http') ? item.cover : convertFileSrc(item.cover)) : '';
+    const coverSrc = (item.cover || item.coverUrl) ? ((item.cover || item.coverUrl).startsWith('http') ? (item.cover || item.coverUrl) : convertFileSrc(item.cover || item.coverUrl)) : '';
     const progress = !isSeries && item.progress ? (item.progress.currentPage / item.progress.totalPages) * 100 : 0;
     const badge = isSeries ? `${item.books.length}` : null;
     const tags = item.tags || [];

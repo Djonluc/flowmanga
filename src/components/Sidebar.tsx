@@ -9,6 +9,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open as openShell } from '@tauri-apps/plugin-shell';
 import clsx from 'clsx';
 import type { SidebarMode } from '../stores/useSettingsStore';
+import { toast } from './Toast';
 
 export const Sidebar = () => {
     const { 
@@ -64,14 +65,41 @@ export const Sidebar = () => {
                 const images: string[] = await invoke('read_folder', { path });
                 if (images && images.length > 0) {
                     useReadingStore.getState().openFolder(path);
+                } else {
+                    toast.info('No readable images found in that folder.');
                 }
             }
         } catch (err) {
             console.error("Quick open failed", err);
+            toast.error('Quick open failed.');
         }
     };
 
     return (
+        <>
+        <div className="md:hidden fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-background/95 backdrop-blur-3xl px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+            <div className="grid grid-cols-5 gap-1">
+                {navItems.map((item) => (
+                    <MobileNavButton
+                        key={item.view}
+                        icon={item.icon}
+                        label={item.label}
+                        active={activeView === item.view}
+                        onClick={() => {
+                            useReadingStore.getState().reset();
+                            setActiveView(item.view);
+                        }}
+                    />
+                ))}
+                <MobileNavButton
+                    icon={<Settings size={20} />}
+                    label="Settings"
+                    active={isSettingsOpen}
+                    onClick={toggleSettings}
+                />
+            </div>
+        </div>
+
         <motion.div 
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
@@ -157,6 +185,18 @@ export const Sidebar = () => {
                             expanded={isExpanded} 
                             onClick={() => openShell('https://luacomic.org')}
                          />
+                         <SourceItem 
+                            name="ManhwaRead" 
+                            color="bg-purple-500" 
+                            expanded={isExpanded} 
+                            onClick={() => openShell('https://manhwaread.com')}
+                         />
+                         <SourceItem 
+                            name="Comix" 
+                            color="bg-pink-500" 
+                            expanded={isExpanded} 
+                            onClick={() => openShell('https://comix.to')}
+                         />
                     </div>
 
                      <NavButton 
@@ -229,8 +269,23 @@ export const Sidebar = () => {
                 </button>
             </div>
         </motion.div>
+        </>
     );
 };
+
+const MobileNavButton = ({ icon, label, active, onClick }: { icon: React.ReactNode, label: string, active?: boolean, onClick?: () => void }) => (
+    <button
+        onClick={onClick}
+        className={clsx(
+            "flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[10px] font-bold uppercase tracking-wide transition-colors",
+            active ? "bg-blue-600 text-white" : "text-neutral-500 hover:bg-white/5 hover:text-white"
+        )}
+        title={label}
+    >
+        {icon}
+        <span className="w-full truncate text-center">{label}</span>
+    </button>
+);
 
 const NavButton = ({ icon, label, active, onClick, expanded, className }: { icon: React.ReactNode, label: string, active?: boolean, onClick?: () => void, expanded: boolean, className?: string }) => (
     <button 

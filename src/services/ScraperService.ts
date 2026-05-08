@@ -26,6 +26,18 @@ const siteConfigs: Record<string, SiteConfig> = {
     imageAttr: "src",
     isVerticalWebtoon: true,
   },
+  "manhwaread.com": {
+    domain: "manhwaread.com",
+    imageSelector: ".reading-content img",
+    imageAttr: "src",
+    isVerticalWebtoon: true,
+  },
+  "comix.to": {
+    domain: "comix.to",
+    imageSelector: "div.reader-image img, .reading-content img",
+    imageAttr: "src",
+    isVerticalWebtoon: true,
+  },
 };
 
 export interface SeriesScrapedChapter {
@@ -88,6 +100,14 @@ export class ScraperService {
 
       if (domain.includes("luacomic.org")) {
         return await this.scrapeLuaComic(url);
+      }
+
+      if (domain.includes("manhwaread.com")) {
+        return await this.scrapeManhwaRead(url);
+      }
+
+      if (domain.includes("comix.to")) {
+        return await this.scrapeComixTo(url);
       }
 
       // 0. Auto-detect Series Pages for Headless sites
@@ -657,6 +677,183 @@ export class ScraperService {
     }
   }
 
+  private static decodeHtmlEntities(text: string): string {
+    if (!text) return "";
+    const textArea = document.createElement("textarea");
+    textArea.innerHTML = text;
+    return textArea.value;
+  }
+
+  private static async scrapeManhwaRead(url: string): Promise<ScrapeResult> {
+    const domain = "manhwaread.com";
+    const isChapter = url.includes("/chapter-");
+
+    try {
+      if (isChapter) {
+        const html = await this.asyncFetchHtml(url, {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        });
+
+        let images: ScrapedImage[] = [];
+        let metadata: ScrapeResult["metadata"] = undefined;
+
+        try {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, "text/html");
+          
+          const ogTitle = (doc.querySelector("meta[property='og:title']") as HTMLMetaElement)?.content || "";
+          
+          let title = "Untitled";
+          let chapterTitle = "Unknown Chapter";
+          
+          const titleMatch = ogTitle.match(/Reading\s+(.+?)\s+-\s+(Chapter\s+[\d\.]+)/i);
+          if (titleMatch) {
+              title = this.decodeHtmlEntities(titleMatch[1]);
+              chapterTitle = this.decodeHtmlEntities(titleMatch[2]);
+          } else {
+              const rawTitle = ogTitle.split(" - ")[0];
+              if (rawTitle.startsWith("Reading ")) title = this.decodeHtmlEntities(rawTitle.replace("Reading ", ""));
+              else title = this.decodeHtmlEntities(rawTitle);
+          }
+
+          const description = this.decodeHtmlEntities((doc.querySelector("meta[property='og:description']") as HTMLMetaElement)?.content || "");
+
+          metadata = {
+              title,
+              chapterTitle,
+              description,
+              mangaId: url.split('/manhwa/')[1]?.split('/')[0] || 'manhwaread-unknown',
+          };
+        } catch (e) {
+          console.warn("[ManhwaRead] Failed to parse chapter metadata", e);
+        }
+
+        const match = html.match(/var chapterData = (\{.*?\});/);
+        if (match) {
+          try {
+            const chapterData = JSON.parse(match[1]);
+            if (chapterData.data && chapterData.base) {
+              const decoded = atob(chapterData.data);
+              const parsedData = JSON.parse(decoded);
+              
+              images = parsedData.map((item: any, i: number) => {
+                const baseUrl = chapterData.base.endsWith("/") ? chapterData.base.slice(0, -1) : chapterData.base;
+                const src = item.src.startsWith("/") ? item.src.slice(1) : item.src;
+                return {
+                  url: `${baseUrl}/${src}`,
+                  pageNumber: i + 1
+                };
+              });
+            }
+          } catch (e) {
+            console.warn("[ManhwaRead] Failed to parse chapterData", e);
+          }
+        }
+        
+        if (images.length > 0) return { images, metadata };
+        
+        const headlessResult = await this.scrapeViaWindow(url);
+        return {
+            images: headlessResult.images,
+            metadata: metadata
+        };
+      } else {
+        console.log(`[ManhwaRead] Fetching series HTML for: ${url}`);
+        const html = await this.asyncFetchHtml(url, {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        });
+        console.log(`[ManhwaRead] Series HTML fetched, length: ${html.length}`);
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+
+        const ogTitle = (doc.querySelector("meta[property='og:title']") as HTMLMetaElement)?.content || "";
+        let title = doc.querySelector(".post-title h1")?.textContent?.trim() 
+                      || ogTitle.split(" - ")[0] 
+                      || doc.title.split(" - ")[0] 
+                      || "Untitled";
+        
+        let description = (doc.querySelector("meta[property='og:description']") as HTMLMetaElement)?.content
+                          || doc.querySelector(".summary__content")?.textContent?.trim() 
+                          || doc.querySelector(".manga-excerpt")?.textContent?.trim()
+                          || "";
+
+        let coverUrl = (doc.querySelector("meta[property='og:image']") as HTMLMetaElement)?.content
+                       || doc.querySelector(".summary_image img")?.getAttribute("src") 
+                       || "";
+
+        if (coverUrl.startsWith("/")) coverUrl = `https://${domain}${coverUrl}`;
+
+        const chapterLinks = Array.from(
+          doc.querySelectorAll('a[href*="/chapter-"]')
+        )
+          .map((item) => (item as HTMLAnchorElement).getAttribute("href"))
+          .filter(Boolean)
+          .map((href) => href!.startsWith("/") ? `https://${domain}${href}` : href!);
+
+        const uniqueLinks = Array.from(new Set(chapterLinks));
+        console.log(`[ManhwaRead] Found ${uniqueLinks.length} unique chapter links`);
+
+        if (uniqueLinks.length > 0) {
+          uniqueLinks.reverse();
+        } else {
+          console.warn(`[ManhwaRead] No chapters found in HTML. Check selectors.`);
+          throw new Error("No chapters found");
+        }
+
+        const tags = Array.from(doc.querySelectorAll('a[href*="/genre/"]'))
+          .map(a => a.textContent?.trim())
+          .filter(Boolean) as string[];
+
+        return {
+          series: {
+            title: this.decodeHtmlEntities(title),
+            description: this.decodeHtmlEntities(description),
+            coverUrl,
+            seriesUrl: url,
+            source: domain,
+            tags,
+            chapters: uniqueLinks.map((link) => {
+              const numMatch = link.match(/chapter-(\d+(\.\d+)?)/);
+              const num = numMatch ? numMatch[1] : "unknown";
+              return {
+                id: link,
+                number: num,
+                url: link,
+                source: domain,
+              };
+            }),
+          },
+        };
+      }
+    } catch (err) {
+      console.warn("[ManhwaRead] Static fetch failed or empty, using headless:", err);
+      if (isChapter) {
+        return await this.scrapeViaWindow(url);
+      } else {
+        const res = await invoke<any>("scrape_series_headless", { url });
+        return {
+          series: {
+            title: res.title,
+            description: res.description,
+            coverUrl: res.cover_url,
+            seriesUrl: url,
+            source: domain,
+            chapters: res.chapterLinks.map((link: string, i: number) => {
+              const numMatch = link.match(/chapter-(\d+(\.\d+)?)/);
+              const num = numMatch ? numMatch[1] : (res.chapterLinks.length - i).toString();
+              return {
+                id: link,
+                number: num,
+                url: link,
+                source: domain,
+              };
+            }),
+          },
+        };
+      }
+    }
+  }
+
   private static tagCache: Record<string, string> | null = null;
 
   static async getMangaDexTags(): Promise<Record<string, string>> {
@@ -692,15 +889,55 @@ export class ScraperService {
 
   static async searchByTags(tags: string[], limit: number = 20): Promise<any[]> {
     try {
+        // MangaDex Search
         const tagMap = await this.getMangaDexTags();
         const tagIds = tags.map(t => tagMap[t.toLowerCase()]).filter(Boolean);
-        if (tagIds.length === 0) return [];
+        let mdResults: any[] = [];
+        
+        if (tagIds.length > 0) {
+          const tagParams = tagIds.map(id => `includedTags[]=${id}`).join('&');
+          const res = await fetch(`https://api.mangadex.org/manga?${tagParams}&limit=${limit}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive`);
+          if (res.ok) {
+            const json = await res.json();
+            mdResults = this.mapMangaDexResults(json.data);
+          }
+        }
 
-        const tagParams = tagIds.map(id => `includedTags[]=${id}`).join('&');
-        const res = await fetch(`https://api.mangadex.org/manga?${tagParams}&limit=${limit}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive`);
-        if (!res.ok) throw new Error("MangaDex tag search failed");
-        const json = await res.json();
-        return this.mapMangaDexResults(json.data);
+        // ManhwaRead Search (Top tag only)
+        let mrResults: any[] = [];
+        if (tags.length > 0) {
+          const genre = tags[0].toLowerCase().replace(/\s+/g, '-');
+          try {
+            let html = await this.asyncFetchHtml(`https://manhwaread.com/manga-genre/${genre}/`).catch(() => null);
+            if (!html) {
+              html = await this.asyncFetchHtml(`https://manhwaread.com/genre/${genre}/`).catch(() => null);
+            }
+            
+            if (html) {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(html, "text/html");
+              const items = Array.from(doc.querySelectorAll('.manga-item'));
+              mrResults = items.slice(0, 10).map(item => {
+                const linkEl = item.querySelector('.manga-item__link') as HTMLAnchorElement;
+                const imgEl = item.querySelector('.manga-item__thumbnail img') as HTMLImageElement;
+                return {
+                  id: linkEl?.href || '',
+                  title: linkEl?.textContent?.trim() || 'Untitled',
+                  coverUrl: imgEl?.src || '',
+                  source: 'manhwaread.com',
+                  external: true
+                };
+              }).filter(r => r.id);
+            }
+          } catch (e) {
+            // Silence 404s
+            if (!String(e).includes('404')) {
+              console.warn("[Scraper] ManhwaRead tag search error:", e);
+            }
+          }
+        }
+
+        return [...mdResults, ...mrResults];
     } catch (e) {
         console.error("[Scraper] Tag search failed:", e);
         return [];
@@ -709,10 +946,39 @@ export class ScraperService {
 
   static async getTrending(limit: number = 20): Promise<any[]> {
     try {
+        // MangaDex Trending
         const res = await fetch(`https://api.mangadex.org/manga?order[followedCount]=desc&limit=${limit}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive`);
-        if (!res.ok) throw new Error("MangaDex trending failed");
-        const json = await res.json();
-        return this.mapMangaDexResults(json.data);
+        let mdResults: any[] = [];
+        if (res.ok) {
+          const json = await res.json();
+          mdResults = this.mapMangaDexResults(json.data);
+        }
+
+        // ManhwaRead Trending (Home page latest)
+        let mrResults: any[] = [];
+        try {
+          const html = await this.asyncFetchHtml(`https://manhwaread.com/`);
+          if (html) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
+            const items = Array.from(doc.querySelectorAll('.manga-item'));
+            mrResults = items.slice(0, 10).map(item => {
+              const linkEl = item.querySelector('.manga-item__link') as HTMLAnchorElement;
+              const imgEl = item.querySelector('.manga-item__thumbnail img') as HTMLImageElement;
+              return {
+                id: linkEl?.href || '',
+                title: linkEl?.textContent?.trim() || 'Untitled',
+                coverUrl: imgEl?.src || '',
+                source: 'manhwaread.com',
+                external: true
+              };
+            }).filter(r => r.id);
+          }
+        } catch (e) {
+          console.warn("[Scraper] ManhwaRead trending failed:", e);
+        }
+
+        return [...mdResults, ...mrResults];
     } catch (e) {
         console.error("[Scraper] Trending failed:", e);
         return [];
@@ -721,13 +987,518 @@ export class ScraperService {
 
   static async getRecentlyUpdated(limit: number = 20): Promise<any[]> {
     try {
+        // MangaDex Recent
         const res = await fetch(`https://api.mangadex.org/manga?order[latestUploadedChapter]=desc&limit=${limit}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive`);
-        if (!res.ok) throw new Error("MangaDex recently updated failed");
-        const json = await res.json();
-        return this.mapMangaDexResults(json.data);
+        let mdResults: any[] = [];
+        if (res.ok) {
+          const json = await res.json();
+          mdResults = this.mapMangaDexResults(json.data);
+        }
+
+        return mdResults;
     } catch (e) {
         console.error("[Scraper] Recently updated failed:", e);
         return [];
+    }
+  }
+
+  private static parseComixInitialData(html: string): any | null {
+    const match = html.match(
+      /<script[^>]+id=["']initial-data["'][^>]*>([\s\S]*?)<\/script>/i,
+    );
+    if (!match?.[1]) return null;
+
+    try {
+      return JSON.parse(match[1]);
+    } catch (e) {
+      console.warn("[Comix] Failed to parse initial-data", e);
+      return null;
+    }
+  }
+
+  private static extractComixImageUrls(value: any): string[] {
+    const urls = new Set<string>();
+    const visit = (node: any) => {
+      if (!node) return;
+      if (typeof node === "string") {
+        let clean = node.replace(/\\\//g, "/").replace(/&amp;/g, "&");
+        if (clean.startsWith("//")) clean = `https:${clean}`;
+        if (
+          /^https?:\/\//i.test(clean) &&
+          /(static\.comix\.to|media\.luacomic\.org|uploads|chapter|pages?)/i.test(clean) &&
+          /\.(jpe?g|png|webp)(\?|$)/i.test(clean)
+        ) {
+          urls.add(clean);
+        }
+        return;
+      }
+      if (Array.isArray(node)) {
+        node.forEach(visit);
+        return;
+      }
+      if (typeof node === "object") {
+        Object.values(node).forEach(visit);
+      }
+    };
+
+    visit(value);
+    return Array.from(urls);
+  }
+
+  private static comixApiSignature(pathOrUrl: string): string {
+    const atobFn = (value: string) => atob(value);
+    const btoaFn = (value: string) => btoa(value);
+    const bytes = (value: string) => value.split("").map((char) => char.charCodeAt(0));
+    const chars = (value: number[]) => String.fromCharCode.apply(null, value);
+    const urlSafe = (value: string) =>
+      btoaFn(value).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const rc4 = (key: string, input: string) => {
+      const state: number[] = [];
+      let j = 0;
+      let out = "";
+      for (let i = 0; i < 256; i++) state[i] = i;
+      for (let i = 0; i < 256; i++) {
+        j = (j + state[i] + key.charCodeAt(i % key.length)) % 256;
+        [state[i], state[j]] = [state[j], state[i]];
+      }
+      let i = 0;
+      j = 0;
+      for (let idx = 0; idx < input.length; idx++) {
+        i = (i + 1) % 256;
+        j = (j + state[i]) % 256;
+        [state[i], state[j]] = [state[j], state[i]];
+        out += String.fromCharCode(
+          input.charCodeAt(idx) ^ state[(state[i] + state[j]) % 256],
+        );
+      }
+      return out;
+    };
+    const keyD = () => bytes(atobFn("DTSTmUt6LpDUw9r1lSQqyb3YlFTzruT8tk8wUGkwehQ="));
+    const keyB = () => bytes(atobFn("3PordjODbhqla382Cxapmo/1JiABJQcjiJj1+48gTJ4="));
+    const keyZ = () => bytes(atobFn("8i0Cru/VJBSVB2Y1GcMDVpzx2WepOcfnWdd81yxICl4="));
+    const keyTe = () => bytes(atobFn("bewtiTuV+HJk56xxkf2iCljLgruCpBmN9BgE8i6gc9M="));
+    const keyIe = () => bytes(atobFn("yXayUVFrrcW56jQCEfZzuCidjpnWKjTDUNT7XeX9i7k="));
+
+    const a = (v: number) => 81 ^ v;
+    const c = (v: number) => 218 ^ v;
+    const m = (v: number) => 147 ^ v;
+    const w = (v: number) => 37 ^ v;
+    const x = (v: number) => 180 ^ v;
+    const q = (v: number) => 255 & ((v >>> 1) | (v << 7));
+    const vrot = (v: number) => 255 & ((v << 1) | (v >>> 7));
+    const ne = (v: number) => 255 & ((v << 2) | (v >>> 6));
+    const s = (v: number) => 255 & ((v << 7) | (v >>> 1));
+    const L = (v: number) => 255 & ((v >>> 4) | (v << 4));
+    const y = (v: number) => 255 & ((v << 4) | (v >>> 4));
+    const R = (v: number) => (v + 159) % 256;
+    const u = (v: number) => (v - 159 + 256) % 256;
+    const X = (v: number) => (v + 34) % 256;
+    const O = (v: number) => (v - 34 + 256) % 256;
+
+    const wrap = (key: string, input: number[]) => bytes(rc4(atobFn(key), chars(input)));
+    const M = (input: number[]) => wrap("JxTcdyiA5GZxnbrmthXBQfU2IMTKcY1+3nNhbq98Sgo=", input);
+    const ae = (input: number[]) => wrap("MHNBHYWA7lvy867fXgvGcJwWDk79KqUJUVFsh3RwnnI=", input);
+    const g = (input: number[]) => wrap("B46L1x+UeWP+19cRpQ+OZvdLAK9EHID8g3mSgn57tew=", input);
+    const p = (input: number[]) => wrap("7xWfIF5THL5LAnRgAARg+4mjWHPU9n3PQwvzbaMNi+Q=", input);
+    const P = (input: number[]) => wrap("WgeCQ3T8R51uTwVSiVa7Zy0dN6JOg6Z5JleMS+HV8Aw=", input);
+
+    const C = (input: number[]) => {
+      const key = keyB();
+      const prefix = atobFn("OaKvnI5ARA==");
+      const out: number[] = [];
+      for (let i = 0; i < input.length; i++) {
+        if (i < 7) out.push(prefix.charCodeAt(i));
+        let n = input[i] ^ key[i % 32];
+        switch (i % 10) {
+          case 0: n = s(n); break;
+          case 1: n = w(n); break;
+          case 2: n = a(n); break;
+          case 3: n = m(n); break;
+          case 4: n = ne(n); break;
+          case 5:
+          case 8: n = y(n); break;
+          case 6: n = c(n); break;
+          case 7: n = u(n); break;
+          case 9: n = x(n); break;
+        }
+        out.push(255 & n);
+      }
+      return out;
+    };
+    const H = (input: number[]) => {
+      const key = keyZ();
+      const prefix = atobFn("Fyskubz8VvA=");
+      const out: number[] = [];
+      for (let i = 0; i < input.length; i++) {
+        if (i < 8) out.push(prefix.charCodeAt(i));
+        let n = input[i] ^ key[i % 32];
+        switch (i % 10) {
+          case 0:
+          case 9: n = x(n); break;
+          case 1: n = vrot(n); break;
+          case 2: n = m(n); break;
+          case 3: n = s(n); break;
+          case 4: n = ne(n); break;
+          case 5: n = y(n); break;
+          case 6:
+          case 8: n = R(n); break;
+          case 7: n = X(n); break;
+        }
+        out.push(255 & n);
+      }
+      return out;
+    };
+    const I = (input: number[]) => {
+      const key = keyD();
+      const prefix = atobFn("vY/meeI=");
+      const out: number[] = [];
+      for (let i = 0; i < input.length; i++) {
+        if (i < 5) out.push(prefix.charCodeAt(i));
+        let n = input[i] ^ key[i % 32];
+        switch (i % 10) {
+          case 0: n = a(n); break;
+          case 1: n = y(n); break;
+          case 2:
+          case 9: n = L(n); break;
+          case 3: n = w(n); break;
+          case 4: n = u(n); break;
+          case 5: n = q(n); break;
+          case 6: n = x(n); break;
+          case 7: n = O(n); break;
+          case 8: n = ne(n); break;
+        }
+        out.push(255 & n);
+      }
+      return out;
+    };
+    const T = (input: number[]) => {
+      const key = keyTe();
+      const prefix = atobFn("/Xcb2zAu8AU=");
+      const out: number[] = [];
+      for (let i = 0; i < input.length; i++) {
+        if (i < 8) out.push(prefix.charCodeAt(i));
+        let n = input[i] ^ key[i % 32];
+        switch (i % 10) {
+          case 0:
+          case 7: n = c(n); break;
+          case 1:
+          case 4: n = vrot(n); break;
+          case 2: n = q(n); break;
+          case 3: n = R(n); break;
+          case 5:
+          case 8: n = x(n); break;
+          case 6: n = m(n); break;
+          case 9: n = w(n); break;
+        }
+        out.push(255 & n);
+      }
+      return out;
+    };
+    const oe = (input: number[]) => {
+      const key = keyIe();
+      const prefix = atobFn("tSLco2w=");
+      const out: number[] = [];
+      for (let i = 0; i < input.length; i++) {
+        if (i < 5) out.push(prefix.charCodeAt(i));
+        let n = input[i] ^ key[i % 32];
+        switch (i % 10) {
+          case 0: n = L(n); break;
+          case 1:
+          case 3: n = m(n); break;
+          case 2: n = X(n); break;
+          case 4:
+          case 9: n = c(n); break;
+          case 5:
+          case 7: n = vrot(n); break;
+          case 6: n = x(n); break;
+          case 8: n = ne(n); break;
+        }
+        out.push(255 & n);
+      }
+      return out;
+    };
+
+    const path = pathOrUrl
+      .replace(/^https?:\/\/[^/]+/, "")
+      .split("?")[0]
+      .replace(/^\/api\/v1/, "");
+    let out = bytes(encodeURIComponent(path));
+    out = C(out);
+    out = M(out);
+    out = H(out);
+    out = ae(out);
+    out = I(out);
+    out = g(out);
+    out = T(out);
+    out = p(out);
+    out = oe(out);
+    out = P(out);
+    return urlSafe(chars(out));
+  }
+
+  private static async fetchComixJson(pathOrUrl: string, referer: string): Promise<any | null> {
+    const rawUrl = pathOrUrl.startsWith("http")
+      ? pathOrUrl
+      : `https://www.comix.to${pathOrUrl}`;
+    const urlObj = new URL(rawUrl);
+    urlObj.searchParams.set("_", this.comixApiSignature(urlObj.pathname));
+    const url = urlObj.href;
+
+    try {
+      const text = await this.asyncFetchHtml(url, {
+        Accept: "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        Referer: referer,
+      });
+      const parsed = JSON.parse(text);
+      return parsed?.result ?? parsed;
+    } catch (e) {
+      console.warn("[Comix] API fetch failed:", url, e);
+      return null;
+    }
+  }
+
+  private static normalizeComixChapter(item: any, seriesUrl: string): SeriesScrapedChapter | null {
+    const source = "comix.to";
+    const url = item?.url || item?.readUrl || item?.chapterUrl;
+    const id = item?.id ?? item?.chapterId ?? item?.hid ?? url;
+    const number = String(
+      item?.number ?? item?.chapter ?? item?.chapterNumber ?? item?.chap ?? "unknown",
+    );
+
+    let finalUrl = typeof url === "string" ? url : "";
+    if (!finalUrl && id && number !== "unknown") {
+      finalUrl = `${seriesUrl.replace(/\/$/, "")}/${id}-chapter-${number}`;
+    }
+    if (finalUrl.startsWith("/")) finalUrl = `https://www.comix.to${finalUrl}`;
+
+    if (!finalUrl) return null;
+    return {
+      id: String(id || finalUrl),
+      number,
+      url: finalUrl,
+      title: item?.title,
+      source,
+    };
+  }
+
+  private static async fetchComixChapters(
+    mangaKey: string | number,
+    seriesUrl: string,
+  ): Promise<SeriesScrapedChapter[]> {
+    const chapters: SeriesScrapedChapter[] = [];
+    const seen = new Set<string>();
+
+    for (let page = 1; page <= 20; page++) {
+      const data = await this.fetchComixJson(
+        `/api/v1/manga/${mangaKey}/chapters?page=${page}`,
+        seriesUrl,
+      );
+      if (!data) break;
+
+      const candidates =
+        data.items ||
+        data.data ||
+        data.chapters ||
+        (Array.isArray(data) ? data : []);
+
+      if (!Array.isArray(candidates) || candidates.length === 0) break;
+
+      for (const item of candidates) {
+        const chapter = this.normalizeComixChapter(item, seriesUrl);
+        if (chapter && !seen.has(chapter.url)) {
+          seen.add(chapter.url);
+          chapters.push(chapter);
+        }
+      }
+
+      const meta = data.meta || data.pagination || {};
+      if (meta.hasNext === false || (meta.lastPage && page >= Number(meta.lastPage))) break;
+    }
+
+    return chapters.reverse();
+  }
+
+  private static async scrapeComixTo(url: string): Promise<ScrapeResult> {
+    const domain = "comix.to";
+    const isChapter = url.includes("/read/") || url.includes("-chapter-");
+
+    if (isChapter) {
+      const html = await this.asyncFetchHtml(url);
+      const initialData = this.parseComixInitialData(html);
+      const chapterId =
+        initialData?.read?.chapterId ||
+        url.match(/\/(\d+)-chapter-/)?.[1];
+      let metadata: ScrapeResult["metadata"] = undefined;
+      const detail = Object.values(initialData?.queries || {}).find(
+        (entry: any) => entry?.title && entry?.poster,
+      ) as any;
+      if (detail) {
+        metadata = {
+          title: detail.title,
+          coverUrl: detail.poster?.large || detail.poster?.medium,
+          description: detail.synopsis,
+          mangaId: detail.hid || String(detail.id || ""),
+          author: detail.authors?.map((a: any) => a.title).filter(Boolean).join(", "),
+          tags: [
+            ...(detail.genres || []),
+            ...(detail.tags || []),
+            ...(detail.formats || []),
+          ].map((tag: any) => tag.title).filter(Boolean),
+          chapterTitle: initialData?.read?.chapterNumber
+            ? `Chapter ${initialData.read.chapterNumber}`
+            : undefined,
+        };
+      }
+
+      if (chapterId) {
+        const pageData = await this.fetchComixJson(`/api/v1/chapters/${chapterId}`, url);
+        const pageUrls = this.extractComixImageUrls(pageData);
+        if (pageUrls.length > 0) {
+          return {
+            images: pageUrls.map((src, i) => ({ url: src, pageNumber: i + 1 })),
+            metadata,
+          };
+        }
+      }
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const images: ScrapedImage[] = [];
+
+      // Look for data-src
+      doc.querySelectorAll('img[data-src], img.chapter-img, .reader-area img, .reader-main img').forEach((img) => {
+        const element = img as HTMLImageElement;
+        const src = element.getAttribute("data-src") || element.getAttribute("src") || element.src;
+        if (src && (src.includes("static.comix.to") || src.includes("media.luacomic.org"))) {
+           images.push({ url: src, pageNumber: images.length + 1 });
+        }
+      });
+
+      // Nuclear option: Scan raw HTML for static.comix.to links
+      if (images.length === 0) {
+        const imgRegex = /(https:\/\/static\.comix\.to\/[^\s\"'\\ ]+\.(?:jpg|png|webp|jpeg))/gi;
+        const matches = html.match(imgRegex) || [];
+        const uniqueImgs = Array.from(new Set(matches));
+        uniqueImgs.forEach((src, i) => {
+          images.push({ url: src, pageNumber: i + 1 });
+        });
+      }
+
+      if (images.length === 0) {
+        try {
+          const headless = await this.scrapeViaWindow(url);
+          if (headless.images && headless.images.length > 0) {
+            return { ...headless, metadata };
+          }
+        } catch (e) {
+          console.warn("[Scraper] comix.to final headless images fallback failed:", e);
+        }
+      }
+
+      return { images, metadata };
+    } else {
+      let title = "Unknown Title";
+      let description = "";
+      let coverUrl = "";
+      let chapters: SeriesScrapedChapter[] = [];
+      let chapterLinks: string[] = [];
+
+      // 2. Deep JSON Extraction
+      if (chapterLinks.length === 0) {
+        const html = await this.asyncFetchHtml(url);
+        const initialData = this.parseComixInitialData(html);
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+
+        const detail = Object.values(initialData?.queries || {}).find(
+          (entry: any) => entry?.title && entry?.poster,
+        ) as any;
+        if (detail) {
+          title = detail.title || title;
+          description = detail.synopsis || description;
+          coverUrl = detail.poster?.large || detail.poster?.medium || coverUrl;
+
+          const mangaKeys = [detail.hid, detail.id].filter(Boolean);
+          for (const key of mangaKeys) {
+            chapters = await this.fetchComixChapters(key, url);
+            if (chapters.length > 0) break;
+          }
+
+          if (chapters.length === 0) {
+            chapterLinks = [detail.firstChapterUrl, detail.latestChapterUrl].filter(Boolean);
+          }
+        }
+
+        title = doc.querySelector('h1')?.textContent?.trim() ||
+                doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || title;
+        description = doc.querySelector('.description')?.textContent?.trim() ||
+                      doc.querySelector('meta[name="description"]')?.getAttribute('content') || description;
+        coverUrl = doc.querySelector('meta[property="og:image"]')?.getAttribute('content') || coverUrl;
+
+        // Extract from <a> tags
+        doc.querySelectorAll('a[href*="/chapter-"], a[href*="/read/"]').forEach((a) => {
+          chapterLinks.push((a as HTMLAnchorElement).href);
+        });
+        
+        // Deep Script Analysis: Parse all JSON scripts
+        doc.querySelectorAll('script').forEach(script => {
+          const content = script.textContent || "";
+          if (content.includes("chapter") || content.includes("hid")) {
+            // Try to find full URLs
+            const urlMatches = content.match(/(?:https?:\/\/[^\/ ]+)?\\?\/title\\?\/[^\s\"'\\ ]+?-chapter-[\d.]+/g) || [];
+            urlMatches.forEach(m => {
+              let clean = m.replace(/\\/g, "");
+              if (!clean.startsWith('http')) clean = `https://www.comix.to${clean}`;
+              chapterLinks.push(clean);
+            });
+
+            // Try to find chapter objects {"id":123,"hid":"...","number":1}
+            const hidMatches = content.match(/\"hid\":\"([^\"]+)\",\"title\":\"([^\"]+)\"/g) || [];
+            // This is just a hint that chapters might be here
+          }
+        });
+
+        chapterLinks = Array.from(new Set(chapterLinks)).filter(Boolean);
+      }
+
+      if (chapters.length === 0 && chapterLinks.length === 0) {
+        try {
+          const res = await invoke<any>("scrape_series_headless", { url });
+          if (res && res.chapterLinks && res.chapterLinks.length > 0) {
+            title = res.title || title;
+            description = res.description || description;
+            coverUrl = res.cover_url || res.coverUrl || coverUrl;
+            chapterLinks = res.chapterLinks;
+          }
+        } catch (e) {
+          console.warn("[Scraper] comix.to final headless series fallback failed:", e);
+        }
+      }
+
+      if (chapters.length === 0) {
+        chapters = chapterLinks.map((link) => {
+          const numMatch = link.match(/chapter-(\d+(\.\d+)?)/);
+          const num = numMatch ? numMatch[1] : "unknown";
+          return {
+            id: link,
+            number: num,
+            url: link,
+            source: domain,
+          };
+        });
+      }
+
+      return {
+        series: {
+          title,
+          description,
+          coverUrl,
+          seriesUrl: url,
+          source: domain,
+          chapters,
+        },
+      };
     }
   }
 

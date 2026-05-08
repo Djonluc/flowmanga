@@ -45,7 +45,7 @@ export class DownloadService {
                     await invoke('download_image', {
                         url: metadata.coverUrl,
                         filePath: coverPath,
-                        headers: metadata.source === 'mangago.me' ? { 'Referer': metadata.sourceUrl } : null
+                        headers: (metadata.source !== 'mangadex' && metadata.sourceUrl) ? { 'Referer': metadata.sourceUrl } : null
                     });
                     mergedMeta.coverFile = 'cover.jpg';
                 } catch (e) {
@@ -169,7 +169,7 @@ export class DownloadService {
                       await Promise.all(mergedMeta.chapters.map(async (ch: any) => ({
                           id: `${mergedMeta.mangaId}-${ch.number}`,
                           title: `Chapter ${ch.number}`,
-                          chapterNumber: parseFloat(ch.number),
+                          chapterNumber: isNaN(parseFloat(ch.number)) ? 0 : parseFloat(ch.number),
                           filePath: mangaRoot,
                           coverPath: ch.coverFile ? await join(mangaRoot, ch.coverFile) : null,
                           sourceId: ch.sourceId
@@ -192,11 +192,12 @@ export class DownloadService {
         }
         
         const { ScraperService } = await import('./ScraperService');
-        const sourceId = chapter.sourceId || chapter.id || chapter.url;
+        const sourceId = chapter.chUrl || chapter.sourceId || chapter.id || chapter.url;
         
         if (!sourceId) throw new Error("No source identifier for chapter");
 
-        const res = await ScraperService.scrapeChapter(sourceId.startsWith('http') ? sourceId : `https://mangadex.org/chapter/${sourceId}`);
+        const scrapeUrl = sourceId.startsWith('http') ? sourceId : `https://mangadex.org/chapter/${sourceId}`;
+        const res = await ScraperService.scrapeChapter(scrapeUrl);
         
         if (res.images && res.images.length > 0) {
             return { images: res.images };

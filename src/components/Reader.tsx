@@ -27,7 +27,7 @@ export const Reader = () => {
     mode, setCurrentPage, setTotalPages, 
     currentThemeColor
   } = useReaderStore();
-  const { setAmbientImage, ambientMode } = useSettingsStore();
+  const { setAmbientImage, ambientMode, toggleFullScreenAction } = useSettingsStore();
   
   // UI Visibility State
   const [showControls, setShowControls] = useState(true);
@@ -126,7 +126,10 @@ export const Reader = () => {
   };
 
   return (
-      <div className="fixed inset-0 z-50 w-screen h-screen bg-black overflow-hidden select-none flex flex-col items-center justify-center">
+      <div 
+        onDoubleClick={toggleFullScreenAction}
+        className="fixed inset-0 z-50 w-screen h-screen bg-black overflow-hidden select-none flex flex-col items-center justify-center"
+      >
           
           {/* Ambient Blurred Page Background (replaces black borders) */}
           {ambientMode === 'adaptive-vibrant' ? (

@@ -131,7 +131,12 @@ export const LibraryGrid = () => {
         if (action) {
             handleAction(action, item);
         } else if (e) {
-            setActiveMenu({ x: e.clientX, y: e.clientY, item });
+            const menuWidth = 200;
+            const menuHeight = 210;
+            const padding = 12;
+            const x = Math.min(e.clientX, window.innerWidth - menuWidth - padding);
+            const y = Math.min(e.clientY, window.innerHeight - menuHeight - padding);
+            setActiveMenu({ x: Math.max(padding, x), y: Math.max(padding, y), item });
         }
     };
 
@@ -321,7 +326,7 @@ export const LibraryGrid = () => {
                                         {/* Sources */}
                                         <div className="flex items-center gap-2 px-2 border-l border-white/10">
                                             <span className="text-[10px] text-neutral-600 font-bold uppercase mr-1">Source</span>
-                                            {['local', 'mangadex'].map(src => (
+                                            {['local', 'mangadex', 'luacomic', 'manhwaread', 'comix'].map(src => (
                                                 <button
                                                     key={src}
                                                     onClick={() => setFilterSource(filterSource === src ? null : src)}
@@ -339,7 +344,7 @@ export const LibraryGrid = () => {
                                     </div>
                                 </div>
 
-                                <div className="flex-1 min-h-0">
+                                <div>
                                     {isLoading ? (
                                         <LoadingDisplay />
                                     ) : displayItems.length === 0 ? (
@@ -362,7 +367,7 @@ export const LibraryGrid = () => {
                                         <div className="flex items-center gap-4 px-4">
                                             <div className="flex flex-col">
                                                 <h3 className="text-xl font-black text-white uppercase italic tracking-tight">
-                                                    Discover on <span className="text-accent underline decoration-accent/30 underline-offset-4">MangaDex</span>
+                                                    Discover <span className="text-accent underline decoration-accent/30 underline-offset-4">Online</span>
                                                 </h3>
                                                 <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mt-1">
                                                     Matching your active tags: {filterTags.join(', ')}

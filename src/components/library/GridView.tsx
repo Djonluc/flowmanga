@@ -36,7 +36,7 @@ export const GridView = ({ items, onOpenItem, onMenuClick, density }: GridViewPr
 
     return (
         <div className={clsx(
-            "h-full overflow-y-auto overflow-x-hidden custom-scrollbar p-8",
+            "p-8",
             "grid", gridCols, gap
         )}>
             {items.map((item, i) => (

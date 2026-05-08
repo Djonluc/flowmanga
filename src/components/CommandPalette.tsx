@@ -21,7 +21,7 @@ export const CommandPalette = () => {
     const [query, setQuery] = useState('');
     const [selectedIndex, setSelectedIndex] = useState(0);
 
-    const { series } = useLibraryStore();
+    const { series, setSelectedSeriesId, setSearchQuery, clearFilterTags, toggleFilterTag } = useLibraryStore();
     const { folders: videoFolders } = useVideoStore();
     const { openFolder } = useReadingStore();
     const { setTheme, toggleFullScreenAction, setActiveView } = useSettingsStore();
@@ -98,7 +98,9 @@ export const CommandPalette = () => {
                     subtitle: `${s.books.length} VOLUMES`,
                     icon: <BookOpen size={16} className="text-blue-400" />,
                     action: () => {
-                        setActiveView('library'); // Or go to series detail if implemented
+                        setSelectedSeriesId(s.id);
+                        setSearchQuery('');
+                        setActiveView('library');
                         setIsOpen(false);
                     } 
                 });
@@ -134,8 +136,11 @@ export const CommandPalette = () => {
                                 subtitle: 'Filter Library by Tag',
                                 icon: <Activity size={16} className="text-purple-400" />,
                                 action: () => {
+                                    setSelectedSeriesId(null);
+                                    setSearchQuery('');
+                                    clearFilterTags();
+                                    toggleFilterTag(tag);
                                     setActiveView('library');
-                                    // In a real app, we'd pass the tag to the library state
                                     setIsOpen(false);
                                 }
                             });
@@ -176,7 +181,21 @@ export const CommandPalette = () => {
         }
 
         return searchResults.slice(0, 10); // Limit results
-    }, [query, series, videoFolders]);
+    }, [
+        query,
+        series,
+        videoFolders,
+        openFolder,
+        setActiveView,
+        setAutoScroll,
+        setReaderMode,
+        setSelectedSeriesId,
+        setSearchQuery,
+        clearFilterTags,
+        toggleFilterTag,
+        setTheme,
+        toggleFullScreenAction
+    ]);
 
     // Keyboard Navigation
     useEffect(() => {

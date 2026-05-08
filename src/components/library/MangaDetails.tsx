@@ -494,10 +494,17 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                 const percent = book.progress ? Math.floor((book.progress.currentPage / book.progress.totalPages) * 100) : 0;
                 
                 return (
-                  <button
+                  <div
                     key={book.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => handleReadChapter(book)}
-                    className="group flex flex-row p-0 bg-white/[0.01] hover:bg-white/[0.04] border border-white/5 rounded-[32px] transition-all text-left relative overflow-hidden active:scale-[0.98] h-40"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        handleReadChapter(book);
+                      }
+                    }}
+                    className="group flex flex-row p-0 bg-white/[0.01] hover:bg-white/[0.04] border border-white/5 rounded-[32px] transition-all text-left relative overflow-hidden active:scale-[0.98] h-40 cursor-pointer"
                   >
                     <div className="w-28 h-full flex-shrink-0 rounded-l-[32px] overflow-hidden bg-neutral-950 relative">
                       {(() => {
@@ -555,7 +562,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                          </div>
                       </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>

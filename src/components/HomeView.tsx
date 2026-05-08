@@ -13,7 +13,7 @@ import { useScraperStore } from '../stores/useScraperStore';
 import { toast } from './Toast';
 
 export const HomeView = () => {
-    const { series, setLoading, refreshMangaMetadata, renameSeries } = useLibraryStore();
+    const { series, setLoading, refreshMangaMetadata, renameSeries, deleteSeries } = useLibraryStore();
     const { openFolder } = useReadingStore();
     const { currentVideo } = useVideoStore();
     const { setActiveView } = useSettingsStore();
@@ -82,13 +82,25 @@ export const HomeView = () => {
             await refreshMangaMetadata(item.id);
             toast.success('Metadata updated');
         } else if (action === 'delete') {
-            toast.info('Visit Library to delete content.');
+            if (!confirm(`Delete "${item.title}" from your library?`)) return;
+            try {
+                await deleteSeries(item.id, item.path);
+                toast.success('Series deleted');
+            } catch (err) {
+                console.error('Failed to delete series', err);
+                toast.error('Failed to delete series');
+            }
         }
     };
 
     const handleMenuClick = (item: any, e: React.MouseEvent) => {
         e.stopPropagation();
-        setActiveMenu({ x: e.clientX, y: e.clientY, item });
+        const menuWidth = 200;
+        const menuHeight = 210;
+        const padding = 12;
+        const x = Math.min(e.clientX, window.innerWidth - menuWidth - padding);
+        const y = Math.min(e.clientY, window.innerHeight - menuHeight - padding);
+        setActiveMenu({ x: Math.max(padding, x), y: Math.max(padding, y), item });
     };
 
     const loadRecentHistory = async () => {
@@ -184,26 +196,26 @@ export const HomeView = () => {
                 )}
 
                 {/* Library Statistics Summary */}
-                <section className="px-16 pb-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="p-8 rounded-[32px] bg-white/[0.02] border border-white/5 flex flex-col gap-2 group hover:bg-white/[0.04] transition-all">
+                <section className="px-4 pb-4 md:px-16">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                        <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col gap-2 group hover:bg-white/[0.04] transition-all md:p-8 md:rounded-[32px]">
                             <span className="text-neutral-500 font-bold uppercase text-[10px] tracking-[0.2em] group-hover:text-accent transition-colors">Library Status</span>
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-4xl font-black text-white italic">{stats.totalSeries}</span>
+                            <div className="flex flex-wrap items-baseline gap-2">
+                                <span className="text-3xl font-black text-white italic md:text-4xl">{stats.totalSeries}</span>
                                 <span className="text-neutral-600 font-bold uppercase text-xs">Series</span>
                             </div>
                         </div>
-                        <div className="p-8 rounded-[32px] bg-white/[0.02] border border-white/5 flex flex-col gap-2 group hover:bg-white/[0.04] transition-all">
+                        <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col gap-2 group hover:bg-white/[0.04] transition-all md:p-8 md:rounded-[32px]">
                             <span className="text-neutral-500 font-bold uppercase text-[10px] tracking-[0.2em] group-hover:text-purple-500 transition-colors">Storage Summary</span>
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-4xl font-black text-white italic">{stats.totalChapters}</span>
+                            <div className="flex flex-wrap items-baseline gap-2">
+                                <span className="text-3xl font-black text-white italic md:text-4xl">{stats.totalChapters}</span>
                                 <span className="text-neutral-600 font-bold uppercase text-xs">Local Items</span>
                             </div>
                         </div>
-                        <div className="p-8 rounded-[32px] bg-white/[0.02] border border-white/5 flex flex-col gap-2 group hover:bg-white/[0.04] transition-all">
+                        <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col gap-2 group hover:bg-white/[0.04] transition-all md:p-8 md:rounded-[32px]">
                             <span className="text-neutral-500 font-bold uppercase text-[10px] tracking-[0.2em] group-hover:text-yellow-500 transition-colors">Digital Stream</span>
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-4xl font-black text-white italic">Active</span>
+                            <div className="flex flex-wrap items-baseline gap-2">
+                                <span className="text-3xl font-black text-white italic md:text-4xl">Active</span>
                                 <span className="text-neutral-600 font-bold uppercase text-xs">MangaDex Sync</span>
                             </div>
                         </div>
@@ -236,7 +248,7 @@ export const HomeView = () => {
                 {/* trending items from MangaDex */}
                 {trending.length > 0 && (
                     <HorizontalRail 
-                        title="Trending on MangaDex"
+                        title="Trending Online"
                         icon={<Sparkles size={20} />}
                         items={trending}
                         onItemClick={(item) => {
@@ -277,12 +289,12 @@ export const HomeView = () => {
 
                 {/* Active Video (Kept as specialized section) */}
                 {currentVideo && (
-                    <section className="px-16 space-y-6">
+                    <section className="px-4 space-y-6 md:px-16">
                         <div className="flex items-center gap-4">
                             <div className="w-10 h-10 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 shadow-lg shadow-red-500/5">
                                 <Film size={20} />
                             </div>
-                            <h2 className="text-3xl font-black text-white uppercase italic tracking-tight">Active Screening</h2>
+                            <h2 className="text-2xl font-black text-white uppercase italic tracking-tight md:text-3xl">Active Screening</h2>
                         </div>
                         <motion.div 
                             initial={{ opacity: 0, scale: 0.98 }}

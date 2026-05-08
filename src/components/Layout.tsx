@@ -41,7 +41,7 @@ export const Layout = ({ children, hideSidebar = false }: LayoutProps) => {
             <div className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden">
                 <TopBar />
                 
-                <main className="flex-1 relative overflow-hidden bg-transparent">
+                <main className="flex-1 relative overflow-hidden bg-transparent pb-20 md:pb-0">
                     {children}
                 </main>
             </div>

@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import { useReaderStore } from '../stores/useReaderStore';
 import { convertFileSrc } from '@tauri-apps/api/core';
 
 // Placeholder sounds (Creative Commons or Free use where possible, or generated noise)
@@ -13,28 +14,24 @@ const SOUNDS: Record<string, string> = {
 };
 
 export const AmbientSoundPlayer = () => {
-    const { ambientVolume, selectedAmbientSound, readingMode, isAutoScrolling } = useSettingsStore();
+    const { ambientVolume, selectedAmbientSound } = useSettingsStore();
+    const { autoScroll, slideshowActive, mode } = useReaderStore();
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
     useEffect(() => {
         let soundUrl = '';
         
-        // Music plays if:
+        // Sync Logic: Music plays if:
         // 1. Manual sound is selected (not 'none')
-        // 2. Automate slideshow is active
-        const shouldPlay = (selectedAmbientSound !== 'none') || (readingMode === 'slideshow' && isAutoScrolling);
+        // 2. Content is moving (autoScroll in vertical or slideshowActive in slideshow)
+        const isContentMoving = (mode === 'vertical' && autoScroll) || (mode === 'slideshow' && slideshowActive);
+        const shouldPlay = (selectedAmbientSound !== 'none') && isContentMoving;
 
         if (shouldPlay) {
-            if (selectedAmbientSound !== 'none') {
-                // If it's a path (contains slashes or starts with drive letter)
-                if (selectedAmbientSound.includes('/') || selectedAmbientSound.includes('\\')) {
-                    soundUrl = convertFileSrc(selectedAmbientSound);
-                } else {
-                    soundUrl = SOUNDS[selectedAmbientSound] || '';
-                }
+            if (selectedAmbientSound.includes('/') || selectedAmbientSound.includes('\\')) {
+                soundUrl = convertFileSrc(selectedAmbientSound);
             } else {
-                // Default to a cozy lofi/rain vibe for slideshow if no manual sound is set
-                soundUrl = SOUNDS.lofi; 
+                soundUrl = SOUNDS[selectedAmbientSound] || '';
             }
         }
 
@@ -56,16 +53,16 @@ export const AmbientSoundPlayer = () => {
                         }
                     });
                 }
+            } else if (audio.paused) {
+                audio.play().catch(() => {});
             }
         } else {
             audio.pause();
-            audio.src = '';
         }
 
         return () => {
-            // No need to pause here if we want continuous play, but reacting to theme/selection change
         };
-    }, [selectedAmbientSound, readingMode, isAutoScrolling]);
+    }, [selectedAmbientSound, autoScroll, slideshowActive, mode]);
 
     useEffect(() => {
         if (audioRef.current) {

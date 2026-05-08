@@ -678,24 +678,26 @@ async fn scrape_images_headless(url: String) -> Result<Vec<String>, String> {
             let extract_current_script = r#"
                 (() => {
                     const results = [];
-                    // 1. Standard img tags
-                    const container = document.querySelector('.reading-content, #readerarea') || document;
-                    container.querySelectorAll('img').forEach(img => {
-                        let src = img.currentSrc || img.src || img.dataset.src || img.dataset.lazySrc || img.dataset.original || '';
+                    const addUrl = src => {
+                        if (!src) return;
                         if (src.startsWith('//')) src = 'https:' + src;
                         if (src.startsWith('/')) src = window.location.origin + src;
                         if (src && src.length > 20 && !src.includes('avatar') && !src.includes('logo') && !src.includes('banner')) {
                             results.push(src);
                         }
+                    };
+                    // 1. Standard img tags
+                    const container = document.querySelector('.reading-content, #readerarea') || document;
+                    container.querySelectorAll('img').forEach(img => {
+                        let src = img.currentSrc || img.src || img.dataset.src || img.dataset.lazySrc || img.dataset.original || '';
+                        addUrl(src);
                     });
                     // 2. Background images
                     document.querySelectorAll('[style*="background-image"]').forEach(el => {
                         const style = el.style.backgroundImage;
                         const match = style.match(/url\(["']?(.*?)["']?\)/);
                         if (match && match[1]) {
-                            let url = match[1];
-                            if (url.startsWith('//')) url = 'https:' + url;
-                            if (url.length > 50 && !url.includes('avatar')) results.push(url);
+                            addUrl(match[1]);
                         }
                     });
                     return results;
@@ -742,7 +744,43 @@ async fn scrape_images_headless(url: String) -> Result<Vec<String>, String> {
         if final_urls.is_empty() {
              println!("[Rust Scraper] Incremental loop failed. Trying final broad extraction...");
              let broad_script = r#"
-                Array.from(document.querySelectorAll('img')).map(i => i.currentSrc || i.src || '').filter(s => s.length > 50)
+                (async () => {
+                    const urls = new Set(Array.from(document.querySelectorAll('img'))
+                        .map(i => i.currentSrc || i.src || i.dataset?.src || i.dataset?.lazySrc || '')
+                        .filter(s => s.length > 50));
+
+                    const initial = document.getElementById('initial-data');
+                    if (location.hostname.includes('comix.to') && initial?.textContent) {
+                        try {
+                            const data = JSON.parse(initial.textContent);
+                            const chapterId = data?.read?.chapterId;
+                            if (chapterId) {
+                                const res = await fetch(`/api/v1/chapters/${chapterId}/pages`, {
+                                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                                    credentials: 'include'
+                                });
+                                const json = await res.json();
+                                const walk = value => {
+                                    if (!value) return;
+                                    if (typeof value === 'string') {
+                                        let src = value.replaceAll('\\/', '/');
+                                        if (src.startsWith('//')) src = 'https:' + src;
+                                        if (src.startsWith('/')) src = location.origin + src;
+                                        if (/^https?:\/\//i.test(src) && /\.(jpe?g|png|webp)(\?|$)/i.test(src)) urls.add(src);
+                                    } else if (Array.isArray(value)) {
+                                        value.forEach(walk);
+                                    } else if (typeof value === 'object') {
+                                        Object.values(value).forEach(walk);
+                                    }
+                                };
+                                walk(json?.result ?? json);
+                            }
+                        } catch (e) {
+                            console.warn('Comix pages API extraction failed', e);
+                        }
+                    }
+                    return Array.from(urls);
+                })()
              "#;
              if let Ok(remote_obj) = tab.evaluate(broad_script, true) {
                  if let Some(val) = remote_obj.value {
@@ -837,6 +875,54 @@ async fn scrape_series_headless(url: String) -> Result<SeriesScrapeResult, Strin
                     cover = coverMeta || (coverImg ? (coverImg.src || coverImg.dataset.src) : '');
 
                     // 4. Extract Links (Unified)
+                    const linkSet = new Set();
+                    document.querySelectorAll('a[href]').forEach(a => {
+                        const href = a.getAttribute('href') || '';
+                        const text = a.textContent || '';
+                        if (
+                            href.includes('/chapter-') ||
+                            href.includes('/read/') ||
+                            /chapter\s*\d+/i.test(text)
+                        ) {
+                            linkSet.add(href);
+                        }
+                    });
+
+                    const initial = document.getElementById('initial-data');
+                    if (location.hostname.includes('comix.to') && initial?.textContent) {
+                        try {
+                            const data = JSON.parse(initial.textContent);
+                            const detail = Object.values(data?.queries || {}).find(v => v?.title && v?.poster);
+                            if (detail?.firstChapterUrl) linkSet.add(detail.firstChapterUrl);
+                            if (detail?.latestChapterUrl) linkSet.add(detail.latestChapterUrl);
+                            const mangaKey = detail?.hid || data?.manga?.hid || detail?.id || data?.manga?.id;
+                            if (mangaKey) {
+                                let page = 1;
+                                while (page <= 20) {
+                                    const res = await fetch(`/api/v1/manga/${mangaKey}/chapters?page=${page}`, {
+                                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                                        credentials: 'include'
+                                    });
+                                    if (!res.ok) break;
+                                    const json = await res.json();
+                                    const payload = json?.result ?? json;
+                                    const items = payload?.items || payload?.data || payload?.chapters || (Array.isArray(payload) ? payload : []);
+                                    if (!Array.isArray(items) || items.length === 0) break;
+                                    items.forEach(ch => {
+                                        const href = ch?.url || ch?.readUrl || ch?.chapterUrl ||
+                                            (ch?.id && (ch?.number || ch?.chapter) ? `${location.pathname.replace(/\/$/, '')}/${ch.id}-chapter-${ch.number || ch.chapter}` : '');
+                                        if (href) linkSet.add(href);
+                                    });
+                                    const meta = payload?.meta || payload?.pagination || {};
+                                    if (meta.hasNext === false || (meta.lastPage && page >= Number(meta.lastPage))) break;
+                                    page++;
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Comix chapter API extraction failed', e);
+                        }
+                    }
+
                     links = Array.from(linkSet);
                     
                     // 5. Extract Tags (Enhanced)

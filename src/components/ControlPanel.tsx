@@ -1,7 +1,7 @@
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useReadingStore } from '../stores/useReadingStore';
 import { useTrackerStore } from '../stores/useTrackerStore';
-import { BookOpen, MonitorPlay, ArrowDown, Camera, Keyboard, Sliders, X, Compass, Zap } from 'lucide-react';
+import { BookOpen, MonitorPlay, ArrowDown, Keyboard, Sliders, X, Compass, Zap } from 'lucide-react';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -13,6 +13,7 @@ export const ControlPanel = () => {
     gapSize, setGapSize,
     ambientVolume, setAmbientVolume,
     isSettingsOpen, toggleSettings,
+    isFullscreen, toggleFullScreenAction,
     fitMode, setFitMode,
     autoCrop, toggleAutoCrop,
     brightness, setBrightness,
@@ -24,10 +25,15 @@ export const ControlPanel = () => {
     ambientIntensity, setAmbientIntensity,
     ambientBlur, setAmbientBlur,
     ambientBrightness, setAmbientBrightness,
-    showAmbientNoise, setAmbientNoise
+    showAmbientNoise, setAmbientNoise,
+    selectedAmbientSound, setSelectedAmbientSound,
+    isAutoScrolling, toggleAutoScrolling,
+    autoScrollSpeed, setAutoScrollSpeed,
+    slideshowInterval, setSlideshowInterval
   } = useSettingsStore();
   
   const { images } = useReadingStore();
+  const { anilistToken, anilistUser, setAnilistToken } = useTrackerStore();
 
   return (
     <AnimatePresence>
@@ -36,19 +42,12 @@ export const ControlPanel = () => {
           initial={{ opacity: 0, x: 20, scale: 0.95 }}
           animate={{ opacity: 1, x: 0, scale: 1 }}
           exit={{ opacity: 0, x: 20, scale: 0.95 }}
-          className="fixed bottom-6 right-6 w-85 bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl z-50 text-white flex flex-col gap-6"
+          className="fixed inset-x-3 bottom-24 max-h-[calc(100vh-8rem)] bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl z-50 text-white flex flex-col gap-6 sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[22rem] sm:p-6"
         >
           {/* Header */}
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-lg">Settings</h3>
             <div className="flex gap-2">
-                <button
-                    onClick={() => alert("Screenshot captured! (Mock)")}
-                    className="p-1.5 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
-                    title="Take Screenshot"
-                >
-                    <Camera size={16} />
-                </button>
                 <button
                     onClick={toggleShortcuts}
                     className="p-1.5 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
@@ -86,15 +85,15 @@ export const ControlPanel = () => {
                     <div className="flex items-center justify-between">
                          <span className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Immersive Mode</span>
                          <button 
-                            onClick={() => useSettingsStore.getState().toggleFullScreenAction()}
+                            onClick={toggleFullScreenAction}
                             className={clsx(
                                 "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all",
-                                useSettingsStore.getState().isFullscreen 
+                                isFullscreen 
                                     ? "bg-green-600 text-white shadow-lg shadow-green-500/30" 
                                     : "bg-white/5 text-neutral-400 hover:text-white"
                             )}
                          >
-                             {useSettingsStore.getState().isFullscreen ? 'ON' : 'OFF'}
+                             {isFullscreen ? 'ON' : 'OFF'}
                          </button>
                     </div>
 
@@ -107,10 +106,10 @@ export const ControlPanel = () => {
                             {(['none', 'lofi', 'rain', 'cafe', 'wind', 'space'] as const).map((s) => (
                                 <button
                                     key={s}
-                                    onClick={() => useSettingsStore.getState().setSelectedAmbientSound(s)}
+                                    onClick={() => setSelectedAmbientSound(s)}
                                     className={clsx(
                                         "flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all border",
-                                        useSettingsStore.getState().selectedAmbientSound === s 
+                                        selectedAmbientSound === s 
                                             ? "bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-500/20" 
                                             : "bg-white/[0.02] border-transparent text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.05]"
                                     )}
@@ -280,26 +279,26 @@ export const ControlPanel = () => {
                                     <div className="flex items-center justify-between">
                                         <label className="text-xs font-bold text-neutral-300 uppercase tracking-tight">Auto-Scroll</label>
                                         <button 
-                                            onClick={useSettingsStore.getState().toggleAutoScrolling}
+                                            onClick={toggleAutoScrolling}
                                             className={clsx(
                                                 "px-3 py-1 rounded-full text-[10px] font-bold transition-all",
-                                                useSettingsStore.getState().isAutoScrolling 
+                                                isAutoScrolling 
                                                     ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30" 
                                                     : "bg-white/10 text-neutral-400"
                                             )}
                                         >
-                                            {useSettingsStore.getState().isAutoScrolling ? 'ACTIVE' : 'START'}
+                                            {isAutoScrolling ? 'ACTIVE' : 'START'}
                                         </button>
                                     </div>
                                     <div className="space-y-1">
                                         <div className="flex justify-between text-[10px] text-neutral-500">
                                             <span>Scroll Speed</span>
-                                            <span>{useSettingsStore.getState().autoScrollSpeed}px</span>
+                                            <span>{autoScrollSpeed}px</span>
                                         </div>
                                         <input 
                                             type="range" min="0.5" max="10" step="0.5" 
-                                            value={useSettingsStore.getState().autoScrollSpeed} 
-                                            onChange={(e) => useSettingsStore.getState().setAutoScrollSpeed(Number(e.target.value))}
+                                            value={autoScrollSpeed} 
+                                            onChange={(e) => setAutoScrollSpeed(Number(e.target.value))}
                                             className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
                                         />
                                     </div>
@@ -310,26 +309,26 @@ export const ControlPanel = () => {
                                 <div className="flex items-center justify-between">
                                     <label className="text-xs font-bold text-neutral-300 uppercase tracking-tight">Auto-Advance</label>
                                     <button 
-                                        onClick={useSettingsStore.getState().toggleAutoScrolling}
+                                        onClick={toggleAutoScrolling}
                                         className={clsx(
                                             "px-3 py-1 rounded-full text-[10px] font-bold transition-all",
-                                            useSettingsStore.getState().isAutoScrolling 
+                                            isAutoScrolling 
                                                 ? "bg-purple-600 text-white shadow-lg shadow-purple-500/30" 
                                                 : "bg-white/10 text-neutral-400"
                                         )}
                                     >
-                                        {useSettingsStore.getState().isAutoScrolling ? 'ACTIVE' : 'START'}
+                                        {isAutoScrolling ? 'ACTIVE' : 'START'}
                                     </button>
                                 </div>
                                 <div className="space-y-1">
                                     <div className="flex justify-between text-[10px] text-neutral-500">
                                         <span>Interval Speed</span>
-                                        <span>{useSettingsStore.getState().slideshowInterval / 1000}s</span>
+                                        <span>{slideshowInterval / 1000}s</span>
                                     </div>
                                     <input 
                                         type="range" min="1000" max="10000" step="500" 
-                                        value={useSettingsStore.getState().slideshowInterval} 
-                                        onChange={(e) => useSettingsStore.getState().setSlideshowInterval(Number(e.target.value))}
+                                        value={slideshowInterval} 
+                                        onChange={(e) => setSlideshowInterval(Number(e.target.value))}
                                         className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-purple-500"
                                     />
                                 </div>
@@ -412,9 +411,9 @@ export const ControlPanel = () => {
                     {/* Anilist */}
                     <div className="p-3 bg-white/5 rounded-xl border border-white/5 flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            {useTrackerStore.getState().anilistUser?.avatar ? (
+                            {anilistUser?.avatar ? (
                                 <img 
-                                    src={useTrackerStore.getState().anilistUser?.avatar} 
+                                    src={anilistUser.avatar} 
                                     alt="Avatar" 
                                     className="w-8 h-8 rounded-lg object-cover border border-white/10"
                                 />
@@ -423,30 +422,30 @@ export const ControlPanel = () => {
                             )}
                             <div>
                                 <div className="text-xs font-bold text-white">
-                                    {useTrackerStore.getState().anilistUser?.name || 'Anilist'}
+                                    {anilistUser?.name || 'Anilist'}
                                 </div>
                                 <div className="text-[10px] text-neutral-500">
-                                    {useTrackerStore.getState().anilistToken ? 'Connected' : 'Not Connected'}
+                                    {anilistToken ? 'Connected' : 'Not Connected'}
                                 </div>
                             </div>
                         </div>
                         <button 
                             onClick={() => {
-                                if (useTrackerStore.getState().anilistToken) {
+                                if (anilistToken) {
                                     if (confirm('Disconnect Anilist?')) {
-                                        useTrackerStore.getState().setAnilistToken(null);
+                                        setAnilistToken(null);
                                     }
                                 } else {
                                     const token = prompt("Enter your Anilist Personal Access Token:");
-                                    if (token) useTrackerStore.getState().setAnilistToken(token);
+                                    if (token) setAnilistToken(token);
                                 }
                             }}
                             className={clsx(
                                 "px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors",
-                                useTrackerStore.getState().anilistToken ? "bg-red-500/20 text-red-400 hover:bg-red-500/30" : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
+                                anilistToken ? "bg-red-500/20 text-red-400 hover:bg-red-500/30" : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
                             )}
                         >
-                            {useTrackerStore.getState().anilistToken ? 'Disconnect' : 'Connect'}
+                            {anilistToken ? 'Disconnect' : 'Connect'}
                         </button>
                     </div>
 
@@ -474,7 +473,7 @@ export const ControlPanel = () => {
                         onClick={async () => {
                             try {
                                 // Dynamic import to avoid build errors if package missing
-                                // @ts-ignore
+                                // @ts-expect-error optional updater plugin is not always present in dev builds
                                 const { check } = await import('@tauri-apps/plugin-updater');
                                 const update = await check();
                                 if (update?.available) {

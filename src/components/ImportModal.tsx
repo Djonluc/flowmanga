@@ -169,7 +169,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {!isScraping && scrapedImages.length === 0 && !isDownloading ? (
+                    {!isScraping && scrapedImages.length === 0 && chapterFeed.length === 0 && !isDownloading ? (
                         <form onSubmit={handleWebSubmit} className="space-y-6">
                           <div className="space-y-3">
                             <label className="text-xs font-black text-neutral-500 uppercase tracking-[0.2em]">Source URL</label>
@@ -251,7 +251,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                             </h4>
                                             <div className="flex flex-wrap gap-2 items-center mb-2">
                                               <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] font-black rounded uppercase tracking-widest border border-blue-500/30">
-                                                MangaDex
+                                                {metadata?.source || 'MangaDex'}
                                               </span>
                                               {metadata?.author && (
                                                 <span className="text-neutral-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1">

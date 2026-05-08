@@ -21,7 +21,7 @@ export const ShelfView = ({ allSeries, onOpenItem }: ShelfViewProps) => {
     return (
         <div 
             ref={containerRef}
-            className="h-full overflow-y-auto overflow-x-hidden custom-scrollbar pb-32 pt-10 px-8"
+            className="pb-32 pt-10 px-8"
             style={{ perspective: '1000px' }}
         >
             <div className="flex flex-col gap-24">

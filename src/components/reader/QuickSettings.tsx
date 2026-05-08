@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Settings2, ScrollText, BookOpen, Play, Maximize2, Minimize2, 
@@ -10,6 +10,7 @@ import clsx from 'clsx';
 
 export const QuickSettings = () => {
     const [isOpen, setIsOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
     const { 
         mode, setMode, 
         autoScroll, setAutoScroll, 
@@ -25,6 +26,21 @@ export const QuickSettings = () => {
         gapSize, setGapSize
     } = useSettingsStore();
 
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (isOpen && menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isOpen]);
+
     const handleSpeedChange = (delta: number) => {
         setScrollSpeed(Math.max(10, Math.min(500, scrollSpeed + delta)));
     };
@@ -34,7 +50,7 @@ export const QuickSettings = () => {
     };
 
     return (
-        <div className="fixed bottom-12 right-12 z-[60] pointer-events-auto">
+        <div className="fixed bottom-12 right-12 z-[60] pointer-events-auto" ref={menuRef}>
             <AnimatePresence>
                 {isOpen && (
                     <motion.div

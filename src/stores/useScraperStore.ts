@@ -64,6 +64,7 @@ export const useScraperStore = create<ScraperState>((set, get) => ({
                     coverUrl: result.series.coverUrl,
                     source: result.series.source,
                     sourceUrl: result.series.seriesUrl,
+                    tags: result.series.tags,
                     mangaId: result.series.seriesUrl // Use URL as ID for non-MangaDex
                 };
                 feed = result.series.chapters.map(ch => ({
@@ -73,10 +74,18 @@ export const useScraperStore = create<ScraperState>((set, get) => ({
                     source: ch.source,
                     attributes: { chapter: ch.number } // Compatibility with existing UI
                 }));
-            } else if (result.metadata?.mangaId) {
-                // MangaDex
+            } else if (result.metadata?.mangaId && /^[a-f0-9-]{36}$/i.test(result.metadata.mangaId)) {
+                // MangaDex (UUID-based mangaId only)
                 feed = await ScraperService.getChapterFeed(result.metadata.mangaId);
                 metadata.source = 'mangadex.org';
+                metadata.sourceUrl = url;
+            }
+
+            // Ensure source/sourceUrl are always set from the input URL
+            if (metadata && !metadata.source) {
+                try { metadata.source = new URL(url).hostname.replace('www.', ''); } catch (_) {}
+            }
+            if (metadata && !metadata.sourceUrl) {
                 metadata.sourceUrl = url;
             }
 
@@ -217,11 +226,15 @@ export const useScraperStore = create<ScraperState>((set, get) => ({
         const { useDownloadStore } = await import('./useDownloadStore');
         
         // Enhance Metadata for Tracking
-        const domain = (metadata as any).source || new URL(get().url).hostname.replace('www.', '');
+        let domain = (metadata as any).source || 'unknown';
+        const currentUrl = get().url;
+        if (domain === 'unknown' && currentUrl) {
+            try { domain = new URL(currentUrl).hostname.replace('www.', ''); } catch (_) {}
+        }
         const trackingMetadata = {
             ...metadata,
             source: metadata.source || domain.split('.')[0],
-            sourceUrl: metadata.sourceUrl || get().url,
+            sourceUrl: metadata.sourceUrl || currentUrl || '',
             mangaId: metadata.mangaId || 'local',
             tracked: true,
             autoUpdate: true,

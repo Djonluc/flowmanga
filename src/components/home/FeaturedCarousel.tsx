@@ -1,44 +1,47 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Info, ChevronLeft, ChevronRight } from 'lucide-react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useLibraryStore } from '../../stores/useLibraryStore';
 import { useReadingStore } from '../../stores/useReadingStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
+import type { Series } from '../../stores/useLibraryStore';
 import { Button } from '../ui/Button';
+
+type FeaturedSeries = Series & { coverUrl?: string };
 
 export const FeaturedCarousel = () => {
     const { series } = useLibraryStore();
     const { openFolder } = useReadingStore();
     const [currentIndex, setCurrentIndex] = useState(0);
-    const [featuredItems, setFeaturedItems] = useState<any[]>([]);
-
-    useEffect(() => {
-        if (series.length > 0) {
-            // Pick 5 random items or just top 5
-            const shuffled = [...series].sort(() => 0.5 - Math.random());
-            setFeaturedItems(shuffled.slice(0, 5));
-        }
+    const featuredItems = useMemo<FeaturedSeries[]>(() => {
+        if (series.length === 0) return [];
+        return [...series]
+            .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
+            .slice(0, 5);
     }, [series]);
 
-    useEffect(() => {
-        const timer = setInterval(() => {
-            nextSlide();
-        }, 8000);
-        return () => clearInterval(timer);
-    }, [currentIndex, featuredItems]);
-
     const nextSlide = () => {
+        if (featuredItems.length <= 1) return;
         setCurrentIndex((prev) => (prev + 1) % featuredItems.length);
     };
 
     const prevSlide = () => {
+        if (featuredItems.length <= 1) return;
         setCurrentIndex((prev) => (prev - 1 + featuredItems.length) % featuredItems.length);
     };
 
+    useEffect(() => {
+        if (featuredItems.length <= 1) return;
+        const timer = setInterval(() => {
+            setCurrentIndex((prev) => (prev + 1) % featuredItems.length);
+        }, 8000);
+        return () => clearInterval(timer);
+    }, [featuredItems.length]);
+
     if (featuredItems.length === 0) return null;
 
-    const currentItem = featuredItems[currentIndex];
+    const currentItem = featuredItems[Math.min(currentIndex, featuredItems.length - 1)];
 
     return (
         <div className="relative h-[60vh] min-h-[500px] w-full mb-12 overflow-hidden group">
@@ -52,9 +55,9 @@ export const FeaturedCarousel = () => {
                     transition={{ duration: 1 }}
                     className="absolute inset-0 z-0"
                 >
-                    {currentItem.cover ? (
+                    {(currentItem.cover || currentItem.coverUrl) ? (
                         <img 
-                            src={currentItem.cover.startsWith('http') ? currentItem.cover : convertFileSrc(currentItem.cover)} 
+                            src={(currentItem.cover || currentItem.coverUrl).startsWith('http') ? (currentItem.cover || currentItem.coverUrl) : convertFileSrc(currentItem.cover || currentItem.coverUrl)} 
                             className="w-full h-full object-cover opacity-50 scale-100" 
                             alt="Background"
                         />
@@ -104,7 +107,7 @@ export const FeaturedCarousel = () => {
                                 onClick={() => {
                                     if (currentItem.books && currentItem.books.length > 0) {
                                         // Find first book with progress or just first book
-                                        const bookToOpen = currentItem.books.find((b: any) => 
+                                        const bookToOpen = currentItem.books.find((b) => 
                                             b.progress && b.progress.currentPage < b.progress.totalPages
                                         ) || currentItem.books[0];
                                         openFolder(bookToOpen.path, currentItem.id, bookToOpen.id);
@@ -163,9 +166,9 @@ export const FeaturedCarousel = () => {
                         exit={{ opacity: 0, x: -100, rotate: 0 }}
                         transition={{ duration: 0.8 }}
                     >
-                         {currentItem.cover && (
+                         {(currentItem.cover || currentItem.coverUrl) && (
                             <img 
-                                src={convertFileSrc(currentItem.cover)} 
+                                src={(currentItem.cover || currentItem.coverUrl).startsWith('http') ? (currentItem.cover || currentItem.coverUrl) : convertFileSrc(currentItem.cover || currentItem.coverUrl)} 
                                 className="h-[600px] w-auto rounded-[40px] shadow-2xl rotate-6" 
                                 alt="Cover Art"
                             />
