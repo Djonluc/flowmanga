@@ -108,6 +108,14 @@ export class ScraperService {
         return await this.scrapeManhwaRead(url);
       }
 
+      if (domain.includes("blue-lock-manga.com")) {
+        return await this.scrapeBlueLockManga(url);
+      }
+
+      if (domain.includes("dragonball-multiverse.com")) {
+        return await this.scrapeDragonBallMultiverse(url);
+      }
+
       /*
       if (domain.includes("comix.to")) {
         return await this.scrapeComixTo(url);
@@ -859,6 +867,239 @@ export class ScraperService {
     }
   }
 
+  private static async scrapeBlueLockManga(url: string): Promise<ScrapeResult> {
+    const domain = "blue-lock-manga.com";
+    const isChapter = url.includes("-chapter-") || url.match(/\/chapter-\d+/);
+
+    try {
+        if (isChapter) {
+            console.log(`[BlueLock] Scraping CHAPTER: ${url}`);
+            
+            // Try static HTML fetch first to avoid Headless Cloudflare timeouts
+            try {
+                const html = await this.asyncFetchHtml(url, {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+                    "Referer": "https://w45.blue-lock-manga.com/"
+                });
+                
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, "text/html");
+                const images: { url: string; pageNumber: number }[] = [];
+                let pageNumber = 1;
+
+                doc.querySelectorAll('img[data-src], img[src], img[data-lazyloaded]').forEach(img => {
+                    let src = img.getAttribute('data-src') || img.getAttribute('data-lazy') || img.getAttribute('src');
+                    if (src && !src.includes('data:image') && !src.includes('logo') && !src.includes('avatar') && !src.includes('icon')) {
+                        try {
+                           src = encodeURI(src.trim());
+                        } catch(e) {}
+                        
+                        if (src.startsWith('/')) src = 'https://w45.blue-lock-manga.com' + src;
+                        images.push({ url: src, pageNumber: pageNumber++ });
+                    }
+                });
+
+                if (images.length > 0) {
+                    console.log(`[BlueLock] Found ${images.length} images via static fetch`);
+                    return { images };
+                } else {
+                    console.warn("[BlueLock] No images found statically, falling back to headless...");
+                    return await this.scrapeViaWindow(url);
+                }
+            } catch (err) {
+                console.warn("[BlueLock] Static fetch failed, trying headless", err);
+                return await this.scrapeViaWindow(url);
+            }
+        } else {
+            console.log(`[BlueLock] Scraping SERIES: ${url}`);
+            const res = await invoke<any>("scrape_series_headless", { url }).catch(() => ({}));
+            
+            let chapterLinks: string[] = res.chapterLinks || [];
+
+            // Fallback: Manually parse HTML if headless extractor missed chapter links
+            if (chapterLinks.length === 0) {
+                try {
+                    const html = await this.asyncFetchHtml(url, {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+                    });
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, "text/html");
+                    doc.querySelectorAll('a[href*="-chapter-"], a[href*="/chapter/"]').forEach(a => {
+                        chapterLinks.push((a as HTMLAnchorElement).href);
+                    });
+                    chapterLinks = Array.from(new Set(chapterLinks));
+                } catch (e) {
+                    console.warn("[BlueLock] Fallback HTML parsing failed", e);
+                }
+            }
+
+            return {
+                series: {
+                    title: res.title || "Blue Lock",
+                    description: res.description || "Read Blue Lock manga online.",
+                    coverUrl: res.cover_url || res.coverUrl || "",
+                    seriesUrl: url,
+                    source: domain,
+                    chapters: chapterLinks.map((link: string, i: number) => {
+                        const numMatch = link.match(/-chapter-(\d+(\.\d+)?)/i) || link.match(/\/chapter\/(\d+(\.\d+)?)/i);
+                        const num = numMatch ? numMatch[1] : (chapterLinks.length - i).toString();
+                        return {
+                            id: link,
+                            number: num,
+                            url: link,
+                            source: domain,
+                        };
+                    }),
+                },
+            };
+        }
+    } catch (e) {
+        console.error(`[BlueLock] Scrape failed for ${url}:`, e);
+        throw e;
+    }
+  }
+
+  private static async scrapeDragonBallMultiverse(url: string): Promise<ScrapeResult> {
+    const baseUrl = "https://www.dragonball-multiverse.com";
+    const domain = "dragonball-multiverse.com";
+    const isPage = /page-\d+\.html/.test(url);
+    const chapterMatch = url.match(/[?&]chapter=(\d+)/);
+    const isSingleChapter = chapterMatch && !url.includes("read.html");
+
+    console.log(`[DBM] Scraping ${isPage ? 'PAGE' : isSingleChapter ? 'CHAPTER ' + chapterMatch![1] : 'SERIES'}: ${url}`);
+
+    try {
+        if (isPage) {
+            // === SINGLE PAGE (treated as a 1-image chapter) ===
+            const html = await this.asyncFetchHtml(url, {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+            });
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
+            const imgEl = doc.querySelector('#balloonsimg img') as HTMLImageElement;
+            const src = imgEl?.getAttribute('src');
+            if (src) {
+                const fullSrc = src.startsWith('/') ? baseUrl + src : src;
+                return { images: [{ url: fullSrc, pageNumber: 1 }] };
+            }
+            throw new Error("No comic image found on page");
+        } else if (isSingleChapter) {
+            // === SINGLE CHAPTER DOWNLOAD — fetch all page images ===
+            const images = await this.fetchDBMChapterImages(url);
+            if (images.length > 0) {
+                console.log(`[DBM] Found ${images.length} images for chapter ${chapterMatch![1]}`);
+                return { images };
+            }
+            throw new Error(`No images found for DBM chapter ${chapterMatch![1]}`);
+        } else {
+            // === SERIES / CHAPTERS LISTING ===
+            const chaptersUrl = `${baseUrl}/en/chapters.html?comic=page`;
+            const html = await this.asyncFetchHtml(chaptersUrl, {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+            });
+
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
+
+            // Extract chapter blocks: <h4>Chapter N: Title</h4> preceded by page links
+            const chapterBlocks = doc.querySelectorAll('.chapter-block, .cadrelect.chapter');
+            const chapters: { id: string; number: string; url: string; source: string; title?: string; pageRange?: number[] }[] = [];
+
+            chapterBlocks.forEach(block => {
+                const h4 = block.querySelector('h4');
+                if (!h4) return;
+                const titleMatch = h4.textContent?.match(/Chapter\s+(\d+):\s*(.+)/);
+                if (!titleMatch) return;
+
+                const chNum = titleMatch[1];
+                const chTitle = titleMatch[2].trim();
+                const pageLinks = Array.from(block.querySelectorAll('a[href*="page-"]'));
+                const pageNums = pageLinks.map(a => {
+                    const m = (a as HTMLAnchorElement).getAttribute('href')?.match(/page-(\d+)/);
+                    return m ? parseInt(m[1]) : -1;
+                }).filter(n => n >= 0).sort((a, b) => a - b);
+
+                if (pageNums.length > 0) {
+                    chapters.push({
+                        id: `dbm-chapter-${chNum}`,
+                        number: chNum,
+                        url: `${baseUrl}/en/chapters.html?comic=page&chapter=${chNum}`,
+                        source: domain,
+                        title: chTitle,
+                        pageRange: [pageNums[0], pageNums[pageNums.length - 1]]
+                    });
+                }
+            });
+
+            // Extract cover from the first chapter block or og:image
+            let coverUrl = "";
+            const firstCoverImg = doc.querySelector('.chapter-block img, .cadrelect.chapter img');
+            if (firstCoverImg) {
+                const src = firstCoverImg.getAttribute('src');
+                coverUrl = src ? (src.startsWith('/') ? baseUrl + src : src) : "";
+            }
+
+            console.log(`[DBM] Found ${chapters.length} chapters`);
+
+            return {
+                series: {
+                    title: "Dragon Ball Multiverse",
+                    description: "DBM is a free online comic, made by a fan, for fans. The story takes place after the end of Dragon Ball Z.",
+                    coverUrl,
+                    seriesUrl: chaptersUrl,
+                    source: domain,
+                    chapters
+                }
+            };
+        }
+    } catch (e) {
+        console.error(`[DBM] Scrape failed for ${url}:`, e);
+        throw e;
+    }
+  }
+
+  // DBM chapter download helper: fetches all page images for a given chapter's page range
+  static async fetchDBMChapterImages(chapterUrl: string): Promise<{ url: string; pageNumber: number }[]> {
+    const baseUrl = "https://www.dragonball-multiverse.com";
+    const html = await this.asyncFetchHtml(chapterUrl, {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+    });
+
+    // Parse the chapter page to get the page range
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    const pageLinks = Array.from(doc.querySelectorAll('a[href*="page-"]'));
+    const pageNums = pageLinks.map(a => {
+        const m = (a as HTMLAnchorElement).getAttribute('href')?.match(/page-(\d+)/);
+        return m ? parseInt(m[1]) : -1;
+    }).filter(n => n >= 0);
+    const uniquePages = [...new Set(pageNums)].sort((a, b) => a - b);
+
+    console.log(`[DBM] Fetching ${uniquePages.length} pages for chapter`);
+
+    // Fetch each page and extract the comic image
+    const images: { url: string; pageNumber: number }[] = [];
+    for (let i = 0; i < uniquePages.length; i++) {
+        const pageNum = uniquePages[i];
+        try {
+            const pageHtml = await this.asyncFetchHtml(`${baseUrl}/en/page-${pageNum}.html`, {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+            });
+            const pageDoc = new DOMParser().parseFromString(pageHtml, "text/html");
+            const imgEl = pageDoc.querySelector('#balloonsimg img') as HTMLImageElement;
+            const src = imgEl?.getAttribute('src');
+            if (src) {
+                const fullSrc = src.startsWith('/') ? baseUrl + src : src;
+                images.push({ url: fullSrc, pageNumber: i + 1 });
+            }
+        } catch (e) {
+            console.warn(`[DBM] Failed to fetch page ${pageNum}`, e);
+        }
+    }
+
+    return images;
+  }
+
   private static tagCache: Record<string, string> | null = null;
 
   static async getMangaDexTags(): Promise<Record<string, string>> {
@@ -880,6 +1121,27 @@ export class ScraperService {
      }
   }
 
+  private static recCache = new Map<string, { data: any[], timestamp: number }>();
+  private static CACHE_TTL = 1000 * 60 * 15; // 15 mins
+
+  private static interleaveArrays(...arrays: any[][]): any[] {
+      const result: any[] = [];
+      const maxLength = Math.max(...arrays.map(a => a.length));
+      for (let i = 0; i < maxLength; i++) {
+          for (const arr of arrays) {
+              if (arr[i]) result.push(arr[i]);
+          }
+      }
+      return result;
+  }
+
+  private static async withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+      return Promise.race([
+          promise,
+          new Promise<T>(resolve => setTimeout(() => resolve(fallback), ms))
+      ]).catch(() => fallback);
+  }
+
   static async search(query: string, limit: number = 20): Promise<any[]> {
     try {
       const res = await fetch(`https://api.mangadex.org/manga?title=${encodeURIComponent(query)}&limit=${limit}&includes[]=cover_art`);
@@ -892,102 +1154,163 @@ export class ScraperService {
     }
   }
 
-  static async searchByTags(tags: string[], limit: number = 20): Promise<any[]> {
+  static async searchByTags(tags: string[], limit: number = 20, coloredOnly: boolean = false): Promise<any[]> {
+    const cacheKey = `tags-${tags.join('-')}-${limit}-${coloredOnly}`;
+    const cached = this.recCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+        return cached.data;
+    }
+
     try {
-        // MangaDex Search
         const tagMap = await this.getMangaDexTags();
         const tagIds = tags.map(t => tagMap[t.toLowerCase()]).filter(Boolean);
-        let mdResults: any[] = [];
+        const colorTagId = tagMap["full color"];
         
-        if (tagIds.length > 0) {
-          const tagParams = tagIds.map(id => `includedTags[]=${id}`).join('&');
-          const res = await fetch(`https://api.mangadex.org/manga?${tagParams}&limit=${limit}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive`);
-          if (res.ok) {
-            const json = await res.json();
-            mdResults = this.mapMangaDexResults(json.data);
-          }
-        }
-
-        // ManhwaRead Search (Top tag only)
-        let mrResults: any[] = [];
-        if (tags.length > 0) {
-          const genre = tags[0].toLowerCase().replace(/\s+/g, '-');
-          try {
-            let html = await this.asyncFetchHtml(`https://manhwaread.com/manga-genre/${genre}/`).catch(() => null);
-            if (!html) {
-              html = await this.asyncFetchHtml(`https://manhwaread.com/genre/${genre}/`).catch(() => null);
+        // 1. MangaDex Promise
+        const fetchMangaDex = async () => {
+            if (tagIds.length === 0) return [];
+            let tagParams = tagIds.map(id => `includedTags[]=${id}`).join('&');
+            if (coloredOnly && colorTagId) tagParams += `&includedTags[]=${colorTagId}`;
+            
+            const res = await fetch(`https://api.mangadex.org/manga?${tagParams}&limit=${limit}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive`);
+            if (res.ok) {
+                const json = await res.json();
+                return this.mapMangaDexResults(json.data);
             }
+            return [];
+        };
+
+        // 2. ManhwaRead Promise
+        const fetchManhwaRead = async () => {
+            if (tags.length === 0) return [];
+            const genre = tags[0].toLowerCase().replace(/\s+/g, '-');
+            let html = await this.asyncFetchHtml(`https://manhwaread.com/manga-genre/${genre}/`).catch(() => null);
+            if (!html) html = await this.asyncFetchHtml(`https://manhwaread.com/genre/${genre}/`).catch(() => null);
             
             if (html) {
-              const parser = new DOMParser();
-              const doc = parser.parseFromString(html, "text/html");
-              const items = Array.from(doc.querySelectorAll('.manga-item'));
-              mrResults = items.slice(0, 10).map(item => {
-                const linkEl = item.querySelector('.manga-item__link') as HTMLAnchorElement;
-                const imgEl = item.querySelector('.manga-item__thumbnail img') as HTMLImageElement;
-                return {
-                  id: linkEl?.href || '',
-                  title: linkEl?.textContent?.trim() || 'Untitled',
-                  coverUrl: imgEl?.src || '',
-                  source: 'manhwaread.com',
-                  external: true
-                };
-              }).filter(r => r.id);
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, "text/html");
+                const items = Array.from(doc.querySelectorAll('.manga-item'));
+                return items.slice(0, Math.min(10, limit)).map(item => {
+                    const linkEl = item.querySelector('.manga-item__link, a[href*="/manga/"], a[href*="/manhwa/"]') as HTMLAnchorElement;
+                    const imgEl = item.querySelector('.manga-item__thumbnail img, .manga-item__img-inner, img') as HTMLImageElement;
+                    const href = linkEl?.getAttribute('href') || '';
+                    const seriesUrl = href.startsWith('http') ? href : `https://manhwaread.com${href.startsWith('/') ? '' : '/'}${href}`;
+                    const idMatch = seriesUrl.match(/\/(manhwa|manga)\/([^\/]+)/);
+                    const imgSrc = imgEl?.getAttribute('data-src') || imgEl?.getAttribute('src') || '';
+                    return {
+                        id: idMatch ? idMatch[2] : href,
+                        seriesUrl,
+                        title: linkEl?.textContent?.trim() || 'Untitled',
+                        coverUrl: imgSrc.startsWith('http') ? imgSrc : `https://manhwaread.com${imgSrc.startsWith('/') ? '' : '/'}${imgSrc}`,
+                        source: 'manhwaread.com',
+                        external: true
+                    };
+                }).filter(r => r.id);
             }
-          } catch (e) {
-            // Silence 404s
-            if (!String(e).includes('404')) {
-              console.warn("[Scraper] ManhwaRead tag search error:", e);
-            }
-          }
-        }
+            return [];
+        };
 
-        return [...mdResults, ...mrResults];
+        // Execute in parallel with 3 second timeout
+        const [mdResults, mrResults] = await Promise.allSettled([
+            this.withTimeout(fetchMangaDex(), 3000, []),
+            this.withTimeout(fetchManhwaRead(), 3000, [])
+        ]);
+
+        const mdData = mdResults.status === 'fulfilled' ? mdResults.value : [];
+        const mrData = mrResults.status === 'fulfilled' ? mrResults.value : [];
+
+        const interleaved = this.interleaveArrays(mdData, mrData).slice(0, limit);
+        this.recCache.set(cacheKey, { data: interleaved, timestamp: Date.now() });
+        
+        return interleaved;
     } catch (e) {
         console.error("[Scraper] Tag search failed:", e);
         return [];
     }
   }
 
-  static async getTrending(limit: number = 20): Promise<any[]> {
+  static async getTrending(limit: number = 20, coloredOnly: boolean = false): Promise<any[]> {
+    const cacheKey = `trending-${limit}-${coloredOnly}`;
+    const cached = this.recCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+        return cached.data;
+    }
+
     try {
-        // MangaDex Trending
-        const res = await fetch(`https://api.mangadex.org/manga?order[followedCount]=desc&limit=${limit}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive`);
-        let mdResults: any[] = [];
-        if (res.ok) {
-          const json = await res.json();
-          mdResults = this.mapMangaDexResults(json.data);
-        }
+        const tagMap = await this.getMangaDexTags();
+        const colorTagId = tagMap["full color"];
+        
+        // 1. MangaDex Promise
+        const fetchMangaDex = async () => {
+            let mdUrl = `https://api.mangadex.org/manga?order[followedCount]=desc&limit=${limit}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive`;
+            if (coloredOnly && colorTagId) mdUrl += `&includedTags[]=${colorTagId}`;
+            const res = await fetch(mdUrl);
+            if (res.ok) {
+                const json = await res.json();
+                return this.mapMangaDexResults(json.data);
+            }
+            return [];
+        };
 
-        // ManhwaRead Trending (Home page latest)
-        let mrResults: any[] = [];
-        try {
-          const html = await this.asyncFetchHtml(`https://manhwaread.com/`);
-          if (html) {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, "text/html");
-            const items = Array.from(doc.querySelectorAll('.manga-item'));
-            mrResults = items.slice(0, 10).map(item => {
-              const linkEl = item.querySelector('.manga-item__link') as HTMLAnchorElement;
-              const imgEl = item.querySelector('.manga-item__thumbnail img') as HTMLImageElement;
-              return {
-                id: linkEl?.href || '',
-                title: linkEl?.textContent?.trim() || 'Untitled',
-                coverUrl: imgEl?.src || '',
-                source: 'manhwaread.com',
-                external: true
-              };
-            }).filter(r => r.id);
-          }
-        } catch (e) {
-          console.warn("[Scraper] ManhwaRead trending failed:", e);
-        }
+        // 2. ManhwaRead Promise
+        const fetchManhwaRead = async () => {
+            const html = await this.asyncFetchHtml(`https://manhwaread.com/`).catch(() => null);
+            if (html) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, "text/html");
+                const items = Array.from(doc.querySelectorAll('.manga-item'));
+                return items.slice(0, Math.min(10, limit)).map(item => {
+                    const linkEl = item.querySelector('.manga-item__link, a[href*="/manga/"], a[href*="/manhwa/"]') as HTMLAnchorElement;
+                    const imgEl = item.querySelector('.manga-item__thumbnail img, .manga-item__img-inner, img') as HTMLImageElement;
+                    const href = linkEl?.getAttribute('href') || '';
+                    const seriesUrl = href.startsWith('http') ? href : `https://manhwaread.com${href.startsWith('/') ? '' : '/'}${href}`;
+                    const idMatch = seriesUrl.match(/\/(manhwa|manga)\/([^\/]+)/);
+                    const imgSrc = imgEl?.getAttribute('data-src') || imgEl?.getAttribute('src') || '';
+                    return {
+                        id: idMatch ? idMatch[2] : href,
+                        seriesUrl,
+                        title: linkEl?.textContent?.trim() || 'Untitled',
+                        coverUrl: imgSrc.startsWith('http') ? imgSrc : `https://manhwaread.com${imgSrc.startsWith('/') ? '' : '/'}${imgSrc}`,
+                        source: 'manhwaread.com',
+                        external: true
+                    };
+                }).filter(r => r.id);
+            }
+            return [];
+        };
 
-        return [...mdResults, ...mrResults];
+        // Execute in parallel with 3 second timeout
+        const [mdResults, mrResults] = await Promise.allSettled([
+            this.withTimeout(fetchMangaDex(), 3000, []),
+            this.withTimeout(fetchManhwaRead(), 3000, [])
+        ]);
+
+        const mdData = mdResults.status === 'fulfilled' ? mdResults.value : [];
+        const mrData = mrResults.status === 'fulfilled' ? mrResults.value : [];
+
+        // Single-Source Injection (Dynamic Config)
+        const { SPOTLIGHT_SERIES } = await import('../config/spotlight');
+        const spotlight = SPOTLIGHT_SERIES.filter(() => Math.random() > 0.5);
+
+        const interleaved = this.interleaveArrays(spotlight, mdData, mrData).slice(0, limit);
+        this.recCache.set(cacheKey, { data: interleaved, timestamp: Date.now() });
+        
+        return interleaved;
     } catch (e) {
         console.error("[Scraper] Trending failed:", e);
         return [];
     }
+  }
+
+  static async getRecommendationsByTags(tags: string[], limit: number = 20, coloredOnly: boolean = false): Promise<any[]> {
+      return this.searchByTags(tags, limit, coloredOnly);
+  }
+
+  static async getPersonalizedRecommendations(limit: number = 20, coloredOnly: boolean = false): Promise<any[]> {
+      // For now, return trending with a slightly different sort or just the same
+      // In a real app, this would use user history
+      return this.getTrending(limit, coloredOnly);
   }
 
   static async getRecentlyUpdated(limit: number = 20): Promise<any[]> {

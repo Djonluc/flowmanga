@@ -19,6 +19,9 @@ import { ImportModal } from './ImportModal';
 import { TagManagerModal } from './library/TagManagerModal';
 import { InputModal } from './InputModal';
 import { DeleteConfirmModal } from './library/DeleteConfirmModal';
+import { FilterModal } from './modals/FilterModal';
+import { NotificationCenter } from './modals/NotificationCenter';
+import { ProfilePanel } from './modals/ProfilePanel';
 
 interface LayoutProps {
     children: ReactNode;
@@ -98,12 +101,16 @@ export const Layout = ({ children, hideSidebar = false }: LayoutProps) => {
                     itemCount={deleteModalConfig.count}
                     isSeries={deleteModalConfig.isSeries}
                     onClose={closeDeleteModal}
-                    onConfirm={async () => {
-                        await deleteSeries(deleteModalConfig.id, deleteModalConfig.path);
+                    onConfirm={async (deleteFiles) => {
+                        await deleteSeries(deleteModalConfig.id, deleteModalConfig.path, deleteFiles);
                         closeDeleteModal();
                     }}
                 />
             )}
+
+            <FilterModal />
+            <NotificationCenter />
+            <ProfilePanel />
 
             {/* 1. Sidebar */}
             {!hideSidebar && <Sidebar />}

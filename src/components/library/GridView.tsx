@@ -8,9 +8,11 @@ interface GridViewProps {
     onOpenItem: (item: any) => void;
     onMenuClick?: (item: any, action?: 'rename' | 'delete' | 'tag', e?: React.MouseEvent) => void;
     density: 'compact' | 'comfortable' | 'cinematic';
+    isSelectionMode?: boolean;
+    selectedIds?: Set<string>;
 }
 
-export const GridView = ({ items, onOpenItem, onMenuClick, density }: GridViewProps) => {
+export const GridView = ({ items, onOpenItem, onMenuClick, density, isSelectionMode, selectedIds }: GridViewProps) => {
     
     // Determine grid columns based on density
     const gridCols = {
@@ -46,6 +48,8 @@ export const GridView = ({ items, onOpenItem, onMenuClick, density }: GridViewPr
                     onClick={() => onOpenItem(item)}
                     onMenuClick={(e, action) => onMenuClick ? onMenuClick(item, action, e) : undefined}
                     density={density}
+                    isSelectionMode={isSelectionMode}
+                    isSelected={selectedIds?.has(item.id)}
                 />
             ))}
             

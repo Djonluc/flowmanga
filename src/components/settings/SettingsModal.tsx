@@ -9,9 +9,10 @@ import { ReaderSettings } from './ReaderSettings';
 import { AppearanceSettings } from './AppearanceSettings';
 import { DownloadSettings } from './DownloadSettings';
 import { AmbientSettings } from './AmbientSettings';
-import { Headphones } from 'lucide-react';
+import { SourcesSettings } from './SourcesSettings';
+import { Headphones, Globe } from 'lucide-react';
 
-type SettingsTab = 'general' | 'reader' | 'appearance' | 'audio' | 'downloads';
+type SettingsTab = 'general' | 'reader' | 'appearance' | 'audio' | 'downloads' | 'sources';
 
 export const SettingsModal = () => {
     const { isSettingsOpen, toggleSettings } = useSettingsStore();
@@ -25,6 +26,7 @@ export const SettingsModal = () => {
         { id: 'audio', label: 'Audio', icon: Headphones },
         { id: 'appearance', label: 'Appearance', icon: Palette },
         { id: 'downloads', label: 'Downloads', icon: Download },
+        { id: 'sources', label: 'Sources', icon: Globe },
     ];
 
     return (
@@ -95,6 +97,7 @@ export const SettingsModal = () => {
                                     {activeTab === 'audio' && <AmbientSettings />}
                                     {activeTab === 'appearance' && <AppearanceSettings />}
                                     {activeTab === 'downloads' && <DownloadSettings />}
+                                    {activeTab === 'sources' && <SourcesSettings />}
                                 </div>
                             </div>
                         </div>

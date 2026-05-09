@@ -21,7 +21,8 @@ export const LibraryGrid = () => {
         searchQuery, filterGenre, filterTags, filterSource,
         selectedSeriesId,
         setSearchQuery, setFilterGenre, toggleFilterTag, clearFilterTags, setFilterSource, setSelectedSeriesId,
-        renameSeries, refreshMangaMetadata
+        renameSeries, refreshMangaMetadata,
+        selectionMode, selectedIds, toggleSelectionMode, toggleSelectedId, clearSelection, bulkDelete
     } = useLibraryStore();
     
     const { setUrl, setAutoOpenModal, autoOpenModal } = useScraperStore();
@@ -52,7 +53,13 @@ export const LibraryGrid = () => {
                 setIsSearchingExternal(true);
                 try {
                     const results = await ScraperService.getRecommendationsByTags(filterTags, 12);
-                    const filtered = results.filter(ext => !series.some(s => s.mangaId === ext.id || s.title.toLowerCase() === ext.title.toLowerCase()));
+                    const filtered = results.filter(ext => {
+                        const extTitle = (ext.title || '').toLowerCase();
+                        return !series.some(s => {
+                            const sTitle = (s.title || '').toLowerCase();
+                            return s.mangaId === ext.id || sTitle === extTitle;
+                        });
+                    });
                     setExternalResults(filtered);
                 } catch (e) {
                     console.error("Failed to fetch external recommendations", e);
@@ -95,12 +102,14 @@ export const LibraryGrid = () => {
         if (activeView === 'updates') {
             baseSeries = series.filter(s => s.updatedAt && (new Date().getTime() - new Date(s.updatedAt).getTime() < 7 * 24 * 60 * 60 * 1000));
         } else if (activeView === 'favorites') {
-            baseSeries = series.filter(s => s.tags && s.tags.some(t => t.toLowerCase() === 'favorite'));
+            baseSeries = series.filter(s => s.tags && s.tags.some(t => t && t.toLowerCase() === 'favorite'));
         }
 
         return baseSeries.filter(s => {
-            const matchesSearch = s.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                  (s.author && s.author.toLowerCase().includes(searchQuery.toLowerCase()));
+            const title = s.title || '';
+            const author = s.author || '';
+            const matchesSearch = title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                  author.toLowerCase().includes(searchQuery.toLowerCase());
             const matchesTags = filterTags.length === 0 || filterTags.every(tag => s.tags && s.tags.includes(tag));
             const matchesSource = !filterSource || s.source === filterSource;
             return matchesSearch && matchesTags && matchesSource;
@@ -175,6 +184,11 @@ export const LibraryGrid = () => {
     };
 
     const handleOpenItem = async (item: any) => {
+        if (selectionMode) {
+            toggleSelectedId(item.id);
+            return;
+        }
+
         if ('books' in item) {
             setSelectedSeriesId(item.id);
             setSearchQuery('');
@@ -249,6 +263,17 @@ export const LibraryGrid = () => {
 
                                         <div className="flex items-center gap-3">
                                             <div className="flex items-center bg-white/5 p-1 rounded-xl border border-white/5 gap-1">
+                                                <button 
+                                                    onClick={toggleSelectionMode}
+                                                    className={clsx(
+                                                        "px-3 py-2 rounded-lg transition-all text-[10px] font-black uppercase tracking-widest flex items-center gap-2",
+                                                        selectionMode ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/20" : "text-neutral-500 hover:text-white"
+                                                    )}
+                                                >
+                                                    <Layers size={14} />
+                                                    {selectionMode ? 'Selecting' : 'Batch'}
+                                                </button>
+                                                <div className="w-px h-4 bg-white/10 mx-1" />
                                                 <button 
                                                     onClick={() => setLibraryViewMode('grid')}
                                                     className={clsx("p-2 rounded-lg transition-all", libraryViewMode === 'grid' ? "bg-white/10 text-white" : "text-neutral-500 hover:text-white")}
@@ -347,6 +372,8 @@ export const LibraryGrid = () => {
                                             onOpenItem={handleOpenItem} 
                                             onMenuClick={handleMenuClick}
                                             density={libraryDensity} 
+                                            isSelectionMode={selectionMode}
+                                            selectedIds={selectedIds}
                                         />
                                     )}
                                 </div>
@@ -420,6 +447,67 @@ export const LibraryGrid = () => {
             </AnimatePresence>
 
             <ContextMenu activeMenu={activeMenu} onAction={handleAction} onClose={() => setActiveMenu(null)} />
+
+            {/* Batch Action Bar */}
+            <AnimatePresence>
+                {selectionMode && (
+                    <motion.div 
+                        initial={{ y: 100, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: 100, opacity: 0 }}
+                        className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[80] w-full max-w-2xl px-4"
+                    >
+                        <div className="bg-neutral-900/90 backdrop-blur-2xl border border-white/10 rounded-[32px] p-4 shadow-2xl flex items-center justify-between gap-6">
+                            <div className="flex items-center gap-4 pl-4">
+                                <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 flex items-center justify-center text-indigo-500">
+                                    <Layers size={20} />
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-white text-sm font-black uppercase tracking-tighter italic">
+                                        {selectedIds.size} Items Selected
+                                    </span>
+                                    <button 
+                                        onClick={clearSelection}
+                                        className="text-neutral-500 text-[10px] font-bold uppercase tracking-widest hover:text-white transition-colors text-left"
+                                    >
+                                        Clear Selection
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 pr-2">
+                                <button 
+                                    onClick={() => {
+                                        const ids = Array.from(selectedIds);
+                                        if (ids.length > 0) openTagManager(ids[0], []); // Simplified for now
+                                    }}
+                                    className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border border-white/5"
+                                >
+                                    <Tag size={14} />
+                                    Bulk Tag
+                                </button>
+                                <button 
+                                    onClick={() => {
+                                        if (confirm(`Are you sure you want to delete ${selectedIds.size} series? This will PERMANENTLY remove the folders from your disk. This cannot be undone.`)) {
+                                            bulkDelete(true);
+                                        }
+                                    }}
+                                    className="px-6 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border border-red-500/10"
+                                >
+                                    <Trash2 size={14} />
+                                    Delete
+                                </button>
+                                <button 
+                                    onClick={toggleSelectionMode}
+                                    className="p-3 bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white rounded-2xl transition-all border border-white/5"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

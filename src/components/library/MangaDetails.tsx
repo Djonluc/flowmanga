@@ -4,7 +4,7 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { 
     Play, ArrowLeft, Clock, Library as LibraryIcon, User, RefreshCw, 
     Trash2, Image as ImageIcon, Sparkles, ShieldCheck, Loader2, Wrench,
-    Globe, Edit2, Bomb, Calendar, BookOpen
+    Globe, Edit2, Bomb, Calendar, BookOpen, Download, Plus
 } from 'lucide-react';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { useLibraryStore, type Book } from '../../stores/useLibraryStore';
@@ -213,12 +213,73 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                  </button>
 
                  <div className="flex items-center gap-2 p-1.5 bg-white/5 rounded-[24px] border border-white/10 backdrop-blur-2xl">
-                    <ActionButton icon={<Sparkles size={18} />} title="Sync Info" onClick={() => refreshMangaMetadata(selectedSeries.id)} />
-                    <ActionButton icon={<RefreshCw size={18} />} title="Check Updates" onClick={() => {}} />
-                    <ActionButton icon={<ShieldCheck size={18} />} title="Verify Files" onClick={() => {}} />
-                    <ActionButton icon={<Globe size={18} />} title="Manage Source" onClick={() => {}} />
+                    <ActionButton icon={<Sparkles size={18} />} title="Sync Info" onClick={() => {
+                        toast.success("Syncing Series Info...");
+                        refreshMangaMetadata(selectedSeries.id).then(() => toast.success("Series info updated!"));
+                    }} />
+                    <ActionButton icon={<RefreshCw size={18} />} title="Download All" onClick={async () => {
+                        toast.success("Checking for all updates...");
+                        const num = await UpdateManager.checkForUpdates(selectedSeries.id);
+                        if (num > 0) {
+                            toast.success(`Queued ${num} new chapters for download!`);
+                        } else if (num === 0) {
+                            toast.success("Series is up to date.");
+                        } else {
+                            toast.error("Failed to check for updates.");
+                        }
+                    }} />
+                    <ActionButton icon={<Download size={18} />} title="Download Next 5" onClick={async () => {
+                        toast.success("Queuing next 5 chapters...");
+                        const num = await UpdateManager.checkForUpdates(selectedSeries.id, 5);
+                        if (num > 0) {
+                            toast.success(`Queued ${num} chapters!`);
+                        } else if (num === 0) {
+                            toast.info("No new chapters to download.");
+                        }
+                    }} />
+                    <ActionButton icon={<Plus size={18} />} title="Download X" onClick={() => {
+                        useModalStore.getState().openInputModal({
+                            title: "Batch Download",
+                            placeholder: "Number of chapters (e.g. 10)",
+                            description: "How many upcoming chapters would you like to queue?",
+                            onSubmit: async (val) => {
+                                const amount = parseInt(val);
+                                if (isNaN(amount) || amount <= 0) {
+                                    toast.error("Please enter a valid number");
+                                    return;
+                                }
+                                toast.success(`Queuing next ${amount} chapters...`);
+                                const num = await UpdateManager.checkForUpdates(selectedSeries.id, amount);
+                                if (num > 0) {
+                                    toast.success(`Queued ${num} chapters!`);
+                                } else if (num === 0) {
+                                    toast.info("No new chapters found.");
+                                }
+                            }
+                        });
+                    }} />
+                    <ActionButton icon={<ShieldCheck size={18} />} title="Verify Files" onClick={async () => {
+                        toast.success("Verifying file integrity...");
+                        const { verifyLibraryIntegrity } = useLibraryStore.getState();
+                        await verifyLibraryIntegrity(selectedSeries.id);
+                        toast.success("Verification complete.");
+                    }} />
+                    {selectedSeries.seriesUrl && (
+                        <ActionButton icon={<Globe size={18} />} title="Manage Source" onClick={async () => {
+                            const { open } = await import('@tauri-apps/plugin-shell');
+                            open(selectedSeries.seriesUrl!);
+                        }} />
+                    )}
                     <div className="w-px h-8 bg-white/10 mx-2" />
-                    <ActionButton icon={<Bomb size={18} />} title="Nuclear Wipe" onClick={() => {}} danger />
+                    <ActionButton icon={<Bomb size={18} />} title="Nuclear Wipe" onClick={() => {
+                        useModalStore.getState().openDeleteModal({
+                            id: selectedSeries.id,
+                            path: selectedSeries.path,
+                            title: selectedSeries.title,
+                            count: sortedChapters.length,
+                            isSeries: true
+                        });
+                    }} danger />
                  </div>
               </div>
             </div>

@@ -25,6 +25,7 @@
     "fs:allow-write-file",
     "fs:allow-read-dir",
     "fs:allow-mkdir",
+    "fs:allow-remove",
     "fs:allow-write-text-file",
     "dialog:allow-open",
     "shell:allow-open",

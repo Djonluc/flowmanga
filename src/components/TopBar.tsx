@@ -11,7 +11,8 @@ export const TopBar = () => {
     const { images } = useReadingStore();
     const { searchQuery, setSearchQuery } = useLibraryStore();
     const { activeJobIds, queue } = useDownloadStore();
-    const { openImportModal } = useModalStore();
+    const { openImportModal, openFilterModal, openNotificationCenter } = useModalStore();
+    const { bulkRefreshMetadata } = useLibraryStore();
     const activeCount = activeJobIds.length;
     const queueCount = queue.length;
     const hasDownloads = activeCount > 0 || queueCount > 0;
@@ -53,14 +54,22 @@ export const TopBar = () => {
                     title="Import Manga" 
                     onClick={() => openImportModal()}
                 />
-                <TopBarButton icon={<Filter size={18} />} title="Filter" />
+                <TopBarButton 
+                    icon={<Filter size={18} />} 
+                    title="Filter" 
+                    onClick={() => openFilterModal()}
+                />
                 <TopBarButton 
                     icon={<LayoutGrid size={18} />} 
                     title="Layout Mode" 
                     onClick={() => setLibraryViewMode(libraryViewMode === 'grid' ? 'shelf' : 'grid')}
                     active={activeView === 'library'}
                 />
-                <TopBarButton icon={<RefreshCcw size={18} />} title="Sync Library" />
+                <TopBarButton 
+                    icon={<RefreshCcw size={18} />} 
+                    title="Sync Library" 
+                    onClick={() => bulkRefreshMetadata()}
+                />
                 
                 <div className="w-px h-6 bg-white/5 mx-2" />
                 
@@ -81,9 +90,12 @@ export const TopBar = () => {
                 </button>
 
                 {/* Notifications */}
-                <button className="relative p-2.5 rounded-xl text-neutral-400 hover:text-white hover:bg-white/5 transition-all">
+                <button 
+                    onClick={() => openNotificationCenter()}
+                    className="relative p-2.5 rounded-xl text-neutral-400 hover:text-white hover:bg-white/5 transition-all"
+                >
                     <Bell size={20} />
-                    <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-background" />
+                    <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-[#0f0f11]" />
                 </button>
             </div>
         </div>

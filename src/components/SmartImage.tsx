@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import { AlertTriangle } from 'lucide-react';
+import clsx from 'clsx';
 
 interface SmartImageProps {
     src: string;
@@ -147,6 +149,9 @@ export const SmartImage = ({ src, alt, className, style, onLoad }: SmartImagePro
         ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, sWidth, sHeight);
     }
 
+    const needsCanvas = brightness !== 1 || contrast !== 1 || saturation !== 1 || autoCrop;
+    const [imgElement, setImgElement] = useState<HTMLImageElement | null>(null);
+
     useEffect(() => {
         const observer = new IntersectionObserver((entries) => {
             if (entries[0].isIntersecting) {
@@ -156,28 +161,35 @@ export const SmartImage = ({ src, alt, className, style, onLoad }: SmartImagePro
                     cleanupTimeoutRef.current = null;
                 }
             } else {
-                // Delayed cleanup: Keep canvas in memory for 20s after leaving viewport
-                // to prevent "flashing" if the user scrolls back quickly.
+                // Delayed cleanup: Keep in memory for 10s after leaving viewport
                 cleanupTimeoutRef.current = setTimeout(() => {
                     setIsVisible(false);
+                    setIsLoaded(false);
+                    setImgElement(null);
                     const canvas = canvasRef.current;
                     if (canvas) {
                         const ctx = canvas.getContext('2d');
                         ctx?.clearRect(0, 0, canvas.width, canvas.height);
+                        // Force resize to 1x1 to free memory
+                        canvas.width = 1;
+                        canvas.height = 1;
                     }
-                }, 20000);
+                }, 10000);
             }
-        }, { rootMargin: '2000px' });
+        }, { rootMargin: '1000px' });
 
-        if (canvasRef.current) observer.observe(canvasRef.current);
+        const target = canvasRef.current || document.getElementById(`img-${src}`);
+        if (target) observer.observe(target);
         return () => {
             observer.disconnect();
             if (cleanupTimeoutRef.current) clearTimeout(cleanupTimeoutRef.current);
         };
-    }, []);
+    }, [src, needsCanvas]);
+
+    const [hasError, setHasError] = useState(false);
 
     useEffect(() => {
-        if (!isVisible) return;
+        if (!isVisible || hasError || isLoaded) return;
         
         const img = new Image();
         img.src = src;
@@ -185,19 +197,61 @@ export const SmartImage = ({ src, alt, className, style, onLoad }: SmartImagePro
 
         img.onload = () => {
             setIsLoaded(true);
-            renderImage(img);
+            setImgElement(img);
+            if (needsCanvas) {
+                renderImage(img);
+            }
             if (onLoad) onLoad();
         };
-    }, [src, isVisible]);
+
+        img.onerror = () => {
+            console.error(`[SmartImage] Failed to load: ${src}`);
+            setHasError(true);
+        };
+    }, [src, isVisible, hasError, needsCanvas]);
 
     useEffect(() => {
-        if (isLoaded && isVisible) {
-            const img = new Image();
-            img.src = src;
-            img.crossOrigin = "anonymous";
-            img.onload = () => renderImage(img);
+        if (isLoaded && isVisible && !hasError && needsCanvas && imgElement) {
+            renderImage(imgElement);
         }
-    }, [brightness, contrast, saturation, autoCrop, isLoaded, isVisible]);
+    }, [brightness, contrast, saturation, autoCrop, isLoaded, isVisible, hasError, needsCanvas, imgElement]);
+
+    if (hasError) {
+        return (
+            <div 
+                className={clsx(className, "flex flex-col items-center justify-center bg-[#0a0a0b] border border-white/5 rounded-2xl gap-4 p-8")}
+                style={{ ...style, minHeight: '400px' }}
+            >
+                <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center text-red-500">
+                    <AlertTriangle size={32} />
+                </div>
+                <div className="text-center">
+                    <p className="text-white font-black uppercase italic tracking-tighter text-lg">Page Load Failed</p>
+                    <p className="text-neutral-500 text-xs mt-1 max-w-[200px]">The image file could not be read or is missing from disk.</p>
+                </div>
+                <button 
+                    onClick={() => setHasError(false)}
+                    className="mt-2 px-6 py-2 bg-white/5 hover:bg-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all border border-white/10"
+                >
+                    Retry Loading
+                </button>
+            </div>
+        );
+    }
+
+    if (!needsCanvas) {
+        return (
+            <img 
+                id={`img-${src}`}
+                src={isVisible ? src : ''} 
+                alt={alt} 
+                className={clsx(className, !isLoaded && "opacity-0")}
+                style={{ ...style, transition: 'opacity 0.5s ease-in-out' }}
+                onLoad={() => setIsLoaded(true)}
+                loading="lazy"
+            />
+        );
+    }
 
     return (
         <canvas 

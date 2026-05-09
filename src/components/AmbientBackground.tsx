@@ -1,6 +1,8 @@
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useReadingStore } from '../stores/useReadingStore';
+import { useReaderStore } from '../stores/useReaderStore';
 import { motion, AnimatePresence } from 'framer-motion';
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 export const AmbientBackground = () => {
     // Global Settings
@@ -14,6 +16,8 @@ export const AmbientBackground = () => {
         ambientBrightness, 
         showAmbientNoise,
     } = useSettingsStore();
+
+    const { currentThemeColor } = useReaderStore();
 
     // Reading State (Direct Subscription)
     const { images, currentPageIndex } = useReadingStore();
@@ -62,7 +66,7 @@ export const AmbientBackground = () => {
                         transition={{ duration: 1.2, ease: "easeInOut" }}
                         className="absolute inset-0 bg-cover bg-center will-change-transform"
                         style={{
-                            backgroundImage: `url('${ambientImage}')`,
+                            backgroundImage: `url('${ambientImage.startsWith('http') ? ambientImage : convertFileSrc(ambientImage)}')`,
                             filter: `blur(${ambientBlur}px) brightness(${ambientBrightness}) saturate(1.2)`,
                             transform: 'scale(1.15)', // Prevent edge bleeding
                         }}
@@ -101,7 +105,20 @@ export const AmbientBackground = () => {
                 )}
             </AnimatePresence>
 
-            {/* 3. Vignette (Focus on center) */}
+            {/* 3. Adaptive Vibrant Layer */}
+            <AnimatePresence>
+                {ambientMode === 'adaptive-vibrant' && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1, backgroundColor: currentThemeColor }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 1 }}
+                        className="absolute inset-0"
+                    />
+                )}
+            </AnimatePresence>
+
+            {/* 4. Vignette (Focus on center) */}
             <div 
                 className="absolute inset-0"
                 style={{

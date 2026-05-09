@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Trash2, X } from 'lucide-react';
 
 interface DeleteConfirmModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: () => void;
+    onConfirm: (deleteFiles: boolean) => void;
     title: string;
     itemCount?: number;
     isSeries: boolean;
@@ -14,6 +14,7 @@ interface DeleteConfirmModalProps {
 export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({ 
     isOpen, onClose, onConfirm, title, itemCount, isSeries 
 }) => {
+    const [deleteFiles, setDeleteFiles] = useState(false);
     if (!isOpen) return null;
 
     return (
@@ -57,6 +58,22 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
                             </p>
                         )}
                     </div>
+
+                    <label className="mt-4 flex items-center gap-3 p-3 rounded-xl bg-red-500/5 border border-red-500/10 cursor-pointer hover:bg-red-500/10 transition-colors group">
+                        <div className="relative flex items-center justify-center">
+                            <input 
+                                type="checkbox" 
+                                className="peer h-5 w-5 appearance-none rounded border border-white/10 bg-white/5 checked:bg-red-600 checked:border-red-600 transition-all cursor-pointer"
+                                id="deleteFiles"
+                                checked={deleteFiles}
+                                onChange={(e) => setDeleteFiles(e.target.checked)}
+                            />
+                            <X size={12} className="absolute text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
+                        </div>
+                        <span className="text-sm text-neutral-300 font-medium group-hover:text-white transition-colors">
+                            Also delete files from disk
+                        </span>
+                    </label>
                 </div>
 
                 {/* Actions */}
@@ -68,7 +85,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
                         Cancel
                     </button>
                     <button 
-                        onClick={onConfirm}
+                        onClick={() => onConfirm(deleteFiles)}
                         className="flex-1 py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm transition-all shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:shadow-[0_0_30px_rgba(220,38,38,0.6)] flex items-center justify-center gap-2 group"
                     >
                         <Trash2 size={16} className="group-hover:scale-110 transition-transform" />

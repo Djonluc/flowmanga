@@ -249,6 +249,7 @@ export const HomeView = () => {
 
 const RightPanel = ({ continueReading, stats, activity, trending, onItemClick }: any) => {
     const mainItem = continueReading[0];
+    const { openQuickView } = useModalStore();
 
     return (
         <div className="hidden xl:flex w-72 h-full flex-col border-l border-white/5 bg-[#0A0A0A]/60 backdrop-blur-3xl p-6 space-y-12 overflow-y-auto no-scrollbar shadow-2xl transition-all duration-500">
@@ -352,9 +353,13 @@ const RightPanel = ({ continueReading, stats, activity, trending, onItemClick }:
                     </div>
                     <div className="space-y-3">
                         {trending.slice(0, 3).map((item: any, idx: number) => (
-                            <div key={idx} className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.02] border border-white/5">
+                            <div 
+                                key={idx} 
+                                onClick={() => openQuickView(item)}
+                                className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.02] border border-white/5 cursor-pointer hover:bg-white/[0.05] transition-colors"
+                            >
                                 <span className="text-indigo-500 font-black text-xs">#0{idx + 1}</span>
-                                <span className="text-white text-[10px] font-bold truncate uppercase tracking-tight">{item.title}</span>
+                                <span className="text-white text-[10px] font-bold truncate uppercase tracking-tight group-hover:text-indigo-400">{item.title}</span>
                             </div>
                         ))}
                     </div>

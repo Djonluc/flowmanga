@@ -172,19 +172,17 @@ export const useScraperStore = create<ScraperState>((set, get) => ({
             // Capture state in closure so it survives reset() when ImportModal closes
             const capturedMetadata = { ...metadata };
             const capturedPath = libraryPath;
+            const capturedChapterFeed = [...get().chapterFeed];
+            const capturedSelectedKeys = [...get().selectedChapterKeys];
+            const capturedScrapedImages = [...get().scrapedImages];
 
             setSafetyCheckModal(true, capturedMetadata.title || 'Unknown Series', (action) => {
                 const currentMangaRoot = `${capturedPath}/${ScraperService.sanitizeFilename(capturedMetadata.title || 'Unknown')}`;
                 
-                // Re-hydrate the store state briefly if needed, or just call the worker
-                // performQueueDownload uses get(), which might be null. 
-                // Let's make performQueueDownload accept optional metadata overrides or just handle it here.
-                
-                // Better: Just use a one-off call if the store is reset
                 if (action === 'redownload') {
-                    get().performQueueDownload(currentMangaRoot, true, capturedMetadata);
+                    get().performQueueDownload(currentMangaRoot, true, capturedMetadata, capturedChapterFeed, capturedSelectedKeys, capturedScrapedImages);
                 } else if (action === 'update') {
-                    get().performQueueDownload(currentMangaRoot, false, capturedMetadata);
+                    get().performQueueDownload(currentMangaRoot, false, capturedMetadata, capturedChapterFeed, capturedSelectedKeys, capturedScrapedImages);
                 }
             });
             return 'prompted';
@@ -194,9 +192,19 @@ export const useScraperStore = create<ScraperState>((set, get) => ({
         return 'started';
     },
 
-    performQueueDownload: async (mangaRoot: string, _force: boolean, metadataOverride?: any) => {
-        const { metadata: storeMetadata, chapterFeed, selectedChapterKeys, scrapedImages } = get();
+    performQueueDownload: async (
+        mangaRoot: string, 
+        _force: boolean, 
+        metadataOverride?: any, 
+        chapterFeedOverride?: any[], 
+        selectedKeysOverride?: string[],
+        scrapedImagesOverride?: any[]
+    ) => {
+        const { metadata: storeMetadata, chapterFeed: storeFeed, selectedChapterKeys: storeKeys, scrapedImages: storeImages } = get();
         const metadata = metadataOverride || storeMetadata;
+        const chapterFeed = chapterFeedOverride || storeFeed;
+        const selectedChapterKeys = selectedKeysOverride || storeKeys;
+        const scrapedImages = scrapedImagesOverride || storeImages;
         if (!metadata) return;
 
         const chaptersToDownload: any[] = chapterFeed

@@ -110,6 +110,13 @@ export const initDatabase = async () => {
   try {
     await db.execute('ALTER TABLE Chapters ADD COLUMN sourceId TEXT');
   } catch (e) {}
+  try {
+    await db.execute('ALTER TABLE Series ADD COLUMN anilistId TEXT');
+  } catch (e) {}
+
+  try {
+    await db.execute('ALTER TABLE Series ADD COLUMN malId TEXT');
+  } catch (e) {}
   
   // console.log('[DB] Database initialized successfully');
   return db;

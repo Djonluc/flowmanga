@@ -14,6 +14,8 @@ interface TrackerState {
   setAnilistUser: (user: { id: number; name: string; avatar: string } | null) => void;
   setMalUser: (user: { id: number; name: string; picture: string } | null) => void;
   fetchAnilistUser: () => Promise<void>;
+  updateAnilistProgress: (mangaId: number, progress: number) => Promise<void>;
+  updateMalProgress: (mangaId: number, progress: number) => Promise<void>;
 }
 
 export const useTrackerStore = create<TrackerState>()(
@@ -66,14 +68,65 @@ export const useTrackerStore = create<TrackerState>()(
                       id: data.data.Viewer.id,
                       name: data.data.Viewer.name,
                       avatar: data.data.Viewer.avatar.large
-                  }});
+                   }});
               } else {
                   console.error('Anilist Auth Failed', data);
-                  alert('Failed to connect to Anilist. Check your token.');
                   set({ anilistToken: null, anilistUser: null });
               }
           } catch (e) {
               console.error(e);
+          }
+      },
+
+      updateAnilistProgress: async (mangaId, progress) => {
+          const { anilistToken } = get();
+          if (!anilistToken) return;
+
+          try {
+              const query = `
+              mutation ($mangaId: Int, $progress: Int) {
+                  SaveMediaListEntry (mediaId: $mangaId, progress: $progress) {
+                      id
+                      progress
+                  }
+              }
+              `;
+
+              await fetch('https://graphql.anilist.co', {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'Accept': 'application/json',
+                      'Authorization': `Bearer ${anilistToken}`
+                  },
+                  body: JSON.stringify({ 
+                      query,
+                      variables: { mangaId, progress }
+                  })
+              });
+          } catch (e) {
+              console.error('[Tracker] Failed to update Anilist:', e);
+          }
+      },
+
+      updateMalProgress: async (mangaId, progress) => {
+          const { malToken } = get();
+          if (!malToken) return;
+
+          try {
+              const body = new URLSearchParams();
+              body.append('num_chapters_read', progress.toString());
+
+              await fetch(`https://api.myanimelist.net/v2/manga/${mangaId}/my_list_status`, {
+                  method: 'PATCH',
+                  headers: {
+                      'Authorization': `Bearer ${malToken}`,
+                      'Content-Type': 'application/x-www-form-urlencoded'
+                  },
+                  body: body.toString()
+              });
+          } catch (e) {
+              console.error('[Tracker] Failed to update MAL:', e);
           }
       }
     }),

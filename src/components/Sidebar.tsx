@@ -1,5 +1,6 @@
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useReadingStore } from '../stores/useReadingStore';
+import { useModalStore } from '../stores/useModalStore';
 import { 
     Home, Library, Clock, Heart, Layers, Download, 
     BarChart2, Settings, Zap, ChevronDown, Bell,
@@ -24,6 +25,7 @@ export const Sidebar = () => {
         isSettingsOpen, toggleSettings,
         toggleDownloadPanel
     } = useSettingsStore();
+    const { openProfilePanel } = useModalStore();
     const { queue } = useDownloadStore();
 
     const [isHovered, setIsHovered] = useState(false);
@@ -177,9 +179,9 @@ export const Sidebar = () => {
             {/* Profile Section */}
             <div className="p-4 border-t border-white/5 bg-white/[0.02]">
                 <div 
-                    onClick={() => {}}
+                    onClick={() => openProfilePanel()}
                     className={clsx(
-                        "flex items-center gap-3 p-2 rounded-2xl transition-colors hover:bg-white/5 cursor-default",
+                        "flex items-center gap-3 p-2 rounded-2xl transition-colors hover:bg-white/5 cursor-pointer",
                         !isExpanded && "justify-center"
                     )}
                 >

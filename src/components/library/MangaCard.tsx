@@ -1,4 +1,5 @@
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Play, MoreVertical, FolderOpen, Heart } from 'lucide-react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useLibraryStore } from '../../stores/useLibraryStore';
@@ -10,10 +11,16 @@ interface MangaCardProps {
     onMenuClick?: (e: React.MouseEvent, action?: 'rename' | 'delete' | 'tag') => void;
     density?: 'compact' | 'comfortable' | 'cinematic';
     isNew?: boolean;
+    isSelectionMode?: boolean;
+    isSelected?: boolean;
 }
 
-export const MangaCard = ({ item, onClick, onMenuClick, density = 'comfortable', isNew }: MangaCardProps) => {
+export const MangaCard = ({ 
+    item, onClick, onMenuClick, density = 'comfortable', 
+    isNew, isSelectionMode, isSelected 
+}: MangaCardProps) => {
     const { toggleFavorite } = useLibraryStore();
+    const [hasImageError, setHasImageError] = useState(false);
     const isSeries = 'books' in item;
     
     // Derived state
@@ -55,20 +62,47 @@ export const MangaCard = ({ item, onClick, onMenuClick, density = 'comfortable',
                 "group-hover:shadow-cinematic aspect-[2/3]",
                 density === 'compact' && "rounded-2xl",
                 density === 'comfortable' && "rounded-[32px]",
-                density === 'cinematic' && "rounded-[48px]"
+                density === 'cinematic' && "rounded-[48px]",
+                isSelected && "ring-4 ring-indigo-500 ring-offset-4 ring-offset-[#050505] scale-95"
             )}>
+                {/* Selection Indicator */}
+                <AnimatePresence>
+                    {isSelectionMode && (
+                        <motion.div 
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0, opacity: 0 }}
+                            className="absolute top-4 left-4 z-50"
+                        >
+                            <div className={clsx(
+                                "w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center backdrop-blur-xl shadow-2xl",
+                                isSelected 
+                                    ? "bg-indigo-500 border-indigo-400 text-white" 
+                                    : "bg-black/40 border-white/20 text-transparent"
+                            )}>
+                                {isSelected && (
+                                    <svg viewBox="0 0 24 24" className="w-5 h-5 fill-none stroke-current stroke-[3]">
+                                        <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                )}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+                
                 {/* Image */}
-                {coverSrc ? (
+                {coverSrc && !hasImageError ? (
                     <img 
                         src={coverSrc} 
                         alt={title} 
                         className="w-full h-full object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110"
                         loading="lazy"
+                        onError={() => setHasImageError(true)}
                     />
                 ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center bg-white/[0.03] text-neutral-600 font-medium p-4 text-center text-xs tracking-wide gap-2">
                         <FolderOpen size={24} className="opacity-20" />
-                        No Cover
+                        {hasImageError ? 'Broken Link' : 'No Cover'}
                     </div>
                 )}
 
@@ -77,7 +111,7 @@ export const MangaCard = ({ item, onClick, onMenuClick, density = 'comfortable',
                     <motion.div
                         initial={{ scale: 0.8, opacity: 0 }}
                         whileHover={{ scale: 1.15, rotate: 5 }}
-                        animate={ { scale: 1, opacity: 1 }}
+                        animate={{ scale: 1, opacity: 1 }}
                         className="w-16 h-16 rounded-full bg-white text-black flex items-center justify-center shadow-[0_20px_40px_rgba(0,0,0,0.4)]"
                     >
                         <Play size={24} fill="currentColor" className="ml-1" />

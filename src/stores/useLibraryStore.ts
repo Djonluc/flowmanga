@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { getDb } from '../services/db';
+import { toast } from '../components/Toast';
 
 export interface ComicInfo {
   series?: string;
@@ -37,6 +38,8 @@ export interface Series {
   tags: string[];
   source?: string;
   books: Book[];
+  anilistId?: string;
+  malId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -60,6 +63,11 @@ interface LibraryState {
   clearFilterTags: () => void;
   setFilterStatus: (status: string | null) => void;
   setFilterSource: (source: string | null) => void;
+  selectionMode: boolean;
+  selectedIds: Set<string>;
+  toggleSelectionMode: () => void;
+  toggleSelectedId: (id: string) => void;
+  clearSelection: () => void;
   setSelectedSeriesId: (id: string | null) => void;
   
   // Actions
@@ -70,7 +78,8 @@ interface LibraryState {
   updateReadingProgress: (seriesId: string, chapterId: string, page: number) => Promise<void>;
   updateTags: (seriesId: string, tags: string[]) => Promise<void>;
   renameSeries: (seriesId: string, newTitle: string) => Promise<void>;
-  deleteSeries: (seriesId: string, path?: string) => Promise<void>;
+  deleteSeries: (seriesId: string | null, path: string | null, deleteFiles?: boolean) => Promise<void>;
+  bulkDelete: (deleteFiles?: boolean) => Promise<void>;
   setSeriesCover: (seriesId: string, sourcePath: string) => Promise<void>;
   removeSeriesCover: (seriesId: string) => Promise<void>;
   registerDownloadedSeries: (metadata: any, chapters: any[]) => Promise<void>;
@@ -79,6 +88,7 @@ interface LibraryState {
   refreshChapterThumbnails: (seriesId: string) => Promise<void>;
   bulkRefreshMetadata: () => Promise<void>;
   toggleFavorite: (seriesId: string) => Promise<void>;
+  verifyLibraryIntegrity: () => Promise<number>;
 }
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
@@ -91,6 +101,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   filterGenre: null,
   filterStatus: null,
   filterSource: null,
+  selectedSeriesId: null,
+  selectionMode: false,
+  selectedIds: new Set<string>(),
 
   setSearchQuery: (q) => set({ searchQuery: q }),
   setFilterGenre: (g) => set({ filterGenre: g }),
@@ -105,6 +118,21 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   clearFilterTags: () => set({ filterTags: [] }),
   setFilterStatus: (s) => set({ filterStatus: s }),
   setFilterSource: (src) => set({ filterSource: src }),
+  setSelectedSeriesId: (id) => set({ selectedSeriesId: id }),
+
+  toggleSelectionMode: () => set((state) => ({ 
+    selectionMode: !state.selectionMode,
+    selectedIds: new Set()
+  })),
+
+  toggleSelectedId: (id) => set((state) => {
+    const next = new Set(state.selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return { selectedIds: next };
+  }),
+
+  clearSelection: () => set({ selectedIds: new Set() }),
 
   loadFromDb: async () => {
     const db = getDb();
@@ -131,6 +159,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         source: s.source,
         mangaId: s.mangaId,
         seriesUrl: s.seriesUrl,
+        anilistId: s.anilistId,
+        malId: s.malId,
         createdAt: s.createdAt,
         updatedAt: s.updatedAt,
         books: chapters.map(c => ({
@@ -204,6 +234,32 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     );
     // Touch the series updatedAt to bring it to the top of the library
     await db.execute('UPDATE Series SET updatedAt = CURRENT_TIMESTAMP WHERE id = ?', [seriesId]);
+
+    // 2. External Tracker Sync (AniList)
+    try {
+        const series = get().series.find(s => s.id === seriesId);
+        if (series && (series.anilistId || series.malId)) {
+            const book = series.books.find(b => b.id === chapterId);
+            if (book) {
+                // If we are on the last page or near it, consider the chapter read
+                const isNearEnd = page >= (book.totalPages || 1) - 1;
+                if (isNearEnd) {
+                    const chNum = parseFloat(book.meta.chapter || '0');
+                    if (chNum > 0) {
+                        const { useTrackerStore } = await import('./useTrackerStore');
+                        if (series.anilistId) {
+                            await useTrackerStore.getState().updateAnilistProgress(parseInt(series.anilistId), Math.floor(chNum));
+                        }
+                        if (series.malId) {
+                            await useTrackerStore.getState().updateMalProgress(parseInt(series.malId), Math.floor(chNum));
+                        }
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error('[LibraryStore] Tracker sync failed:', e);
+    }
   },
 
   updateTags: async (seriesId, tags) => {
@@ -219,7 +275,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       await get().loadFromDb();
   },
 
-  deleteSeries: async (seriesId, path) => {
+  deleteSeries: async (seriesId, path, deleteFiles = false) => {
       const db = getDb();
       try {
         // Use path as fallback when id is null (SQLite TEXT PK allows nulls)
@@ -231,9 +287,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
         // Look up the seriesId by path if needed, for child record cleanup
         let resolvedId = seriesId;
+        let resolvedPath = path;
         if (!resolvedId && path) {
           const rows = await db.select<any[]>('SELECT id FROM Series WHERE path = ?', [path]);
           resolvedId = rows.length > 0 ? rows[0].id : null;
+        }
+        if (!resolvedPath && seriesId) {
+          const rows = await db.select<any[]>('SELECT path FROM Series WHERE id = ?', [seriesId]);
+          resolvedPath = rows.length > 0 ? rows[0].path : null;
         }
 
         // Explicitly delete child records (handles both null-id and normal cases)
@@ -247,7 +308,32 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         }
 
         await db.execute(`DELETE FROM Series WHERE ${whereClause}`, [whereParam]);
-        // console.log('[LibraryStore] Successfully deleted series:', whereParam);
+        
+        // Physical Deletion
+        if (deleteFiles && resolvedPath) {
+          const { remove } = await import('@tauri-apps/plugin-fs');
+          try {
+            // console.log('[LibraryStore] Attempting to delete:', resolvedPath);
+            // Safety Check: Prevent deleting root directories or very short paths
+            const isRoot = resolvedPath.length < 5 || 
+                           resolvedPath.endsWith(':\\') || 
+                           resolvedPath.endsWith(':/') ||
+                           resolvedPath.split(/[\\/]/).filter(Boolean).length < 3;
+            
+            if (isRoot) {
+                console.error('[LibraryStore] Refusing to delete potentially critical path:', resolvedPath);
+                toast.error("Safety check: Cannot delete root directory.");
+                return;
+            }
+
+            await remove(resolvedPath, { recursive: true });
+            toast.success("Folder deleted from disk");
+          } catch (e) {
+            console.error('[LibraryStore] Failed to delete folder from disk:', e);
+            toast.error("Failed to delete local files. Check permissions.");
+          }
+        }
+
         await get().loadFromDb();
       } catch (err) {
         console.error('[LibraryStore] Failed to delete series:', err);
@@ -353,6 +439,41 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
                 await get().addMangaFolder(libraryPath);
             }
         }
+  },
+
+  verifyLibraryIntegrity: async (seriesId?: string) => {
+    const { exists } = await import('@tauri-apps/plugin-fs');
+    const db = getDb();
+    const seriesList = seriesId ? get().series.filter(s => s.id === seriesId) : get().series;
+    set({ isLoading: true });
+
+    let removedCount = 0;
+    for (const s of seriesList) {
+        if (s.path) {
+            const folderExists = await exists(s.path);
+            if (!folderExists) {
+                console.warn(`[LibraryStore] Folder missing: ${s.path}. Removing from DB.`);
+                await get().deleteSeries(s.id, s.path, false);
+                removedCount++;
+            } else {
+                // Folder exists, verify chapters
+                for (const book of s.books) {
+                    const fileExists = await exists(book.path);
+                    if (!fileExists) {
+                        console.warn(`[LibraryStore] Chapter missing: ${book.path}. Removing from DB.`);
+                        await db.execute('DELETE FROM Chapters WHERE id = ?', [book.id]);
+                        await db.execute('DELETE FROM ReadingProgress WHERE chapterId = ?', [book.id]);
+                    }
+                }
+            }
+        }
+    }
+
+    if (removedCount > 0 || seriesId) {
+        await get().loadFromDb();
+    }
+    set({ isLoading: false });
+    return removedCount;
   },
 
   refreshMangaMetadata: async (seriesId) => {
@@ -475,6 +596,30 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
           }
       }
       set({ isLoading: false });
+  },
+
+  bulkDelete: async (deleteFiles = false) => {
+    const { selectedIds, series } = get();
+    if (selectedIds.size === 0) return;
+
+    set({ isLoading: true });
+    try {
+        const idsArray = Array.from(selectedIds);
+        for (const id of idsArray) {
+            const s = series.find(x => x.id === id);
+            if (s) {
+                await get().deleteSeries(s.id, s.path, deleteFiles);
+            }
+        }
+        set({ selectedIds: new Set(), selectionMode: false });
+        await get().loadFromDb();
+        toast.success(`Successfully deleted ${idsArray.length} items`);
+    } catch (e) {
+        console.error('[LibraryStore] Bulk delete failed:', e);
+        toast.error('Bulk deletion encountered errors');
+    } finally {
+        set({ isLoading: false });
+    }
   },
 
   toggleFavorite: async (seriesId) => {
