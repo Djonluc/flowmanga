@@ -473,7 +473,6 @@ export const ControlPanel = () => {
                         onClick={async () => {
                             try {
                                 // Dynamic import to avoid build errors if package missing
-                                // @ts-expect-error optional updater plugin is not always present in dev builds
                                 const { check } = await import('@tauri-apps/plugin-updater');
                                 const update = await check();
                                 if (update?.available) {

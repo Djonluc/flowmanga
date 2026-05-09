@@ -1,0 +1,2 @@
+"const fs = require('fs');\n\nfunction check() {\n  const html = fs.readFileSync('reader_data.html', 'utf8');\n  console.log('Searching for tokens in reader HTML...');\n  \n  // Search for any key that starts with _ and has a long value\n  const matches = 
+<truncated 1092 bytes>

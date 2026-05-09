@@ -11,6 +11,8 @@ interface TrackerState {
 
   setAnilistToken: (token: string | null) => void;
   setMalToken: (token: string | null) => void;
+  setAnilistUser: (user: { id: number; name: string; avatar: string } | null) => void;
+  setMalUser: (user: { id: number; name: string; picture: string } | null) => void;
   fetchAnilistUser: () => Promise<void>;
 }
 

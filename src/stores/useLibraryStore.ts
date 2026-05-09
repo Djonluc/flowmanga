@@ -78,6 +78,7 @@ interface LibraryState {
   refreshMangaMetadata: (seriesId: string) => Promise<void>;
   refreshChapterThumbnails: (seriesId: string) => Promise<void>;
   bulkRefreshMetadata: () => Promise<void>;
+  toggleFavorite: (seriesId: string) => Promise<void>;
 }
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
@@ -474,6 +475,28 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
           }
       }
       set({ isLoading: false });
+  },
+
+  toggleFavorite: async (seriesId) => {
+    const db = getDb();
+    const series = get().series.find(s => s.id === seriesId);
+    if (!series) return;
+
+    const isFavorite = series.tags.includes('favorite');
+    let newTags = [];
+    if (isFavorite) {
+        newTags = series.tags.filter(t => t !== 'favorite');
+    } else {
+        newTags = [...series.tags, 'favorite'];
+    }
+
+    const tagsStr = newTags.join(',');
+    await db.execute('UPDATE Series SET tags = ? WHERE id = ?', [tagsStr, seriesId]);
+    
+    // Update local state
+    set(state => ({
+        series: state.series.map(s => s.id === seriesId ? { ...s, tags: newTags } : s)
+    }));
   },
 
   // Navigation State

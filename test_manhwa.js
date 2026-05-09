@@ -1,0 +1,2 @@
+"const https = require('https');\n\n// Test downloading an actual chapter image with Referer\nhttps.get('https://manread.xyz/1081/22964/mr_001.jpg', {\n  headers: {\n    'User-Agent': 'Mozilla/5.0',\n    'Referer': 'https://manhwaread.com/manhwa/my-stepmot
+<truncated 368 bytes>

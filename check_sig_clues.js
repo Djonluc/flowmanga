@@ -1,0 +1,2 @@
+"const fs = require('fs');\nconst js = fs.readFileSync('main-dev-DO5JyAjg.js', 'utf8');\n\nfunction search() {\n  console.log('Searching for signature clues in JS...');\n  \n  // Search for any atob strings\n  const atobRegex = /atob\\s*\\(\\s*['\"]([^'\"]
+<truncated 701 bytes>

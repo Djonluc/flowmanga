@@ -4,7 +4,7 @@ import { useReadingStore } from '../stores/useReadingStore';
 import { useAnalyticsStore } from '../stores/useAnalyticsStore';
 
 export const useReadingAnalytics = () => {
-    const { currentFolderPath, currentIndex } = useReadingStore();
+    const { currentFolderPath, currentPageIndex } = useReadingStore();
     const { addReadingTime, incrementPagesRead, startSession } = useAnalyticsStore();
     
     // Track session start
@@ -15,13 +15,13 @@ export const useReadingAnalytics = () => {
     }, [currentFolderPath, startSession]);
 
     // Track pages read
-    const lastIndexRef = useRef(currentIndex);
+    const lastIndexRef = useRef(currentPageIndex);
     useEffect(() => {
-        if (currentFolderPath && currentIndex !== lastIndexRef.current) {
+        if (currentFolderPath && currentPageIndex !== lastIndexRef.current) {
             incrementPagesRead(1);
-            lastIndexRef.current = currentIndex;
+            lastIndexRef.current = currentPageIndex;
         }
-    }, [currentIndex, currentFolderPath, incrementPagesRead]);
+    }, [currentPageIndex, currentFolderPath, incrementPagesRead]);
 
     // Track time read
     useEffect(() => {
