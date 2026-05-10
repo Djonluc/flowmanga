@@ -3,16 +3,18 @@ import { useReadingStore } from '../stores/useReadingStore';
 import { useLibraryStore } from '../stores/useLibraryStore';
 import { useDownloadStore } from '../stores/useDownloadStore';
 import { useModalStore } from '../stores/useModalStore';
-import { Search, Command, LayoutGrid, SlidersHorizontal, Download, Bell, RefreshCcw, Filter, Plus } from 'lucide-react';
+import { useAutomationStore } from '../stores/useAutomationStore';
+import { Search, Command, LayoutGrid, SlidersHorizontal, Download, Bell, RefreshCcw, Filter, Plus, Sparkles } from 'lucide-react';
 import clsx from 'clsx';
 
 export const TopBar = () => {
     const { activeView, toggleDownloadPanel, toggleSettings, libraryViewMode, setLibraryViewMode } = useSettingsStore();
     const { images } = useReadingStore();
-    const { searchQuery, setSearchQuery } = useLibraryStore();
+    const { searchQuery, setSearchQuery, bulkRefreshMetadata } = useLibraryStore();
     const { activeJobIds, queue } = useDownloadStore();
     const { openImportModal, openFilterModal, openNotificationCenter } = useModalStore();
-    const { bulkRefreshMetadata } = useLibraryStore();
+    const { isChecking, checkForUpdates } = useAutomationStore();
+
     const activeCount = activeJobIds.length;
     const queueCount = queue.length;
     const hasDownloads = activeCount > 0 || queueCount > 0;
@@ -66,9 +68,10 @@ export const TopBar = () => {
                     active={activeView === 'library'}
                 />
                 <TopBarButton 
-                    icon={<RefreshCcw size={18} />} 
-                    title="Sync Library" 
-                    onClick={() => bulkRefreshMetadata()}
+                    icon={isChecking ? <Sparkles size={18} className="text-indigo-400 animate-pulse" /> : <RefreshCcw size={18} />} 
+                    title={isChecking ? "Checking for updates..." : "Sync Library"} 
+                    onClick={() => isChecking ? null : checkForUpdates()}
+                    active={isChecking}
                 />
                 
                 <div className="w-px h-6 bg-white/5 mx-2" />

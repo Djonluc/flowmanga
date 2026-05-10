@@ -11,6 +11,7 @@ import { ShortcutsManager } from './ShortcutsManager';
 import { CommandPalette } from './CommandPalette';
 import { DownloadPanel } from './DownloadPanel';
 import { DownloadIndicator } from './DownloadIndicator';
+import { AutomationManager } from './AutomationManager';
 import { SettingsModal } from './settings/SettingsModal';
 import { QuickViewModal } from './settings/QuickViewModal';
 
@@ -63,6 +64,7 @@ export const Layout = ({ children, hideSidebar = false }: LayoutProps) => {
             <ToastContainer />
             <DownloadPanel />
             <DownloadIndicator />
+            <AutomationManager />
             <SettingsModal />
             <QuickViewModal />
 
