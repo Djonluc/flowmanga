@@ -1,12 +1,14 @@
 import { useEffect, useRef } from 'react';
 import { useAutomationStore } from '../stores/useAutomationStore';
+import { useSettingsStore } from '../stores/useSettingsStore';
 
 export const AutomationManager = () => {
     const { isEnabled, checkIntervalMinutes, checkForUpdates, lastCheckTime } = useAutomationStore();
+    const { isInitializing } = useSettingsStore();
     const timerRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
-        if (!isEnabled) {
+        if (!isEnabled || isInitializing) {
             if (timerRef.current) clearInterval(timerRef.current);
             return;
         }
@@ -31,7 +33,7 @@ export const AutomationManager = () => {
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
         };
-    }, [isEnabled, checkIntervalMinutes, lastCheckTime, checkForUpdates]);
+    }, [isEnabled, isInitializing, checkIntervalMinutes, lastCheckTime, checkForUpdates]);
 
     return null; // Logic only component
 };

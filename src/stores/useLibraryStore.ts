@@ -643,8 +643,4 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         series: state.series.map(s => s.id === seriesId ? { ...s, tags: newTags } : s)
     }));
   },
-
-  // Navigation State
-  selectedSeriesId: null,
-  setSelectedSeriesId: (id) => set({ selectedSeriesId: id }),
 }));

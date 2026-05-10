@@ -1,4 +1,3 @@
-// import { motion } from 'framer-motion';
 import { MangaCard } from './MangaCard';
 import clsx from 'clsx';
 import { FolderOpen } from 'lucide-react';

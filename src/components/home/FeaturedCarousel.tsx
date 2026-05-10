@@ -76,10 +76,10 @@ export const FeaturedCarousel = () => {
           ) : (
             <div className="w-full h-full bg-neutral-900" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#060607] via-[#060607]/40 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 h-full bg-gradient-to-t from-[#060607] via-[#060607]/60 to-transparent pointer-events-none" />
-          <div className="absolute inset-y-0 left-0 w-full bg-gradient-to-r from-[#060607] via-transparent to-transparent pointer-events-none" />
-          <div className="absolute inset-0 bg-black/20 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#060607] via-[#060607]/30 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-[#060607] via-[#060607]/40 to-transparent pointer-events-none" />
+          <div className="absolute inset-y-0 left-0 w-2/3 bg-gradient-to-r from-[#060607]/80 via-transparent to-transparent pointer-events-none" />
+          <div className="absolute inset-0 bg-black/10 pointer-events-none" />
         </motion.div>
       </AnimatePresence>
 
@@ -112,9 +112,9 @@ export const FeaturedCarousel = () => {
               {currentItem.title}
             </h1>
 
-            <p className="text-white/90 font-medium text-sm leading-relaxed max-w-xl line-clamp-3 drop-shadow-xl p-4 rounded-2xl bg-black/40 backdrop-blur-sm border border-white/5">
+            <p className="text-white/70 font-medium text-sm leading-relaxed max-w-xl line-clamp-2" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.8), 0 0 40px rgba(0,0,0,0.5)' }}>
               {currentItem.description ||
-                "No description available for this series. Immerse yourself in high-quality storytelling and stunning artwork."}
+                "Immerse yourself in high-quality storytelling and stunning artwork."}
             </p>
 
             <div className="flex items-center gap-3 pt-2">

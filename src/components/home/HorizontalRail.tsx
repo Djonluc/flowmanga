@@ -36,7 +36,7 @@ export const HorizontalRail = ({
     };
 
     return (
-        <section className="space-y-6">
+        <section className="space-y-8">
             <div className="flex items-center justify-between gap-4 px-4 md:px-16">
                 <div className="flex min-w-0 items-center gap-3 md:gap-4">
                     {icon && (
@@ -75,12 +75,12 @@ export const HorizontalRail = ({
             {items.length > 0 ? (
                 <div 
                     ref={scrollRef}
-                    className="flex gap-4 overflow-x-auto no-scrollbar px-4 pb-8 snap-x snap-mandatory md:gap-6 md:px-16"
+                    className="flex gap-5 overflow-x-auto no-scrollbar px-4 pb-10 snap-x snap-mandatory md:gap-7 md:px-16"
                 >
                     {items.map((item, idx) => (
                         <motion.div 
                             key={`${item.id}-${idx}`}
-                            className="min-w-[160px] snap-start sm:min-w-[200px]"
+                            className="min-w-[180px] snap-start sm:min-w-[220px]"
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: idx * 0.03 }}

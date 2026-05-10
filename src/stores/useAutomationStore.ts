@@ -53,6 +53,8 @@ export const useAutomationStore = create<AutomationState>()(
                                 updatesFound.push(s);
                                 console.log(`[Automation] Update found for: ${s.title}`);
                             }
+                            // Stagger checks to avoid rate limiting and UI thread congestion
+                            await new Promise(resolve => setTimeout(resolve, 1000));
                         } catch (e) {
                             console.warn(`[Automation] Failed to check ${s.title}:`, e);
                         }

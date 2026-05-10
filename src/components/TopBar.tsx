@@ -29,7 +29,8 @@ export const TopBar = () => {
     };
 
     return (
-        <div className="h-16 flex items-center justify-between gap-6 px-6 md:px-10 sticky top-0 z-30 no-drag bg-transparent">
+        <div className="relative">
+            <div className="h-16 flex items-center justify-between gap-6 px-6 md:px-10 sticky top-0 z-30 no-drag bg-transparent">
             {/* Search Section */}
             <div className="flex-1 max-w-2xl">
                 <div className="relative group">
@@ -101,6 +102,9 @@ export const TopBar = () => {
                     <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-[#0f0f11]" />
                 </button>
             </div>
+            </div>
+            {/* Atmospheric bottom fade */}
+            <div className="absolute bottom-0 left-0 right-0 h-6 pointer-events-none" style={{ background: 'linear-gradient(to bottom, transparent, rgba(6,6,7,0.06))' }} />
         </div>
     );
 };

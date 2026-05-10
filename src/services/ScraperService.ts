@@ -1308,21 +1308,8 @@ export class ScraperService {
   }
 
   static async getPersonalizedRecommendations(limit: number = 20, coloredOnly: boolean = false): Promise<any[]> {
-      try {
-          // 1. Get tags from user's library
-          const { series } = (await import('../stores/useLibraryStore')).useLibraryStore.getState();
-          const userTags = Array.from(new Set(series.flatMap(s => s.tags || []))).slice(0, 5);
-
-          if (userTags.length > 0) {
-              // 2. Search by these tags
-              return await this.getRecommendationsByTags(userTags, limit, coloredOnly);
-          }
-
-          // Fallback to trending
-          return this.getTrending(limit, coloredOnly);
-      } catch (e) {
-          return this.getTrending(limit, coloredOnly);
-      }
+      // Reverted to simple trending to avoid circular dependency with library store
+      return this.getTrending(limit, coloredOnly);
   }
 
   static async getRecentlyUpdated(limit: number = 20): Promise<any[]> {

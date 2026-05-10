@@ -174,7 +174,7 @@ export const HomeView = () => {
             <div className="flex-1 h-full overflow-y-auto no-scrollbar pb-40">
                 <FeaturedCarousel />
 
-                <div className="space-y-16 pt-8 pb-32 max-w-7xl mx-auto md:px-8">
+                <div className="space-y-20 pt-10 pb-32 max-w-7xl mx-auto md:px-8">
                     {/* 1. Continue Journey */}
                     {continueReading.length > 0 && (
                         <HorizontalRail 
@@ -252,7 +252,7 @@ const RightPanel = ({ continueReading, stats, activity, trending, onItemClick }:
     const { openQuickView } = useModalStore();
 
     return (
-        <div className="hidden xl:flex w-72 h-full flex-col border-l border-white/5 bg-[#0A0A0A]/60 backdrop-blur-3xl p-6 space-y-12 overflow-y-auto no-scrollbar shadow-2xl transition-all duration-500">
+        <div className="hidden xl:flex w-72 h-full flex-col bg-white/[0.02] p-6 space-y-14 overflow-y-auto no-scrollbar transition-all duration-500">
             {/* Primary Focus - Vertical Slide Animation */}
             {mainItem && (
                 <section className="space-y-6">
@@ -303,12 +303,12 @@ const RightPanel = ({ continueReading, stats, activity, trending, onItemClick }:
                     <BarChart3 size={16} className="text-neutral-500" />
                     <h3 className="text-xs font-black text-neutral-500 uppercase tracking-[0.3em]">Insights</h3>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="p-5 rounded-3xl bg-white/[0.03] border border-white/5 group hover:bg-white/[0.05] transition-all">
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="p-5 rounded-3xl group hover:bg-white/[0.03] transition-all">
                         <span className="block text-3xl font-black text-white group-hover:text-indigo-400 transition-colors">{stats.totalSeries || 0}</span>
                         <span className="text-[10px] text-neutral-600 font-black uppercase tracking-widest mt-1 block">Series</span>
                     </div>
-                    <div className="p-5 rounded-3xl bg-white/[0.03] border border-white/5 group hover:bg-white/[0.05] transition-all">
+                    <div className="p-5 rounded-3xl group hover:bg-white/[0.03] transition-all">
                         <span className="block text-3xl font-black text-white group-hover:text-indigo-400 transition-colors">{stats.totalChapters || 0}</span>
                         <span className="text-[10px] text-neutral-600 font-black uppercase tracking-widest mt-1 block">Volumes</span>
                     </div>
@@ -353,10 +353,10 @@ const RightPanel = ({ continueReading, stats, activity, trending, onItemClick }:
                     </div>
                     <div className="space-y-3">
                         {trending.slice(0, 3).map((item: any, idx: number) => (
-                            <div 
+                                <div 
                                 key={idx} 
                                 onClick={() => openQuickView(item)}
-                                className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.02] border border-white/5 cursor-pointer hover:bg-white/[0.05] transition-colors"
+                                className="flex items-center gap-3 p-3 rounded-2xl cursor-pointer hover:bg-white/[0.04] transition-colors"
                             >
                                 <span className="text-indigo-500 font-black text-xs">#0{idx + 1}</span>
                                 <span className="text-white text-[10px] font-bold truncate uppercase tracking-tight group-hover:text-indigo-400">{item.title}</span>
