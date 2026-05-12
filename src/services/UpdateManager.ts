@@ -147,7 +147,7 @@ export class UpdateManager {
 
             // 5. Queue Download Job
             const updateJob: any = {
-                id: `${mangaId}-update-${Date.now()}`,
+                id: `${mangaId}-update-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
                 title: `Update: ${series.title} (${missingChapters.length} ch)`,
                 coverUrl: series.cover || undefined,
                 totalChapters: missingChapters.length,
@@ -164,6 +164,42 @@ export class UpdateManager {
 
         } catch (error) {
             console.error(`[UpdateManager] Failed to update ${series.title}:`, error);
+            return -1;
+        }
+    }
+
+    static async downloadChapters(seriesId: string, chapters: any[]) {
+        if (chapters.length === 0) return 0;
+        
+        const library = useLibraryStore.getState();
+        const series = library.series.find(s => s.id === seriesId);
+        if (!series) return 0;
+
+        try {
+            let jobMetadata = {};
+            try {
+                const content = await readTextFile(`${series.path}/metadata.json`);
+                jobMetadata = JSON.parse(content);
+            } catch (e) {}
+
+            const mangaId = series.mangaId || 'local';
+            const downloadJob: any = {
+                id: `${mangaId}-targeted-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+                title: `Manual Download: ${series.title} (${chapters.length} ch)`,
+                coverUrl: series.cover || undefined,
+                totalChapters: chapters.length,
+                metadata: {
+                    ...jobMetadata,
+                    lastChecked: new Date().toISOString(),
+                },
+                chapterList: chapters, 
+                path: series.path
+            };
+
+            useDownloadStore.getState().addJob(downloadJob);
+            return chapters.length;
+        } catch (error) {
+            console.error(`[UpdateManager] Failed to queue targeted download for ${series.title}:`, error);
             return -1;
         }
     }

@@ -1,23 +1,23 @@
-import Database from '@tauri-apps/plugin-sql';
+import Database from "@tauri-apps/plugin-sql";
 
 let db: Database | null = null;
 
 export const initDatabase = async () => {
   if (db) return db;
-  
+
   // console.log('[DB] Loading SQLite database: flowmanga.db');
   try {
     // flowmanga.db will be created in the app's local data directory
-    db = await Database.load('sqlite:flowmanga.db');
+    db = await Database.load("sqlite:flowmanga.db");
     // console.log('[DB] SQL Plugin loaded successfully');
-    
+
     // Enable foreign key enforcement (OFF by default in SQLite)
-    await db.execute('PRAGMA foreign_keys = ON');
+    await db.execute("PRAGMA foreign_keys = ON");
   } catch (err) {
-    console.error('[DB] CRITICAL ERROR loading database:', err);
+    console.error("[DB] CRITICAL ERROR loading database:", err);
     throw err;
   }
-  
+
   // Create Tables
   await db.execute(`
     CREATE TABLE IF NOT EXISTS Series (
@@ -80,11 +80,45 @@ export const initDatabase = async () => {
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (folderId) REFERENCES VideoFolders(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS Collections (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      coverPath TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS CollectionItems (
+      collectionId TEXT NOT NULL,
+      seriesId TEXT NOT NULL,
+      addedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (collectionId, seriesId),
+      FOREIGN KEY (collectionId) REFERENCES Collections(id) ON DELETE CASCADE,
+      FOREIGN KEY (seriesId) REFERENCES Series(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS DiscoveryCache (
+      id TEXT PRIMARY KEY, -- identifier like 'trending' or 'search:{query}'
+      type TEXT NOT NULL, -- 'trending' | 'latest' | 'search'
+      results TEXT NOT NULL, -- JSON stringified SourceSearchResult[]
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS TagIndex (
+      tagName TEXT NOT NULL,
+      sourceId TEXT NOT NULL,
+      sourceTagName TEXT NOT NULL,
+      PRIMARY KEY (tagName, sourceId)
+    );
   `);
 
   // Migration: Ensure lastPosition exists for existing databases
   try {
-    await db.execute('ALTER TABLE Videos ADD COLUMN lastPosition REAL DEFAULT 0');
+    await db.execute(
+      "ALTER TABLE Videos ADD COLUMN lastPosition REAL DEFAULT 0",
+    );
   } catch (e) {}
 
   try {
@@ -92,37 +126,49 @@ export const initDatabase = async () => {
   } catch (e) {}
 
   try {
-    await db.execute('ALTER TABLE Series ADD COLUMN description TEXT');
+    await db.execute("ALTER TABLE Series ADD COLUMN description TEXT");
   } catch (e) {}
 
   try {
-    await db.execute('ALTER TABLE Series ADD COLUMN seriesUrl TEXT');
+    await db.execute("ALTER TABLE Series ADD COLUMN seriesUrl TEXT");
   } catch (e) {}
 
   try {
-    await db.execute('ALTER TABLE Series ADD COLUMN mangaId TEXT');
+    await db.execute("ALTER TABLE Series ADD COLUMN mangaId TEXT");
   } catch (e) {}
 
   try {
-    await db.execute('ALTER TABLE Chapters ADD COLUMN coverPath TEXT');
+    await db.execute("ALTER TABLE Chapters ADD COLUMN coverPath TEXT");
   } catch (e) {}
 
   try {
-    await db.execute('ALTER TABLE Chapters ADD COLUMN sourceId TEXT');
+    await db.execute("ALTER TABLE Chapters ADD COLUMN sourceId TEXT");
   } catch (e) {}
   try {
-    await db.execute('ALTER TABLE Series ADD COLUMN anilistId TEXT');
+    await db.execute("ALTER TABLE Series ADD COLUMN anilistId TEXT");
   } catch (e) {}
 
   try {
-    await db.execute('ALTER TABLE Series ADD COLUMN malId TEXT');
+    await db.execute("ALTER TABLE Series ADD COLUMN malId TEXT");
   } catch (e) {}
-  
+
+  // Phase 1: Source Provider Architecture — content type classification
+  try {
+    await db.execute(
+      "ALTER TABLE Series ADD COLUMN contentType TEXT DEFAULT 'manga'",
+    );
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE Series ADD COLUMN providerId TEXT");
+  } catch (e) {}
+
   // console.log('[DB] Database initialized successfully');
   return db;
 };
 
 export const getDb = () => {
-  if (!db) throw new Error('Database not initialized. Call initDatabase() first.');
+  if (!db)
+    throw new Error("Database not initialized. Call initDatabase() first.");
   return db;
 };

@@ -23,6 +23,7 @@ interface ScraperState {
     download: () => Promise<'started' | 'prompted' | 'error'>;
     performQueueDownload: (mangaRoot: string, force: boolean, metadataOverride?: any) => Promise<void>;
     setSelectedChapters: (keys: string[]) => void;
+    prefill: (data: { url: string, metadata: any }) => void;
     reset: () => void;
 }
 
@@ -43,18 +44,27 @@ export const useScraperStore = create<ScraperState>((set, get) => ({
     
     setUrl: (url) => set({ url, error: null }),
     setAutoOpenModal: (autoOpenModal) => set({ autoOpenModal }),
+
+    prefill: (data) => set({ 
+        url: data.url, 
+        metadata: data.metadata, 
+        error: null,
+        chapterFeed: [],
+        selectedChapterKeys: [],
+        scrapedImages: []
+    }),
     
     scrape: async () => {
-        const { url } = get();
+        const { url, metadata: currentMetadata } = get();
         if (!url) return;
         
-        set({ isScraping: true, error: null, scrapedImages: [], metadata: null, chapterFeed: [], selectedChapterKeys: [] });
+        set({ isScraping: true, error: null, scrapedImages: [], chapterFeed: [], selectedChapterKeys: [] });
         
         try {
             const result = await ScraperService.scrapeChapter(url);
             
             let feed: any[] = [];
-            let metadata: any = result.metadata || null;
+            let metadata: any = { ...currentMetadata, ...result.metadata };
 
             if (result.series) {
                 // Headless/Mangago series

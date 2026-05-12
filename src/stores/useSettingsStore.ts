@@ -1,49 +1,62 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
-export type ReadingMode = 'vertical' | 'single' | 'dual' | 'slideshow' | 'horizontal';
-export type Theme = 'dark' | 'light' | 'oled' | 'paper' | 'cyberpunk';
-export type AmbientMode = 'solid' | 'blurred-page' | 'blurred-cover' | 'gradient' | 'oled' | 'adaptive-vibrant';
-export type SidebarMode = 'expanded' | 'collapsed' | 'hover';
+export type ReadingMode =
+  | "vertical"
+  | "single"
+  | "dual"
+  | "slideshow"
+  | "horizontal";
+export type Theme = "dark" | "light" | "oled" | "paper" | "cyberpunk";
+export type AmbientMode =
+  | "solid"
+  | "blurred-page"
+  | "blurred-cover"
+  | "gradient"
+  | "oled"
+  | "adaptive-vibrant";
+export type SidebarMode = "expanded" | "collapsed" | "hover";
 
 interface SettingsState {
   theme: Theme;
   readingMode: ReadingMode;
-  readingDirection: 'ltr' | 'rtl';
+  readingDirection: "ltr" | "rtl";
   gapSize: number;
   slideshowInterval: number;
-  slideshowTransition: 'fade' | 'slide' | 'none';
-  fitMode: 'width' | 'height' | 'original' | 'smart';
+  slideshowTransition: "fade" | "slide" | "none";
+  fitMode: "width" | "height" | "original" | "smart";
   zoomScale: number; // Global zoom preference
   sidebarOpen: boolean;
-  activeView: 'home' | 'library' | 'stats' | 'videos' | 'history';
-  setActiveView: (view: 'home' | 'library' | 'stats' | 'videos' | 'history') => void;
-  
-  libraryViewMode: 'grid' | 'shelf';
-  libraryDensity: 'compact' | 'comfortable' | 'cinematic';
-  setLibraryViewMode: (mode: 'grid' | 'shelf') => void;
-  setLibraryDensity: (density: 'compact' | 'comfortable' | 'cinematic') => void;
+  activeView: "home" | "library" | "stats" | "videos" | "history" | "discover";
+  setActiveView: (
+    view: "home" | "library" | "stats" | "videos" | "history" | "discover",
+  ) => void;
+
+  libraryViewMode: "grid" | "shelf";
+  libraryDensity: "compact" | "comfortable" | "cinematic";
+  setLibraryViewMode: (mode: "grid" | "shelf") => void;
+  setLibraryDensity: (density: "compact" | "comfortable" | "cinematic") => void;
   toggleLibraryViewMode: () => void;
 
   isFullscreen: boolean;
   setFullscreenState: (full: boolean) => void;
   toggleFullScreenAction: () => void;
-  
+
   setTheme: (theme: Theme) => void;
   setReadingMode: (mode: ReadingMode) => void;
-  setReadingDirection: (dir: 'ltr' | 'rtl') => void;
+  setReadingDirection: (dir: "ltr" | "rtl") => void;
   setGapSize: (size: number) => void;
   setSlideshowInterval: (ms: number) => void;
-  setSlideshowTransition: (type: 'fade' | 'slide' | 'none') => void;
-  setFitMode: (mode: 'width' | 'height' | 'original' | 'smart') => void;
+  setSlideshowTransition: (type: "fade" | "slide" | "none") => void;
+  setFitMode: (mode: "width" | "height" | "original" | "smart") => void;
   setZoomScale: (scale: number) => void;
   toggleSidebar: () => void;
   sidebarMode: SidebarMode;
   setSidebarMode: (mode: SidebarMode) => void;
-  
+
   ambientVolume: number; // 0 to 1
   setAmbientVolume: (volume: number) => void;
-  
+
   isHudVisible: boolean;
   toggleHud: () => void;
   setHudVisibility: (visible: boolean) => void;
@@ -56,6 +69,9 @@ interface SettingsState {
   isDownloadPanelOpen: boolean;
   toggleDownloadPanel: () => void;
 
+  isScreenshotMode: boolean;
+  toggleScreenshotMode: () => void;
+
   // Image Processing
   brightness: number;
   contrast: number;
@@ -67,7 +83,7 @@ interface SettingsState {
   accentColor: string;
   isInitializing: boolean;
   selectedAmbientSound: string;
-  
+
   setBrightness: (val: number) => void;
   setContrast: (val: number) => void;
   setSaturation: (val: number) => void;
@@ -84,31 +100,37 @@ interface SettingsState {
   ambientBlur: number; // Blur radius in px
   ambientBrightness: number; // 0-2 (1 is neutral)
   showAmbientNoise: boolean;
-  
+
   setAmbientMode: (mode: AmbientMode) => void;
   setAmbientIntensity: (val: number) => void;
   setAmbientBlur: (val: number) => void;
   setAmbientBrightness: (val: number) => void;
   setAmbientNoise: (show: boolean) => void;
-  
+
   ambientImage: string | null;
   setAmbientImage: (img: string | null) => void;
-  
+
   libraryPath: string | null;
   downloadPath: string | null;
   firstRunComplete: boolean;
   isLocationModalOpen: boolean;
   isSafetyCheckModalOpen: boolean;
   safetyCheckTitle: string;
-  onSafetyCheckResolved: ((action: 'update' | 'redownload') => void) | undefined;
+  onSafetyCheckResolved:
+    | ((action: "update" | "redownload") => void)
+    | undefined;
   setLibraryPath: (path: string) => void;
   setDownloadPath: (path: string) => void;
   setFirstRunComplete: (done: boolean) => void;
   getRecommendedPath: () => Promise<string>;
   setLocationModalOpen: (open: boolean) => void;
-  setSafetyCheckModal: (open: boolean, title?: string, callback?: (action: 'update' | 'redownload') => void) => void;
-  
-  availableSounds: { name: string, path: string }[];
+  setSafetyCheckModal: (
+    open: boolean,
+    title?: string,
+    callback?: (action: "update" | "redownload") => void,
+  ) => void;
+
+  availableSounds: { name: string; path: string }[];
   loadAvailableSounds: () => Promise<void>;
   importSound: (path: string) => Promise<void>;
 
@@ -119,46 +141,65 @@ interface SettingsState {
   setMaxConcurrentJobs: (val: number) => void;
   setMaxConcurrentChapters: (val: number) => void;
   setMaxConcurrentPages: (val: number) => void;
+
+  // Content Filtering
+  showAdultContent: boolean;
+  setShowAdultContent: (show: boolean) => void;
+  excludedTags: string[];
+  setExcludedTags: (tags: string[]) => void;
+  
+  coloredOnly: boolean;
+  toggleColoredOnly: () => void;
+  setColoredOnly: (val: boolean) => void;
 }
+
+const BUILTIN_SOUNDS = [
+  { name: 'Lo-fi Beats', path: 'https://stream.zeno.fm/0r0xa792kwzuv' },
+  { name: 'Rainfall', path: 'https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg' },
+  { name: 'Quiet Cafe', path: 'https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg' },
+  { name: 'Celestial Wind', path: 'https://actions.google.com/sounds/v1/weather/wind_blowing.ogg' },
+  { name: 'Deep Space', path: 'https://actions.google.com/sounds/v1/science_fiction/space_station_ambience.ogg' },
+];
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
-      theme: 'dark',
-      readingMode: 'vertical',
-      readingDirection: 'ltr',
+      theme: "dark",
+      readingMode: "vertical",
+      readingDirection: "ltr",
       gapSize: 20,
       slideshowInterval: 3000,
-      slideshowTransition: 'fade',
-      fitMode: 'width',
+      slideshowTransition: "fade",
+      fitMode: "width",
       zoomScale: 1,
-      activeView: 'home',
+      activeView: "home",
       setActiveView: (view) => set({ activeView: view }),
 
-      libraryViewMode: 'grid',
-      libraryDensity: 'comfortable',
+      libraryViewMode: "grid",
+      libraryDensity: "comfortable",
       setLibraryViewMode: (mode) => set({ libraryViewMode: mode }),
       setLibraryDensity: (density) => set({ libraryDensity: density }),
-      toggleLibraryViewMode: () => set((state) => ({ 
-        libraryViewMode: state.libraryViewMode === 'grid' ? 'shelf' : 'grid' 
-      })),
+      toggleLibraryViewMode: () =>
+        set((state) => ({
+          libraryViewMode: state.libraryViewMode === "grid" ? "shelf" : "grid",
+        })),
 
       isFullscreen: false,
       setFullscreenState: (f) => set({ isFullscreen: f }),
       toggleFullScreenAction: async () => {
         try {
-          const { getCurrentWindow } = await import('@tauri-apps/api/window');
+          const { getCurrentWindow } = await import("@tauri-apps/api/window");
           const appWindow = getCurrentWindow();
           const isFull = await appWindow.isFullscreen();
           await appWindow.setFullscreen(!isFull);
           set({ isFullscreen: !isFull });
         } catch (err) {
-          console.error('[Settings] Failed to toggle fullscreen:', err);
+          console.error("[Settings] Failed to toggle fullscreen:", err);
         }
       },
 
       sidebarOpen: true,
-      sidebarMode: 'expanded',
+      sidebarMode: "expanded",
       setSidebarMode: (mode) => set({ sidebarMode: mode }),
 
       setTheme: (theme) => set({ theme }),
@@ -169,29 +210,37 @@ export const useSettingsStore = create<SettingsState>()(
       setSlideshowTransition: (type) => set({ slideshowTransition: type }),
       setFitMode: (mode) => set({ fitMode: mode }),
       setZoomScale: (scale) => set({ zoomScale: scale }),
-      toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
-      
+      toggleSidebar: () =>
+        set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+
       ambientVolume: 0.2,
       setAmbientVolume: (volume) => set({ ambientVolume: volume }),
-      
+
       isHudVisible: true,
       toggleHud: () => set((state) => ({ isHudVisible: !state.isHudVisible })),
       setHudVisibility: (visible) => set({ isHudVisible: visible }),
 
       isShortcutsOpen: false,
-      toggleShortcuts: () => set((state) => ({ isShortcutsOpen: !state.isShortcutsOpen })),
+      toggleShortcuts: () =>
+        set((state) => ({ isShortcutsOpen: !state.isShortcutsOpen })),
 
       isSettingsOpen: false,
-      toggleSettings: () => set((state) => ({ isSettingsOpen: !state.isSettingsOpen })),
+      toggleSettings: () =>
+        set((state) => ({ isSettingsOpen: !state.isSettingsOpen })),
       isDownloadPanelOpen: false,
-      toggleDownloadPanel: () => set((state) => ({ isDownloadPanelOpen: !state.isDownloadPanelOpen })),
+      toggleDownloadPanel: () =>
+        set((state) => ({ isDownloadPanelOpen: !state.isDownloadPanelOpen })),
+
+      isScreenshotMode: false,
+      toggleScreenshotMode: () =>
+        set((state) => ({ isScreenshotMode: !state.isScreenshotMode })),
 
       // Image Processing
       brightness: 1,
       contrast: 1,
       saturation: 1,
       autoCrop: false,
-      
+
       setBrightness: (b) => set({ brightness: b }),
       setContrast: (c) => set({ contrast: c }),
       setSaturation: (s) => set({ saturation: s }),
@@ -199,28 +248,29 @@ export const useSettingsStore = create<SettingsState>()(
 
       autoScrollSpeed: 2, // Default speed
       isAutoScrolling: false,
-      accentColor: '#3b82f6', // Default blue-500
+      accentColor: "#3b82f6", // Default blue-500
       isInitializing: true,
       setAutoScrollSpeed: (speed) => set({ autoScrollSpeed: speed }),
-      toggleAutoScrolling: () => set((state) => ({ isAutoScrolling: !state.isAutoScrolling })),
+      toggleAutoScrolling: () =>
+        set((state) => ({ isAutoScrolling: !state.isAutoScrolling })),
       setAccentColor: (color) => set({ accentColor: color }),
       setInitializing: (init) => set({ isInitializing: init }),
-      selectedAmbientSound: 'none',
+      selectedAmbientSound: BUILTIN_SOUNDS[0].path, // Default to first builtin instead of 'none' or 'lofi'
       setSelectedAmbientSound: (sound) => set({ selectedAmbientSound: sound }),
 
       // Ambient Defaults
-      ambientMode: 'blurred-page',
+      ambientMode: "blurred-page",
       ambientIntensity: 0.5,
       ambientBlur: 60,
       ambientBrightness: 0.4,
       showAmbientNoise: true,
-      
+
       setAmbientMode: (mode) => set({ ambientMode: mode }),
       setAmbientIntensity: (val) => set({ ambientIntensity: val }),
       setAmbientBlur: (val) => set({ ambientBlur: val }),
       setAmbientBrightness: (val) => set({ ambientBrightness: val }),
       setAmbientNoise: (show) => set({ showAmbientNoise: show }),
-      
+
       // Dynamic Ambient Source
       ambientImage: null,
       setAmbientImage: (img) => set({ ambientImage: img }),
@@ -233,42 +283,56 @@ export const useSettingsStore = create<SettingsState>()(
       setDownloadPath: (path) => set({ downloadPath: path }),
       setFirstRunComplete: (done) => set({ firstRunComplete: done }),
       getRecommendedPath: async () => {
-          const { documentDir, join } = await import('@tauri-apps/api/path');
-          const docs = await documentDir();
-          return await join(docs, 'FlowManga');
+        const { documentDir, join } = await import("@tauri-apps/api/path");
+        const docs = await documentDir();
+        return await join(docs, "FlowManga");
       },
       isLocationModalOpen: false,
       setLocationModalOpen: (open) => set({ isLocationModalOpen: open }),
       isSafetyCheckModalOpen: false,
-      safetyCheckTitle: '',
+      safetyCheckTitle: "",
       onSafetyCheckResolved: undefined,
-      setSafetyCheckModal: (open, title = '', callback = undefined) => set({ 
-          isSafetyCheckModalOpen: open, 
+      setSafetyCheckModal: (open, title = "", callback = undefined) =>
+        set({
+          isSafetyCheckModalOpen: open,
           safetyCheckTitle: title,
-          onSafetyCheckResolved: callback
-      }),
+          onSafetyCheckResolved: callback,
+        }),
 
-      availableSounds: [],
+      availableSounds: BUILTIN_SOUNDS,
       loadAvailableSounds: async () => {
-          try {
-              const { invoke } = await import('@tauri-apps/api/core');
-              const sounds = await invoke<any[]>('list_ambient_sounds');
-              set({ availableSounds: sounds });
-          } catch (err) {
-              console.error('[Settings] Failed to load ambient sounds:', err);
-          }
+        try {
+          const { invoke } = await import("@tauri-apps/api/core");
+          const customSounds = await invoke<any[]>("list_ambient_sounds");
+          
+          set((state) => {
+              const all = [...BUILTIN_SOUNDS];
+              customSounds.forEach(cs => {
+                  if (!all.find(a => a.path === cs.path)) all.push(cs);
+              });
+              return { availableSounds: all };
+          });
+        } catch (err) {
+          console.error("[Settings] Failed to load ambient sounds:", err);
+        }
       },
       importSound: async (path: string) => {
-          try {
-              const { invoke } = await import('@tauri-apps/api/core');
-              await invoke('import_ambient_sound', { path });
-              // Refresh the list
-              const sounds = await invoke<any[]>('list_ambient_sounds');
-              set({ availableSounds: sounds });
-          } catch (err) {
-              console.error('[Settings] Failed to import ambient sound:', err);
-              throw err;
-          }
+        try {
+          const { invoke } = await import("@tauri-apps/api/core");
+          await invoke("import_ambient_sound", { path });
+          // Refresh the list
+          const customSounds = await invoke<any[]>("list_ambient_sounds");
+          set((state) => {
+              const all = [...BUILTIN_SOUNDS];
+              customSounds.forEach(cs => {
+                  if (!all.find(a => a.path === cs.path)) all.push(cs);
+              });
+              return { availableSounds: all };
+          });
+        } catch (err) {
+          console.error("[Settings] Failed to import ambient sound:", err);
+          throw err;
+        }
       },
 
       // Download Concurrency Defaults
@@ -278,13 +342,23 @@ export const useSettingsStore = create<SettingsState>()(
       setMaxConcurrentJobs: (val) => set({ maxConcurrentJobs: val }),
       setMaxConcurrentChapters: (val) => set({ maxConcurrentChapters: val }),
       setMaxConcurrentPages: (val) => set({ maxConcurrentPages: val }),
+
+      // Content Filtering
+      showAdultContent: false,
+      setShowAdultContent: (show) => set({ showAdultContent: show }),
+      excludedTags: [],
+      setExcludedTags: (tags) => set({ excludedTags: tags }),
+      
+      coloredOnly: true,
+      toggleColoredOnly: () => set((state) => ({ coloredOnly: !state.coloredOnly })),
+      setColoredOnly: (val) => set({ coloredOnly: val }),
     }),
     {
-      name: 'flowmanga-settings',
+      name: "flowmanga-settings",
       partialize: (state) => {
-        const { isInitializing, ...rest } = state;
+        const { isInitializing, isSettingsOpen, isDownloadPanelOpen, ...rest } = state;
         return rest;
       },
-    }
-  )
+    },
+  ),
 );

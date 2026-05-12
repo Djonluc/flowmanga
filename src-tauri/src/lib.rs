@@ -295,12 +295,12 @@ async fn scan_manga_folder(path: String) -> Result<Vec<MangaMetadata>, String> {
              // 1. explicit coverFile in metadata
              if let Some(cf) = meta_json.as_ref().and_then(|j| j["coverFile"].as_str()) {
                  let p = folder_path.join(cf);
-                 if p.exists() { cover_path = Some(normalize_path(&p)); }
+                 if p.exists() { cover_path = Some(p.to_string_lossy().to_string()); }
              }
              // 2. cover.jpg at root
              if cover_path.is_none() {
                  let p = folder_path.join("cover.jpg");
-                 if p.exists() { cover_path = Some(normalize_path(&p)); }
+                 if p.exists() { cover_path = Some(p.to_string_lossy().to_string()); }
              }
              // 3. Robust fallback: check first few chapters for a cover
              if cover_path.is_none() {
@@ -311,7 +311,7 @@ async fn scan_manga_folder(path: String) -> Result<Vec<MangaMetadata>, String> {
                      for entry in subdirs {
                          let p = entry.path().join("cover.jpg");
                          if p.exists() { 
-                             cover_path = Some(normalize_path(&p));
+                             cover_path = Some(p.to_string_lossy().to_string());
                              break;
                          }
                      }
@@ -320,7 +320,7 @@ async fn scan_manga_folder(path: String) -> Result<Vec<MangaMetadata>, String> {
 
              return Some(MangaMetadata {
                  id: manga_id.clone().unwrap_or_else(|| Uuid::new_v4().to_string()),
-                 file_path: normalize_path(folder_path),
+                 file_path: folder_path.to_string_lossy().to_string(),
                  title,
                  cover_path,
                  author,
@@ -413,7 +413,7 @@ async fn scan_chapters(path: String, series_id: String) -> Result<Vec<ChapterMet
             if !page_files.is_empty() {
                 let hash: usize = folder_name.bytes().fold(0usize, |acc, b| acc.wrapping_mul(31).wrapping_add(b as usize));
                 let idx = hash % page_files.len();
-                cover_path = Some(normalize_path(&page_files[idx].path()));
+                cover_path = Some(page_files[idx].path().to_string_lossy().to_string());
             }
 
             if chapter_num > 0.0 || !folder_name.is_empty() {
@@ -421,7 +421,7 @@ async fn scan_chapters(path: String, series_id: String) -> Result<Vec<ChapterMet
                     id: format!("{}-{}", series_id, folder_name),
                     title: format!("Chapter {}", if chapter_num > 0.0 { chapter_num.to_string() } else { folder_name.clone() }),
                     chapter_number: if chapter_num > 0.0 { chapter_num } else { chapters.len() as f32 + 1.0 },
-                    file_path: normalize_path(&folder_path),
+                    file_path: folder_path.to_string_lossy().to_string(),
                     cover_path,
                     pages: page_files.len() as i32,
                     start_index: None,
@@ -451,15 +451,15 @@ async fn scan_chapters(path: String, series_id: String) -> Result<Vec<ChapterMet
                                 let cover_file = format!("ch{}_p{:03}.jpg", ch_padded, page_idx);
                                 let cover_full = root.join(&cover_file);
                                 if cover_full.exists() {
-                                    Some(normalize_path(&cover_full))
+                                    Some(cover_full.to_string_lossy().to_string())
                                 } else {
                                     // Fallback to first page
                                     let f = root.join(format!("ch{}_p001.jpg", ch_padded));
-                                    if f.exists() { Some(normalize_path(&f)) } else { None }
+                                    if f.exists() { Some(f.to_string_lossy().to_string()) } else { None }
                                 }
                             } else {
                                 let f = root.join(format!("ch{}_p001.jpg", ch_padded));
-                                if f.exists() { Some(normalize_path(&f)) } else { None }
+                                if f.exists() { Some(f.to_string_lossy().to_string()) } else { None }
                             };
 
                             let pages = if let (Some(si), Some(ei)) = (start_idx, end_idx) {
@@ -533,7 +533,7 @@ async fn read_folder(app: AppHandle, path: String) -> Result<Vec<String>, String
                 if entry.file_type().is_file() {
                     if let Some(e) = entry.path().extension().and_then(|s| s.to_str()) {
                         if supported_extensions.contains(&e.to_lowercase().as_str()) {
-                            files.push(normalize_path(entry.path()));
+                            files.push(entry.path().to_string_lossy().to_string());
                         }
                     }
                 }
@@ -544,7 +544,7 @@ async fn read_folder(app: AppHandle, path: String) -> Result<Vec<String>, String
             if entry.file_type().is_file() {
                 if let Some(ext) = entry.path().extension().and_then(|s| s.to_str()) {
                     if supported_extensions.contains(&ext.to_lowercase().as_str()) {
-                        files.push(normalize_path(entry.path()));
+                        files.push(entry.path().to_string_lossy().to_string());
                     }
                 }
             }
@@ -558,7 +558,7 @@ async fn read_folder(app: AppHandle, path: String) -> Result<Vec<String>, String
 use std::collections::HashMap;
 
 #[command]
-async fn download_image(url: String, file_path: String, headers: Option<HashMap<String, String>>) -> Result<(), String> {
+async fn download_image(url: String, file_path: String, headers: Option<HashMap<String, String>>, encryption_key: Option<String>) -> Result<(), String> {
     let client_builder = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
         
@@ -580,7 +580,20 @@ async fn download_image(url: String, file_path: String, headers: Option<HashMap<
         return Err(format!("Failed to download image: status {}", response.status()));
     }
     
-    let bytes = response.bytes().await.map_err(|e| e.to_string())?;
+    let mut bytes = response.bytes().await.map_err(|e| e.to_string())?.to_vec();
+    
+    // XOR decryption for MangaPlus encrypted images
+    if let Some(ref key_hex) = encryption_key {
+        let key_bytes: Vec<u8> = (0..key_hex.len())
+            .step_by(2)
+            .filter_map(|i| u8::from_str_radix(&key_hex[i..i+2], 16).ok())
+            .collect();
+        if !key_bytes.is_empty() {
+            for i in 0..bytes.len() {
+                bytes[i] ^= key_bytes[i % key_bytes.len()];
+            }
+        }
+    }
     
     // Ensure parent directory exists
     if let Some(parent) = std::path::Path::new(&file_path).parent() {
@@ -590,6 +603,68 @@ async fn download_image(url: String, file_path: String, headers: Option<HashMap<
     std::fs::write(&file_path, bytes).map_err(|e| e.to_string())?;
     
     Ok(())
+}
+
+#[command]
+async fn fetch_binary(url: String, headers: Option<HashMap<String, String>>) -> Result<Vec<u8>, String> {
+    let client_builder = reqwest::Client::builder()
+        .user_agent("okhttp/4.12.0");
+        
+    let client = client_builder.build().map_err(|e| e.to_string())?;
+        
+    let mut request = client.get(&url);
+    
+    if let Some(h_map) = headers {
+        for (key, value) in h_map {
+            request = request.header(key, value);
+        }
+    }
+        
+    let response = request.send()
+        .await
+        .map_err(|e| e.to_string())?;
+        
+    if !response.status().is_success() {
+        return Err(format!("Failed to fetch binary: status {}", response.status()));
+    }
+    
+    let bytes = response.bytes().await.map_err(|e| e.to_string())?;
+    Ok(bytes.to_vec())
+}
+
+#[command]
+async fn fetch_json(url: String, method: String, body: Option<serde_json::Value>, headers: Option<HashMap<String, String>>) -> Result<serde_json::Value, String> {
+    let client_builder = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        
+    let client = client_builder.build().map_err(|e| e.to_string())?;
+        
+    let mut request = match method.to_uppercase().as_str() {
+        "POST" => client.post(&url),
+        "PUT" => client.put(&url),
+        _ => client.get(&url),
+    };
+    
+    if let Some(h_map) = headers {
+        for (key, value) in h_map {
+            request = request.header(key, value);
+        }
+    }
+    
+    if let Some(b) = body {
+        request = request.json(&b);
+    }
+        
+    let response = request.send()
+        .await
+        .map_err(|e: reqwest::Error| e.to_string())?;
+        
+    if !response.status().is_success() {
+        return Err(format!("Failed to fetch JSON: status {}", response.status()));
+    }
+        
+    let json = response.json::<serde_json::Value>().await.map_err(|e: reqwest::Error| e.to_string())?;
+    Ok(json)
 }
 
 #[command]
@@ -622,121 +697,193 @@ async fn fetch_html(url: String, headers: Option<HashMap<String, String>>) -> Re
 
 use headless_chrome::{Browser, LaunchOptions};
 
+#[derive(serde::Deserialize, Clone)]
+pub struct ScrapeOptions {
+    pub scroll_iterations: Option<u64>,
+    pub wait_after_scroll: Option<u64>,
+    pub selectors: Option<Vec<String>>,
+}
+
 #[command]
-async fn scrape_images_headless(url: String) -> Result<Vec<String>, String> {
+async fn scrape_images_headless(url: String, options: Option<ScrapeOptions>) -> Result<Vec<String>, String> {
     println!("[Rust] Starting enhanced headless scrape for: {}", url);
     
     let images = tauri::async_runtime::spawn_blocking(move || {
         let browser = Browser::new(LaunchOptions {
             headless: true,
+            args: vec![
+                std::ffi::OsStr::new("--no-sandbox"),
+                std::ffi::OsStr::new("--disable-setuid-sandbox"),
+                std::ffi::OsStr::new("--disable-blink-features=AutomationControlled"),
+                std::ffi::OsStr::new("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"),
+            ],
             ..Default::default()
         }).map_err(|e| format!("Failed to launch browser: {}", e))?;
 
         let tab = browser.new_tab().map_err(|e| format!("Failed to create tab: {}", e))?;
+        
+        // Config from options
+        let max_scrolls = options.as_ref().and_then(|o| o.scroll_iterations).unwrap_or(15);
+        let wait_ms = options.as_ref().and_then(|o| o.wait_after_scroll).unwrap_or(1500);
+        let custom_selectors = options.as_ref().and_then(|o| o.selectors.clone()).unwrap_or_default();
 
-        // Navigate
+        // 1. Navigate & Settle
+        println!("[Rust] Navigating to {}...", url);
         tab.navigate_to(&url).map_err(|e| format!("Failed to navigate: {}", e))?;
-        tab.wait_until_navigated().map_err(|e| format!("Nav failed: {}", e))?;
+        let _ = tab.wait_until_navigated(); // Non-critical wait
+        std::thread::sleep(std::time::Duration::from_millis(2000));
 
-        // DEBUG: Proof of Load
-        let title = tab.evaluate("document.title", true)
-            .ok().and_then(|o| o.value).and_then(|v| v.as_str().map(|s| s.to_string()))
-            .unwrap_or_else(|| "Unknown Title".to_string());
-        println!("[Rust Scraper] Debug - Page Title: {}", title);
+        // 1.1 Debug Proof of Load
+        if let Ok(title_obj) = tab.evaluate("document.title", true) {
+            let t = title_obj.value.and_then(|v: serde_json::Value| v.as_str().map(|s| s.to_string())).unwrap_or_default();
+            println!("[Rust Scraper] Debug - Page Title: {}", t);
+        }
 
-        // 1. Wait for reader container
+        // 1.2 Wait for reader container
         let wait_script = r#"
             document.querySelector('#viewer, .reader, .nc-viewer, [data-role="reader"], .page-list, div[class*="viewer"]') !== null ||
             document.querySelector('.reading-content, #readerarea, .container-chapter-reader') !== null
         "#;
         let mut retries = 0;
-        let mut found_container = false;
         while retries < 15 {
             if let Ok(remote_object) = tab.evaluate(wait_script, true) {
-                if remote_object.value.and_then(|v| v.as_bool()).unwrap_or(false) {
-                    found_container = true;
-                    break;
-                }
+                if remote_object.value.and_then(|v: serde_json::Value| v.as_bool()).unwrap_or(false) { break; }
             }
             std::thread::sleep(std::time::Duration::from_millis(1000));
             retries += 1;
         }
-        
-        if !found_container {
-            println!("[Rust Warning] Main viewer container not found after 15s - proceeding anyway...");
+
+        // 1.3 Click through potential overlays
+        let click_script = r#"
+            (() => {
+                const buttons = Array.from(document.querySelectorAll('button, a, div'))
+                    .filter(el => {
+                        const t = el.textContent.toLowerCase();
+                        return t.includes('confirm') || t.includes('agree') || t.includes('adult') || t.includes('proceed') || t.includes('continue');
+                    });
+                buttons.forEach(b => b.click());
+                return buttons.length;
+            })()
+        "#;
+        let _ = tab.evaluate(click_script, true);
+
+        // 1.4 Wait for initial images
+        let wait_img = "document.querySelectorAll('img').length > 3";
+        let mut img_retries = 0;
+        while img_retries < 10 {
+            if let Ok(obj) = tab.evaluate(wait_img, true) {
+                if obj.value.and_then(|v: serde_json::Value| v.as_bool()).unwrap_or(false) { break; }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1000));
+            img_retries += 1;
         }
 
-        // 2. Incremental Collection (Crucial for Virtualized Lists)
+        // 2. Incremental Collection loop
         let mut collected_images: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut last_height = 0;
         let mut scroll_retries = 0;
-        
-        println!("[Rust Scraper] Starting incremental scroll-collection loop...");
+        let mut total_scrolls = 0;
 
-        while scroll_retries < 12 {
-            // Extract currently visible images + background images
-            let extract_current_script = r#"
+        while scroll_retries < 5 && total_scrolls < max_scrolls {
+            // Check if tab is still alive by a simple evaluate
+            if tab.evaluate("1", true).is_err() {
+                println!("[Rust] Warning: Tab seems closed or disconnected. Aborting loop.");
+                break;
+            }
+
+            let mut extract_script = String::from(r#"
                 (() => {
                     const results = [];
+                    const seen = new Set();
                     const addUrl = src => {
-                        if (!src) return;
+                        if (!src || src.length < 20) return;
                         if (src.startsWith('//')) src = 'https:' + src;
                         if (src.startsWith('/')) src = window.location.origin + src;
-                        if (src && src.length > 20 && !src.includes('avatar') && !src.includes('logo') && !src.includes('banner')) {
-                            results.push(src);
-                        }
+                        if (!src.startsWith('http')) return;
+                        
+                        const s = src.toLowerCase();
+                        if (s.includes('avatar') || s.includes('logo') || s.includes('banner') || s.includes('icon')) return;
+                        
+                        if (!seen.has(src)) { seen.add(src); results.push(src); }
                     };
-                    // 1. Standard img tags
-                    const container = document.querySelector('.reading-content, #readerarea') || document;
-                    container.querySelectorAll('img').forEach(img => {
-                        let src = img.currentSrc || img.src || img.dataset.src || img.dataset.lazySrc || img.dataset.original || '';
-                        addUrl(src);
-                    });
-                    // 2. Background images
-                    document.querySelectorAll('[style*="background-image"]').forEach(el => {
-                        const style = el.style.backgroundImage;
-                        const match = style.match(/url\(["']?(.*?)["']?\)/);
-                        if (match && match[1]) {
-                            addUrl(match[1]);
+            "#);
+
+            // Add custom selectors if provided
+            if !custom_selectors.is_empty() {
+                for sel in &custom_selectors {
+                    extract_script.push_str(&format!("document.querySelectorAll('{}').forEach(el => addUrl(el.src || el.dataset?.src || el.dataset?.lazySrc || el.getAttribute('data-src')));\n", sel));
+                }
+            }
+
+            // Standard robust extraction logic
+            extract_script.push_str(r#"
+                    const attrs = ['src', 'data-src', 'data-lazy-src', 'data-original', 'data-image', 'srcset', 'data-srcset'];
+                    document.querySelectorAll('*').forEach(el => {
+                        attrs.forEach(attr => {
+                            const val = el.getAttribute(attr);
+                            if (val && typeof val === 'string' && val.length > 20) {
+                                if (val.includes(' ')) { 
+                                    val.split(',').forEach(part => addUrl(part.trim().split(' ')[0]));
+                                } else { addUrl(val); }
+                            }
+                        });
+                        
+                        const style = window.getComputedStyle(el).backgroundImage;
+                        if (style && style !== 'none') {
+                            const match = style.match(/url\(["']?(.*?)["']?\)/);
+                            if (match && match[1]) addUrl(match[1]);
                         }
                     });
                     return results;
                 })()
-            "#;
+            "#);
 
-            if let Ok(remote_obj) = tab.evaluate(extract_current_script, true) {
+            if let Ok(remote_obj) = tab.evaluate(&extract_script, true) {
                 if let Some(val) = remote_obj.value {
                     if let Ok(urls) = serde_json::from_value::<Vec<String>>(val) {
-                        let start_count = collected_images.len();
-                        for url in urls {
-                            collected_images.insert(url);
-                        }
-                        if collected_images.len() > start_count {
-                            println!("[Rust Scraper] Collected {} new images (Total: {})", collected_images.len() - start_count, collected_images.len());
-                        }
+                        for url in urls { collected_images.insert(url); }
                     }
                 }
             }
 
-            // Scroll check
-            let height_obj = tab.evaluate("document.body.scrollHeight", true).map_err(|e| e.to_string())?;
-            let current_height = height_obj.value.and_then(|v| v.as_u64()).unwrap_or(0);
-            
-            tab.evaluate("window.scrollBy(0, window.innerHeight * 1.8)", true).map_err(|e| e.to_string())?;
-            std::thread::sleep(std::time::Duration::from_millis(1500));
-            
-            if current_height == last_height {
-                scroll_retries += 1;
+            // Scroll
+            if let Ok(height_obj) = tab.evaluate("document.body.scrollHeight", true) {
+                let current_height = height_obj.value.and_then(|v: serde_json::Value| v.as_u64()).unwrap_or(0);
+                let _ = tab.evaluate("window.scrollBy(0, window.innerHeight * 1.5)", true);
+                std::thread::sleep(std::time::Duration::from_millis(wait_ms));
+                
+                if current_height == last_height { scroll_retries += 1; }
+                else { scroll_retries = 0; last_height = current_height; }
             } else {
-                scroll_retries = 0;
-                last_height = current_height;
+                break;
             }
+            total_scrolls += 1;
         }
         
+        // Final Filter
         let mut final_urls: Vec<String> = collected_images.into_iter()
             .filter(|src| {
                 let s = src.to_lowercase();
-                s.ends_with(".jpg") || s.ends_with(".jpeg") || s.ends_with(".png") || s.ends_with(".webp")
+                let path = s.split('?').next().unwrap_or("");
+                
+                // Allow known image extensions
+                if path.ends_with(".jpg") || path.ends_with(".jpeg") || path.ends_with(".png") || 
+                   path.ends_with(".webp") || path.ends_with(".gif") || path.ends_with(".avif") {
+                    return true;
+                }
+
+                // Domain-specific allowance (LuaComic media server)
+                if s.contains("media.luacomic.org") {
+                    return true;
+                }
+
+                // Broad filter for large data URLs or other image-like patterns
+                if s.len() > 40 && !s.contains("logo") && !s.contains("avatar") && !s.contains("icon") {
+                    if s.contains("/uploads/") || s.contains("/manga/") || s.contains("/chapters/") {
+                        return true;
+                    }
+                }
+                false
             })
             .collect();
             
@@ -748,39 +895,6 @@ async fn scrape_images_headless(url: String) -> Result<Vec<String>, String> {
                     const urls = new Set(Array.from(document.querySelectorAll('img'))
                         .map(i => i.currentSrc || i.src || i.dataset?.src || i.dataset?.lazySrc || '')
                         .filter(s => s.length > 50));
-
-                    /*
-                    const initial = document.getElementById('initial-data');
-                    if (location.hostname.includes('comix.to') && initial?.textContent) {
-                        try {
-                            const data = JSON.parse(initial.textContent);
-                            const chapterId = data?.read?.chapterId;
-                            if (chapterId) {
-                                const res = await fetch(`/api/v1/chapters/${chapterId}/pages`, {
-                                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                                    credentials: 'include'
-                                });
-                                const json = await res.json();
-                                const walk = value => {
-                                    if (!value) return;
-                                    if (typeof value === 'string') {
-                                        let src = value.replaceAll('\\/', '/');
-                                        if (src.startsWith('//')) src = 'https:' + src;
-                                        if (src.startsWith('/')) src = location.origin + src;
-                                        if (/^https?:\/\//i.test(src) && /\.(jpe?g|png|webp)(\?|$)/i.test(src)) urls.add(src);
-                                    } else if (Array.isArray(value)) {
-                                        value.forEach(walk);
-                                    } else if (typeof value === 'object') {
-                                        Object.values(value).forEach(walk);
-                                    }
-                                };
-                                walk(json?.result ?? json);
-                            }
-                        } catch (e) {
-                            console.warn('Comix pages API extraction failed', e);
-                        }
-                    }
-                    */
                     return Array.from(urls);
                 })()
              "#;
@@ -824,6 +938,7 @@ async fn scrape_series_headless(url: String) -> Result<SeriesScrapeResult, Strin
                 std::ffi::OsStr::new("--no-sandbox"),
                 std::ffi::OsStr::new("--disable-setuid-sandbox"),
                 std::ffi::OsStr::new("--disable-blink-features=AutomationControlled"),
+                std::ffi::OsStr::new("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"),
             ],
             ..Default::default()
         }).map_err(|e| format!("Failed to launch browser: {}", e))?;
@@ -832,7 +947,10 @@ async fn scrape_series_headless(url: String) -> Result<SeriesScrapeResult, Strin
 
         println!("[Rust] Navigating to {}...", url);
         tab.navigate_to(&url).map_err(|e| format!("Nav failed: {}", e))?;
-        tab.wait_until_navigated().map_err(|e| format!("Nav wait failed: {}", e))?;
+        let _ = tab.wait_until_navigated(); // Non-critical wait
+        
+        // 1.5 Settlement Delay
+        std::thread::sleep(std::time::Duration::from_millis(2000));
         
         // 2. Wait for Title or Proof of Content
         println!("[Rust] Waiting for content load (60s max)...");
@@ -840,15 +958,15 @@ async fn scrape_series_headless(url: String) -> Result<SeriesScrapeResult, Strin
         let mut retries = 0;
         while retries < 60 { 
             if let Ok(obj) = tab.evaluate(wait_content, true) {
-                if obj.value.and_then(|v| v.as_bool()).unwrap_or(false) { break; }
+                if obj.value.and_then(|v: serde_json::Value| v.as_bool()).unwrap_or(false) { break; }
             }
             std::thread::sleep(std::time::Duration::from_millis(1000));
             retries += 1;
         }
 
-        // 3. Extra Delay for Hydration/Lazy Loads (15s)
-        println!("[Rust] Waiting 15s for hydration and animations...");
-        std::thread::sleep(std::time::Duration::from_millis(15000));
+        // 3. Extra Delay for Hydration/Lazy Loads (10s)
+        println!("[Rust] Waiting 10s for hydration and animations...");
+        std::thread::sleep(std::time::Duration::from_millis(10000));
 
         // 4. Scroll to Bottom (Trigger Lazy Load)
         println!("[Rust] Scrolling to bottom...");
@@ -876,56 +994,68 @@ async fn scrape_series_headless(url: String) -> Result<SeriesScrapeResult, Strin
                     const coverImg = document.querySelector('.story-info-left img, .img-thumb img, .cover img, .manga-cover img, img.rounded-lg, img[alt*="cover"], img[src*="cover"]');
                     cover = coverMeta || (coverImg ? (coverImg.src || coverImg.dataset.src) : '');
 
-                    // 4. Extract Links (Unified)
+                    // 4. Extract Links (Unified & Aggressive)
                     const linkSet = new Set();
-                    document.querySelectorAll('a[href]').forEach(a => {
-                        const href = a.getAttribute('href') || '';
-                        const text = a.textContent || '';
-                        if (
-                            href.includes('/chapter-') ||
-                            href.includes('/read/') ||
-                            /chapter\s*\d+/i.test(text)
-                        ) {
-                            linkSet.add(href);
-                        }
-                    });
+                    
+                    // 4.1 Try to click "Chapters" tab, "Load More", or specific chapter containers
+                    const expanders = Array.from(document.querySelectorAll('button, a, div, li, span'))
+                        .filter(el => {
+                            const t = el.textContent.toLowerCase();
+                            const id = el.id?.toLowerCase() || '';
+                            const cls = el.className?.toLowerCase() || '';
+                            return t.includes('chapters') || t.includes('show all') || t.includes('load more') || 
+                                   t.includes('expand') || id.includes('chapter') || cls.includes('chapter') ||
+                                   cls.includes('more-button') || id.includes('more-button');
+                        });
+                    expanders.forEach(b => { try { b.click(); } catch(e) {} });
+                    if (expanders.length > 0) await new Promise(r => setTimeout(r, 4000));
 
-                    /*
-                    const initial = document.getElementById('initial-data');
-                    if (location.hostname.includes('comix.to') && initial?.textContent) {
-                        try {
-                            const data = JSON.parse(initial.textContent);
-                            const detail = Object.values(data?.queries || {}).find(v => v?.title && v?.poster);
-                            if (detail?.firstChapterUrl) linkSet.add(detail.firstChapterUrl);
-                            if (detail?.latestChapterUrl) linkSet.add(detail.latestChapterUrl);
-                            const mangaKey = detail?.hid || data?.manga?.hid || detail?.id || data?.manga?.id;
-                            if (mangaKey) {
-                                let page = 1;
-                                while (page <= 20) {
-                                    const res = await fetch(`/api/v1/manga/${mangaKey}/chapters?page=${page}`, {
-                                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                                        credentials: 'include'
-                                    });
-                                    if (!res.ok) break;
-                                    const json = await res.json();
-                                    const payload = json?.result ?? json;
-                                    const items = payload?.items || payload?.data || payload?.chapters || (Array.isArray(payload) ? payload : []);
-                                    if (!Array.isArray(items) || items.length === 0) break;
-                                    items.forEach(ch => {
-                                        const href = ch?.url || ch?.readUrl || ch?.chapterUrl ||
-                                            (ch?.id && (ch?.number || ch?.chapter) ? `${location.pathname.replace(/\/$/, '')}/${ch.id}-chapter-${ch.number || ch.chapter}` : '');
-                                        if (href) linkSet.add(href);
-                                    });
-                                    const meta = payload?.meta || payload?.pagination || {};
-                                    if (meta.hasNext === false || (meta.lastPage && page >= Number(meta.lastPage))) break;
-                                    page++;
-                                }
+                    const scan = (doc) => {
+                        // Check common Madara/MangaStream chapter list containers first
+                        doc.querySelectorAll('.wp-manga-chapter, .chapter-link, li[class*="chapter"], #chapterlist li').forEach(el => {
+                            const a = el.querySelector('a') || (el.tagName === 'A' ? el : null);
+                            if (a) {
+                                const href = a.getAttribute('href') || '';
+                                if (href.length > 5) linkSet.add(href);
                             }
-                        } catch (e) {
-                            console.warn('Comix chapter API extraction failed', e);
-                        }
-                    }
-                    */
+                        });
+
+                        doc.querySelectorAll('a[href]').forEach(a => {
+                            let href = a.getAttribute('href') || '';
+                            if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+                            
+                            // Resolve relative
+                            if (href.startsWith('//')) href = window.location.protocol + href;
+                            else if (href.startsWith('/')) href = window.location.origin + href;
+                            else if (!href.startsWith('http')) href = window.location.origin + '/' + href;
+
+                            const text = a.textContent?.trim() || '';
+                            const id = a.id || '';
+                            const cls = a.className || '';
+                            
+                            if (
+                                href.includes('/chapter-') ||
+                                href.includes('/read/') ||
+                                href.includes('/viewer/') ||
+                                href.includes('/ch-') ||
+                                /chapter\s*\d+/i.test(text) ||
+                                /ch\.\s*\d+/i.test(text) ||
+                                /cap[íi]tulo\s*\d+/i.test(text) ||
+                                /vol\.\s*\d+/i.test(text) ||
+                                cls.includes('chapter') ||
+                                id.includes('chapter') ||
+                                id.includes('cl-')
+                            ) {
+                                if (href.length > 5) linkSet.add(href);
+                            }
+                        });
+                    };
+
+                    scan(document);
+                    // Scan iframes
+                    document.querySelectorAll('iframe').forEach(f => {
+                        try { if (f.contentDocument) scan(f.contentDocument); } catch(e) {}
+                    });
 
                     links = Array.from(linkSet);
                     
@@ -946,9 +1076,11 @@ async fn scrape_series_headless(url: String) -> Result<SeriesScrapeResult, Strin
                     if (cover && cover.startsWith('//')) cover = 'https:' + cover;
                     if (cover && cover.startsWith('/')) cover = window.location.origin + cover;
 
-                    const finalLinks = links.map(href => {
-                        try { return new URL(href, window.location.origin).href; } catch(e) { return href; }
-                    });
+                    const finalLinks = links
+                        .filter(h => h && h.length > 5 && !h.startsWith('javascript:'))
+                        .map(href => {
+                            try { return new URL(href, window.location.origin).href; } catch(e) { return href; }
+                        });
 
                     return JSON.stringify({ 
                         title, 
@@ -965,7 +1097,7 @@ async fn scrape_series_headless(url: String) -> Result<SeriesScrapeResult, Strin
 
         println!("[Rust] Executing extraction script...");
         let remote_obj = tab.evaluate(extract_script, true).map_err(|e| format!("Eval failed: {}", e))?;
-        let json_str = remote_obj.value.and_then(|v| v.as_str().map(|s| s.to_string()))
+        let json_str = remote_obj.value.and_then(|v: serde_json::Value| v.as_str().map(|s| s.to_string()))
             .ok_or("No string returned from evaluation context")?;
         
         let val: serde_json::Value = serde_json::from_str(&json_str).map_err(|e| format!("JSON Parse failed: {}", e))?;
@@ -989,8 +1121,8 @@ async fn scrape_series_headless(url: String) -> Result<SeriesScrapeResult, Strin
         if chapter_links.is_empty() {
              println!("[Rust] WARNING: 0 chapters found. Capturing debug screenshot...");
              let _ = tab.capture_screenshot(headless_chrome::protocol::cdp::Page::CaptureScreenshotFormatOption::Png, None, None, true)
-                 .map(|png| std::fs::write("headless_extraction_failed.png", png));
-             return Err("Found 0 chapters. Page might be blocked (Cloudflare) or layout changed. Check headless_extraction_failed.png".to_string());
+                 .map(|png| std::fs::write(std::env::temp_dir().join("headless_extraction_failed.png"), png));
+             return Err("Found 0 chapters. Page might be blocked (Cloudflare) or layout changed. Check headless_extraction_failed.png in temp dir".to_string());
         }
 
         Ok::<SeriesScrapeResult, String>(SeriesScrapeResult {
@@ -1238,8 +1370,6 @@ async fn validate_chapter_contents(series_path: String) -> Result<Vec<Validation
     // 1. Check chapters dir
     let chapters_dir = root.join("chapters");
     if !chapters_dir.exists() {
-        // If chapters dir is missing, everything is effectively "invalid"
-        // But we return an empty vec for the frontend to handle as "no chapters found on disk"
         return Ok(results);
     }
 
@@ -1287,12 +1417,10 @@ async fn wipe_manga_contents(path: String) -> Result<(), String> {
         return Err("Invalid path".to_string());
     }
 
-    // Iterate and remove entries
     for entry in fs::read_dir(p).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         let entry_path = entry.path();
         
-        // Preserve cover and metadata
         if let Some(name) = entry_path.file_name().and_then(|s| s.to_str()) {
             let n = name.to_lowercase();
             if n.starts_with("cover") || n == "metadata.json" {
@@ -1325,6 +1453,7 @@ pub fn run() {
         scan_chapters, 
         download_image, 
         fetch_html,
+        fetch_json,
         scrape_images_headless,
         scrape_series_headless,
         read_file_string,
@@ -1334,7 +1463,8 @@ pub fn run() {
         list_ambient_sounds,
         import_ambient_sound,
         validate_chapter_contents,
-        wipe_manga_contents
+        wipe_manga_contents,
+        fetch_binary
     ])
     .setup(|app| {
       use tauri_plugin_cli::CliExt;
@@ -1345,7 +1475,6 @@ pub fn run() {
               let path_str = path.to_string();
               let app_handle = app.handle().clone();
               tauri::async_runtime::spawn(async move {
-                // Wait a bit for the frontend to be ready
                 std::thread::sleep(std::time::Duration::from_millis(1500));
                 let _ = app_handle.emit("open-path", path_str);
               });

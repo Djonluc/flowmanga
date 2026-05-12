@@ -26,6 +26,9 @@ export const useDownloadStore = create<DownloadState>()(
             activeJobIds: [],
 
             addJob: (jobData) => {
+                const existing = get().queue.find(j => j.id === jobData.id);
+                if (existing) return;
+
                 const newJob: DownloadJob = {
                     ...jobData,
                     status: 'queued',

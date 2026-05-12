@@ -28,7 +28,7 @@ export const GridView = ({ items, onOpenItem, onMenuClick, density, isSelectionM
 
     if (items.length === 0) {
         return (
-            <div className="h-full flex flex-col items-center justify-center text-center p-12 text-neutral-500">
+            <div className="h-full flex flex-col items-center justify-center text-center p-12 text-foreground-dim">
                 <FolderOpen size={48} className="mb-4 opacity-50" />
                 <p>No items found.</p>
             </div>

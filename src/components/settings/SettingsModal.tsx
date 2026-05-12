@@ -19,8 +19,6 @@ export const SettingsModal = () => {
     const { isSettingsOpen, toggleSettings } = useSettingsStore();
     const [activeTab, setActiveTab] = useState<SettingsTab>('general');
 
-    if (!isSettingsOpen) return null;
-
     const tabs = [
         { id: 'general', label: 'General', icon: Settings },
         { id: 'reader', label: 'Reader', icon: BookOpen },
@@ -49,11 +47,11 @@ export const SettingsModal = () => {
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="relative w-full max-w-5xl h-[80vh] bg-[#0A0A0A] rounded-[32px] border border-white/10 shadow-2xl flex overflow-hidden"
+                        className="relative w-full max-w-5xl h-[80vh] bg-surface rounded-[32px] border border-border-strong shadow-cinematic flex overflow-hidden"
                     >
                         {/* Sidebar */}
-                        <div className="w-64 bg-white/5 border-r border-white/5 p-6 flex flex-col gap-2">
-                            <h2 className="text-2xl font-black text-white italic tracking-tighter mb-8 px-4">
+                        <div className="w-64 bg-surface-elevated border-r border-border-subtle p-6 flex flex-col gap-2">
+                            <h2 className="text-2xl font-black text-foreground italic tracking-tighter mb-8 px-4">
                                 SETTINGS
                             </h2>
                             
@@ -67,8 +65,8 @@ export const SettingsModal = () => {
                                         className={clsx(
                                             "flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-wide",
                                             isActive 
-                                                ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20" 
-                                                : "text-neutral-400 hover:bg-white/5 hover:text-white"
+                                                ? "bg-accent text-white shadow-lg shadow-accent-glow/20" 
+                                                : "text-foreground-dim hover:bg-surface-raised hover:text-foreground"
                                         )}
                                     >
                                         <Icon size={18} />
@@ -79,14 +77,14 @@ export const SettingsModal = () => {
                         </div>
 
                         {/* Content Area */}
-                        <div className="flex-1 flex flex-col min-w-0 bg-[#0A0A0A]">
-                            <div className="flex items-center justify-between p-8 border-b border-white/5">
-                                <h3 className="text-xl font-black text-white uppercase tracking-widest">
+                        <div className="flex-1 flex flex-col min-w-0 bg-surface">
+                            <div className="flex items-center justify-between p-8 border-b border-border-subtle">
+                                <h3 className="text-xl font-black text-foreground uppercase tracking-widest">
                                     {tabs.find(t => t.id === activeTab)?.label}
                                 </h3>
                                 <button 
                                     onClick={toggleSettings}
-                                    className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                                    className="p-2 rounded-full hover:bg-surface-elevated text-foreground-dim hover:text-foreground transition-colors"
                                 >
                                     <X size={20} />
                                 </button>

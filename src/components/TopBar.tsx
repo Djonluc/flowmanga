@@ -29,65 +29,65 @@ export const TopBar = () => {
     };
 
     return (
-        <div className="relative">
-            <div className="h-16 flex items-center justify-between gap-6 px-6 md:px-10 sticky top-0 z-30 no-drag bg-transparent">
-            {/* Search Section */}
-            <div className="flex-1 max-w-2xl">
-                <div className="relative group">
-                    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500 group-hover:text-indigo-400 transition-colors" />
+        <div className="relative pt-4 pb-2">
+            <div className="h-20 flex items-center justify-between gap-10 px-8 md:px-12 sticky top-0 z-30 no-drag bg-transparent">
+            {/* Search Section - Made more prominent */}
+            <div className="flex-1 max-w-3xl">
+                <div className="relative group/search">
+                    <Search size={20} className="absolute left-5 top-1/2 -translate-y-1/2 text-foreground-dim group-hover/search:text-accent transition-colors" />
                     <input 
                         id="global-search"
                         type="text"
-                        placeholder="Search manga, genres, authors..."
+                        placeholder="Search for titles, genres, authors..."
                         value={searchQuery}
                         onChange={(e) => handleSearchChange(e.target.value)}
-                        className="w-full bg-white/[0.03] border border-white/5 rounded-2xl py-2.5 pl-12 pr-16 text-xs font-medium focus:outline-none focus:bg-white/[0.06] focus:border-indigo-500/30 transition-all placeholder:text-neutral-600"
+                        className="w-full bg-surface-elevated border border-border-subtle rounded-2xl py-3.5 pl-14 pr-20 text-sm font-semibold focus:outline-none focus:bg-surface-raised focus:border-accent/40 transition-all placeholder:text-foreground-dim shadow-2xl focus:shadow-accent-glow/5 group-hover/search:border-foreground-dim/10"
                     />
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-[10px] text-neutral-500 font-bold uppercase tracking-widest">
-                        <Command size={10} />
+                    <div className="absolute right-5 top-1/2 -translate-y-1/2 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface border border-border-subtle text-[10px] text-foreground-dim font-black uppercase tracking-[0.2em] shadow-lg">
+                        <Command size={12} />
                         <span>K</span>
                     </div>
                 </div>
             </div>
 
             {/* Actions Section */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
                 <TopBarButton 
-                    icon={<Plus size={18} />} 
-                    title="Import Manga" 
+                    icon={<Plus size={20} />} 
+                    title="Import" 
                     onClick={() => openImportModal()}
                 />
                 <TopBarButton 
-                    icon={<Filter size={18} />} 
+                    icon={<Filter size={20} />} 
                     title="Filter" 
                     onClick={() => openFilterModal()}
                 />
                 <TopBarButton 
-                    icon={<LayoutGrid size={18} />} 
-                    title="Layout Mode" 
+                    icon={<LayoutGrid size={20} />} 
+                    title="Toggle View" 
                     onClick={() => setLibraryViewMode(libraryViewMode === 'grid' ? 'shelf' : 'grid')}
                     active={activeView === 'library'}
                 />
                 <TopBarButton 
-                    icon={isChecking ? <Sparkles size={18} className="text-indigo-400 animate-pulse" /> : <RefreshCcw size={18} />} 
-                    title={isChecking ? "Checking for updates..." : "Sync Library"} 
+                    icon={isChecking ? <Sparkles size={20} className="text-indigo-400 animate-pulse" /> : <RefreshCcw size={20} />} 
+                    title={isChecking ? "Checking for updates..." : "Check Updates"} 
                     onClick={() => isChecking ? null : checkForUpdates()}
                     active={isChecking}
                 />
                 
-                <div className="w-px h-6 bg-white/5 mx-2" />
+                <div className="w-px h-8 bg-white/5 mx-3" />
                 
                 {/* Download Indicator */}
                 <button 
                     onClick={toggleDownloadPanel}
                     className={clsx(
-                        "relative p-2.5 rounded-xl transition-all border border-transparent",
-                        hasDownloads ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20" : "text-neutral-400 hover:text-white hover:bg-white/5"
+                        "relative p-3 rounded-2xl transition-all border border-transparent group/dl shadow-lg",
+                        hasDownloads ? "bg-accent-soft border-accent/20 text-accent hover:bg-accent/20" : "text-foreground-dim hover:text-foreground hover:bg-surface-elevated hover:border-border-subtle"
                     )}
                 >
-                    <Download size={18} className={clsx(activeCount > 0 && "animate-bounce")} />
+                    <Download size={20} className={clsx("transition-transform", activeCount > 0 ? "animate-bounce" : "group-hover/dl:-translate-y-1")} />
                     {hasDownloads && (
-                        <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-indigo-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-accent text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-lg shadow-accent-glow border-2 border-background">
                             {activeCount > 0 ? activeCount : queueCount}
                         </span>
                     )}
@@ -96,15 +96,15 @@ export const TopBar = () => {
                 {/* Notifications */}
                 <button 
                     onClick={() => openNotificationCenter()}
-                    className="relative p-2.5 rounded-xl text-neutral-400 hover:text-white hover:bg-white/5 transition-all"
+                    className="relative p-3 rounded-2xl text-foreground-dim hover:text-foreground hover:bg-surface-elevated border border-transparent hover:border-border-subtle transition-all shadow-lg"
                 >
-                    <Bell size={20} />
-                    <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-[#0f0f11]" />
+                    <Bell size={22} />
+                    <span className="absolute top-3.5 right-3.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-background shadow-lg shadow-red-500/20" />
                 </button>
             </div>
             </div>
-            {/* Atmospheric bottom fade */}
-            <div className="absolute bottom-0 left-0 right-0 h-6 pointer-events-none" style={{ background: 'linear-gradient(to bottom, transparent, rgba(6,6,7,0.06))' }} />
+            {/* Atmospheric bottom fade - Theme aware */}
+            <div className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none bg-gradient-to-t from-background/10 to-transparent" />
         </div>
     );
 };
@@ -113,8 +113,8 @@ const TopBarButton = ({ icon, title, onClick, active }: any) => (
     <button 
         onClick={onClick}
         className={clsx(
-            "p-2.5 rounded-xl transition-all border border-transparent",
-            active ? "bg-white/5 text-white" : "text-neutral-500 hover:text-white hover:bg-white/5"
+            "p-3 rounded-2xl transition-all border border-transparent shadow-lg",
+            active ? "bg-surface-raised text-foreground border-border-subtle" : "text-foreground-dim hover:text-foreground hover:bg-surface-elevated hover:border-border-subtle"
         )}
         title={title}
     >

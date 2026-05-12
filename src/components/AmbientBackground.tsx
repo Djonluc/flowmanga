@@ -1,148 +1,135 @@
-import { useSettingsStore } from '../stores/useSettingsStore';
-import { useReadingStore } from '../stores/useReadingStore';
-import { useReaderStore } from '../stores/useReaderStore';
-import { motion, AnimatePresence } from 'framer-motion';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { useState, useEffect } from "react";
+import { useSettingsStore } from "../stores/useSettingsStore";
+import { useReadingStore } from "../stores/useReadingStore";
+import { useReaderStore } from "../stores/useReaderStore";
+import { motion, AnimatePresence } from "framer-motion";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
+/**
+ * AmbientBackground
+ * Provides cinematic, adaptive atmosphere ONLY during reading sessions.
+ * Scoped to prevent leakage into the main app interface.
+ */
 export const AmbientBackground = () => {
-    // Global Settings
-    const { 
-        theme, 
-        accentColor,
-        ambientMode, 
-        ambientImage: manualAmbientImage, // Renamed to distinguish
-        ambientIntensity, 
-        ambientBlur, 
-        ambientBrightness, 
-        showAmbientNoise,
-    } = useSettingsStore();
+  const {
+    ambientMode,
+    ambientIntensity,
+    ambientBlur,
+    ambientBrightness,
+    showAmbientNoise,
+  } = useSettingsStore();
 
-    const { currentThemeColor } = useReaderStore();
+  const { currentThemeColor: readerThemeColor } = useReaderStore();
+  const { images, currentPageIndex } = useReadingStore();
 
-    // Reading State (Direct Subscription)
-    const { images, currentPageIndex } = useReadingStore();
-    
-    // Determine effective ambient image
-    let effectiveImage = manualAmbientImage;
+  const [layers, setLayers] = useState<{
+    active: string | null;
+    prev: string | null;
+  }>({
+    active: null,
+    prev: null,
+  });
+  const [flip, setFlip] = useState(false);
 
-    // If in Reader view (images loaded), prioritize the current page
-    if (images.length > 0) {
-         const readingImg = images[currentPageIndex];
-         if (readingImg) effectiveImage = readingImg;
+  useEffect(() => {
+    const currentImg = images[currentPageIndex];
+    if (currentImg !== layers.active) {
+      setLayers((prev) => ({ active: currentImg, prev: prev.active }));
+      setFlip((f) => !f);
     }
-    
-    const ambientImage = effectiveImage;
+  }, [currentPageIndex, images]);
 
-    // Define ambient gradients for each theme (Fallback / Gradient Mode)
-    const gradients: Record<string, string> = {
-        dark: `radial-gradient(circle at 50% 50%, ${accentColor}33, transparent 70%)`,
-        light: `radial-gradient(circle at 50% 50%, ${accentColor}22, transparent 70%)`,
-        oled: 'none', 
-        paper: 'radial-gradient(circle at 50% 50%, rgba(139, 69, 19, 0.1), transparent 70%)',
-        cyberpunk: 'radial-gradient(circle at 50% 50%, rgba(0, 255, 255, 0.1), transparent 60%), radial-gradient(circle at 80% 20%, rgba(255, 0, 255, 0.1), transparent 50%)',
-    };
+  // STRICT ISOLATION: Only render atmosphere if a reader session is active
+  if (images.length === 0) return null;
+  if (ambientMode === "oled") return null;
 
-    if (ambientMode === 'oled') return null;
+  const isAdaptive = ambientMode === "adaptive-vibrant";
+  const showProjection =
+    (ambientMode === "blurred-page" || ambientMode === "blurred-cover") &&
+    !!layers.active;
 
-    // Check if we should show an image
-    const showImage = (ambientMode === 'blurred-page' || ambientMode === 'blurred-cover') && !!ambientImage;
+  const effectiveIntensity = isAdaptive
+    ? ambientIntensity
+    : ambientIntensity * 0.4;
+  const effectiveBlur = isAdaptive ? ambientBlur : ambientBlur * 0.5;
 
-    // Show gradient if explicit gradient mode OR fallback (no image and not solid/oled)
-    // If ambientMode is 'blurred-page' but no image, we SHOULD fall back to gradient/solid
-    const showGradient = ambientMode === 'gradient' || 
-                        ((ambientMode === 'blurred-page' || ambientMode === 'blurred-cover') && !ambientImage) ||
-                        (!showImage && ambientMode !== 'solid');
-
+  const renderProjectionLayer = (img: string | null, isActive: boolean) => {
+    if (!img) return null;
+    const src = img.startsWith("http") ? img : convertFileSrc(img);
     return (
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
-            {/* 1. Base Layer: Blurred Image */}
-            <AnimatePresence mode="popLayout">
-                {showImage && (
-                    <motion.div
-                        key={ambientImage} // Triggers crossfade on image change
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: ambientIntensity }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 1.2, ease: "easeInOut" }}
-                        className="absolute inset-0 bg-cover bg-center will-change-transform"
-                        style={{
-                            backgroundImage: `url('${ambientImage.startsWith('http') ? ambientImage : convertFileSrc(ambientImage)}')`,
-                            filter: `blur(${ambientBlur}px) brightness(${ambientBrightness}) saturate(1.2)`,
-                            transform: 'scale(1.15)', // Prevent edge bleeding
-                        }}
-                    />
-                )}
-            </AnimatePresence>
-
-            {/* 2. Gradient / Theme Layer */}
-            <AnimatePresence>
-                {showGradient && (
-                    <motion.div 
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 1 }}
-                        className="absolute inset-0"
-                    >
-                        <motion.div 
-                            className="w-full h-full absolute inset-0"
-                            animate={{ 
-                                scale: [1, 1.1, 1],
-                                rotate: [0, 1, -1, 0],
-                            }}
-                            transition={{ 
-                                duration: 20, 
-                                ease: "easeInOut", 
-                                repeat: Infinity,
-                                repeatType: "reverse" 
-                            }}
-                            style={{ 
-                                background: gradients[theme] || gradients.dark,
-                                transition: 'background 1s ease-in-out'
-                            }}
-                        />
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* 3. Adaptive Vibrant Layer */}
-            <AnimatePresence>
-                {ambientMode === 'adaptive-vibrant' && (
-                    <motion.div 
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1, backgroundColor: currentThemeColor }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 1 }}
-                        className="absolute inset-0"
-                    />
-                )}
-            </AnimatePresence>
-
-            {/* 4. Vignette (Focus on center) */}
-            <div 
-                className="absolute inset-0"
-                style={{
-                    background: 'radial-gradient(circle, transparent 40%, rgba(0,0,0,0.6) 100%)'
-                }}
-            />
-
-            {/* 4. Overlay Textures (Theme specific) */}
-            {theme === 'paper' && (
-                <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')] mix-blend-multiply" />
-            )}
-
-            {/* 5. Noise Texture */}
-            {showAmbientNoise && (
-                <div 
-                    className="absolute inset-0 opacity-[0.04] mix-blend-overlay"
-                    style={{
-                         backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opactiy='0.5'/%3E%3C/svg%3E")`
-                    }}
-                />
-            )}
-            
-            {/* 6. Global Dimmer (Consistency) */}
-             <div className="absolute inset-0 bg-black/20" />
-        </div>
+      <motion.div
+        key={img + (isActive ? "active" : "prev")}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: isActive ? effectiveIntensity : 0 }}
+        transition={{ duration: 1.2, ease: "easeInOut" }}
+        className="absolute inset-0 bg-cover bg-center will-change-transform pointer-events-none"
+        style={{
+          backgroundImage: `url('${src}')`,
+          filter: `blur(${effectiveBlur}px) brightness(${ambientBrightness}) saturate(1.4)`,
+          transform: "scale(1.1)", 
+        }}
+      />
     );
+  };
+
+  const moodOpacity = isAdaptive ? ambientIntensity : ambientIntensity * 0.3;
+  const softeningBlur = Math.max(2, ambientBlur * 0.1);
+
+  return (
+    <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none select-none bg-background">
+      {/* 1. Passive Page Projection (Diffusion) */}
+      <AnimatePresence mode="popLayout">
+        {showProjection && (
+          <div className="absolute inset-0">
+            {renderProjectionLayer(layers.prev, !flip)}
+            {renderProjectionLayer(layers.active, flip)}
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 2. Atmospheric Mood Layer (Reactive Color) */}
+      <motion.div
+        animate={{ backgroundColor: readerThemeColor }}
+        transition={{ duration: 1.5, ease: "easeInOut" }}
+        className="absolute inset-0 z-10 mix-blend-screen"
+        style={{ opacity: moodOpacity }}
+      />
+
+      <motion.div
+        animate={{
+          background: `radial-gradient(circle at 50% 50%, ${readerThemeColor}88, transparent 80%),
+                         radial-gradient(circle at 10% 10%, ${readerThemeColor}44, transparent 50%)`,
+        }}
+        transition={{ duration: 2, ease: "easeInOut" }}
+        className="absolute inset-0 z-20 pointer-events-none"
+        style={{ opacity: moodOpacity * 1.2 }}
+      />
+
+      {/* 3. Cinematic Depth Overlay */}
+      <div
+        className="absolute inset-0 z-30"
+        style={{
+          background:
+            "radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.4) 70%, rgba(0,0,0,0.8) 100%)",
+          mixBlendMode: "multiply",
+        }}
+      />
+
+      {/* 4. Atmospheric Texture */}
+      {showAmbientNoise && (
+        <div
+          className="absolute inset-0 opacity-[0.03] mix-blend-overlay z-40"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+          }}
+        />
+      )}
+
+      {/* 5. Fine Softening Pass (Dynamic Blur) */}
+      <div
+        className="absolute inset-0 z-50 bg-black/5"
+        style={{ backdropFilter: `blur(${softeningBlur}px)` }}
+      />
+    </div>
+  );
 };

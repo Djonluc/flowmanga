@@ -18,7 +18,8 @@
         "height": 1080,
         "resizable": true,
         "fullscreen": false,
-        "decorations": true
+        "decorations": true,
+        "zoomHotkeysEnabled": true
       }
     ],
     "security": {

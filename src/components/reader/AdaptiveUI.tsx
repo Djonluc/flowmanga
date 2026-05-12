@@ -3,59 +3,75 @@ import { useReadingStore } from '../../stores/useReadingStore';
 import { useReaderStore } from '../../stores/useReaderStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import { extractMoodColor } from '../../utils/eye';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+
+// Global cache for dominant colors to prevent redundant analysis
+const colorCache = new Map<string, string>();
 
 export const AdaptiveUI = () => {
     const { images, currentPageIndex } = useReadingStore();
     const { setCurrentThemeColor } = useReaderStore();
     const { ambientMode } = useSettingsStore();
     const lastExtractedIndex = useRef<number>(-1);
-    const throttleTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const extractionDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
-        if (ambientMode !== 'adaptive-vibrant') return;
-        if (currentPageIndex === lastExtractedIndex.current) return;
-
+        // Passive observation only
         const currentImg = images[currentPageIndex];
         if (!currentImg) return;
 
-        // Clear any pending extraction
-        if (throttleTimerRef.current) {
-            clearTimeout(throttleTimerRef.current);
+        // Check cache first for immediate response
+        if (colorCache.has(currentImg)) {
+            setCurrentThemeColor(colorCache.get(currentImg)!);
+            lastExtractedIndex.current = currentPageIndex;
+            return;
         }
 
-        // Debounce: wait 100ms to avoid thrashing during rapid scroll
-        throttleTimerRef.current = setTimeout(() => {
+        if (currentPageIndex === lastExtractedIndex.current) return;
+        
+        // Debounce extraction to ensure zero impact on scroll performance
+        if (extractionDebounceRef.current) clearTimeout(extractionDebounceRef.current);
+
+        extractionDebounceRef.current = setTimeout(async () => {
             lastExtractedIndex.current = currentPageIndex;
             
-            const img = new Image();
-            const imgSrc = currentImg.startsWith('http') ? currentImg : convertFileSrc(currentImg);
-            img.src = imgSrc;
-            img.crossOrigin = "anonymous";
-
-            img.onload = () => {
-                const mood = extractMoodColor(img);
-                if (mood) {
-                    // Darken the color for ambient background use
-                    const darken = (c: number) => Math.round(c * 0.45);
-                    const toHex = (c: number) => c.toString(16).padStart(2, '0');
-                    const darkHex = `#${toHex(darken(mood.r))}${toHex(darken(mood.g))}${toHex(darken(mood.b))}`;
-                    setCurrentThemeColor(darkHex);
+            try {
+                let finalSrc = currentImg;
+                if (currentImg.startsWith('http')) {
+                    finalSrc = await invoke<string>('proxy_image', { url: currentImg });
+                } else {
+                    finalSrc = convertFileSrc(currentImg);
                 }
-            };
-        }, 100);
+
+                const img = new Image();
+                img.src = finalSrc;
+                if (!currentImg.startsWith('http')) {
+                    img.crossOrigin = "anonymous";
+                }
+
+                img.onload = () => {
+                    const mood = extractMoodColor(img);
+                    if (mood) {
+                        const process = (c: number) => Math.round(c * 0.6);
+                        const darkHex = `#${process(mood.r).toString(16).padStart(2, '0')}${process(mood.g).toString(16).padStart(2, '0')}${process(mood.b).toString(16).padStart(2, '0')}`;
+                        
+                        colorCache.set(currentImg, darkHex);
+                        setCurrentThemeColor(darkHex);
+                    }
+                };
+            } catch (err) {
+                console.warn(`[Atmosphere] Extraction failed:`, err);
+            }
+        }, 100); // 100ms debounce for much more fluid transitions during scroll
 
         return () => {
-            if (throttleTimerRef.current) {
-                clearTimeout(throttleTimerRef.current);
-            }
+            if (extractionDebounceRef.current) clearTimeout(extractionDebounceRef.current);
         };
     }, [currentPageIndex, images, ambientMode, setCurrentThemeColor]);
 
-    // Reset extraction tracking when images change (new chapter)
     useEffect(() => {
         lastExtractedIndex.current = -1;
     }, [images]);
 
-    return null; // Side-effect only component
+    return null;
 };

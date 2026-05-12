@@ -11,9 +11,9 @@ export class AutomationService {
 
         try {
             // Case 1: MangaDex (Preferred)
-            if (series.mangaId || (series.seriesUrl && series.seriesUrl.includes('mangadex.org'))) {
+            if (series.source === 'mangadex.org' || (series.seriesUrl && series.seriesUrl.includes('mangadex.org'))) {
                 const mId = series.mangaId || series.seriesUrl?.match(/title\/([a-f0-9-]{36})/)?.[1];
-                if (mId) {
+                if (mId && mId.length === 36 && mId.includes('-')) {
                     const feed = await ScraperService.getChapterFeed(mId);
                     // Filter for English chapters only to match our local library filter
                     const englishChapters = feed.filter(c => c.attributes.translatedLanguage === 'en');

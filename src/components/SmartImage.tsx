@@ -161,22 +161,25 @@ export const SmartImage = ({ src, alt, className, style, onLoad }: SmartImagePro
                     cleanupTimeoutRef.current = null;
                 }
             } else {
-                // Delayed cleanup: Keep in memory for 10s after leaving viewport
+                // Delayed cleanup: Keep in memory for 15s after leaving viewport
                 cleanupTimeoutRef.current = setTimeout(() => {
-                    setIsVisible(false);
-                    setIsLoaded(false);
-                    setImgElement(null);
-                    const canvas = canvasRef.current;
-                    if (canvas) {
-                        const ctx = canvas.getContext('2d');
-                        ctx?.clearRect(0, 0, canvas.width, canvas.height);
-                        // Force resize to 1x1 to free memory
-                        canvas.width = 1;
-                        canvas.height = 1;
+                    // Do NOT set isVisible to false for native <img> tags to prevent scroll jumping.
+                    // We only clear memory for Canvas operations.
+                    if (needsCanvas) {
+                        setIsVisible(false);
+                        setIsLoaded(false);
+                        setImgElement(null);
+                        const canvas = canvasRef.current;
+                        if (canvas) {
+                            const ctx = canvas.getContext('2d');
+                            ctx?.clearRect(0, 0, canvas.width, canvas.height);
+                            canvas.width = 1;
+                            canvas.height = 1;
+                        }
                     }
-                }, 10000);
+                }, 15000);
             }
-        }, { rootMargin: '1000px' });
+        }, { rootMargin: '3000px' });
 
         const target = canvasRef.current || document.getElementById(`img-${src}`);
         if (target) observer.observe(target);
@@ -241,15 +244,31 @@ export const SmartImage = ({ src, alt, className, style, onLoad }: SmartImagePro
 
     if (!needsCanvas) {
         return (
-            <img 
-                id={`img-${src}`}
-                src={isVisible ? src : ''} 
-                alt={alt} 
-                className={clsx(className, !isLoaded && "opacity-0")}
-                style={{ ...style, transition: 'opacity 0.5s ease-in-out' }}
-                onLoad={() => setIsLoaded(true)}
-                loading="lazy"
-            />
+            <div className={clsx("relative w-full flex justify-center items-center", !isLoaded && "min-h-[800px] md:min-h-[1200px]")}>
+                {!isLoaded && isVisible && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050505] animate-pulse z-0">
+                        <div className="w-12 h-12 border-4 border-white/5 border-t-indigo-500 rounded-full animate-spin shadow-[0_0_15px_rgba(99,102,241,0.5)]" />
+                        <span className="text-[10px] font-black text-neutral-600 uppercase tracking-[0.3em] mt-4">Loading Page</span>
+                    </div>
+                )}
+                <img 
+                    id={`img-${src}`}
+                    src={isVisible ? src : undefined} 
+                    alt={alt} 
+                    className={clsx(className, "z-10", !isLoaded && "opacity-0")}
+                    style={{ 
+                        ...style, 
+                        transition: 'opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
+                        filter: `brightness(${brightness}) contrast(${contrast}) saturate(${saturation})`
+                    }}
+                    onLoad={() => {
+                        setIsLoaded(true);
+                        if (onLoad) onLoad();
+                    }}
+                    loading="lazy"
+                    decoding="async"
+                />
+            </div>
         );
     }
 

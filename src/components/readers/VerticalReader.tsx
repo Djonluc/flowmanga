@@ -1,212 +1,385 @@
-import React, { useEffect, useRef } from 'react';
-import { useReadingStore } from '../../stores/useReadingStore';
-import { useReaderStore } from '../../stores/useReaderStore';
-import { useSettingsStore } from '../../stores/useSettingsStore';
-import { convertFileSrc } from '@tauri-apps/api/core';
-import clsx from 'clsx';
-import { SmartImage } from '../SmartImage';
-import { motion } from 'framer-motion';
+import React, { useEffect, useRef } from "react";
+import { useReadingStore } from "../../stores/useReadingStore";
+import { useReaderStore } from "../../stores/useReaderStore";
+import { useSettingsStore } from "../../stores/useSettingsStore";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import clsx from "clsx";
+import { SmartImage } from "../SmartImage";
+import { motion } from "framer-motion";
 
 export const VerticalReader = () => {
-  const { images } = useReadingStore();
-  const { autoScroll, scrollSpeed, setAutoScroll, isBoosted, imageFit, zoomLevel } = useReaderStore();
+  const { images, currentPageIndex, setPageIndex } = useReadingStore();
+  const {
+    autoScroll,
+    scrollSpeed,
+    setAutoScroll,
+    isBoosted,
+    imageFit,
+    zoomLevel,
+  } = useReaderStore();
   const { gapSize } = useSettingsStore();
   const readerRef = useRef<HTMLDivElement>(null);
-  
+  const lastScrolledIndex = useRef<number>(-1);
+  const isResumedRef = useRef<string | null>(null);
+
   const actualSpeed = isBoosted ? scrollSpeed * 4 : scrollSpeed;
 
   const getPageStyle = (): React.CSSProperties => {
     const baseStyle: React.CSSProperties = {
-        paddingTop: `${gapSize / 2}px`,
-        paddingBottom: `${gapSize / 2}px`
+      paddingTop: `${gapSize / 2}px`,
+      paddingBottom: `${gapSize / 2}px`,
     };
 
-    if (imageFit === 'width' || imageFit === 'stretch') {
-        return { ...baseStyle, width: '100%', display: 'flex', justifyContent: 'center' };
+    if (imageFit === "width" || imageFit === "stretch") {
+      return {
+        ...baseStyle,
+        width: "100%",
+        display: "flex",
+        justifyContent: "center",
+      };
     }
-    return { ...baseStyle, display: 'flex', justifyContent: 'center' };
+    return { ...baseStyle, display: "flex", justifyContent: "center" };
   };
 
-  const getImageClass = () => {
-    switch (imageFit) {
-        case 'width': return "w-full h-auto object-contain";
-        case 'stretch': return "w-full h-full object-fill";
-        case 'height': return "h-screen w-auto object-contain";
-        case 'original': return "w-auto h-auto";
-        default: return "max-w-full h-auto object-contain";
-    }
-  };
-  
-  // V2 AUTO-SCROLL ENGINE
+  // V2 AUTO-SCROLL ENGINE - Optimized for frame stability
   useEffect(() => {
-    if (!autoScroll || !readerRef.current) return;
+    if (!autoScroll) return;
 
     let frameId: number;
     let lastTime = performance.now();
 
     const scrollStep = (time: number) => {
-        const delta = time - lastTime;
-        lastTime = time;
+      const container = readerRef.current;
+      if (!container) {
+        setAutoScroll(false);
+        return;
+      }
 
-        const pixels = (actualSpeed / 1000) * delta;
-        const container = readerRef.current!;
-        const maxScroll = container.scrollHeight - container.clientHeight;
+      const delta = time - lastTime;
+      lastTime = time;
 
-        if (container.scrollTop >= maxScroll - 1) {
-            setAutoScroll(false);
-            return;
-        }
+      // Cap delta to prevent massive jumps on tab focus/lag
+      const cappedDelta = Math.min(delta, 32);
 
-        container.scrollTop += pixels;
-        frameId = requestAnimationFrame(scrollStep);
+      const pixels = (actualSpeed / 1000) * cappedDelta;
+      const maxScroll = container.scrollHeight - container.clientHeight;
+
+      if (container.scrollTop >= maxScroll - 1) {
+        setAutoScroll(false);
+        return;
+      }
+
+      container.scrollTop += pixels;
+      frameId = requestAnimationFrame(scrollStep);
     };
 
     frameId = requestAnimationFrame(scrollStep);
-    return () => cancelAnimationFrame(frameId);
-  }, [autoScroll, scrollSpeed, setAutoScroll]);
+    return () => {
+      if (frameId) cancelAnimationFrame(frameId);
+    };
+  }, [autoScroll, actualSpeed, setAutoScroll]);
 
   // PAUSE ON USER INTERACTION
   useEffect(() => {
-      const stop = () => {
-          if (useReaderStore.getState().autoScroll) {
-              setAutoScroll(false);
-          }
-      };
+    const stop = () => {
+      if (useReaderStore.getState().autoScroll) {
+        setAutoScroll(false);
+      }
+    };
 
-      const container = readerRef.current;
-      container?.addEventListener("wheel", stop);
-      container?.addEventListener("touchstart", stop);
-      container?.addEventListener("mousedown", stop);
+    const container = readerRef.current;
+    container?.addEventListener("wheel", stop, { passive: true });
+    container?.addEventListener("touchstart", stop, { passive: true });
+    container?.addEventListener("mousedown", stop);
 
-      return () => {
-          container?.removeEventListener("wheel", stop);
-          container?.removeEventListener("touchstart", stop);
-          container?.removeEventListener("mousedown", stop);
-      };
+    return () => {
+      container?.removeEventListener("wheel", stop);
+      container?.removeEventListener("touchstart", stop);
+      container?.removeEventListener("mousedown", stop);
+    };
   }, [setAutoScroll]);
 
-  // Scroll to resumed position or top on chapter/image change
+  // V2: Current page tracking with high-precision ratio map
+  const pageRatios = useRef<Map<number, number>>(new Map());
+
   useEffect(() => {
-      const state = useReadingStore.getState();
-      const targetIndex = state.currentPageIndex;
-      
-      if (readerRef.current && images.length > 0) {
-          // Small delay to ensure images are in the DOM for scrolling
-          setTimeout(() => {
-              const targetEl = readerRef.current?.querySelector(`[data-index="${targetIndex}"]`);
-              if (targetEl) {
-                  targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
-              } else {
-                  readerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
-              }
-          }, 100);
-      }
+    const container = readerRef.current;
+    if (!container) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // 1. Update our persistent ratio map
+        entries.forEach((entry) => {
+          const idx = Number(entry.target.getAttribute("data-index"));
+          if (!isNaN(idx)) {
+            pageRatios.current.set(idx, entry.intersectionRatio);
+          }
+        });
+
+        // 2. Find the page that is MOST visible in the viewport
+        let bestIndex = -1;
+        let maxRatio = -1;
+
+        pageRatios.current.forEach((ratio, idx) => {
+          if (ratio > maxRatio) {
+            maxRatio = ratio;
+            bestIndex = idx;
+          }
+        });
+
+        // 3. Update store if we found a clear winner and it's different
+        if (bestIndex !== -1) {
+          const currentStoredIndex =
+            useReadingStore.getState().currentPageIndex;
+          if (currentStoredIndex !== bestIndex) {
+            setPageIndex(bestIndex);
+            lastScrolledIndex.current = bestIndex;
+          }
+        }
+      },
+      {
+        root: container,
+        threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+      },
+    );
+
+    const observedElements = new Set<Element>();
+    const updateObservations = () => {
+      const pages = container.querySelectorAll(".manga-page");
+      pages.forEach((p) => {
+        if (!observedElements.has(p)) {
+          observer.observe(p);
+          observedElements.add(p);
+        }
+      });
+    };
+
+    updateObservations();
+
+    const mutationObserver = new MutationObserver(() => {
+      updateObservations();
+    });
+
+    mutationObserver.observe(container, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      mutationObserver.disconnect();
+      observedElements.clear();
+      pageRatios.current.clear();
+    };
   }, [images]);
 
-  // V2: Intersection Observer for current page tracking
+  // RESTORED: Scroll to resumed position on chapter load (GUARDED)
   useEffect(() => {
-      const observer = new IntersectionObserver((entries) => {
-          entries.forEach(entry => {
-              if (entry.isIntersecting) {
-                  const idx = Number(entry.target.getAttribute('data-index'));
-                  if (!isNaN(idx)) {
-                      // Update global reading store directly
-                      useReadingStore.getState().setPageIndex(idx);
-                  }
-              }
-          });
-      }, { 
-          root: readerRef.current,
-          threshold: 0.6 // 60% visibility triggers change
-      });
+    // Only resume if this is a NEW series or chapter set
+    const chapterKey = images.join(",");
 
-      const pages = document.querySelectorAll('.manga-page');
-      pages.forEach(p => observer.observe(p));
+    if (
+      readerRef.current &&
+      images.length > 0 &&
+      isResumedRef.current !== chapterKey
+    ) {
+      const scrollTimer = setTimeout(() => {
+        const targetEl = readerRef.current?.querySelector(
+          `[data-index="${currentPageIndex}"]`,
+        );
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: "auto", block: "start" });
+        } else {
+          readerRef.current?.scrollTo({ top: 0, behavior: "auto" });
+        }
+        isResumedRef.current = chapterKey;
+        lastScrolledIndex.current = currentPageIndex;
+      }, 100);
 
-      return () => observer.disconnect();
-  }, [images]); // Re-run when images change
+      return () => clearTimeout(scrollTimer);
+    }
+  }, [images, currentPageIndex]);
+
+  // JUMP TO PAGE SYNC: Listen for manual progress bar clicks/jumps
+  useEffect(() => {
+    // If the store index changed and it's NOT the one we just scrolled to from the observer
+    // then it means a manual jump was requested (e.g. from the progress bar)
+    if (currentPageIndex !== lastScrolledIndex.current) {
+      const targetEl = readerRef.current?.querySelector(
+        `[data-index="${currentPageIndex}"]`,
+      );
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+        lastScrolledIndex.current = currentPageIndex;
+      }
+    }
+  }, [currentPageIndex]);
 
   return (
-    <div 
-        ref={readerRef} 
-        className="reader-scroll w-full h-full overflow-y-auto overflow-x-hidden flex flex-col items-center bg-transparent select-none no-scrollbar"
-        style={{ scrollBehavior: 'auto' }} 
+    <div
+      ref={readerRef}
+      className="reader-scroll w-full h-full overflow-y-auto overflow-x-hidden flex flex-col items-center bg-transparent select-none no-scrollbar will-change-scroll"
+      style={{ scrollBehavior: "auto" }}
     >
-      {images.map((imagePath, index) => {
-        const nextImage = images[index + 1];
-        const isBoundary = nextImage && !nextImage.split('/').slice(0, -1).join('/').includes(imagePath.split('/').slice(0, -1).join('/'));
+      {images.map((imagePath, index) => (
+        <LazyReaderPage
+          key={imagePath}
+          imagePath={imagePath}
+          index={index}
+          isLast={index === images.length - 1}
+          isBoundary={
+            index < images.length - 1 &&
+            !images[index + 1]
+              .split("/")
+              .slice(0, -1)
+              .join("/")
+              .includes(imagePath.split("/").slice(0, -1).join("/"))
+          }
+          imageFit={imageFit}
+          zoomLevel={zoomLevel}
+          pageStyle={getPageStyle()}
+        />
+      ))}
 
-        return (
-          <React.Fragment key={imagePath}>
-            <motion.div
-                data-index={index}
-                className={clsx(
-                    "manga-page transition-all duration-500",
-                    (imageFit === 'width' || imageFit === 'stretch') ? "w-full" : "max-w-7xl px-4"
-                )}
-                style={getPageStyle()}
-                initial={{ opacity: 0 }}
-                whileInView={{ opacity: 1 }}
-                viewport={{ once: true, margin: "800px" }}
-            >
-                <SmartImage
-                    src={imagePath.startsWith('http') ? imagePath : convertFileSrc(imagePath)}
-                    alt={`Page ${index + 1}`}
-                    className={clsx(
-                        getImageClass(),
-                        "shadow-2xl transition-all duration-700"
-                    )}
-                    style={{ 
-                        zoom: zoomLevel !== 100 ? `${zoomLevel}%` : undefined,
-                        transform: zoomLevel !== 100 ? `scale(${zoomLevel / 100})` : undefined
-                    }}
-                />
-            </motion.div>
-
-            {isBoundary && (
-              <div className="w-full py-24 flex flex-col items-center justify-center relative overflow-hidden group">
-                <div className="absolute inset-0 bg-blue-500/5 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
-                <div className="w-px h-16 bg-gradient-to-b from-transparent via-blue-500/50 to-transparent mb-6" />
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  className="flex flex-col items-center gap-2 z-10"
-                >
-                  <p className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.5em] mb-2">Boundary Reached</p>
-                  <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter flex items-center gap-4">
-                    Chapter Complete <span className="text-blue-500">→</span> Next Unit
-                  </h3>
-                </motion.div>
-                <div className="w-px h-16 bg-gradient-to-b from-transparent via-blue-500/50 to-transparent mt-6" />
-              </div>
-            )}
-          </React.Fragment>
-        );
-      })}
-      
       <div className="py-60 flex flex-col items-center opacity-20">
-          <div className="w-12 h-1 bg-white/20 rounded-full mb-4" />
-          <p className="text-[10px] font-black uppercase tracking-[0.5em] text-white">Archive Edge</p>
+        <div className="w-12 h-1 bg-white/20 rounded-full mb-4" />
+        <p className="text-[10px] font-black uppercase tracking-[0.5em] text-white">
+          Archive Edge
+        </p>
       </div>
-      
-      {/* Sentinel for Next Chapter Trigger */}
-      <BottomTrigger onTrigger={() => useReadingStore.getState().goToNextChapter()} />
+
+      <BottomTrigger
+        onTrigger={() => useReadingStore.getState().goToNextChapter()}
+      />
     </div>
   );
 };
 
-const BottomTrigger = ({ onTrigger }: { onTrigger: () => void }) => {
-    const ref = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        const observer = new IntersectionObserver(([entry]) => {
-            if (entry.isIntersecting) {
-                onTrigger();
-            }
-        }, { rootMargin: '200px' });
-        
-        if (ref.current) observer.observe(ref.current);
-        return () => observer.disconnect();
-    }, [onTrigger]);
+interface LazyPageProps {
+  imagePath: string;
+  index: number;
+  isLast: boolean;
+  isBoundary: boolean;
+  imageFit: string;
+  zoomLevel: number;
+  pageStyle: React.CSSProperties;
+}
 
-    return <div ref={ref} className="h-4 w-full" />;
+const LazyReaderPage = ({
+  imagePath,
+  index,
+  isBoundary,
+  imageFit,
+  zoomLevel,
+  pageStyle,
+}: LazyPageProps) => {
+  const [isVisible, setIsVisible] = React.useState(false);
+  const pageRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting);
+      },
+      { rootMargin: "1000px" }, // Preload images 1000px before they enter viewport
+    );
+
+    if (pageRef.current) observer.observe(pageRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const getImageClass = () => {
+    switch (imageFit) {
+      case "width":
+        return "w-full h-auto object-contain";
+      case "stretch":
+        return "w-full h-full object-fill";
+      case "height":
+        return "h-screen w-auto object-contain";
+      case "original":
+        return "w-auto h-auto";
+      default:
+        return "max-w-full h-auto object-contain";
+    }
+  };
+
+  return (
+    <React.Fragment>
+      <div
+        ref={pageRef}
+        data-index={index}
+        className={clsx(
+          "manga-page transition-all duration-700 ease-out",
+          imageFit === "width" || imageFit === "stretch"
+            ? "w-full"
+            : "max-w-7xl px-4",
+          !isVisible && "min-h-[400px]", // Placeholder height to prevent scroll jump
+        )}
+        style={pageStyle}
+      >
+        {isVisible && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <SmartImage
+              src={
+                imagePath.startsWith("http")
+                  ? imagePath
+                  : convertFileSrc(imagePath)
+              }
+              alt={`Page ${index + 1}`}
+              className={clsx(getImageClass(), "shadow-2xl")}
+              style={{
+                zoom: zoomLevel !== 100 ? `${zoomLevel}%` : undefined,
+                transform:
+                  zoomLevel !== 100 ? `scale(${zoomLevel / 100})` : undefined,
+              }}
+            />
+          </motion.div>
+        )}
+      </div>
+
+      {isBoundary && (
+        <div className="w-full py-32 flex flex-col items-center justify-center relative overflow-hidden group/boundary select-none">
+          <div className="absolute inset-0 bg-indigo-500/5 blur-[100px] opacity-0 group-hover/boundary:opacity-100 transition-opacity duration-1000 pointer-events-none" />
+          <div className="w-px h-24 bg-gradient-to-b from-transparent via-indigo-500/30 to-transparent mb-8" />
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center gap-3 z-10"
+          >
+            <div className="px-4 py-1.5 rounded-full border border-indigo-500/20 bg-indigo-500/10 backdrop-blur-md">
+              <p className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.4em]">
+                Chapter Concluded
+              </p>
+            </div>
+            <h3 className="text-xl md:text-2xl font-black text-white/40 uppercase tracking-widest flex items-center gap-4">
+              Continuing{" "}
+              <span className="text-indigo-500 animate-pulse">↓</span> Scroll to
+              advance
+            </h3>
+          </motion.div>
+          <div className="w-px h-24 bg-gradient-to-b from-transparent via-indigo-500/30 to-transparent mt-8" />
+        </div>
+      )}
+    </React.Fragment>
+  );
+};
+
+const BottomTrigger = ({ onTrigger }: { onTrigger: () => void }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          onTrigger();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [onTrigger]);
+
+  return <div ref={ref} className="h-4 w-full" />;
 };

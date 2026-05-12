@@ -5,6 +5,8 @@ import { TopBar } from './TopBar';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useModalStore } from '../stores/useModalStore';
 import { useLibraryStore } from '../stores/useLibraryStore';
+import { useReadingStore } from '../stores/useReadingStore';
+import clsx from 'clsx';
 import { ToastContainer } from './Toast';
 import { ShortcutsGuide } from './ShortcutsGuide';
 import { ShortcutsManager } from './ShortcutsManager';
@@ -14,6 +16,7 @@ import { DownloadIndicator } from './DownloadIndicator';
 import { AutomationManager } from './AutomationManager';
 import { SettingsModal } from './settings/SettingsModal';
 import { QuickViewModal } from './settings/QuickViewModal';
+import { AmbientSoundPlayer } from './AmbientSoundPlayer';
 
 // V3 Modals
 import { ImportModal } from './ImportModal';
@@ -23,6 +26,7 @@ import { DeleteConfirmModal } from './library/DeleteConfirmModal';
 import { FilterModal } from './modals/FilterModal';
 import { NotificationCenter } from './modals/NotificationCenter';
 import { ProfilePanel } from './modals/ProfilePanel';
+import { ErrorBoundary } from './shared/ErrorBoundary';
 
 interface LayoutProps {
     children: ReactNode;
@@ -30,7 +34,13 @@ interface LayoutProps {
 }
 
 export const Layout = ({ children, hideSidebar = false }: LayoutProps) => {
-    const { theme } = useSettingsStore();
+    const { 
+        theme, 
+        isScreenshotMode, 
+        zoomScale, 
+        activeView 
+    } = useSettingsStore();
+    
     const { 
         isImportModalOpen, closeImportModal,
         isTagManagerOpen, tagManagerSeriesId, tagManagerInitialTags, closeTagManager,
@@ -39,6 +49,7 @@ export const Layout = ({ children, hideSidebar = false }: LayoutProps) => {
     } = useModalStore();
 
     const { deleteSeries, addMangaFolder } = useLibraryStore();
+    const { images, currentPageIndex } = useReadingStore();
 
     const handleImportFolder = async () => {
         const { open: openDialog } = await import('@tauri-apps/plugin-dialog');
@@ -52,12 +63,20 @@ export const Layout = ({ children, hideSidebar = false }: LayoutProps) => {
         }
     };
 
+    // Calculate effective hide sidebar logic
+    const shouldHideSidebar = hideSidebar || images.length > 0;
+
     return (
         <div 
-            className="h-screen w-screen overflow-hidden bg-transparent text-foreground transition-colors duration-300 relative flex flex-row" 
+            id="flowmanga-layout-root"
+            className={clsx(
+                "w-screen text-foreground transition-colors duration-500 relative flex flex-row",
+                images.length === 0 ? "bg-background" : "bg-transparent",
+                isScreenshotMode ? "h-auto min-h-screen overflow-visible" : "h-screen overflow-hidden"
+            )}
             data-theme={theme}
         >
-            {/* Global Systems */}
+            {/* Global Services & Master Controllers */}
             <CommandPalette />
             <ShortcutsManager />
             <ShortcutsGuide />
@@ -68,7 +87,7 @@ export const Layout = ({ children, hideSidebar = false }: LayoutProps) => {
             <SettingsModal />
             <QuickViewModal />
 
-            {/* V3 Modals Managed by useModalStore */}
+            {/* V3 Modals */}
             <ImportModal 
                 isOpen={isImportModalOpen} 
                 onClose={closeImportModal} 
@@ -104,7 +123,11 @@ export const Layout = ({ children, hideSidebar = false }: LayoutProps) => {
                     isSeries={deleteModalConfig.isSeries}
                     onClose={closeDeleteModal}
                     onConfirm={async (deleteFiles) => {
-                        await deleteSeries(deleteModalConfig.id, deleteModalConfig.path, deleteFiles);
+                        const targetId = deleteModalConfig.id;
+                        await deleteSeries(targetId, deleteModalConfig.path, deleteFiles);
+                        if (useLibraryStore.getState().selectedSeriesId === targetId) {
+                            useLibraryStore.getState().setSelectedSeriesId(null);
+                        }
                         closeDeleteModal();
                     }}
                 />
@@ -114,20 +137,32 @@ export const Layout = ({ children, hideSidebar = false }: LayoutProps) => {
             <NotificationCenter />
             <ProfilePanel />
 
-            {/* 1. Sidebar */}
-            {!hideSidebar && <Sidebar />}
+            {/* Core Application Structure */}
+            {!shouldHideSidebar && <Sidebar />}
 
-            {/* 2. Main Content Area */}
-            <div className="flex-1 flex flex-col min-w-0 h-[calc(100vh-2rem)] my-4 mr-4 rounded-[32px] glass-panel shadow-cinematic overflow-hidden relative">
-                <TopBar />
+            <main 
+                id="main-viewport"
+                className={clsx(
+                    "flex-1 flex flex-col min-w-0 transition-all duration-700 ease-in-out relative origin-top-left",
+                    !shouldHideSidebar && "my-2 mr-2 md:my-4 md:mr-4 rounded-2xl md:rounded-[32px] bg-surface glass-panel shadow-cinematic overflow-hidden"
+                )}
+                style={{ 
+                    // Native zoom is handled at the window level in App.tsx
+                }}
+            >
+                {!shouldHideSidebar && <TopBar />}
                 
-                <main className="flex-1 relative overflow-hidden bg-transparent">
-                    {children}
-                </main>
-            </div>
-
-            {/* 3. Bottom Player Bar */}
-
+                <div 
+                    className={clsx(
+                        "flex-1 relative bg-transparent",
+                        !isScreenshotMode && "overflow-hidden"
+                    )}
+                >
+                    <ErrorBoundary key={activeView}>
+                        {children}
+                    </ErrorBoundary>
+                </div>
+            </main>
         </div>
     );
 };

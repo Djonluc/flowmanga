@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { Reader } from './components/Reader'
 import { ControlPanel } from './components/ControlPanel'
@@ -13,6 +14,7 @@ import { useReadingAnalytics } from './hooks/useReadingAnalytics'
 import { AnimatePresence, motion } from 'framer-motion';
 
 import { HomeView } from './components/HomeView';
+import { DiscoverView } from './components/DiscoverView';
 import { VideoLibrary } from './components/video/VideoLibrary';
 import { HistoryView } from './components/HistoryView';
 import { AmbientBackground } from './components/AmbientBackground';
@@ -22,7 +24,32 @@ import { LocationModal } from './components/modals/LocationModal';
 import { SafetyCheckModal } from './components/modals/SafetyCheckModal';
 
 function App() {
-  const { isInitializing } = useSettingsStore();
+  const { isInitializing, zoomScale, accentColor } = useSettingsStore();
+  
+  // Sync Accent Color to CSS Variables
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--color-accent', accentColor);
+    // Generate a glow variant (lower opacity)
+    root.style.setProperty('--color-accent-glow', `${accentColor}66`);
+  }, [accentColor]);
+
+  // Implement Native Browser-Style Zoom
+  useEffect(() => {
+    const applyZoom = async () => {
+        try {
+            const { getCurrentWindow } = await import('@tauri-apps/api/window');
+            const win = getCurrentWindow();
+            // setZoomLevel in Tauri takes 1.0 for 100%
+            await win.setZoomLevel(zoomScale);
+        } catch (err) {
+            console.error('[App] Failed to apply native zoom:', err);
+            // Fallback to CSS zoom for dev/browser environments
+            document.body.style.zoom = zoomScale.toString();
+        }
+    };
+    applyZoom();
+  }, [zoomScale]);
 
   if (isInitializing) {
     return (
@@ -83,6 +110,7 @@ function MainContent() {
   useReadingAnalytics();
 
   return (
+    <>
     <Layout hideSidebar={images.length > 0 || !!currentVideo}>
         <AnimatePresence mode="wait">
             {images.length > 0 ? (
@@ -111,6 +139,8 @@ function MainContent() {
                         <HistoryView />
                     ) : activeView === 'home' ? (
                         <HomeView />
+                    ) : activeView === 'discover' ? (
+                        <DiscoverView />
                     ) : activeView === 'videos' ? (
                         <VideoLibrary />
                     ) : (
@@ -120,21 +150,22 @@ function MainContent() {
             )}
         </AnimatePresence>
         <ControlPanel />
-        <LocationModal 
-            isOpen={isLocationModalOpen} 
-            onClose={() => setLocationModalOpen(false)}
-            onSuccess={() => {} /* console.log('Download path set to:', path) */}
-        />
-        <SafetyCheckModal 
-            isOpen={isSafetyCheckModalOpen}
-            mangaTitle={safetyCheckTitle}
-            onClose={() => setSafetyCheckModal(false)}
-            onAction={(action) => {
-                onSafetyCheckResolved?.(action);
-                setSafetyCheckModal(false);
-            }}
-        />
     </Layout>
+    <LocationModal 
+        isOpen={isLocationModalOpen} 
+        onClose={() => setLocationModalOpen(false)}
+        onSuccess={() => {} /* console.log('Download path set to:', path) */}
+    />
+    <SafetyCheckModal 
+        isOpen={isSafetyCheckModalOpen}
+        mangaTitle={safetyCheckTitle}
+        onClose={() => setSafetyCheckModal(false)}
+        onAction={(action) => {
+            onSafetyCheckResolved?.(action);
+            setSafetyCheckModal(false);
+        }}
+    />
+    </>
   )
 }
 

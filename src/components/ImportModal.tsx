@@ -25,6 +25,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
   useEffect(() => {
     if (isOpen) {
       if (useScraperStore.getState().url) {
+        setLocalUrl(useScraperStore.getState().url);
         setMode('web');
         scrape();
       }

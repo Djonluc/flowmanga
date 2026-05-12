@@ -15,8 +15,8 @@ export const ProfilePanel = () => {
     const totalChapters = series.reduce((acc, s) => acc + (s.books?.length || 0), 0);
     const favoriteTags = Array.from(new Set(
         series
-            .filter(s => s.tags.includes('favorite'))
-            .flatMap(s => s.tags)
+            .filter(s => s.tags && s.tags.includes('favorite'))
+            .flatMap(s => s.tags || [])
             .filter(t => t !== 'favorite')
     )).slice(0, 3);
 

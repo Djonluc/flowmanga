@@ -1,29 +1,42 @@
-import React, { useRef } from 'react';
+ import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowRight, RefreshCcw } from 'lucide-react';
 import { MangaCard } from '../library/MangaCard';
 import { Button } from '../ui/Button';
+import clsx from 'clsx';
 
 interface HorizontalRailProps {
     title: string;
+    editorialTitle?: string;
+    subtitle?: string;
     items: any[];
     onItemClick: (item: any) => void;
     onMenuClick?: (item: any, e: React.MouseEvent) => void;
     onViewAll?: () => void;
     icon?: React.ReactNode;
+    variant?: 'portrait' | 'landscape';
+    layout?: 'standard' | 'featured-first' | 'masonry';
+    isScreenshotMode?: boolean;
     accentColor?: string;
     emptyMessage?: string;
+    onRefresh?: () => void;
 }
 
 export const HorizontalRail = ({ 
-    title, 
+    title,
+    editorialTitle,
+    subtitle,
     items, 
     onItemClick, 
     onMenuClick,
     onViewAll, 
     icon, 
-    accentColor = "text-white",
-    emptyMessage = "No items to display."
+    variant = 'portrait',
+    layout = 'standard',
+    isScreenshotMode = false,
+    accentColor = "text-foreground",
+    emptyMessage = "No items to display.",
+    onRefresh
 }: HorizontalRailProps) => {
     const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -38,33 +51,79 @@ export const HorizontalRail = ({
     return (
         <section className="space-y-8">
             <div className="flex items-center justify-between gap-4 px-4 md:px-16">
-                <div className="flex min-w-0 items-center gap-3 md:gap-4">
-                    {icon && (
-                        <div className={`w-9 h-9 flex-shrink-0 rounded-xl bg-white/5 flex items-center justify-center ${accentColor} opacity-80`}>
-                            {icon}
+                <div className="flex flex-col min-w-0 z-10 relative">
+                    {editorialTitle ? (
+                        <div className="flex items-center justify-between mb-1">
+                            <div>
+                                <div className="flex items-center gap-3">
+                                    <div className={clsx(
+                                        "w-10 h-10 rounded-2xl bg-surface-elevated border border-border-subtle flex items-center justify-center shadow-lg",
+                                        accentColor
+                                    )}>
+                                        {icon}
+                                    </div>
+                                    <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground leading-none">
+                                        {editorialTitle}
+                                    </h2>
+                                </div>
+                                <div className="flex items-center gap-2 mt-3 ml-[52px]">
+                                    <span className={clsx("text-[10px] font-black tracking-[0.2em] uppercase", accentColor)}>{title}</span>
+                                    {subtitle && (
+                                        <>
+                                            <div className="w-px h-3 bg-border-subtle mx-1" />
+                                            <p className="text-foreground-dim font-medium text-xs tracking-wide">
+                                                {subtitle}
+                                            </p>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-3">
+                            {icon && (
+                                <div className={clsx(
+                                    "w-10 h-10 rounded-2xl bg-surface-elevated border border-border-subtle flex items-center justify-center shadow-lg",
+                                    accentColor
+                                )}>
+                                    {icon}
+                                </div>
+                            )}
+                            <div>
+                                <h2 className="text-xl font-bold tracking-tight text-foreground leading-none">{title}</h2>
+                                {subtitle && <p className="text-foreground-dim font-medium text-xs tracking-wide mt-1">{subtitle}</p>}
+                            </div>
                         </div>
                     )}
-                    <h2 className="min-w-0 truncate text-xl font-black text-white uppercase italic tracking-tighter md:text-3xl">{title}</h2>
                 </div>
                 
                 {items.length > 0 && (
                     <div className="flex flex-shrink-0 items-center gap-4">
+                        {onRefresh && (
+                            <button 
+                                onClick={onRefresh}
+                                className="w-8 h-8 rounded-full bg-surface-elevated border border-border-subtle flex items-center justify-center text-foreground-muted hover:text-foreground hover:bg-surface-raised transition-all active:scale-90"
+                                title="Refresh/Randomize"
+                            >
+                                <RefreshCcw size={14} className="hover:rotate-180 transition-transform duration-500" />
+                            </button>
+                        )}
                         <div className="hidden gap-2 sm:flex">
                             <button 
                                 onClick={() => scroll('left')}
-                                className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-all"
+                                className="w-8 h-8 rounded-full bg-surface-elevated border border-border-subtle flex items-center justify-center text-foreground-muted hover:text-foreground hover:bg-surface-raised transition-all"
                             >
                                 <ChevronLeft size={16} />
                             </button>
                             <button 
                                 onClick={() => scroll('right')}
-                                className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-all"
+                                className="w-8 h-8 rounded-full bg-surface-elevated border border-border-subtle flex items-center justify-center text-foreground-muted hover:text-foreground hover:bg-surface-raised transition-all"
                             >
                                 <ChevronRight size={16} />
                             </button>
                         </div>
                         {onViewAll && (
-                            <Button variant="ghost" size="sm" className="text-neutral-500 hover:text-white font-medium tracking-wide text-xs" onClick={onViewAll}>
+                            <Button variant="ghost" size="sm" className="text-foreground-dim hover:text-foreground font-medium tracking-wide text-xs" onClick={onViewAll}>
                                 <span className="hidden sm:inline">View All</span> <ArrowRight size={14} className="sm:ml-1.5" />
                             </Button>
                         )}
@@ -73,30 +132,108 @@ export const HorizontalRail = ({
             </div>
 
             {items.length > 0 ? (
-                <div 
-                    ref={scrollRef}
-                    className="flex gap-5 overflow-x-auto no-scrollbar px-4 pb-10 snap-x snap-mandatory md:gap-7 md:px-16"
-                >
-                    {items.map((item, idx) => (
-                        <motion.div 
-                            key={`${item.id}-${idx}`}
-                            className="min-w-[180px] snap-start sm:min-w-[220px]"
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: idx * 0.03 }}
+                layout === 'masonry' ? (
+                    <div className="flex flex-col xl:flex-row gap-6 xl:gap-10 px-4 sm:px-6 md:px-16 pb-12 pt-4 transition-all duration-300 w-full">
+                        {/* Hero Item */}
+                        {items[0] && (
+                            <motion.div 
+                                className="w-full xl:w-[40%] 2xl:w-[30%] flex-shrink-0"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                            >
+                                <MangaCard 
+                                    item={items[0]} 
+                                    onClick={() => onItemClick(items[0])} 
+                                    onMenuClick={onMenuClick ? (e) => onMenuClick(items[0], e) : undefined}
+                                    variant="featured"
+                                    orientation="portrait"
+                                />
+                            </motion.div>
+                        )}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5 gap-4 md:gap-6 2xl:gap-8 w-full transition-all duration-300">
+                            {(isScreenshotMode ? items.slice(1) : items.slice(1, 9)).map((item, idx) => (
+                                <motion.div 
+                                    key={`${item.id}-${idx}`}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: idx * 0.05 }}
+                                >
+                                    <MangaCard 
+                                        item={item} 
+                                        onClick={() => onItemClick(item)} 
+                                        onMenuClick={onMenuClick ? (e) => onMenuClick(item, e) : undefined}
+                                        variant="standard"
+                                        orientation="portrait"
+                                    />
+                                </motion.div>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="relative w-full group/rail">
+                        {/* Fade overlay on the right edge */}
+                        {!isScreenshotMode && (
+                            <div className="absolute right-0 top-0 bottom-12 w-12 md:w-32 bg-gradient-to-l from-background to-transparent pointer-events-none z-10 transition-opacity opacity-0 group-hover/rail:opacity-100" />
+                        )}
+                        <div 
+                            ref={scrollRef}
+                            className={clsx(
+                                "flex gap-4 sm:gap-5 md:gap-8 px-4 sm:px-6 md:px-16 pb-12 pt-4 transition-all duration-300 w-full",
+                                isScreenshotMode 
+                                    ? "flex-wrap justify-center overflow-visible" 
+                                    : "overflow-x-auto no-scrollbar snap-x snap-mandatory"
+                            )}
                         >
-                            <MangaCard 
-                                item={item} 
-                                onClick={() => onItemClick(item)} 
-                                onMenuClick={onMenuClick ? (e) => onMenuClick(item, e) : undefined}
-                                density="compact"
-                            />
-                        </motion.div>
-                    ))}
-                </div>
+                        {layout === 'featured-first' && items[0] && (
+                            <motion.div 
+                                className="min-w-[280px] sm:min-w-[360px] lg:min-w-[420px] 2xl:min-w-[480px] snap-start"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                            >
+                                <MangaCard 
+                                    item={items[0]} 
+                                    onClick={() => onItemClick(items[0])} 
+                                    onMenuClick={onMenuClick ? (e) => onMenuClick(items[0], e) : undefined}
+                                    variant="featured"
+                                    orientation={variant}
+                                />
+                            </motion.div>
+                        )}
+                        
+                        {(layout === 'featured-first' ? items.slice(1) : items).map((item, idx) => (
+                            <motion.div 
+                                key={`${item.id}-${idx}`}
+                                className={clsx(
+                                    "transition-all duration-300",
+                                    !isScreenshotMode && "snap-start",
+                                    variant === 'landscape' 
+                                        ? "min-w-[280px] sm:min-w-[340px] lg:min-w-[400px]" 
+                                        : "min-w-[150px] sm:min-w-[180px] md:min-w-[220px] 2xl:min-w-[260px]"
+                                )}
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: idx * 0.03 }}
+                            >
+                                <MangaCard 
+                                    item={item} 
+                                    onClick={() => onItemClick(item)} 
+                                    onMenuClick={onMenuClick ? (e) => onMenuClick(item, e) : undefined}
+                                    variant="standard"
+                                    orientation={variant}
+                                />
+                            </motion.div>
+                        ))}
+                        
+                        {/* Edge spacer to allow over-scrolling past the last card */}
+                        {!isScreenshotMode && (
+                            <div className="min-w-[1px] md:min-w-[32px] snap-end flex-shrink-0" />
+                        )}
+                    </div>
+                    </div>
+                )
             ) : (
                 <div className="px-4 pb-8 md:px-16">
-                     <div className="w-full px-4 py-10 border-2 border-dashed border-white/5 rounded-2xl flex flex-col items-center justify-center text-neutral-600 gap-4 bg-white/[0.01] md:py-12 md:rounded-[32px]">
+                     <div className="w-full px-4 py-10 border-2 border-dashed border-border-subtle rounded-2xl flex flex-col items-center justify-center text-foreground-dim gap-4 bg-surface-elevated md:py-12 md:rounded-[32px]">
                         <p className="max-w-[260px] text-center font-medium leading-relaxed tracking-wide text-xs opacity-60 md:max-w-none">{emptyMessage}</p>
                         {onViewAll && (
                              <Button variant="secondary" size="sm" onClick={onViewAll} className="opacity-50 hover:opacity-100">

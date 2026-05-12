@@ -197,12 +197,24 @@ export class DownloadService {
         if (!sourceId) throw new Error("No source identifier for chapter");
 
         const scrapeUrl = sourceId.startsWith('http') ? sourceId : `https://mangadex.org/chapter/${sourceId}`;
-        const res = await ScraperService.scrapeChapter(scrapeUrl);
         
-        if (res.images && res.images.length > 0) {
-            return { images: res.images };
+        let lastError: any = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                const res = await ScraperService.scrapeChapter(scrapeUrl);
+                if (res.images && res.images.length > 0) {
+                    return { images: res.images };
+                }
+                throw new Error("No images found for chapter");
+            } catch (err) {
+                lastError = err;
+                if (attempt < 3) {
+                    // console.log(`[Download] Fetch attempt ${attempt} failed for ${scrapeUrl}, retrying...`);
+                    await new Promise(r => setTimeout(r, 2000));
+                }
+            }
         }
-        throw new Error("No images found for chapter");
+        throw lastError || new Error("Failed to fetch chapter data after 3 attempts");
     }
 
     private static async downloadChapterPages(images: any[], chapterNum: string, mangaRoot: string, jobId: string, store: any, metadata: any): Promise<string | null> {
@@ -243,7 +255,8 @@ export class DownloadService {
                     await invoke('download_image', {
                         url: img.url,
                         filePath: filePath,
-                        headers: (metadata.source !== 'mangadex' && metadata.sourceUrl) ? { 'Referer': metadata.sourceUrl } : null
+                        headers: (metadata.source !== 'mangadex' && metadata.sourceUrl) ? { 'Referer': metadata.sourceUrl } : null,
+                        encryptionKey: img.encryptionKey || null
                     });
 
                 } catch (e) {

@@ -28,9 +28,9 @@ export const ShelfView = ({ allSeries, onOpenItem }: ShelfViewProps) => {
                 {shelves.map((shelf, shelfIndex) => (
                     <div key={shelfIndex} className="relative">
                         {/* Shelf Stand (3D Effect) */}
-                        <div className="absolute -bottom-4 left-0 right-0 h-6 bg-gradient-to-b from-neutral-800 to-neutral-900 border-t border-white/10 rounded shadow-2xl" 
+                        <div className="absolute -bottom-4 left-0 right-0 h-6 bg-gradient-to-b from-surface-raised to-surface border-t border-border-subtle rounded shadow-elevated" 
                              style={{ transform: 'rotateX(45deg)', transformOrigin: 'bottom' }} />
-                        <div className="absolute -bottom-8 left-4 right-4 h-4 bg-black/40 blur-md rounded-full shadow-2xl" />
+                        <div className="absolute -bottom-8 left-4 right-4 h-4 bg-background/20 blur-md rounded-full shadow-2xl" />
 
                         <div className="flex justify-start gap-8 items-end px-4">
                             {shelf.map((item, itemIdx) => (
@@ -75,35 +75,35 @@ const Book = ({ item, onClick }: { item: any, onClick: () => void }) => {
             <div className="w-full h-full relative" style={{ transformStyle: 'preserve-3d' }}>
                 {/* Front Cover */}
                 <div className={clsx(
-                    "absolute inset-0 z-10 bg-neutral-800 rounded-sm overflow-hidden shadow-2xl border",
-                    isSeries ? "border-blue-500/30" : "border-white/5"
+                    "absolute inset-0 z-10 bg-surface rounded-sm overflow-hidden shadow-premium border",
+                    isSeries ? "border-accent/40" : "border-border-subtle"
                 )}>
                     {coverSrc ? (
                         <img src={coverSrc} alt={item.title} className="w-full h-full object-cover" />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center text-neutral-600 bg-neutral-900">
+                        <div className="w-full h-full flex items-center justify-center text-foreground-dim bg-surface-elevated">
                            <span className="text-xs p-2 text-center font-bold uppercase opacity-30">{item.title}</span>
                         </div>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-tr from-black/60 via-transparent to-white/10" />
+                    <div className="absolute inset-0 bg-gradient-to-tr from-background/60 via-transparent to-foreground/10" />
                     
                     {isSeries ? (
-                        <div className="absolute top-2 right-2 px-2 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded">
+                        <div className="absolute top-2 right-2 px-2 py-0.5 bg-accent text-white text-[10px] font-bold rounded shadow-accent-glow">
                             {item.books?.length || 0}
                         </div>
                     ) : item.meta?.chapter ? (
-                        <div className="absolute top-2 right-2 px-2 py-0.5 bg-neutral-900 border border-white/10 text-white text-[10px] font-bold rounded">
+                        <div className="absolute top-2 right-2 px-2 py-0.5 bg-background border border-border-subtle text-foreground text-[10px] font-bold rounded">
                             CH {item.meta.chapter}
                         </div>
                     ) : null}
 
                     {/* Progress Bar */}
                     {!isSeries && item.progress && item.progress.totalPages > 0 && (
-                        <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-black/40 backdrop-blur-sm">
+                        <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-background/40 backdrop-blur-sm">
                             <motion.div 
                                 initial={{ width: 0 }}
                                 animate={{ width: `${(item.progress.currentPage / (item.progress.totalPages - 1)) * 100}%` }}
-                                className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+                                className="h-full bg-accent shadow-accent-glow"
                             />
                         </div>
                     )}
@@ -112,19 +112,19 @@ const Book = ({ item, onClick }: { item: any, onClick: () => void }) => {
                 {/* Book Spine (3D Depth) */}
                 <div 
                     className={clsx(
-                        "absolute top-0 bottom-0 -left-4 w-4 brightness-75 rounded-l-sm",
-                        isSeries ? "bg-blue-900" : "bg-neutral-700"
+                        "absolute top-0 bottom-0 -left-4 w-4 brightness-75 rounded-l-sm shadow-inner",
+                        isSeries ? "bg-accent" : "bg-surface-raised"
                     )}
                     style={{ 
                         transform: 'rotateY(-90deg)', 
                         transformOrigin: 'right',
-                        boxShadow: 'inset -5px 0 10px rgba(0,0,0,0.5)'
+                        boxShadow: 'inset -5px 0 10px rgba(0,0,0,0.2)'
                     }}
                 />
 
                 {/* Pages Side (Right) */}
                 <div 
-                    className="absolute top-1 bottom-1 -right-1 w-1 bg-white/80"
+                    className="absolute top-1 bottom-1 -right-1 w-1 bg-foreground/80"
                     style={{ 
                         transform: 'rotateY(90deg)', 
                         transformOrigin: 'left'
@@ -133,7 +133,7 @@ const Book = ({ item, onClick }: { item: any, onClick: () => void }) => {
             </div>
 
             {/* Title Tooltip on Hover */}
-            <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none border border-white/10 shadow-xl">
+            <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 bg-surface-raised backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] text-foreground opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none border border-border-subtle shadow-cinematic">
                 {item.title}
             </div>
         </motion.div>

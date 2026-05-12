@@ -11,7 +11,7 @@ import clsx from 'clsx';
 
 export const QuickViewModal = () => {
     const { quickViewItem, closeQuickView, openImportModal, openTagManager } = useModalStore();
-    const { setUrl } = useScraperStore();
+    const { prefill } = useScraperStore();
     const { series, toggleFavorite, refreshMangaMetadata } = useLibraryStore();
     const [relatedItems, setRelatedItems] = useState<any[]>([]);
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -37,24 +37,21 @@ export const QuickViewModal = () => {
         fetchRelated();
     }, [quickViewItem?.id, libraryItem?.id]);
 
-    if (!quickViewItem) return null;
+    // Remove early return to allow AnimatePresence to work
 
     const handleImport = () => {
-        let url = '';
-        const source = quickViewItem.source || 'mangadex.org';
-        
-        if (source === 'mangadex.org') {
-            url = `https://mangadex.org/title/${quickViewItem.id}`;
-        } else if (source === 'manhwaread.com') {
-            url = quickViewItem.seriesUrl || `https://manhwaread.com/manhwa/${quickViewItem.id}`;
-        } else if (source === 'luacomic.org') {
-            url = quickViewItem.seriesUrl || `https://luacomic.org/series/${quickViewItem.id}`;
-        } else {
-            url = quickViewItem.seriesUrl || quickViewItem.url || '';
-        }
+        const url = quickViewItem?.url || quickViewItem?.seriesUrl;
 
         if (url) {
-            setUrl(url); 
+            prefill({
+                url,
+                metadata: {
+                    title: quickViewItem.title,
+                    coverUrl: quickViewItem.coverUrl || quickViewItem.cover,
+                    source: quickViewItem.source,
+                    tags: quickViewItem.tags
+                }
+            }); 
             closeQuickView();
             openImportModal(url);
         }
@@ -83,7 +80,7 @@ export const QuickViewModal = () => {
         closeQuickView();
     };
 
-    const rawCover = quickViewItem.cover || quickViewItem.coverUrl;
+    const rawCover = quickViewItem?.cover || quickViewItem?.coverUrl;
     const coverSrc = rawCover ? (rawCover.startsWith('http') ? rawCover : convertFileSrc(rawCover)) : undefined;
 
     const scrollRail = (direction: 'left' | 'right') => {
@@ -110,56 +107,65 @@ export const QuickViewModal = () => {
                         initial={{ opacity: 0, scale: 0.95, y: 40 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 40 }}
-                        className="relative w-full max-w-5xl bg-[#080808] rounded-[48px] border border-white/10 shadow-[0_64px_128px_rgba(0,0,0,1)] overflow-hidden flex flex-col md:flex-row h-auto max-h-[90vh]"
+                        className="relative w-full max-w-5xl bg-background rounded-[48px] border border-border-subtle shadow-cinematic overflow-hidden flex flex-col md:flex-row h-auto max-h-[90vh]"
                     >
                         {/* Left Side: Cinematic Cover Art */}
-                        <div className="w-full md:w-2/5 relative bg-neutral-900 overflow-hidden group">
+                        <div className="w-full md:w-2/5 relative bg-surface overflow-hidden group">
                             <div className="absolute inset-0 flex flex-col items-center justify-center opacity-20 gap-4">
-                                <ImageIcon size={64} className="text-white" />
-                                <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">Cover Unavailable</span>
+                                <ImageIcon size={64} className="text-foreground" />
+                                <span className="text-[10px] font-black uppercase tracking-[0.4em] text-foreground">Cover Unavailable</span>
                             </div>
                             {coverSrc && (
-                                <img 
-                                    src={coverSrc} 
-                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 relative z-10" 
-                                    alt={quickViewItem.title} 
-                                    onError={(e) => {
-                                        e.currentTarget.style.display = 'none';
-                                    }}
-                                />
+                                <>
+                                    {/* Blurred Backdrop */}
+                                    <img 
+                                        src={coverSrc}
+                                        className="absolute inset-0 w-full h-full object-cover opacity-30 blur-3xl scale-150 z-0"
+                                        alt=""
+                                    />
+                                    {/* Sharp Foreground Image */}
+                                    <img 
+                                        src={coverSrc} 
+                                        className="w-full h-full object-contain p-4 transition-transform duration-700 group-hover:scale-110 relative z-10 drop-shadow-2xl" 
+                                        alt={quickViewItem?.title || ''} 
+                                        onError={(e) => {
+                                            e.currentTarget.style.display = 'none';
+                                        }}
+                                    />
+                                </>
                             )}
-                            <div className="absolute inset-0 bg-gradient-to-t from-[#080808] via-transparent to-transparent z-20" />
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[#080808]/20 z-20" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent z-20" />
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-background/20 z-20" />
                             
                             {/* Floating Stats */}
                             <div className="absolute bottom-8 left-8 right-8 flex items-center gap-4">
-                                <div className="px-4 py-2 bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl flex flex-col">
-                                    <span className="text-[10px] text-neutral-500 font-black uppercase tracking-widest">Chapters</span>
-                                    <span className="text-white font-black">{libraryItem?.books?.length || '?'}</span>
+                                <div className="px-4 py-2 bg-surface-elevated backdrop-blur-xl border border-border-subtle rounded-2xl flex flex-col">
+                                    <span className="text-[10px] text-foreground-dim font-black uppercase tracking-widest">Chapters</span>
+                                    <span className="text-foreground font-black">{libraryItem?.books?.length || '?'}</span>
                                 </div>
-                                <div className="px-4 py-2 bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl flex flex-col">
-                                    <span className="text-[10px] text-neutral-500 font-black uppercase tracking-widest">Source</span>
-                                    <span className="text-indigo-400 font-black uppercase text-xs truncate max-w-[100px]">{quickViewItem.source || 'Web'}</span>
+                                <div className="px-4 py-2 bg-surface-elevated backdrop-blur-xl border border-border-subtle rounded-2xl flex flex-col">
+                                    <span className="text-[10px] text-foreground-dim font-black uppercase tracking-widest">Source</span>
+                                    <span className="text-accent font-black uppercase text-xs truncate max-w-[100px]">{quickViewItem?.source || 'Web'}</span>
                                 </div>
                             </div>
                         </div>
 
                         {/* Right Side: Information Hub */}
-                        <div className="flex-1 p-8 md:p-14 flex flex-col min-w-0 bg-[#080808] overflow-y-auto custom-scrollbar">
+                        <div className="flex-1 p-8 md:p-14 flex flex-col min-w-0 bg-background overflow-y-auto custom-scrollbar">
                             <div className="space-y-10">
                                 {/* Header */}
                                 <div className="flex items-start justify-between gap-6">
                                     <div className="space-y-4 flex-1">
                                         <div className="flex items-center gap-3">
-                                            <div className="px-4 py-1.5 bg-indigo-500 text-white rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-indigo-500/20">
+                                            <div className="px-4 py-1.5 bg-accent text-white rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-accent-glow">
                                                 {libraryItem ? 'In Collection' : 'Discovery'}
                                             </div>
                                             {libraryItem && (
                                                 <button 
                                                     onClick={handleRefresh}
                                                     className={clsx(
-                                                        "p-1.5 rounded-full bg-white/5 border border-white/10 text-neutral-400 hover:text-white transition-all",
-                                                        isRefreshing && "animate-spin text-indigo-400"
+                                                        "p-1.5 rounded-full bg-surface-elevated border border-border-subtle text-foreground-dim hover:text-foreground transition-all",
+                                                        isRefreshing && "animate-spin text-accent"
                                                     )}
                                                     title="Refresh Metadata"
                                                 >
@@ -167,13 +173,13 @@ export const QuickViewModal = () => {
                                                 </button>
                                             )}
                                         </div>
-                                        <h2 className="text-4xl md:text-5xl font-black text-white leading-none tracking-tighter uppercase italic drop-shadow-2xl">
-                                            {quickViewItem.title}
+                                        <h2 className="text-4xl md:text-5xl font-black text-foreground leading-none tracking-tighter uppercase italic drop-shadow-2xl">
+                                            {quickViewItem?.title}
                                         </h2>
                                     </div>
                                     <button 
                                         onClick={closeQuickView}
-                                        className="p-3 rounded-full bg-white/5 hover:bg-white/10 text-neutral-500 hover:text-white transition-all border border-white/5"
+                                        className="p-3 rounded-full bg-surface-elevated hover:bg-surface-raised text-foreground-dim hover:text-foreground transition-all border border-border-subtle"
                                     >
                                         <X size={24} />
                                     </button>
@@ -194,16 +200,16 @@ export const QuickViewModal = () => {
                                         )}
                                     </div>
                                     <div className="flex flex-wrap gap-2.5">
-                                        {(libraryItem?.tags || quickViewItem.tags || []).map((tag: string, idx: number) => (
+                                        {(libraryItem?.tags || quickViewItem?.tags || []).map((tag: string, idx: number) => (
                                             <button 
                                                 key={idx} 
                                                 onClick={() => handleTagClick(tag)}
-                                                className="px-4 py-2 bg-white/[0.03] border border-white/10 hover:bg-indigo-500/10 hover:border-indigo-500/30 text-neutral-400 hover:text-indigo-400 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+                                                className="px-4 py-2 bg-surface-elevated border border-border-subtle hover:bg-accent-soft hover:border-accent/30 text-foreground-muted hover:text-accent rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
                                             >
                                                 {tag}
                                             </button>
                                         ))}
-                                        {(libraryItem?.tags || []).length === 0 && !quickViewItem.tags && (
+                                        {(libraryItem?.tags || []).length === 0 && !quickViewItem?.tags && (
                                             <button 
                                                 onClick={handleRefresh}
                                                 className="px-4 py-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 hover:bg-indigo-500/20 transition-all"
@@ -217,9 +223,9 @@ export const QuickViewModal = () => {
 
                                 {/* Synopsis */}
                                 <div className="space-y-4">
-                                    <h3 className="text-[10px] font-black text-neutral-600 uppercase tracking-[0.3em]">Background</h3>
-                                    <p className="text-sm md:text-base text-neutral-400 font-medium leading-relaxed max-w-2xl">
-                                        {libraryItem?.description || quickViewItem.description || "No deep background available. This series has been identified by the FlowManga discovery engine as a high-potential addition to your library."}
+                                    <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.3em]">Background</h3>
+                                    <p className="text-sm md:text-base text-foreground-muted font-medium leading-relaxed max-w-2xl">
+                                        {libraryItem?.description || quickViewItem?.description || "No deep background available. This series has been identified by the FlowManga discovery engine as a high-potential addition to your library."}
                                     </p>
                                 </div>
 
@@ -266,17 +272,33 @@ export const QuickViewModal = () => {
                                         className="flex-1 h-18 bg-white/10 hover:bg-white/20 text-white rounded-[24px] text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 shadow-2xl border border-white/5"
                                     >
                                         <BookOpen size={22} />
-                                        Enter Library
+                                        Enter Archive
                                     </button>
                                 ) : (
                                     <button 
                                         onClick={handleImport}
-                                        className="flex-1 h-18 bg-indigo-500 hover:bg-indigo-600 text-white rounded-[24px] text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 shadow-[0_20px_40px_rgba(99,102,241,0.3)]"
+                                        className="flex-[2] h-18 bg-indigo-500 hover:bg-indigo-600 text-white rounded-[24px] text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 shadow-[0_20px_40px_rgba(99,102,241,0.3)]"
                                     >
                                         <Download size={22} />
-                                        Initialize Download
+                                        Download
                                     </button>
                                 )}
+                                
+                                <button 
+                                    onClick={async () => {
+                                        const sourceUrl = quickViewItem.url || quickViewItem.seriesUrl;
+                                        if (sourceUrl) {
+                                            const { open: openShell } = await import('@tauri-apps/plugin-shell');
+                                            await openShell(sourceUrl);
+                                        }
+                                    }}
+                                    className="flex-1 h-18 bg-white/5 hover:bg-white/10 text-white rounded-[24px] text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all border border-white/10"
+                                    title="Open original site"
+                                >
+                                    <Globe size={20} />
+                                    Read Online
+                                </button>
+
                                 <button 
                                     onClick={handleFavoriteClick}
                                     disabled={!libraryItem}

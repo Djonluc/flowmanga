@@ -2,10 +2,10 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { 
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, 
   Maximize, Minimize, Repeat, Shuffle, ArrowLeft, ListVideo 
-} from 'lucide-react'; // Added ListVideo
+} from 'lucide-react';
 import { useVideoStore } from '../../stores/useVideoStore';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { VideoPlaylist } from './VideoPlaylist'; // Added Import
+import { VideoPlaylist } from './VideoPlaylist';
 
 export const VideoPlayer: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -20,7 +20,7 @@ export const VideoPlayer: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [showPlaylist, setShowPlaylist] = useState(false); // Playlist State
+  const [showPlaylist, setShowPlaylist] = useState(false);
   
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -28,7 +28,6 @@ export const VideoPlayer: React.FC = () => {
   const repeatMode = folder?.repeatMode || 'off';
   const isShuffled = folder?.shuffleEnabled || false;
 
-  // Sync state with video element
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -140,7 +139,7 @@ export const VideoPlayer: React.FC = () => {
     >
         <video
            ref={videoRef}
-           src={currentVideo.filePath ? convertFileSrc(currentVideo.filePath) : ''}
+           src={currentVideo.filePath ? convertFileSrc(currentVideo.filePath) : undefined}
            className="max-w-full max-h-full object-contain"
            onTimeUpdate={handleTimeUpdate}
            onLoadedMetadata={handleLoadedMetadata}
@@ -259,4 +258,3 @@ export const VideoPlayer: React.FC = () => {
     </div>
   );
 };
-

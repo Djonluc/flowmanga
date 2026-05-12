@@ -63,9 +63,9 @@ export const DownloadPanel = () => {
                                         <Download size={18} className="text-blue-500" />
                                     </div>
                                     <div>
-                                        <h2 className="text-sm font-black uppercase tracking-widest text-white leading-none">Downloads</h2>
+                                        <h2 className="text-sm font-black uppercase tracking-widest text-white leading-none">Summoning Center</h2>
                                         <p className="text-[10px] text-neutral-500 mt-1 uppercase font-bold tracking-tighter">
-                                            {queue.length} Total Items • {activeJobs.length} Active
+                                            {queue.length} Soul Fragments • {activeJobs.length} Manifesting
                                         </p>
                                     </div>
                                 </div>
@@ -78,9 +78,9 @@ export const DownloadPanel = () => {
                             </div>
 
                             <div className="flex gap-2">
-                                <ActionBtn icon={<Pause size={12} />} label="Pause All" onClick={handlePauseAll} />
-                                <ActionBtn icon={<Play size={12} />} label="Resume All" onClick={handleResumeAll} />
-                                <ActionBtn icon={<Trash2 size={12} />} label="Clear Done" onClick={handleClearFinished} variant="danger" />
+                                <ActionBtn icon={<Pause size={12} />} label="Halt Rituals" onClick={handlePauseAll} />
+                                <ActionBtn icon={<Play size={12} />} label="Resume Rituals" onClick={handleResumeAll} />
+                                <ActionBtn icon={<Trash2 size={12} />} label="Banish Finished" onClick={handleClearFinished} variant="danger" />
                             </div>
                         </div>
 
@@ -92,18 +92,18 @@ export const DownloadPanel = () => {
                                 <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 opacity-30">
                                     <Download size={48} className="text-neutral-500" />
                                     <div className="space-y-1">
-                                        <p className="text-sm font-bold text-white">No active downloads</p>
-                                        <p className="text-xs text-neutral-500">Your queue is empty</p>
+                                        <p className="text-sm font-bold text-white">Aether is quiet</p>
+                                        <p className="text-xs text-neutral-500">No souls are being summoned</p>
                                     </div>
                                 </div>
                             )}
 
                             {/* Active Downloads */}
                             {activeJobs.length > 0 && (
-                                <Section title="In Progress" color="text-blue-400">
+                                <Section title="Channeling" color="text-blue-400">
                                     {activeJobs.map(job => (
                                         <DownloadItem 
-                                            key={job.id} 
+                                            key={`${job.id}-${job.title}`} 
                                             job={job} 
                                             onPause={() => pauseJob(job.id)} 
                                             onRemove={() => removeJob(job.id)}
@@ -112,18 +112,17 @@ export const DownloadPanel = () => {
                                 </Section>
                             )}
 
-                            {/* Failed Downloads */}
                             {failedJobs.length > 0 && (
-                                <Section title="Errors" color="text-red-400">
+                                <Section title="Corrupted" color="text-red-400">
                                     {failedJobs.map(job => (
-                                        <div key={job.id} className="bg-red-500/5 rounded-2xl p-4 border border-red-500/20 flex justify-between items-center group">
+                                        <div key={`${job.id}-${job.title}`} className="bg-red-500/5 rounded-2xl p-4 border border-red-500/20 flex justify-between items-center group">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
                                                     <AlertCircle size={16} className="text-red-400" />
                                                 </div>
                                                 <div>
                                                     <h4 className="text-xs font-bold text-white line-clamp-1">{job.title}</h4>
-                                                    <p className="text-[10px] text-red-400/70 font-medium">Download failed</p>
+                                                    <p className="text-[10px] text-red-400/70 font-medium">Ritual failed</p>
                                                 </div>
                                             </div>
                                             <div className="flex gap-1">
@@ -141,10 +140,10 @@ export const DownloadPanel = () => {
 
                             {/* Paused / Queued */}
                             {(pausedJobs.length > 0 || queuedJobs.length > 0) && (
-                                <Section title="Waiting" color="text-neutral-500">
-                                    {[...pausedJobs, ...queuedJobs].map(job => (
-                                        <div key={job.id} className="bg-white/5 rounded-2xl p-4 border border-white/5 flex justify-between items-center group hover:border-white/10 transition-colors">
-                                           <div className="flex items-center gap-3 opacity-60 group-hover:opacity-100 transition-opacity">
+                                <Section title="Stasis" color="text-neutral-500">
+                                    {[...pausedJobs, ...queuedJobs].map((job, idx) => (
+                                        <div key={`${job.id}-${idx}`} className="bg-white/5 rounded-2xl p-4 border border-white/5 flex justify-between items-center group hover:border-white/10 transition-colors">
+                                           <div className="flex items-center gap-3 group-hover:opacity-100 transition-opacity">
                                                 <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
                                                     <Clock size={16} className="text-neutral-400" />
                                                 </div>
@@ -153,11 +152,11 @@ export const DownloadPanel = () => {
                                                     <p className="text-[10px] text-neutral-500 font-medium">{job.chapterList.length} Chapters • {job.status}</p>
                                                 </div>
                                             </div>
-                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => resumeJob(job.id)} title="Start" className="p-2 hover:bg-white/10 rounded-lg text-neutral-400 hover:text-green-400">
+                                            <div className="flex gap-1 transition-opacity">
+                                                <button onClick={() => resumeJob(job.id)} title="Start" className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-neutral-400 hover:text-green-400 transition-colors">
                                                     <Play size={14} />
                                                 </button>
-                                                <button onClick={() => removeJob(job.id)} title="Remove" className="p-2 hover:bg-white/10 rounded-lg text-neutral-400 hover:text-red-400">
+                                                <button onClick={() => removeJob(job.id)} title="Remove" className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-neutral-400 hover:text-red-400 transition-colors">
                                                     <X size={14} />
                                                 </button>
                                             </div>
@@ -168,19 +167,23 @@ export const DownloadPanel = () => {
 
                              {/* Completed */}
                              {completedJobs.length > 0 && (
-                                <Section title="Completed" color="text-emerald-500">
-                                    {completedJobs.map(job => (
-                                        <div key={job.id} className="bg-emerald-500/5 rounded-2xl p-4 border border-emerald-500/10 flex justify-between items-center group">
-                                            <div className="flex items-center gap-3 opacity-60 group-hover:opacity-100 transition-opacity">
+                                <Section title="Manifested" color="text-emerald-500">
+                                    {completedJobs.map((job, idx) => (
+                                        <div key={`${job.id}-${idx}`} className="bg-emerald-500/5 rounded-2xl p-4 border border-emerald-500/10 flex justify-between items-center group">
+                                            <div className="flex items-center gap-3 group-hover:opacity-100 transition-opacity">
                                                 <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500">
                                                     <CheckCircle2 size={16} />
                                                 </div>
                                                 <div>
                                                     <h4 className="text-xs font-bold text-emerald-200 line-clamp-1">{job.title}</h4>
-                                                    <p className="text-[10px] text-emerald-500/70 font-medium">Download complete</p>
+                                                    <p className="text-[10px] text-emerald-500/70 font-medium">Entity manifested</p>
                                                 </div>
                                             </div>
-                                            <button onClick={() => removeJob(job.id)} title="Clear" className="p-2 opacity-0 group-hover:opacity-100 hover:bg-emerald-500/10 rounded-lg text-emerald-400 transition-all">
+                                            <button 
+                                                onClick={() => removeJob(job.id)} 
+                                                title="Clear" 
+                                                className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-lg text-emerald-400 transition-all"
+                                            >
                                                 <Trash2 size={14} />
                                             </button>
                                         </div>
@@ -248,7 +251,7 @@ const DownloadItem = ({ job, onPause, onRemove }: { job: any, onPause: () => voi
                 />
             </div>
             <div className="flex justify-between text-[10px] font-mono font-bold tracking-tighter">
-                <span className="text-blue-500/70">PROCESSING</span>
+                <span className="text-blue-500/70">TRANSMUTING</span>
                 <span className="text-white">{Math.round(job.progress)}%</span>
             </div>
         </div>

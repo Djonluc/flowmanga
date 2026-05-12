@@ -67,8 +67,9 @@ export const useModalStore = create<ModalState>((set) => ({
     isImportModalOpen: false,
     openImportModal: (url) => {
         if (url) {
-            // Optional: set URL in ScraperStore if needed, 
-            // but the modal usually handles its own URL state or takes it from ScraperStore
+            import('./useScraperStore').then(({ useScraperStore }) => {
+                useScraperStore.getState().setUrl(url);
+            });
         }
         set({ isImportModalOpen: true });
     },
