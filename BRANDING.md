@@ -5,6 +5,7 @@
 ### Components Created
 
 #### 1. **DjonStNixLogo.tsx**
+
 - **Location**: `src/components/branding/DjonStNixLogo.tsx`
 - **Purpose**: Animated interactive branding card for footers and menus
 - **Features**:
@@ -17,6 +18,7 @@
   - Hover scale animation
 
 #### 2. **DjonStNixSignature.tsx**
+
 - **Location**: `src/components/branding/DjonStNixSignature.tsx`
 - **Purpose**: Lightweight floating watermark fixed to bottom-right
 - **Features**:
@@ -28,6 +30,7 @@
   - Non-intrusive design
 
 #### 3. **GitHubWatermark.tsx**
+
 - **Location**: `src/components/branding/GitHubWatermark.tsx`
 - **Purpose**: High-impact visual signature for headers and previews
 - **Features**:
@@ -41,6 +44,7 @@
 ### Integration Points
 
 #### HomeView.tsx
+
 - **Footer Section**: DjonStNixLogo displayed in centered footer
 - **Floating Signature**: DjonStNixSignature in bottom-right corner
 - **Professional Message**: "FlowManga is crafted with passion for the manga community"
@@ -48,6 +52,7 @@
 ### Professional Documentation
 
 #### README.md
+
 - **Hero Section**: Badge-style watermark at top
 - **Status Badges**: License, React, Electron, TypeScript
 - **Comprehensive Sections**:
@@ -63,21 +68,24 @@
 - **Branding**: DjonStNix signature throughout
 
 #### LICENSE
+
 - **Type**: MIT License
-- **Copyright**: 2026 Djon StNix (Djonluc)
+- **Copyright**: 2026 DjonStNix (Djonluc)
 - **Attribution Section**: GitHub, YouTube, Email links
 - **Note**: Attribution appreciated but not required
 
 #### .github/FUNDING.yml
+
 - **GitHub Sponsors**: Linked to Djonluc
 - **Custom Links**: YouTube channel and email
 
 ## 🎯 Metadata Standards
 
 All branding components include embedded XML metadata:
+
 ```json
 {
-  "Author": "Djon StNix",
+  "Author": "DjonStNix",
   "GitHub": "https://github.com/Djonluc",
   "Email": "djonstnix@gmail.com",
   "Description": "Software Developer & Digital Creator",
@@ -89,17 +97,20 @@ All branding components include embedded XML metadata:
 ## 🚀 Visual Identity
 
 ### Color Palette
+
 - **Primary Blue**: `#5B8CFF` (Brand color)
 - **Accent Magenta**: `#FF00FF` (Glitch effects)
 - **White**: Text and highlights
 - **Neutral Grays**: Backgrounds and subtle elements
 
 ### Typography
+
 - **Primary Font**: Inter (sans-serif)
 - **Monospace**: For technical elements and metadata
 - **Font Weights**: 700-900 for branding elements
 
 ### Animation Effects
+
 1. **Draw Animation**: SVG path drawing (2s ease-in-out)
 2. **Glitch Effect**: Periodic color shift and position offset (4s infinite)
 3. **Pulse**: Opacity animation for accents
@@ -109,18 +120,21 @@ All branding components include embedded XML metadata:
 ## 📊 Professional Standards
 
 ### Accessibility
+
 - All links have `rel="noopener noreferrer"` for security
 - Semantic HTML structure
 - Proper ARIA attributes where needed
 - High contrast ratios for text
 
 ### Performance
+
 - Lightweight SVG components (<5KB each)
 - CSS animations (GPU-accelerated)
 - No external dependencies
 - Lazy loading compatible
 
 ### SEO
+
 - Embedded metadata in SVG components
 - Descriptive alt text and titles
 - Structured data in README
@@ -129,6 +143,7 @@ All branding components include embedded XML metadata:
 ## 🔗 Links & Contact
 
 All branding components consistently link to:
+
 - **GitHub**: https://github.com/Djonluc
 - **YouTube**: https://www.youtube.com/@Djonluc
 - **Email**: djonstnix@gmail.com
@@ -152,11 +167,17 @@ All branding components consistently link to:
 ## 🎨 Usage Examples
 
 ### Import Branding Components
+
 ```tsx
-import { DjonStNixLogo, DjonStNixSignature, GitHubWatermark } from './components/branding';
+import {
+  DjonStNixLogo,
+  DjonStNixSignature,
+  GitHubWatermark,
+} from "./components/branding";
 ```
 
 ### Use in Components
+
 ```tsx
 // Footer Logo
 <DjonStNixLogo className="opacity-80 hover:opacity-100" />
@@ -171,6 +192,7 @@ import { DjonStNixLogo, DjonStNixSignature, GitHubWatermark } from './components
 ## 🌟 Brand Guidelines
 
 ### Do's
+
 ✅ Use the branding components as-is
 ✅ Maintain the color palette
 ✅ Keep metadata intact
@@ -178,6 +200,7 @@ import { DjonStNixLogo, DjonStNixSignature, GitHubWatermark } from './components
 ✅ Use in professional contexts
 
 ### Don'ts
+
 ❌ Modify the core SVG structure
 ❌ Remove embedded metadata
 ❌ Change the color scheme drastically
@@ -186,7 +209,7 @@ import { DjonStNixLogo, DjonStNixSignature, GitHubWatermark } from './components
 
 ---
 
-**Created by**: Djon StNix  
+**Created by**: DjonStNix  
 **Date**: February 13, 2026  
 **Version**: 1.0.0  
 **Status**: Production Ready ✅
