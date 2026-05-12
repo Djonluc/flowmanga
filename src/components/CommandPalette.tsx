@@ -241,16 +241,16 @@ export const CommandPalette = () => {
                     >
                         {/* Input */}
                         <div className="flex items-center px-6 py-6 border-b border-white/5 gap-4">
-                            <Search className="text-white/20" size={24} />
+                            <Search className="text-foreground/20" size={24} />
                             <input 
                                 autoFocus
                                 type="text"
                                 placeholder="Search library, commands..."
                                 value={query}
                                 onChange={(e) => { setQuery(e.target.value); setSelectedIndex(0); }}
-                                className="flex-1 bg-transparent border-none outline-none text-xl text-white placeholder:text-neutral-700 font-bold"
+                                className="flex-1 bg-transparent border-none outline-none text-xl text-foreground placeholder:text-foreground-muted font-bold"
                             />
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-[10px] text-neutral-500 font-black uppercase tracking-tighter">
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-[10px] text-foreground-dim font-black uppercase tracking-tighter">
                                 <CommandIcon />
                                 <span>K</span>
                             </div>
@@ -265,7 +265,7 @@ export const CommandPalette = () => {
                                         onClick={result.action}
                                         className={`
                                             flex items-center gap-4 px-4 py-4 rounded-xl cursor-pointer transition-all duration-200
-                                            ${index === selectedIndex ? 'bg-accent text-white shadow-lg' : 'text-neutral-500 hover:bg-white/5 hover:text-white'}
+                                            ${index === selectedIndex ? 'bg-accent text-white shadow-lg' : 'text-foreground-dim hover:bg-white/5 hover:text-foreground'}
                                         `}
                                         onMouseEnter={() => setSelectedIndex(index)}
                                     >
@@ -274,7 +274,7 @@ export const CommandPalette = () => {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="font-bold text-sm truncate uppercase tracking-wide">{result.title}</div>
-                                            {result.subtitle && <div className={`text-[10px] font-black uppercase tracking-widest mt-0.5 truncate ${index === selectedIndex ? 'text-white/60' : 'text-neutral-600'}`}>{result.subtitle}</div>}
+                                            {result.subtitle && <div className={`text-[10px] font-black uppercase tracking-widest mt-0.5 truncate ${index === selectedIndex ? 'text-foreground/60' : 'text-foreground-muted'}`}>{result.subtitle}</div>}
                                         </div>
                                         {index === selectedIndex && (
                                             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-tighter opacity-40">
@@ -287,9 +287,9 @@ export const CommandPalette = () => {
                             ) : (
                                 <div className="p-12 text-center">
                                     <div className="p-4 rounded-full bg-white/5 inline-block mb-4">
-                                        <Search size={32} className="text-neutral-700" />
+                                        <Search size={32} className="text-foreground-muted" />
                                     </div>
-                                    <div className="text-sm font-bold text-neutral-500 uppercase tracking-widest">
+                                    <div className="text-sm font-bold text-foreground-dim uppercase tracking-widest">
                                         {query ? 'No matches found' : 'Type to search everything'}
                                     </div>
                                 </div>

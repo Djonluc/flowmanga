@@ -31,7 +31,7 @@ export const AppearanceSettings = () => {
         <div className="space-y-8">
             {/* Theme Selection */}
             <section className="space-y-4">
-                <h4 className="text-white font-black uppercase tracking-widest text-xs border-b border-white/10 pb-2">
+                <h4 className="text-foreground font-black uppercase tracking-widest text-xs border-b border-white/10 pb-2">
                     Interface Theme
                 </h4>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -61,7 +61,7 @@ export const AppearanceSettings = () => {
 
              {/* Ambient System */}
              <section className="space-y-4">
-                <h4 className="text-white font-black uppercase tracking-widest text-xs border-b border-white/10 pb-2">
+                <h4 className="text-foreground font-black uppercase tracking-widest text-xs border-b border-white/10 pb-2">
                     Ambient Atmosphere
                 </h4>
                 
@@ -75,7 +75,7 @@ export const AppearanceSettings = () => {
                                 "flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
                                 ambientMode === m.id 
                                     ? "bg-blue-600 text-white shadow-lg" 
-                                    : "text-neutral-500 hover:text-white"
+                                    : "text-foreground-dim hover:text-foreground"
                             )}
                         >
                             {m.label}
@@ -86,9 +86,9 @@ export const AppearanceSettings = () => {
                 {/* Sliders */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-4">
-                        <div className="flex justify-between items-center text-xs font-bold uppercase text-neutral-400">
+                        <div className="flex justify-between items-center text-xs font-bold uppercase text-foreground-dim">
                              <span>Intensity</span>
-                             <span className="text-white">{Math.round(ambientIntensity * 100)}%</span>
+                             <span className="text-foreground">{Math.round(ambientIntensity * 100)}%</span>
                         </div>
                         <input 
                             type="range" 
@@ -100,9 +100,9 @@ export const AppearanceSettings = () => {
                     </div>
                     
                     <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-4">
-                        <div className="flex justify-between items-center text-xs font-bold uppercase text-neutral-400">
+                        <div className="flex justify-between items-center text-xs font-bold uppercase text-foreground-dim">
                              <span>Blur Radius</span>
-                             <span className="text-white">{ambientBlur}px</span>
+                             <span className="text-foreground">{ambientBlur}px</span>
                         </div>
                         <input 
                             type="range" 
@@ -114,9 +114,9 @@ export const AppearanceSettings = () => {
                     </div>
 
                     <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-4">
-                        <div className="flex justify-between items-center text-xs font-bold uppercase text-neutral-400">
+                        <div className="flex justify-between items-center text-xs font-bold uppercase text-foreground-dim">
                              <span>Brightness</span>
-                             <span className="text-white">{Math.round(ambientBrightness * 100)}%</span>
+                             <span className="text-foreground">{Math.round(ambientBrightness * 100)}%</span>
                         </div>
                         <input 
                             type="range" 
@@ -128,7 +128,7 @@ export const AppearanceSettings = () => {
                     </div>
 
                     <div className="bg-white/5 p-4 rounded-2xl border border-white/5 flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase text-neutral-400">Texture Noise</span>
+                        <span className="text-xs font-bold uppercase text-foreground-dim">Texture Noise</span>
                         <button 
                             onClick={() => setAmbientNoise(!showAmbientNoise)}
                             className={clsx(

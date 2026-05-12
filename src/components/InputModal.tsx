@@ -47,14 +47,14 @@ export function InputModal({ isOpen, onClose, onSubmit, title, placeholder, desc
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-neutral-900 border border-white/10 rounded-xl shadow-2xl w-full max-w-md mx-4 pointer-events-auto"
+              className="bg-surface border border-white/10 rounded-xl shadow-2xl w-full max-w-md mx-4 pointer-events-auto"
             >
               {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-white/10">
-                <h2 className="text-xl font-bold text-white">{title}</h2>
+                <h2 className="text-xl font-bold text-foreground">{title}</h2>
                 <button
                   onClick={handleClose}
-                  className="text-neutral-400 hover:text-white transition-colors"
+                  className="text-foreground-dim hover:text-foreground transition-colors"
                 >
                   <X size={20} />
                 </button>
@@ -63,7 +63,7 @@ export function InputModal({ isOpen, onClose, onSubmit, title, placeholder, desc
               {/* Content */}
               <form onSubmit={handleSubmit} className="p-6 space-y-4">
                 {description && (
-                  <p className="text-sm text-neutral-400">{description}</p>
+                  <p className="text-sm text-foreground-dim">{description}</p>
                 )}
                 
                 <input
@@ -72,7 +72,7 @@ export function InputModal({ isOpen, onClose, onSubmit, title, placeholder, desc
                   onChange={(e) => setValue(e.target.value)}
                   placeholder={placeholder}
                   autoFocus
-                  className="w-full px-4 py-3 bg-neutral-800 border border-white/10 rounded-lg text-white placeholder-neutral-500 focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full px-4 py-3 bg-surface-raised border border-white/10 rounded-lg text-foreground placeholder:text-foreground-dim focus:outline-none focus:border-blue-500 transition-colors"
                 />
 
                 {/* Buttons */}
@@ -80,7 +80,7 @@ export function InputModal({ isOpen, onClose, onSubmit, title, placeholder, desc
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="flex-1 px-4 py-2 bg-neutral-800 text-white rounded-lg hover:bg-neutral-700 transition-colors"
+                    className="flex-1 px-4 py-2 bg-surface-raised text-foreground rounded-lg hover:bg-surface-raised transition-colors"
                   >
                     Cancel
                   </button>

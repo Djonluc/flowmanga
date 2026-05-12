@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { save } from '@tauri-apps/plugin-dialog';
+import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { 
     Play, ArrowLeft, Clock, Library as LibraryIcon, User, RefreshCw, 
     Trash2, Image as ImageIcon, Sparkles, ShieldCheck, Loader2, Wrench,
@@ -17,6 +18,7 @@ import { useSettingsStore } from '../../stores/useSettingsStore';
 import { useDownloadStore } from '../../stores/useDownloadStore';
 import { UpdateManager } from '../../services/UpdateManager';
 import { toast } from '../Toast';
+import { TagManagerModal } from './TagManagerModal';
 import clsx from 'clsx';
 
 interface MangaDetailsProps {
@@ -25,7 +27,7 @@ interface MangaDetailsProps {
 }
 
 export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) => {
-  const { series, refreshMangaMetadata, toggleFavorite, renameSeries, deleteSeries } = useLibraryStore();
+  const { series, refreshMangaMetadata, toggleFavorite, deleteSeries, verifyLibraryIntegrity, refreshChapterThumbnails, clearReadingProgressForSeries, toggleFilterTag, scanLibrary } = useLibraryStore();
   const { openFolder } = useReadingStore();
   const { setAmbientImage } = useSettingsStore();
   const { queue: activeJobs } = useDownloadStore();
@@ -41,6 +43,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
   const [isTopMoreMenuOpen, setIsTopMoreMenuOpen] = useState(false);
   const [isActionsMoreMenuOpen, setIsActionsMoreMenuOpen] = useState(false);
   const [isDownloadSelectorOpen, setIsDownloadSelectorOpen] = useState(false);
+  const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [heroBackground, setHeroBackground] = useState<string | null>(null);
   const [downloadRange, setDownloadRange] = useState({ start: '', end: '' });
 
@@ -97,63 +100,94 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
 
   useEffect(() => {
     let active = true;
+    if (!selectedSeries) return;
+
+    setHeroBackground(null);
+
     if (coverSrc) setAmbientImage(coverSrc);
 
-    const pickRandomBackdrop = async () => {
-        if (!selectedSeries || selectedSeries.books.length === 0) return;
-        try {
-            // Pick a random book, but try to avoid the very first or last one if possible
-            const bookIdx = selectedSeries.books.length > 3 
-                ? Math.floor(Math.random() * (selectedSeries.books.length - 2)) + 1 
-                : Math.floor(Math.random() * selectedSeries.books.length);
-            const randomBook = selectedSeries.books[bookIdx];
-            
-            const images: string[] = await invoke('read_folder', { path: randomBook.path });
-            if (images.length > 5) {
-                // Pick from the middle of the chapter to avoid covers/credits
-                const startRange = Math.floor(images.length * 0.2);
-                const endRange = Math.floor(images.length * 0.8);
-                const randomImgPath = images[Math.floor(Math.random() * (endRange - startRange)) + startRange];
-                if (active) setHeroBackground(convertFileSrc(randomImgPath));
-            } else if (images.length > 0) {
-                const randomImgPath = images[Math.floor(Math.random() * images.length)];
-                if (active) setHeroBackground(convertFileSrc(randomImgPath));
-            }
-        } catch (e) {
-            console.warn('[MangaDetails] Backdrop Summon Failed:', e);
+    const pickBackdrop = async () => {
+      const applyFromPaths = (paths: string[]): boolean => {
+        const imgs = paths.filter((p) => {
+          if (!/\.(jpe?g|png|webp|gif)$/i.test(p)) return false;
+          const base = p.split(/[/\\]/).pop() || '';
+          if (base.toLowerCase() === 'cover.jpg' || base.toLowerCase() === 'cover.jpeg') return false;
+          if (base.toLowerCase() === 'metadata.json') return false;
+          return true;
+        });
+        if (imgs.length === 0) return false;
+        let idx: number;
+        if (imgs.length > 6) {
+          const start = Math.floor(imgs.length * 0.15);
+          const end = Math.floor(imgs.length * 0.85);
+          idx = start + Math.floor(Math.random() * Math.max(1, end - start));
+        } else {
+          idx = Math.floor(Math.random() * imgs.length);
         }
+        const raw = imgs[Math.min(idx, imgs.length - 1)];
+        if (active) setHeroBackground(raw.startsWith('http') ? raw : convertFileSrc(raw));
+        return true;
+      };
+
+      try {
+        const paths: string[] = await invoke('read_folder', { path: selectedSeries.path });
+        if (active && applyFromPaths(paths)) return;
+      } catch (e) {
+        console.warn('[MangaDetails] read_folder (series root) failed:', e);
+      }
+
+      if (selectedSeries.books.length > 0) {
+        const bookIdx =
+          selectedSeries.books.length > 3
+            ? Math.floor(Math.random() * (selectedSeries.books.length - 2)) + 1
+            : Math.floor(Math.random() * selectedSeries.books.length);
+        const randomBook = selectedSeries.books[bookIdx];
+        try {
+          const paths: string[] = await invoke('read_folder', { path: randomBook.path });
+          if (active && applyFromPaths(paths)) return;
+        } catch (e) {
+          console.warn('[MangaDetails] read_folder (chapter path) failed:', e);
+        }
+      }
+
+      if (coverSrc && active) setHeroBackground(coverSrc);
     };
 
-    pickRandomBackdrop();
-    const interval = setInterval(pickRandomBackdrop, 60000);
+    void pickBackdrop();
+    const interval = setInterval(() => void pickBackdrop(), 90000);
 
     const fetchRemote = async () => {
-        if (!selectedSeries) return;
-        setIsLoadingRemote(true);
-        try {
-            const seriesUrl = await UpdateManager.resolveSeriesUrl(selectedSeries.id);
-            if (seriesUrl) {
-                const { ScraperService } = await import('../../services/ScraperService');
-                const result = await ScraperService.scrapeChapter(seriesUrl);
-                if (active && result.series?.chapters) {
-                    setRemoteChapters(result.series.chapters);
-                }
-            }
-        } catch (e) {
-            console.warn('[MangaDetails] Failed to fetch remote feed:', e);
-        } finally {
-            if (active) setIsLoadingRemote(false);
+      setIsLoadingRemote(true);
+      try {
+        const seriesUrl = await UpdateManager.resolveSeriesUrl(selectedSeries.id);
+        if (seriesUrl) {
+          const { ScraperService } = await import('../../services/ScraperService');
+          const result = await ScraperService.scrapeChapter(seriesUrl);
+          if (active && result.series?.chapters) {
+            setRemoteChapters(result.series.chapters);
+          }
         }
+      } catch (e) {
+        console.warn('[MangaDetails] Failed to fetch remote feed:', e);
+      } finally {
+        if (active) setIsLoadingRemote(false);
+      }
     };
 
-    fetchRemote();
+    void fetchRemote();
 
     return () => {
-        active = false;
-        setAmbientImage(null);
-        clearInterval(interval);
+      active = false;
+      setAmbientImage(null);
+      clearInterval(interval);
     };
-  }, [selectedSeries?.id, coverSrc, setAmbientImage]);
+  }, [
+    selectedSeries?.id,
+    selectedSeries?.path,
+    selectedSeries?.books?.length,
+    coverSrc,
+    setAmbientImage,
+  ]);
 
   const handleReadChapter = async (targetBook: Book, startPage?: number) => {
     const sequence = [...sortedChapters].sort((a, b) => {
@@ -180,6 +214,23 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
   const currentChapterDisplay = latestWithProgress ? (latestWithProgress.meta.chapter || '1') : '1';
   const currentPageDisplay = latestWithProgress ? (latestWithProgress.progress?.currentPage || 0) + 1 : 1;
 
+  if (!selectedSeries) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center bg-background text-foreground-muted gap-4 p-8">
+        <Loader2 className="animate-spin text-accent" size={36} />
+        <p className="text-sm font-bold uppercase tracking-widest text-center">This volume is not in the archive.</p>
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest bg-surface-elevated px-4 py-2 rounded-xl border border-border-subtle text-foreground hover:bg-surface-raised"
+        >
+          <ArrowLeft size={16} />
+          Return to Archives
+        </button>
+      </div>
+    );
+  }
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -192,18 +243,19 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
               {heroBackground ? (
                   <motion.div 
                       key={heroBackground}
-                      initial={{ opacity: 0, scale: 1.15 }}
-                      animate={{ opacity: 0.18, scale: 1.05 }}
-                      exit={{ opacity: 0, scale: 1.2 }}
-                      transition={{ duration: 3, ease: "easeOut" }}
-                      className="absolute inset-0 bg-center bg-cover blur-[80px] saturate-[1.2]"
+                      initial={{ opacity: 0, scale: 1.08 }}
+                      animate={{ opacity: 0.5, scale: 1.02 }}
+                      exit={{ opacity: 0, scale: 1.12 }}
+                      transition={{ duration: 2.2, ease: "easeOut" }}
+                      className="absolute inset-0 bg-center bg-cover blur-[44px] sm:blur-[52px] saturate-[1.12]"
                       style={{ backgroundImage: `url(${heroBackground})` }}
                   />
               ) : coverSrc ? (
                   <motion.div 
                       initial={{ opacity: 0 }}
-                      animate={{ opacity: 0.15 }}
-                      className="absolute inset-0 bg-center bg-cover scale-125 blur-[120px] saturate-[1.5]"
+                      animate={{ opacity: 0.42 }}
+                      transition={{ duration: 1.4 }}
+                      className="absolute inset-0 bg-center bg-cover scale-110 blur-[64px] sm:blur-[80px] saturate-[1.2]"
                       style={{ backgroundImage: `url(${coverSrc})` }}
                   />
               ) : (
@@ -211,10 +263,10 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
               )}
           </AnimatePresence>
           
-          {/* Multi-layered cinematic blending */}
-          <div className="absolute inset-0 bg-gradient-to-b from-background/20 via-background/60 to-background" />
-          <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-transparent opacity-60" />
-          <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-background via-background/40 to-transparent" />
+          {/* Multi-layered cinematic blending — leave more of the art visible, then grade into page bg */}
+          <div className="absolute inset-0 bg-gradient-to-b from-background/25 via-background/45 to-background" />
+          <div className="absolute inset-0 bg-gradient-to-r from-background/80 via-transparent to-transparent opacity-55" />
+          <div className="absolute inset-x-0 bottom-0 min-h-[55%] bg-gradient-to-t from-background via-background/55 to-transparent" />
           
           {/* Subtle vignette for depth - Now theme-aware */}
           <div className="absolute inset-0 shadow-[inset_0_0_150px_var(--color-background)] opacity-20" />
@@ -226,7 +278,22 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
               Return to Archives
           </button>
           <div className="flex items-center gap-4">
-              <button className="p-3 rounded-xl bg-surface-elevated hover:bg-surface-raised text-foreground-muted hover:text-foreground transition-all border border-border-subtle active:scale-95 shadow-2xl">
+              <button
+                  type="button"
+                  onClick={async () => {
+                      const line = [selectedSeries.displayName, selectedSeries.seriesUrl || selectedSeries.path]
+                          .filter(Boolean)
+                          .join('\n');
+                      try {
+                          await navigator.clipboard.writeText(line);
+                          toast.success('Series details copied');
+                      } catch {
+                          toast.error('Could not copy to clipboard');
+                      }
+                  }}
+                  className="p-3 rounded-xl bg-surface-elevated hover:bg-surface-raised text-foreground-muted hover:text-foreground transition-all border border-border-subtle active:scale-95 shadow-2xl"
+                  title="Copy title and link or path"
+              >
                   <Share size={18} />
               </button>
               <div className="relative">
@@ -254,23 +321,43 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                                     invoke('show_path_in_file_manager', { path: selectedSeries.path });
                                     setIsTopMoreMenuOpen(false);
                                 }} />
-                                <MenuAction icon={<RotateCcw size={14} />} label="Rebuild Chapter Cache" onClick={() => {
-                                    toast.info("Rebuilding Chronology...");
+                                <MenuAction icon={<RotateCcw size={14} />} label="Rebuild Chapter Cache" onClick={async () => {
+                                    toast.info('Regenerating chapter thumbnails…');
+                                    await refreshChapterThumbnails(selectedSeries.id);
+                                    toast.success('Thumbnails refreshed');
                                     setIsTopMoreMenuOpen(false);
                                 }} />
-                                <MenuAction icon={<FileOutput size={14} />} label="Export Metadata" onClick={() => {
-                                    toast.success("Metadata Manifested");
+                                <MenuAction icon={<FileOutput size={14} />} label="Export Metadata" onClick={async () => {
+                                    try {
+                                        const metaPath = `${selectedSeries.path}/metadata.json`;
+                                        const content = await readTextFile(metaPath);
+                                        const dest = await save({
+                                            defaultPath: `${selectedSeries.displayName.replace(/[\\/:*?"<>|]/g, '-')}-metadata.json`,
+                                            filters: [{ name: 'JSON', extensions: ['json'] }],
+                                        });
+                                        if (dest) {
+                                            await writeTextFile(dest, content);
+                                            toast.success('Metadata exported');
+                                        }
+                                    } catch (e) {
+                                        console.error(e);
+                                        toast.error('Export failed (missing metadata.json?)');
+                                    }
                                     setIsTopMoreMenuOpen(false);
                                 }} />
                                 <div className="h-px bg-border-subtle my-2 mx-2" />
-                                <MenuAction icon={<ShieldCheck size={14} />} label="Verify All Chapters" onClick={() => {
+                                <MenuAction icon={<ShieldCheck size={14} />} label="Verify All Chapters" onClick={async () => {
+                                    await verifyLibraryIntegrity(selectedSeries.id);
+                                    toast.success('Chapter paths verified');
                                     setIsTopMoreMenuOpen(false);
                                 }} />
-                                <MenuAction icon={<Trash size={14} />} label="Clear Reading History" danger onClick={() => {
+                                <MenuAction icon={<Trash size={14} />} label="Clear Reading History" danger onClick={async () => {
+                                    await clearReadingProgressForSeries(selectedSeries.id);
+                                    toast.success('Reading progress cleared for this series');
                                     setIsTopMoreMenuOpen(false);
                                 }} />
-                                <MenuAction icon={<Bomb size={14} />} label="Obliterate Series" danger onClick={() => {
-                                    deleteSeries(selectedSeries.id);
+                                <MenuAction icon={<Bomb size={14} />} label="Obliterate Series" danger onClick={async () => {
+                                    await deleteSeries(selectedSeries.id, selectedSeries.path, true);
                                     onBack();
                                 }} />
                             </motion.div>
@@ -330,12 +417,23 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                 </div>
 
                 <div className="flex flex-wrap gap-2.5 max-w-4xl">
-                    {selectedSeries.tags.map(tag => (
-                        <button key={tag} className="px-4 py-2 bg-surface-elevated hover:bg-surface-raised rounded-xl text-[10px] font-black uppercase tracking-widest text-foreground-dim border border-border-subtle transition-all active:scale-95">
+                    {selectedSeries.tags.map((tag) => (
+                        <button
+                            key={tag}
+                            type="button"
+                            onClick={() => toggleFilterTag(tag)}
+                            className="px-4 py-2 bg-surface-elevated hover:bg-surface-raised rounded-xl text-[10px] font-black uppercase tracking-widest text-foreground-dim border border-border-subtle transition-all active:scale-95"
+                            title="Filter library by this tag"
+                        >
                             {tag}
                         </button>
                     ))}
-                    <button className="w-10 h-10 flex items-center justify-center bg-accent/5 border border-accent/20 rounded-xl text-accent hover:bg-accent hover:text-white transition-all">
+                    <button
+                        type="button"
+                        onClick={() => setIsTagManagerOpen(true)}
+                        className="w-10 h-10 flex items-center justify-center bg-accent/5 border border-accent/20 rounded-xl text-accent hover:bg-accent hover:text-foreground transition-all"
+                        title="Manage tags"
+                    >
                         <Plus size={16} />
                     </button>
                 </div>
@@ -380,12 +478,12 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                 className="lg:col-span-5 h-28 bg-accent rounded-[32px] p-8 flex items-center gap-6 group hover:scale-[1.02] transition-all active:scale-95 shadow-accent-glow relative overflow-hidden"
               >
                   <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-white group-hover:rotate-12 transition-transform shadow-lg">
+                  <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-foreground group-hover:rotate-12 transition-transform shadow-lg">
                     <Play size={32} fill="currentColor" />
                   </div>
                   <div className="text-left relative">
-                      <div className="text-xl font-black uppercase tracking-widest text-white">Continue Reading</div>
-                      <div className="text-xs text-white/70 font-bold uppercase tracking-widest mt-1 italic">Chapter {currentChapterDisplay} • Page {currentPageDisplay}</div>
+                      <div className="text-xl font-black uppercase tracking-widest text-foreground">Continue Reading</div>
+                      <div className="text-xs text-foreground/70 font-bold uppercase tracking-widest mt-1 italic">Chapter {currentChapterDisplay} • Page {currentPageDisplay}</div>
                   </div>
               </button>
 
@@ -451,10 +549,25 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                                     exit={{ opacity: 0, scale: 0.9, y: 10 }}
                                     className="absolute bottom-full mb-4 left-0 w-64 bg-surface border border-border-subtle rounded-2xl p-2 z-50 shadow-cinematic backdrop-blur-3xl"
                                 >
-                                    <MenuAction icon={<HardDrive size={14} />} label="Backup Manifest" onClick={() => setIsActionsMoreMenuOpen(false)} />
-                                    <MenuAction icon={<PieChart size={14} />} label="View Deep Insights" onClick={() => setIsActionsMoreMenuOpen(false)} />
+                                    <MenuAction icon={<HardDrive size={14} />} label="Backup Manifest" onClick={async () => {
+                                        try {
+                                            await navigator.clipboard.writeText(selectedSeries.path);
+                                            toast.success('Series folder path copied');
+                                        } catch {
+                                            toast.error('Could not copy path');
+                                        }
+                                        setIsActionsMoreMenuOpen(false);
+                                    }} />
+                                    <MenuAction icon={<PieChart size={14} />} label="View Deep Insights" onClick={() => {
+                                        toast.info('Use History and Stats in the sidebar for reading analytics.');
+                                        setIsActionsMoreMenuOpen(false);
+                                    }} />
                                     <div className="h-px bg-border-subtle my-2 mx-2" />
-                                    <MenuAction icon={<RotateCcw size={14} />} label="Re-index Library" onClick={() => setIsActionsMoreMenuOpen(false)} />
+                                    <MenuAction icon={<RotateCcw size={14} />} label="Re-index Library" onClick={async () => {
+                                        await scanLibrary(selectedSeries.path);
+                                        toast.success('Folder re-scanned');
+                                        setIsActionsMoreMenuOpen(false);
+                                    }} />
                                 </motion.div>
                             </>
                         )}
@@ -524,10 +637,10 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                                 {isSearching ? <X size={16} /> : <Search size={16} />}
                             </button>
                         </div>
-                        <button onClick={() => setViewMode('list')} className={clsx("p-3 rounded-xl transition-all border", viewMode === 'list' ? "bg-white text-black border-white shadow-xl" : "text-neutral-500 hover:text-white border-transparent")}>
+                        <button onClick={() => setViewMode('list')} className={clsx("p-3 rounded-xl transition-all border", viewMode === 'list' ? "bg-white text-black border-white shadow-xl" : "text-foreground-dim hover:text-foreground border-transparent")}>
                             <ListFilter size={20} />
                         </button>
-                        <button onClick={() => setViewMode('grid')} className={clsx("p-3 rounded-xl transition-all border", viewMode === 'grid' ? "bg-white text-black border-white shadow-xl" : "text-neutral-500 hover:text-white border-transparent")}>
+                        <button onClick={() => setViewMode('grid')} className={clsx("p-3 rounded-xl transition-all border", viewMode === 'grid' ? "bg-white text-black border-white shadow-xl" : "text-foreground-dim hover:text-foreground border-transparent")}>
                             <LayoutGrid size={20} />
                         </button>
                     </div>
@@ -559,8 +672,8 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                                     isCurrent ? "border-accent/40 bg-accent/10 shadow-accent-glow" : "border-border-subtle hover:border-border-strong"
                                 )}
                             >
-                                <div className="w-16 h-16 rounded-xl overflow-hidden bg-neutral-900 shrink-0 border border-white/10 group-hover:border-white/20 transition-all shadow-lg">
-                                    {chCover ? <img src={chCover} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" /> : <div className="w-full h-full flex items-center justify-center text-neutral-800"><BookOpen size={24} /></div>}
+                                <div className="w-16 h-16 rounded-xl overflow-hidden bg-surface shrink-0 border border-white/10 group-hover:border-white/20 transition-all shadow-lg">
+                                    {chCover ? <img src={chCover} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" /> : <div className="w-full h-full flex items-center justify-center text-foreground"><BookOpen size={24} /></div>}
                                 </div>
 
                                 <div className="ml-8 flex-1 min-w-0">
@@ -589,13 +702,13 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                                                     <CheckCircle2 size={16} />
                                                 </div>
                                             ) : (
-                                                <div className="w-8 h-8 rounded-full bg-white/5 text-neutral-600 flex items-center justify-center border border-white/5">
+                                                <div className="w-8 h-8 rounded-full bg-white/5 text-foreground-muted flex items-center justify-center border border-white/5">
                                                     <ArrowDownToLine size={16} />
                                                 </div>
                                             )}
                                         </div>
                                     )}
-                                    <button className="p-2.5 text-neutral-700 hover:text-white transition-colors hover:bg-white/5 rounded-xl">
+                                    <button className="p-2.5 text-foreground-muted hover:text-foreground transition-colors hover:bg-white/5 rounded-xl">
                                         <MoreVertical size={20} />
                                     </button>
                                 </div>
@@ -613,13 +726,27 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                 <SidebarPanel title="Series Chronicle">
                     <div className="space-y-8">
                         <SidebarItem label="Transcribed Title" value={selectedSeries.displayName} />
-                        <SidebarItem label="Archival Origin" value="Naver Webtoon" />
+                        <SidebarItem label="Archival Origin" value={selectedSeries.source || 'Local'} />
                         <div className="space-y-4">
-                            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-600 block">Thematic Resonance</span>
+                            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-foreground-muted block">Thematic resonance</span>
                             <div className="flex flex-wrap gap-2.5">
-                                {['Harem', 'Military', 'School', 'Isekai', 'Reincarnation'].map(t => (
-                                    <span key={t} className="px-4 py-2 bg-white/5 rounded-xl text-[11px] font-bold text-neutral-400 border border-white/5 hover:border-accent/20 hover:text-accent transition-all cursor-default">{t}</span>
-                                ))}
+                                {selectedSeries.tags.length > 0 ? (
+                                    selectedSeries.tags.map((t) => (
+                                        <button
+                                            key={`side-${t}`}
+                                            type="button"
+                                            onClick={() => toggleFilterTag(t)}
+                                            className="px-4 py-2 bg-white/5 rounded-xl text-[11px] font-bold text-foreground-dim border border-white/5 hover:border-accent/30 hover:text-accent transition-all text-left"
+                                            title="Toggle this tag in library filters"
+                                        >
+                                            {t}
+                                        </button>
+                                    ))
+                                ) : (
+                                    <p className="text-[11px] text-foreground-muted italic leading-relaxed">
+                                        No tags yet. Use <span className="font-bold text-foreground-dim">Synchronize</span> for remote genres or add tags with + on the hero row.
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -629,7 +756,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                     <div className="space-y-6">
                         <StatItem icon={<LibraryIcon size={16} />} label="Active Sessions" value="12,432" color="text-blue-400" />
                         <StatItem icon={<CheckCircle2 size={16} />} label="Total Resonations" value="8,921" color="text-green-400" />
-                        <StatItem icon={<Bookmark size={16} />} label="Awaiting Spirits" value="15,432" color="text-neutral-400" />
+                        <StatItem icon={<Bookmark size={16} />} label="Awaiting Spirits" value="15,432" color="text-foreground-dim" />
                         <StatItem icon={<Trash2 size={16} />} label="Severed Connections" value="1,234" color="text-red-400" />
                         <StatItem icon={<Heart size={16} />} label="High Affinity" value="23,456" color="text-red-500" />
                         <div className="h-px bg-white/5 my-4" />
@@ -654,15 +781,15 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                             </svg>
                             <div className="absolute inset-0 flex flex-col items-center justify-center">
                                 <span className="text-sm font-black italic group-hover:scale-110 transition-transform">1.24 GB</span>
-                                <span className="text-[8px] text-neutral-600 font-black uppercase tracking-[0.3em] mt-1">Weight</span>
+                                <span className="text-[8px] text-foreground-muted font-black uppercase tracking-[0.3em] mt-1">Weight</span>
                             </div>
                         </div>
                         <div className="flex-1 space-y-4">
                             <div className="space-y-1">
-                                <div className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Archive Health</div>
+                                <div className="text-[10px] font-black uppercase tracking-widest text-foreground-dim">Archive Health</div>
                                 <div className="text-2xl font-black italic text-accent">OPTIMAL</div>
                             </div>
-                            <p className="text-[10px] text-neutral-600 font-bold leading-relaxed uppercase tracking-wider">
+                            <p className="text-[10px] text-foreground-muted font-bold leading-relaxed uppercase tracking-wider">
                                 Current manifestation is secured across 62 local scrolls. Gaps detected: 0.
                             </p>
                         </div>
@@ -691,7 +818,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                   >
                       <button 
                         onClick={() => setIsDownloadSelectorOpen(false)}
-                        className="absolute top-8 right-8 p-3 rounded-full bg-white/5 hover:bg-white/10 text-neutral-500 hover:text-white transition-all"
+                        className="absolute top-8 right-8 p-3 rounded-full bg-white/5 hover:bg-white/10 text-foreground-dim hover:text-foreground transition-all"
                       >
                           <X size={24} />
                       </button>
@@ -701,7 +828,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                               <h2 className="text-4xl font-black italic uppercase tracking-tighter flex items-center gap-4">
                                 <Download size={32} className="text-accent" /> Precision <span className="text-accent">Manifestation</span>
                               </h2>
-                              <p className="text-neutral-500 text-sm font-bold uppercase tracking-widest leading-relaxed">
+                              <p className="text-foreground-dim text-sm font-bold uppercase tracking-widest leading-relaxed">
                                 Choose the exact chapter resonance you wish to manifest into the local archive.
                               </p>
                           </div>
@@ -720,10 +847,10 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                           </div>
 
                           <div className="space-y-6 bg-white/[0.02] border border-white/5 rounded-3xl p-8">
-                              <div className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-600">Manual Range Resonance</div>
+                              <div className="text-[10px] font-black uppercase tracking-[0.4em] text-foreground-muted">Manual Range Resonance</div>
                               <div className="flex items-center gap-6">
                                   <div className="flex-1 space-y-2">
-                                      <span className="text-[8px] font-black text-neutral-700 uppercase tracking-widest ml-1">Start Scroll</span>
+                                      <span className="text-[8px] font-black text-foreground-muted uppercase tracking-widest ml-1">Start Scroll</span>
                                       <input 
                                         type="text" 
                                         placeholder="e.g. 1" 
@@ -734,7 +861,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                                   </div>
                                   <div className="w-4 h-px bg-white/10 mt-6" />
                                   <div className="flex-1 space-y-2">
-                                      <span className="text-[8px] font-black text-neutral-700 uppercase tracking-widest ml-1">End Scroll</span>
+                                      <span className="text-[8px] font-black text-foreground-muted uppercase tracking-widest ml-1">End Scroll</span>
                                       <input 
                                         type="text" 
                                         placeholder="e.g. 62" 
@@ -786,6 +913,13 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
               </div>
           )}
       </AnimatePresence>
+
+      <TagManagerModal
+        isOpen={isTagManagerOpen}
+        onClose={() => setIsTagManagerOpen(false)}
+        seriesId={selectedSeries.id}
+        initialTags={selectedSeries.tags}
+      />
     </motion.div>
   );
 };
@@ -817,14 +951,14 @@ const DownloadOption = ({ icon, label, sub, onClick }: any) => (
         onClick={onClick}
         className="flex flex-col items-center justify-center gap-2 p-8 bg-surface-elevated hover:bg-accent border border-border-subtle hover:border-accent rounded-3xl transition-all group active:scale-95 shadow-cinematic"
     >
-        <div className="w-12 h-12 rounded-2xl bg-background/20 group-hover:bg-white/20 flex items-center justify-center text-accent group-hover:text-white transition-all">
+        <div className="w-12 h-12 rounded-2xl bg-background/20 group-hover:bg-white/20 flex items-center justify-center text-accent group-hover:text-foreground transition-all">
             {icon}
         </div>
         <div className="text-center">
-            <div className="text-[11px] font-black uppercase tracking-widest group-hover:text-white">
+            <div className="text-[11px] font-black uppercase tracking-widest group-hover:text-foreground">
                 {label}
             </div>
-            <div className="text-[8px] text-foreground-dim font-bold uppercase tracking-widest mt-1 group-hover:text-white/60">
+            <div className="text-[8px] text-foreground-dim font-bold uppercase tracking-widest mt-1 group-hover:text-foreground/60">
                 {sub}
             </div>
         </div>
@@ -944,7 +1078,7 @@ const MissingChapterCard = ({ item, seriesId }: { item: any, seriesId: string })
                     }
                 }}
                 disabled={isSummoning}
-                className="px-6 py-3 bg-surface-raised hover:bg-accent text-foreground-dim hover:text-white rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all active:scale-95 shadow-sm"
+                className="px-6 py-3 bg-surface-raised hover:bg-accent text-foreground-dim hover:text-foreground rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all active:scale-95 shadow-sm"
             >
                 {isSummoning ? <Loader2 size={16} className="animate-spin" /> : 'Manifest'}
             </button>

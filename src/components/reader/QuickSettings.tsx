@@ -100,13 +100,13 @@ export const QuickSettings = () => {
                 <span className="text-[9px] font-black text-accent uppercase tracking-[0.4em]">
                   Engine
                 </span>
-                <h2 className="text-xl font-black text-white italic tracking-tighter uppercase">
+                <h2 className="text-xl font-black text-foreground italic tracking-tighter uppercase">
                   Quick Settings
                 </h2>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:text-white transition-colors"
+                className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-foreground/40 hover:text-foreground transition-colors"
               >
                 <X size={16} />
               </button>
@@ -115,7 +115,7 @@ export const QuickSettings = () => {
             <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar max-h-[60vh]">
               {/* Mode Section */}
               <div className="space-y-3">
-                <span className="text-[8px] font-black text-neutral-500 uppercase tracking-[0.4em] block pl-1">
+                <span className="text-[8px] font-black text-foreground-dim uppercase tracking-[0.4em] block pl-1">
                   Reading Mode
                 </span>
                 <div className="grid grid-cols-3 gap-2">
@@ -148,8 +148,8 @@ export const QuickSettings = () => {
                         className={clsx(
                           "flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all duration-300",
                           isActive
-                            ? "bg-accent border-accent text-white shadow-lg shadow-accent/20"
-                            : "bg-white/5 border-white/5 text-neutral-400 hover:bg-white/10",
+                            ? "bg-accent border-accent text-foreground shadow-lg shadow-accent/20"
+                            : "bg-white/5 border-white/5 text-foreground-dim hover:bg-white/10",
                         )}
                       >
                         <m.icon size={18} />
@@ -166,7 +166,7 @@ export const QuickSettings = () => {
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-                  <span className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.3em]">
+                  <span className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.3em]">
                     Image Fit
                   </span>
                 </div>
@@ -179,7 +179,7 @@ export const QuickSettings = () => {
                         "px-2 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border",
                         imageFit === fit
                           ? "bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.2)]"
-                          : "bg-white/5 border-white/5 text-neutral-500 hover:text-white hover:bg-white/10",
+                          : "bg-white/5 border-white/5 text-foreground-dim hover:text-foreground hover:bg-white/10",
                       )}
                     >
                       {fit}
@@ -190,7 +190,7 @@ export const QuickSettings = () => {
 
               {/* Dynamics Section */}
               <div className="space-y-4">
-                <span className="text-[8px] font-black text-neutral-500 uppercase tracking-[0.4em] block pl-1">
+                <span className="text-[8px] font-black text-foreground-dim uppercase tracking-[0.4em] block pl-1">
                   Dynamics
                 </span>
 
@@ -210,10 +210,10 @@ export const QuickSettings = () => {
                       className={clsx(
                         ambientMode === "adaptive-vibrant"
                           ? "text-accent"
-                          : "text-neutral-500",
+                          : "text-foreground-dim",
                       )}
                     />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-white">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-foreground">
                       Adaptive UI
                     </span>
                   </div>
@@ -222,7 +222,7 @@ export const QuickSettings = () => {
                       "w-8 h-4 rounded-full relative transition-colors",
                       ambientMode === "adaptive-vibrant"
                         ? "bg-accent"
-                        : "bg-neutral-800",
+                        : "bg-surface-raised",
                     )}
                   >
                     <motion.div
@@ -237,10 +237,10 @@ export const QuickSettings = () => {
                 {/* Atmosphere Controls */}
                 <div className="space-y-4 pt-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[8px] font-black text-neutral-500 uppercase tracking-[0.4em]">
+                    <span className="text-[8px] font-black text-foreground-dim uppercase tracking-[0.4em]">
                       Atmosphere
                     </span>
-                    <span className="text-[9px] font-black text-white/40 uppercase tracking-widest italic">
+                    <span className="text-[9px] font-black text-foreground/40 uppercase tracking-widest italic">
                       Diffusion Flow
                     </span>
                   </div>
@@ -248,7 +248,7 @@ export const QuickSettings = () => {
                   {/* Intensity */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between px-1">
-                      <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">
+                      <span className="text-[9px] font-bold text-foreground-dim uppercase tracking-wider">
                         Intensity
                       </span>
                       <span className="text-[10px] font-black text-accent">
@@ -279,7 +279,7 @@ export const QuickSettings = () => {
                   {/* Blur */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between px-1">
-                      <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">
+                      <span className="text-[9px] font-bold text-foreground-dim uppercase tracking-wider">
                         Diffusion
                       </span>
                       <span className="text-[10px] font-black text-accent">
@@ -320,10 +320,10 @@ export const QuickSettings = () => {
                           <Timer
                             size={12}
                             className={clsx(
-                              autoScroll ? "text-accent" : "text-neutral-500",
+                              autoScroll ? "text-accent" : "text-foreground-dim",
                             )}
                           />
-                          <span className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.3em]">
+                          <span className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.3em]">
                             Cinematic Flow
                           </span>
                         </div>
@@ -332,7 +332,7 @@ export const QuickSettings = () => {
                             "text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md",
                             autoScroll
                               ? "bg-accent/20 text-accent"
-                              : "bg-white/5 text-neutral-500",
+                              : "bg-white/5 text-foreground-dim",
                           )}
                         >
                           {autoScroll ? "Active" : "Standby"}
@@ -344,8 +344,8 @@ export const QuickSettings = () => {
                         className={clsx(
                           "w-full flex items-center justify-center gap-3 p-4 rounded-2xl border transition-all duration-300 group overflow-hidden relative",
                           autoScroll
-                            ? "bg-accent border-accent text-white shadow-[0_0_25px_rgba(59,130,246,0.4)]"
-                            : "bg-white/5 border-white/5 text-neutral-400 hover:bg-white/10 hover:border-white/10",
+                            ? "bg-accent border-accent text-foreground shadow-[0_0_25px_rgba(59,130,246,0.4)]"
+                            : "bg-white/5 border-white/5 text-foreground-dim hover:bg-white/10 hover:border-white/10",
                         )}
                       >
                         {autoScroll && (
@@ -376,7 +376,7 @@ export const QuickSettings = () => {
                     {/* Speed Slider */}
                     <div className="space-y-4 pt-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-[8px] font-black text-neutral-500 uppercase tracking-[0.4em]">
+                        <span className="text-[8px] font-black text-foreground-dim uppercase tracking-[0.4em]">
                           Flow Velocity
                         </span>
                         <span className="text-[10px] font-black text-accent">
@@ -386,7 +386,7 @@ export const QuickSettings = () => {
                       <div className="flex items-center gap-4">
                         <button
                           onClick={() => handleSpeedChange(-20)}
-                          className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white hover:bg-accent/20 hover:text-accent transition-all active:scale-90"
+                          className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-foreground hover:bg-accent/20 hover:text-accent transition-all active:scale-90"
                         >
                           <Minus size={16} />
                         </button>
@@ -414,19 +414,19 @@ export const QuickSettings = () => {
 
                         <button
                           onClick={() => handleSpeedChange(20)}
-                          className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white hover:bg-accent/20 hover:text-accent transition-all active:scale-90"
+                          className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-foreground hover:bg-accent/20 hover:text-accent transition-all active:scale-90"
                         >
                           <Plus size={16} />
                         </button>
                       </div>
-                      <p className="text-[8px] text-neutral-600 font-bold uppercase tracking-widest text-center opacity-60">
+                      <p className="text-[8px] text-foreground-muted font-bold uppercase tracking-widest text-center opacity-60">
                         Adjust speed for your reading pace
                       </p>
                     </div>
 
                     <div className="space-y-3 pt-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-[8px] font-black text-neutral-500 uppercase tracking-[0.4em]">
+                        <span className="text-[8px] font-black text-foreground-dim uppercase tracking-[0.4em]">
                           Vertical Gap
                         </span>
                         <span className="text-[10px] font-black text-blue-400">
@@ -436,7 +436,7 @@ export const QuickSettings = () => {
                       <div className="flex items-center gap-4">
                         <button
                           onClick={() => setGapSize(Math.max(0, gapSize - 8))}
-                          className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white hover:bg-white/10"
+                          className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-foreground hover:bg-white/10"
                         >
                           <Minus size={14} />
                         </button>
@@ -448,7 +448,7 @@ export const QuickSettings = () => {
                         </div>
                         <button
                           onClick={() => setGapSize(Math.min(100, gapSize + 8))}
-                          className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white hover:bg-white/10"
+                          className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-foreground hover:bg-white/10"
                         >
                           <Plus size={14} />
                         </button>
@@ -460,7 +460,7 @@ export const QuickSettings = () => {
                 {mode === "slideshow" && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-[8px] font-black text-neutral-500 uppercase tracking-[0.4em]">
+                      <span className="text-[8px] font-black text-foreground-dim uppercase tracking-[0.4em]">
                         Frame Delay
                       </span>
                       <span className="text-[10px] font-black text-purple-400">
@@ -470,7 +470,7 @@ export const QuickSettings = () => {
                     <div className="flex items-center gap-4">
                       <button
                         onClick={() => handleDelayChange(-500)}
-                        className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white hover:bg-white/10"
+                        className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-foreground hover:bg-white/10"
                       >
                         <Minus size={14} />
                       </button>
@@ -484,7 +484,7 @@ export const QuickSettings = () => {
                       </div>
                       <button
                         onClick={() => handleDelayChange(500)}
-                        className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white hover:bg-white/10"
+                        className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-foreground hover:bg-white/10"
                       >
                         <Plus size={14} />
                       </button>
@@ -498,7 +498,7 @@ export const QuickSettings = () => {
             <div className="p-4 bg-white/5 border-t border-white/5 grid grid-cols-2 gap-2">
               <button
                 onClick={toggleFullScreenAction}
-                className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition-all text-[8px] font-black uppercase tracking-widest"
+                className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-foreground-dim hover:text-foreground transition-all text-[8px] font-black uppercase tracking-widest"
               >
                 {isFullscreen ? (
                   <Minimize2 size={14} />
@@ -509,7 +509,7 @@ export const QuickSettings = () => {
               </button>
               <button
                 onClick={toggleSettings}
-                className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition-all text-[8px] font-black uppercase tracking-widest"
+                className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-foreground-dim hover:text-foreground transition-all text-[8px] font-black uppercase tracking-widest"
               >
                 <Settings size={14} />
                 Global
@@ -527,7 +527,7 @@ export const QuickSettings = () => {
           "w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-500 border border-white/10 backdrop-blur-3xl",
           isOpen
             ? "bg-accent text-white rotate-90"
-            : "bg-black/60 text-neutral-400 hover:text-white",
+            : "bg-black/60 text-white/80 hover:text-white",
         )}
       >
         {isOpen ? <X size={24} /> : <Settings2 size={24} />}

@@ -92,7 +92,7 @@ const MenuButton = ({ icon, label, onClick, danger }: any) => (
       "w-full px-5 py-3 text-left text-[10px] font-black uppercase tracking-widest flex items-center gap-4 transition-all",
       danger
         ? "text-red-500 hover:bg-red-500/10"
-        : "text-white/80 hover:text-white hover:bg-white/5",
+        : "text-foreground/80 hover:text-foreground hover:bg-white/5",
     )}
   >
     {icon}

@@ -159,16 +159,16 @@ export const MusicPlayer = ({ isExpanded }: { isExpanded: boolean }) => {
                         "w-10 h-10 rounded-xl overflow-hidden border flex-shrink-0 flex items-center justify-center cursor-pointer relative group/art",
                         hasError 
                             ? "bg-rose-950 border-rose-500/30" 
-                            : "bg-neutral-900 border-white/10"
+                            : "bg-surface border-white/10"
                     )}
                 >
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/art:opacity-100 flex items-center justify-center transition-opacity z-10">
                         {isLoading ? (
-                            <Loader2 size={14} className="text-white animate-spin" />
+                            <Loader2 size={14} className="text-foreground animate-spin" />
                         ) : isPlaying ? (
-                            <Pause size={14} className="text-white" />
+                            <Pause size={14} className="text-foreground" />
                         ) : (
-                            <Play size={14} className="text-white ml-0.5" />
+                            <Play size={14} className="text-foreground ml-0.5" />
                         )}
                     </div>
                     {isPlaying && !hasError && (
@@ -182,7 +182,7 @@ export const MusicPlayer = ({ isExpanded }: { isExpanded: boolean }) => {
                     )}
                     <Music size={16} className={clsx(
                         "transition-colors",
-                        hasError ? "text-rose-400" : isPlaying ? "text-indigo-400" : "text-neutral-500"
+                        hasError ? "text-rose-400" : isPlaying ? "text-indigo-400" : "text-foreground-dim"
                     )} />
                 </div>
 
@@ -192,14 +192,14 @@ export const MusicPlayer = ({ isExpanded }: { isExpanded: boolean }) => {
                         <div className="flex items-center justify-between">
                             <span className={clsx(
                                 "text-xs font-bold truncate",
-                                hasError ? "text-rose-400" : "text-white"
+                                hasError ? "text-rose-400" : "text-foreground"
                             )}>
                                 {getTrackName()}
                             </span>
                         </div>
                         <span className={clsx(
                             "text-[9px] font-black uppercase tracking-widest mt-0.5",
-                            hasError ? "text-rose-500/60" : isPlaying ? "text-indigo-400/60" : "text-neutral-500"
+                            hasError ? "text-rose-500/60" : isPlaying ? "text-indigo-400/60" : "text-foreground-dim"
                         )}>
                             {getStatusLabel()}
                         </span>
@@ -216,7 +216,7 @@ export const MusicPlayer = ({ isExpanded }: { isExpanded: boolean }) => {
                         >
                             <button 
                                 onClick={() => setIsMuted(!isMuted)}
-                                className="w-6 h-6 rounded-md hover:bg-white/10 flex items-center justify-center text-neutral-400 hover:text-white transition-colors"
+                                className="w-6 h-6 rounded-md hover:bg-white/10 flex items-center justify-center text-foreground-dim hover:text-foreground transition-colors"
                             >
                                 {isMuted || ambientVolume === 0 ? <VolumeX size={12} /> : <Volume2 size={12} />}
                             </button>
@@ -228,7 +228,7 @@ export const MusicPlayer = ({ isExpanded }: { isExpanded: boolean }) => {
                                         initial={{ opacity: 0, y: 10 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         exit={{ opacity: 0, y: 10 }}
-                                        className="absolute bottom-8 left-1/2 -translate-x-1/2 w-8 h-24 bg-neutral-900 border border-white/10 rounded-xl flex items-center justify-center py-3 shadow-xl z-50"
+                                        className="absolute bottom-8 left-1/2 -translate-x-1/2 w-8 h-24 bg-surface border border-white/10 rounded-xl flex items-center justify-center py-3 shadow-xl z-50"
                                     >
                                         <input 
                                             type="range" 
@@ -250,7 +250,7 @@ export const MusicPlayer = ({ isExpanded }: { isExpanded: boolean }) => {
                             disabled={playlist.length <= 1}
                             className={clsx(
                                 "w-6 h-6 rounded-md hover:bg-white/10 flex items-center justify-center transition-colors",
-                                playlist.length <= 1 ? "text-neutral-700 cursor-not-allowed" : "text-neutral-400 hover:text-white"
+                                playlist.length <= 1 ? "text-foreground-muted cursor-not-allowed" : "text-foreground-dim hover:text-foreground"
                             )}
                         >
                             <SkipForward size={12} />

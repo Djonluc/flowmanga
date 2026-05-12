@@ -23,9 +23,11 @@ import { DBMProvider } from './manga/DBMProvider';
 import { NhentaiProvider } from './doujin/NhentaiProvider';
 import { MangaReadProvider } from './manga/MangaReadProvider';
 import { ManhuaPlusProvider } from './manga/ManhuaPlusProvider';
+import { WebtoonsProvider } from './manga/WebtoonsProvider';
 
 // Register Phase 1
 sourceRegistry.register(new MangaDexProvider());
+sourceRegistry.register(new WebtoonsProvider());
 
 // Register Phase 2
 sourceRegistry.register(new ManhwaReadProvider());

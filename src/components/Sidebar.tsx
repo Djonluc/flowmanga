@@ -201,28 +201,28 @@ export const Sidebar = () => {
             !isExpanded && "justify-center",
           )}
         >
-          <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-indigo-500/20 group-hover/profile:border-indigo-500/50 flex-shrink-0 bg-neutral-900 flex items-center justify-center transition-all shadow-lg">
+          <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-indigo-500/20 group-hover/profile:border-indigo-500/50 flex-shrink-0 bg-surface flex items-center justify-center transition-all shadow-lg">
             <img
               src="https://api.dicebear.com/7.x/avataaars/svg?seed=VoidWalker"
               alt="Avatar"
               className="w-full h-full object-cover"
               onError={(e) => (e.currentTarget.style.display = "none")}
             />
-            <User size={18} className="text-neutral-600" />
+            <User size={18} className="text-foreground-muted" />
           </div>
           {isExpanded && (
             <div className="flex-1 min-w-0 flex items-center justify-between">
               <div className="flex flex-col">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-white/90 text-sm font-bold truncate tracking-tight group-hover/profile:text-white transition-colors">
+                  <span className="text-foreground/90 text-sm font-bold truncate tracking-tight group-hover/profile:text-foreground transition-colors">
                     VoidWalker
                   </span>
                 </div>
-                <span className="text-neutral-500 text-[9px] font-black uppercase tracking-widest mt-0.5 opacity-60">
+                <span className="text-foreground-dim text-[9px] font-black uppercase tracking-widest mt-0.5 opacity-60">
                   Master Profile
                 </span>
               </div>
-              <ChevronDown size={16} className="text-neutral-500 group-hover/profile:text-white transition-colors" />
+              <ChevronDown size={16} className="text-foreground-dim group-hover/profile:text-foreground transition-colors" />
             </div>
           )}
         </div>

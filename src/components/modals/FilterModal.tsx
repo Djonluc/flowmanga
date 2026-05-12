@@ -53,7 +53,7 @@ export const FilterModal = () => {
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="relative w-full max-w-2xl bg-neutral-900 border border-white/10 rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+                className="relative w-full max-w-2xl bg-surface border border-white/10 rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
             >
                 {/* Header */}
                 <div className="flex items-center justify-between px-8 py-6 border-b border-white/5 bg-white/[0.02]">
@@ -62,21 +62,21 @@ export const FilterModal = () => {
                             <Filter size={20} className="text-indigo-400" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-white tracking-tight">Advanced Filters</h2>
-                            <p className="text-xs text-neutral-500 font-medium">Refine your library view</p>
+                            <h2 className="text-xl font-bold text-foreground tracking-tight">Advanced Filters</h2>
+                            <p className="text-xs text-foreground-dim font-medium">Refine your library view</p>
                         </div>
                     </div>
                     
                     <div className="flex items-center gap-2">
                         <button 
                             onClick={handleClearAll}
-                            className="px-4 py-2 text-xs font-bold text-neutral-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"
+                            className="px-4 py-2 text-xs font-bold text-foreground-dim hover:text-foreground bg-white/5 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"
                         >
                             <RefreshCcw size={14} /> Clear All
                         </button>
                         <button 
                             onClick={closeFilterModal}
-                            className="p-2 text-neutral-500 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
+                            className="p-2 text-foreground-dim hover:text-foreground hover:bg-white/10 rounded-xl transition-colors"
                         >
                             <X size={20} />
                         </button>
@@ -88,7 +88,7 @@ export const FilterModal = () => {
                     
                     {/* Status Filters */}
                     <section className="space-y-4">
-                        <div className="flex items-center gap-2 text-neutral-400 font-bold uppercase tracking-widest text-[10px]">
+                        <div className="flex items-center gap-2 text-foreground-dim font-bold uppercase tracking-widest text-[10px]">
                             <Bookmark size={14} /> Reading Status
                         </div>
                         <div className="flex flex-wrap gap-3">
@@ -113,7 +113,7 @@ export const FilterModal = () => {
                     {/* Source Filters */}
                     {allSources.length > 0 && (
                         <section className="space-y-4">
-                            <div className="flex items-center gap-2 text-neutral-400 font-bold uppercase tracking-widest text-[10px]">
+                            <div className="flex items-center gap-2 text-foreground-dim font-bold uppercase tracking-widest text-[10px]">
                                 <Database size={14} /> Source Origin
                             </div>
                             <div className="flex flex-wrap gap-3">
@@ -131,7 +131,7 @@ export const FilterModal = () => {
 
                     {/* Tag Filters */}
                     <section className="space-y-4">
-                        <div className="flex items-center gap-2 text-neutral-400 font-bold uppercase tracking-widest text-[10px]">
+                        <div className="flex items-center gap-2 text-foreground-dim font-bold uppercase tracking-widest text-[10px]">
                             <Tag size={14} /> Tags & Genres
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -143,14 +143,14 @@ export const FilterModal = () => {
                                         "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border",
                                         filterTags.includes(tag) 
                                             ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.2)]" 
-                                            : "bg-white/[0.03] text-neutral-400 border-white/5 hover:bg-white/10 hover:text-white"
+                                            : "bg-white/[0.03] text-foreground-dim border-white/5 hover:bg-white/10 hover:text-foreground"
                                     )}
                                 >
                                     {tag}
                                 </button>
                             ))}
                             {allTags.length === 0 && (
-                                <span className="text-xs text-neutral-600 font-medium">No tags found in library.</span>
+                                <span className="text-xs text-foreground-muted font-medium">No tags found in library.</span>
                             )}
                         </div>
                     </section>
@@ -178,7 +178,7 @@ const FilterChip = ({ active, onClick, label }: { active: boolean, onClick: () =
             "px-4 py-2 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 border",
             active 
                 ? "bg-indigo-500 text-white border-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.5)]" 
-                : "bg-white/[0.03] text-neutral-400 border-white/5 hover:bg-white/10 hover:text-white"
+                : "bg-white/[0.03] text-foreground-dim border-white/5 hover:bg-white/10 hover:text-foreground"
         )}
     >
         {active && <Check size={14} />}

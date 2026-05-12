@@ -229,12 +229,12 @@ export const SmartImage = ({ src, alt, className, style, onLoad }: SmartImagePro
                     <AlertTriangle size={32} />
                 </div>
                 <div className="text-center">
-                    <p className="text-white font-black uppercase italic tracking-tighter text-lg">Page Load Failed</p>
-                    <p className="text-neutral-500 text-xs mt-1 max-w-[200px]">The image file could not be read or is missing from disk.</p>
+                    <p className="text-foreground font-black uppercase italic tracking-tighter text-lg">Page Load Failed</p>
+                    <p className="text-foreground-dim text-xs mt-1 max-w-[200px]">The image file could not be read or is missing from disk.</p>
                 </div>
                 <button 
                     onClick={() => setHasError(false)}
-                    className="mt-2 px-6 py-2 bg-white/5 hover:bg-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all border border-white/10"
+                    className="mt-2 px-6 py-2 bg-white/5 hover:bg-white/10 text-foreground text-[10px] font-black uppercase tracking-widest rounded-xl transition-all border border-white/10"
                 >
                     Retry Loading
                 </button>
@@ -248,7 +248,7 @@ export const SmartImage = ({ src, alt, className, style, onLoad }: SmartImagePro
                 {!isLoaded && isVisible && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050505] animate-pulse z-0">
                         <div className="w-12 h-12 border-4 border-white/5 border-t-indigo-500 rounded-full animate-spin shadow-[0_0_15px_rgba(99,102,241,0.5)]" />
-                        <span className="text-[10px] font-black text-neutral-600 uppercase tracking-[0.3em] mt-4">Loading Page</span>
+                        <span className="text-[10px] font-black text-foreground-muted uppercase tracking-[0.3em] mt-4">Loading Page</span>
                     </div>
                 )}
                 <img 

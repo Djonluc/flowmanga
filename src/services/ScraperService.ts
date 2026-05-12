@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { sourceRegistry } from "./sources";
 import { bridgeContent, bridgeSeries } from "./sources/bridge";
+import { isWebtoonsSeriesListUrl } from "./sources/manga/WebtoonsProvider";
 import { DiscoveryService } from "./DiscoveryService";
 import { ContentFilter } from "./ContentFilter";
 
@@ -103,6 +104,7 @@ export class ScraperService {
     if (provider) {
       try {
         const isSeriesPage =
+          isWebtoonsSeriesListUrl(targetUrl) ||
           targetUrl.includes("/title/") ||
           targetUrl.includes("/titles/") ||
           targetUrl.includes("/series/") ||

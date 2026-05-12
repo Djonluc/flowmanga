@@ -14,11 +14,11 @@ export const AutomationSettings = () => {
             <div className="bg-white/[0.03] border border-white/5 rounded-[32px] p-8 space-y-6">
                 <div className="flex items-center justify-between">
                     <div className="space-y-1">
-                        <h4 className="text-white font-black uppercase tracking-tighter italic flex items-center gap-2">
+                        <h4 className="text-foreground font-black uppercase tracking-tighter italic flex items-center gap-2">
                             <Sparkles size={18} className="text-indigo-400" />
                             Auto-Check for Chapters
                         </h4>
-                        <p className="text-neutral-500 text-xs font-bold leading-relaxed">
+                        <p className="text-foreground-dim text-xs font-bold leading-relaxed">
                             Automatically monitor your library for new chapter releases.
                         </p>
                     </div>
@@ -34,7 +34,7 @@ export const AutomationSettings = () => {
                     {/* Interval Slider */}
                     <div className="space-y-4">
                         <div className="flex justify-between items-center">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400 flex items-center gap-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-foreground-dim flex items-center gap-2">
                                 <Clock size={12} />
                                 Check Frequency
                             </label>
@@ -53,7 +53,7 @@ export const AutomationSettings = () => {
                             onChange={(e) => setCheckInterval(parseInt(e.target.value))}
                             className="w-full accent-indigo-500 h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer"
                         />
-                        <div className="flex justify-between text-[8px] font-bold text-neutral-600 uppercase tracking-widest">
+                        <div className="flex justify-between text-[8px] font-bold text-foreground-muted uppercase tracking-widest">
                             <span>15m</span>
                             <span>12h</span>
                         </div>
@@ -62,15 +62,15 @@ export const AutomationSettings = () => {
                     {/* Status Info */}
                     <div className="flex items-center justify-between bg-black/40 rounded-2xl p-4 border border-white/5">
                         <div className="flex flex-col gap-1">
-                            <span className="text-[8px] font-black text-neutral-500 uppercase tracking-[0.2em]">Last Sync</span>
-                            <span className="text-xs text-neutral-300 font-bold tracking-tight">
+                            <span className="text-[8px] font-black text-foreground-dim uppercase tracking-[0.2em]">Last Sync</span>
+                            <span className="text-xs text-foreground-muted font-bold tracking-tight">
                                 {lastCheckTime ? new Date(lastCheckTime).toLocaleString() : 'Never'}
                             </span>
                         </div>
                         <button 
                             onClick={() => checkForUpdates()}
                             disabled={isChecking}
-                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isChecking ? 'bg-indigo-500/20 text-indigo-400 animate-pulse' : 'bg-white/5 hover:bg-white/10 text-white border border-white/5'}`}
+                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isChecking ? 'bg-indigo-500/20 text-indigo-400 animate-pulse' : 'bg-white/5 hover:bg-white/10 text-foreground border border-white/5'}`}
                         >
                             {isChecking ? 'Checking...' : 'Check Now'}
                         </button>

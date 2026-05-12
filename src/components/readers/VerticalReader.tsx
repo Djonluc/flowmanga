@@ -240,7 +240,7 @@ export const VerticalReader = () => {
 
       <div className="py-60 flex flex-col items-center opacity-20">
         <div className="w-12 h-1 bg-white/20 rounded-full mb-4" />
-        <p className="text-[10px] font-black uppercase tracking-[0.5em] text-white">
+        <p className="text-[10px] font-black uppercase tracking-[0.5em] text-foreground">
           Archive Edge
         </p>
       </div>
@@ -352,7 +352,7 @@ const LazyReaderPage = ({
                 Chapter Concluded
               </p>
             </div>
-            <h3 className="text-xl md:text-2xl font-black text-white/40 uppercase tracking-widest flex items-center gap-4">
+            <h3 className="text-xl md:text-2xl font-black text-foreground/40 uppercase tracking-widest flex items-center gap-4">
               Continuing{" "}
               <span className="text-indigo-500 animate-pulse">↓</span> Scroll to
               advance

@@ -45,12 +45,12 @@ export const AnalyticsDashboard = () => {
                             <div className="w-[clamp(2.5rem,5vw,3rem)] h-[clamp(2.5rem,5vw,3rem)] rounded-[clamp(0.75rem,1.5vw,1.25rem)] bg-white/5 border border-white/10 flex items-center justify-center shadow-lg text-indigo-500">
                                 <BarChart2 size={24} />
                             </div>
-                            <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-black tracking-tight text-white leading-none italic uppercase">
+                            <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-black tracking-tight text-foreground leading-none italic uppercase">
                                 Analytics
                             </h2>
                         </div>
                         <div className="flex items-center gap-2 mt-4 opacity-60">
-                            <p className="text-[clamp(9px,1vw,11px)] font-black text-neutral-400 uppercase tracking-[0.3em]">
+                            <p className="text-[clamp(9px,1vw,11px)] font-black text-foreground-dim uppercase tracking-[0.3em]">
                                 Reading Activity & Deep Insights
                             </p>
                         </div>
@@ -75,9 +75,9 @@ export const AnalyticsDashboard = () => {
                                 <div className={`p-[clamp(0.75rem,1.5vw,1rem)] rounded-[clamp(0.75rem,1.5vw,1rem)] ${stat.bg} ${stat.color} shadow-lg shadow-black/20`}>
                                     {stat.icon}
                                 </div>
-                                <div className="text-[clamp(8px,0.8vw,10px)] font-black text-neutral-500 uppercase tracking-[0.4em] leading-none">{stat.label}</div>
+                                <div className="text-[clamp(8px,0.8vw,10px)] font-black text-foreground-dim uppercase tracking-[0.4em] leading-none">{stat.label}</div>
                             </div>
-                            <div className="text-[clamp(1.5rem,3vw,2.25rem)] font-black text-white tracking-tighter truncate mt-auto leading-none italic">{stat.value}</div>
+                            <div className="text-[clamp(1.5rem,3vw,2.25rem)] font-black text-foreground tracking-tighter truncate mt-auto leading-none italic">{stat.value}</div>
                         </motion.div>
                     ))}
                 </div>
@@ -92,7 +92,7 @@ export const AnalyticsDashboard = () => {
                         className="xl:col-span-8 p-[clamp(1.5rem,3vw,2.5rem)] rounded-[clamp(2rem,4vw,2.5rem)] border border-white/5 bg-white/[0.01] relative overflow-hidden shadow-2xl"
                     >
                         <div className="flex items-center justify-between mb-8">
-                            <h4 className="text-[clamp(12px,1.2vw,14px)] font-black text-white uppercase tracking-[0.4em] italic">Temporal Flow</h4>
+                            <h4 className="text-[clamp(12px,1.2vw,14px)] font-black text-foreground uppercase tracking-[0.4em] italic">Temporal Flow</h4>
                         </div>
                         <div className="h-[clamp(200px,40vh,400px)] w-full">
                             <AnalyticsGraph />
@@ -107,7 +107,7 @@ export const AnalyticsDashboard = () => {
                         className="xl:col-span-4 p-[clamp(1.5rem,3vw,2.5rem)] rounded-[clamp(2rem,4vw,2.5rem)] border border-white/5 bg-white/[0.01] bg-gradient-to-br from-white/[0.02] to-transparent shadow-2xl"
                     >
                          <div className="flex items-center justify-between mb-8">
-                            <h4 className="text-[clamp(12px,1.2vw,14px)] font-black text-white uppercase tracking-[0.4em] italic">Genre Spectrum</h4>
+                            <h4 className="text-[clamp(12px,1.2vw,14px)] font-black text-foreground uppercase tracking-[0.4em] italic">Genre Spectrum</h4>
                         </div>
                         <div className="h-[clamp(200px,40vh,400px)] w-full">
                             <GenreDistribution />
@@ -129,8 +129,8 @@ export const AnalyticsDashboard = () => {
                                 {stat.icon}
                             </div>
                             <div className="flex flex-col min-w-0">
-                                <span className="text-[clamp(7px,0.7vw,9px)] font-black text-neutral-500 uppercase tracking-[0.3em] mb-1.5">{stat.label}</span>
-                                <span className="text-[clamp(12px,1.2vw,15px)] font-black text-white truncate w-full italic" title={stat.value}>{stat.value}</span>
+                                <span className="text-[clamp(7px,0.7vw,9px)] font-black text-foreground-dim uppercase tracking-[0.3em] mb-1.5">{stat.label}</span>
+                                <span className="text-[clamp(12px,1.2vw,15px)] font-black text-foreground truncate w-full italic" title={stat.value}>{stat.value}</span>
                             </div>
                         </motion.div>
                     ))}

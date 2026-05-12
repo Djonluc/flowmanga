@@ -28,7 +28,7 @@ export const DownloadIndicator = () => {
                 onClick={toggleDownloadPanel}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="flex items-center gap-4 pl-4 pr-5 py-3 bg-neutral-900/80 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] group overflow-hidden relative"
+                className="flex items-center gap-4 pl-4 pr-5 py-3 bg-surface/90 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] group overflow-hidden relative"
             >
                 {/* Accent Glow */}
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -40,11 +40,11 @@ export const DownloadIndicator = () => {
                         ) : failedJobs.length > 0 ? (
                             <AlertCircle size={18} className="text-red-500" />
                         ) : (
-                            <Download size={18} className="text-neutral-500" />
+                            <Download size={18} className="text-foreground-dim" />
                         )}
                         
                         {totalCount > 0 && (
-                            <span className="absolute -top-1.5 -right-1.5 bg-blue-500 text-white text-[9px] font-black w-4 h-4 rounded-full border-2 border-neutral-900 flex items-center justify-center">
+                            <span className="absolute -top-1.5 -right-1.5 bg-blue-500 text-white text-[9px] font-black w-4 h-4 rounded-full border-2 border-background flex items-center justify-center">
                                 {totalCount}
                             </span>
                         )}
@@ -52,14 +52,14 @@ export const DownloadIndicator = () => {
                 </div>
 
                 <div className="flex flex-col items-start min-w-[140px]">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500 group-hover:text-blue-400 transition-colors">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-foreground-dim group-hover:text-blue-400 transition-colors">
                         {isActive ? 'Downloading' : failedJobs.length > 0 ? 'Action Required' : 'Download Queue'}
                     </span>
                     
                     <div className="flex flex-col w-full gap-1 mt-0.5">
                         {activeJobs.length > 0 ? (
                             <>
-                                <span className="text-xs font-bold text-white max-w-[120px] truncate">
+                                <span className="text-xs font-bold text-foreground max-w-[120px] truncate">
                                     {activeJobs[0].title}
                                 </span>
                                 <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
@@ -72,7 +72,7 @@ export const DownloadIndicator = () => {
                                 </div>
                             </>
                         ) : (
-                            <span className="text-xs font-medium text-neutral-300">
+                            <span className="text-xs font-medium text-foreground-muted">
                                 {failedJobs.length > 0 ? `${failedJobs.length} Failed Items` : `${queuedJobs.length} Items Enqueued`}
                             </span>
                         )}

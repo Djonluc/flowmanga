@@ -110,7 +110,7 @@ export const MangaCard = ({
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       whileHover={{ y: -8 }}
-      className="group relative flex flex-col gap-4 cursor-pointer"
+      className="group relative flex w-full max-w-full flex-col gap-4 cursor-pointer"
       onClick={onClick}
     >
       {/* Ambient Glow Backdrop */}
@@ -128,7 +128,7 @@ export const MangaCard = ({
       {/* Card Image Container */}
       <div
         className={clsx(
-          "relative overflow-hidden bg-surface shadow-premium transition-all duration-700 border border-border-subtle",
+          "relative w-full overflow-hidden bg-surface shadow-premium transition-all duration-700 border border-border-subtle",
           "group-hover:shadow-cinematic group-hover:border-border-strong",
           orientation === "landscape" ? "aspect-video" : "aspect-[2/3]",
           variant === "featured" ? "rounded-[40px]" : "rounded-[28px]",
@@ -148,7 +148,7 @@ export const MangaCard = ({
                 className={clsx(
                   "w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center backdrop-blur-xl shadow-2xl",
                   isSelected
-                    ? "bg-accent border-accent text-white"
+                    ? "bg-accent border-accent text-foreground"
                     : "bg-background/40 border-border-strong text-transparent",
                 )}
               >
@@ -231,36 +231,36 @@ export const MangaCard = ({
         )}
       </div>
 
-      {/* Details Underneath */}
-      <div className="flex flex-col px-1 pb-1">
+      {/* Details Underneath — fixed footprint so rail cards align */}
+      <div className="flex min-h-[3.75rem] flex-col justify-start px-1 pb-1">
         <h3 
             className="font-black text-foreground line-clamp-1 leading-snug group-hover:text-accent transition-colors uppercase tracking-tight"
             style={{ fontSize: variant === "featured" ? "clamp(16px, 1.5vw, 20px)" : "clamp(13px, 1.2vw, 16px)" }}
         >
           {title}
         </h3>
-        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+        <div className="mt-1.5 flex min-h-[1.5rem] flex-nowrap items-center gap-2 overflow-hidden">
           {isHistoryItem ? (
-            <span className="text-accent font-black uppercase tracking-widest" style={{ fontSize: "clamp(9px, 0.8vw, 11px)" }}>
+            <span className="truncate text-accent font-black uppercase tracking-widest" style={{ fontSize: "clamp(9px, 0.8vw, 11px)" }}>
                 Resume Ch {item.chapterNumber}
             </span>
           ) : (
             <>
-              <span className="text-foreground-dim font-bold tracking-[0.15em] uppercase truncate" style={{ fontSize: "clamp(9px, 0.8vw, 11px)" }}>
+              <span className="min-w-0 flex-1 truncate text-foreground-dim font-bold tracking-[0.15em] uppercase" style={{ fontSize: "clamp(9px, 0.8vw, 11px)" }}>
                 {tags[0] || (isSeries ? `${item.books.length} Volumes` : "Manga")}
               </span>
               {item.rating && (
                 <>
-                  <div className="w-1 h-1 rounded-full bg-border-strong flex-shrink-0" />
-                  <span className="text-amber-500 font-black tracking-tighter flex items-center gap-1" style={{ fontSize: "clamp(9px, 0.8vw, 11px)" }}>
+                  <div className="h-1 w-1 flex-shrink-0 rounded-full bg-border-strong" />
+                  <span className="flex-shrink-0 text-amber-500 font-black tracking-tighter" style={{ fontSize: "clamp(9px, 0.8vw, 11px)" }}>
                     ★ {item.rating}
                   </span>
                 </>
               )}
               {item.chapterNumber && (
                   <>
-                      <div className="w-1 h-1 rounded-full bg-border-strong flex-shrink-0" />
-                      <span className="text-foreground-dim font-bold uppercase tracking-widest" style={{ fontSize: "clamp(9px, 0.8vw, 11px)" }}>CH {item.chapterNumber}</span>
+                      <div className="h-1 w-1 flex-shrink-0 rounded-full bg-border-strong" />
+                      <span className="flex-shrink-0 text-foreground-dim font-bold uppercase tracking-widest" style={{ fontSize: "clamp(9px, 0.8vw, 11px)" }}>CH {item.chapterNumber}</span>
                   </>
               )}
             </>

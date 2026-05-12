@@ -35,7 +35,7 @@ export const DownloadSettings = () => {
             <section className="space-y-4">
                 <div className="flex items-center gap-3 mb-6">
                     <div className="w-1.5 h-6 bg-purple-500 rounded-full" />
-                    <h4 className="text-white font-black uppercase tracking-widest text-sm italic">
+                    <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
                         Storage Configuration
                     </h4>
                 </div>
@@ -48,15 +48,15 @@ export const DownloadSettings = () => {
                             </div>
                             <div className="flex flex-col min-w-0">
                                 <span className="text-purple-500 text-[10px] font-black uppercase tracking-widest mb-1">Download Directory</span>
-                                <span className="text-white text-base font-bold truncate opacity-80" title={downloadPath || 'Default (Library)'}>
+                                <span className="text-foreground text-base font-bold truncate opacity-80" title={downloadPath || 'Default (Library)'}>
                                     {downloadPath || 'Same as Library'}
                                 </span>
-                                <p className="text-neutral-600 text-[10px] font-medium mt-1">Where temporary and final downloads are staged.</p>
+                                <p className="text-foreground-muted text-[10px] font-medium mt-1">Where temporary and final downloads are staged.</p>
                             </div>
                         </div>
                         <button 
                             onClick={handleBrowseDownloads}
-                            className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 whitespace-nowrap"
+                            className="px-6 py-3 bg-white/5 hover:bg-white/10 text-foreground border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 whitespace-nowrap"
                         >
                             Change Location
                         </button>
@@ -68,7 +68,7 @@ export const DownloadSettings = () => {
             <section className="space-y-4">
                 <div className="flex items-center gap-3 mb-6">
                     <div className="w-1.5 h-6 bg-blue-500 rounded-full" />
-                    <h4 className="text-white font-black uppercase tracking-widest text-sm italic">
+                    <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
                         Concurrency & Performance
                     </h4>
                 </div>
@@ -83,8 +83,8 @@ export const DownloadSettings = () => {
                                         <Zap size={18} />
                                     </div>
                                     <div className="flex flex-col">
-                                        <span className="text-white text-sm font-bold uppercase tracking-wider">Parallel Series</span>
-                                        <span className="text-neutral-500 text-[10px] font-medium">How many manga can download at once.</span>
+                                        <span className="text-foreground text-sm font-bold uppercase tracking-wider">Parallel Series</span>
+                                        <span className="text-foreground-dim text-[10px] font-medium">How many manga can download at once.</span>
                                     </div>
                                 </div>
                                 <span className="text-lg font-black text-blue-500 italic tabular-nums">{maxConcurrentJobs}</span>
@@ -105,8 +105,8 @@ export const DownloadSettings = () => {
                                         <Cpu size={18} />
                                     </div>
                                     <div className="flex flex-col">
-                                        <span className="text-white text-sm font-bold uppercase tracking-wider">Parallel Chapters</span>
-                                        <span className="text-neutral-500 text-[10px] font-medium">Chapters per manga processed simultaneously.</span>
+                                        <span className="text-foreground text-sm font-bold uppercase tracking-wider">Parallel Chapters</span>
+                                        <span className="text-foreground-dim text-[10px] font-medium">Chapters per manga processed simultaneously.</span>
                                     </div>
                                 </div>
                                 <span className="text-lg font-black text-purple-500 italic tabular-nums">{maxConcurrentChapters}</span>
@@ -127,8 +127,8 @@ export const DownloadSettings = () => {
                                         <Gauge size={18} />
                                     </div>
                                     <div className="flex flex-col">
-                                        <span className="text-white text-sm font-bold uppercase tracking-wider">Parallel Pages</span>
-                                        <span className="text-neutral-500 text-[10px] font-medium">Images per chapter downloaded simultaneously.</span>
+                                        <span className="text-foreground text-sm font-bold uppercase tracking-wider">Parallel Pages</span>
+                                        <span className="text-foreground-dim text-[10px] font-medium">Images per chapter downloaded simultaneously.</span>
                                     </div>
                                 </div>
                                 <span className="text-lg font-black text-emerald-500 italic tabular-nums">{maxConcurrentPages}</span>
@@ -147,15 +147,15 @@ export const DownloadSettings = () => {
              <section className="space-y-4">
                 <div className="flex items-center gap-3 mb-6">
                     <div className="w-1.5 h-6 bg-red-500 rounded-full" />
-                    <h4 className="text-white font-black uppercase tracking-widest text-sm italic">
+                    <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
                         Maintenance
                     </h4>
                 </div>
                 
                  <div className="bg-red-500/5 p-8 rounded-[32px] border border-red-500/10 flex items-center justify-between">
                     <div className="flex flex-col gap-1">
-                        <span className="text-white font-bold uppercase tracking-wide">Clear Download Cache</span>
-                        <span className="text-neutral-500 text-[10px] font-medium">Removes temporary files. Does not delete chapters.</span>
+                        <span className="text-foreground font-bold uppercase tracking-wide">Clear Download Cache</span>
+                        <span className="text-foreground-dim text-[10px] font-medium">Removes temporary files. Does not delete chapters.</span>
                     </div>
                     <button 
                         className="px-6 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2"

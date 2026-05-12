@@ -35,8 +35,8 @@ Switch between:
 ### SECTION: Library
 **Built for Real Collectors.**
 
-Link multiple folders across your PC. No file moving required.
-Or import into a managed, curated library.
+Link multiple folders across your PC — the app indexes them where they live.
+Add series from the web into a download folder you control.
 
 Browse in:
 - High-performance **Grid Mode**

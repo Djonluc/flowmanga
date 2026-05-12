@@ -154,7 +154,7 @@ export function HistoryView() {
     <div className="h-full overflow-y-auto p-8 custom-scrollbar">
       <div className="flex items-center gap-4 mb-8">
         <Clock size={32} className="text-purple-500" />
-        <h1 className="text-3xl font-bold text-white">History</h1>
+        <h1 className="text-3xl font-bold text-foreground">History</h1>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -164,20 +164,20 @@ export function HistoryView() {
             layout
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-neutral-800/50 rounded-xl overflow-hidden border border-white/5 hover:border-purple-500/50 transition-all cursor-pointer group"
+            className="bg-surface-raised/50 rounded-xl overflow-hidden border border-white/5 hover:border-purple-500/50 transition-all cursor-pointer group"
             onClick={() => handleOpen(item)}
           >
             <div className="aspect-video bg-black relative">
                {item.coverPath ? (
                  <img src={getCoverSrc(item.coverPath)} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" />
                ) : (
-                 <div className="w-full h-full flex items-center justify-center bg-neutral-900">
-                    {item.type === 'manga' ? <BookOpen size={40} className="text-neutral-700" /> : <Play size={40} className="text-neutral-700" />}
+                 <div className="w-full h-full flex items-center justify-center bg-surface">
+                    {item.type === 'manga' ? <BookOpen size={40} className="text-foreground-muted" /> : <Play size={40} className="text-foreground-muted" />}
                  </div>
                )}
                
                {/* Progress Bar */}
-               <div className="absolute bottom-0 left-0 right-0 h-1 bg-neutral-900">
+               <div className="absolute bottom-0 left-0 right-0 h-1 bg-surface">
                   <div 
                     className={`h-full ${item.type === 'video' ? 'bg-red-500' : 'bg-purple-500'}`} 
                     style={{ width: `${(item.progress / Math.max(item.total, 1)) * 100}%` }}
@@ -185,14 +185,14 @@ export function HistoryView() {
                </div>
                
                {/* Type Badge */}
-               <div className="absolute top-2 right-2 px-2 py-1 bg-black/60 backdrop-blur-md rounded text-xs font-bold uppercase text-white/80">
+               <div className="absolute top-2 right-2 px-2 py-1 bg-black/60 backdrop-blur-md rounded text-xs font-bold uppercase text-white/90">
                    {item.type}
                </div>
             </div>
             
             <div className="p-4">
-                <h3 className="text-white font-medium line-clamp-1 group-hover:text-purple-400 transition-colors">{item.title}</h3>
-                <p className="text-neutral-400 text-sm mt-1">
+                <h3 className="text-foreground font-medium line-clamp-1 group-hover:text-purple-400 transition-colors">{item.title}</h3>
+                <p className="text-foreground-dim text-sm mt-1">
                     {item.type === 'manga' ? `Page ${item.progress}` : `${Math.floor(item.progress / 60)}m watched`}
                 </p>
             </div>

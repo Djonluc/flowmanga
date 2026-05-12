@@ -42,12 +42,12 @@ export const AmbientSettings = () => {
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Volume Control */}
             <section className="space-y-4">
-                <h4 className="text-white font-black uppercase tracking-widest text-xs border-b border-white/10 pb-2">
+                <h4 className="text-foreground font-black uppercase tracking-widest text-xs border-b border-white/10 pb-2">
                     Master Volume
                 </h4>
                 <div className="bg-white/5 p-6 rounded-[32px] border border-white/5 space-y-4">
                     <div className="flex items-center justify-between">
-                         <div className="flex items-center gap-3 text-neutral-400">
+                         <div className="flex items-center gap-3 text-foreground-dim">
                             <Volume2 size={18} />
                             <span className="text-xs font-bold uppercase tracking-wider">Ambient Level</span>
                          </div>
@@ -65,10 +65,10 @@ export const AmbientSettings = () => {
             {/* Sound Library */}
             <section className="space-y-4">
                 <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                    <h4 className="text-white font-black uppercase tracking-widest text-xs">
+                    <h4 className="text-foreground font-black uppercase tracking-widest text-xs">
                         Sound Library
                     </h4>
-                    <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                    <span className="text-[10px] font-bold text-foreground-dim uppercase tracking-widest">
                         {defaultSounds.length + availableSounds.length} Available
                     </span>
                 </div>
@@ -83,7 +83,7 @@ export const AmbientSettings = () => {
                                 "flex flex-col items-center justify-center gap-3 p-6 rounded-[24px] border transition-all relative overflow-hidden group",
                                 selectedAmbientSound === s.id
                                     ? "bg-blue-600/10 border-blue-500 text-blue-400 shadow-lg shadow-blue-500/10"
-                                    : "bg-white/2 border-white/5 text-neutral-500 hover:bg-white/5 hover:text-neutral-300"
+                                    : "bg-white/2 border-white/5 text-foreground-dim hover:bg-white/5 hover:text-foreground-muted"
                             )}
                         >
                             <s.icon size={24} className={clsx("transition-transform group-hover:scale-110", selectedAmbientSound === s.id && "animate-pulse")} />
@@ -101,7 +101,7 @@ export const AmbientSettings = () => {
                                 "flex flex-col items-center justify-center gap-3 p-6 rounded-[24px] border transition-all relative overflow-hidden group",
                                 selectedAmbientSound === s.path
                                     ? "bg-purple-600/10 border-purple-500 text-purple-400 shadow-lg shadow-purple-500/10"
-                                    : "bg-white/2 border-white/5 text-neutral-500 hover:bg-white/5 hover:text-neutral-300"
+                                    : "bg-white/2 border-white/5 text-foreground-dim hover:bg-white/5 hover:text-foreground-muted"
                             )}
                         >
                             <FileAudio size={24} className={clsx("transition-transform group-hover:scale-110", selectedAmbientSound === s.path && "animate-pulse")} />
@@ -115,7 +115,7 @@ export const AmbientSettings = () => {
                     {/* Add Button */}
                     <button
                         onClick={handleImport}
-                        className="flex flex-col items-center justify-center gap-3 p-6 rounded-[24px] border border-dashed border-white/10 text-neutral-500 hover:bg-white/5 hover:text-white transition-all group"
+                        className="flex flex-col items-center justify-center gap-3 p-6 rounded-[24px] border border-dashed border-white/10 text-foreground-dim hover:bg-white/5 hover:text-foreground transition-all group"
                     >
                         <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
                             <Plus size={20} />

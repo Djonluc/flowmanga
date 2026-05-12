@@ -51,16 +51,16 @@ export const VideoPlaylist = ({ isOpen, onClose }: VideoPlaylistProps) => {
                                     <ListMusic size={14} className="text-accent" />
                                     <span className="text-[10px] font-black text-accent uppercase tracking-[0.3em]">Playback</span>
                                 </div>
-                                <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">
+                                <h3 className="text-2xl font-black text-foreground uppercase italic tracking-tighter">
                                     Media <span className="text-blue-500">Queue</span>
                                 </h3>
-                                <p className="text-neutral-500 text-[10px] font-bold uppercase tracking-[0.2em] mt-1">
+                                <p className="text-foreground-dim text-[10px] font-bold uppercase tracking-[0.2em] mt-1">
                                     {queue.length} items available
                                 </p>
                             </div>
                             <button 
                                 onClick={onClose}
-                                className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-full transition-all text-neutral-400 hover:text-white border border-white/5"
+                                className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-full transition-all text-foreground-dim hover:text-foreground border border-white/5"
                             >
                                 <X size={20} />
                             </button>
@@ -87,7 +87,7 @@ export const VideoPlaylist = ({ isOpen, onClose }: VideoPlaylistProps) => {
                                                 : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.05] hover:border-white/10'
                                         )}
                                     >
-                                        <div className="relative w-24 aspect-video rounded-xl overflow-hidden flex-shrink-0 bg-neutral-900 shadow-lg group-hover:shadow-accent/5 transition-all">
+                                        <div className="relative w-24 aspect-video rounded-xl overflow-hidden flex-shrink-0 bg-surface shadow-lg group-hover:shadow-accent/5 transition-all">
                                             {/* Thumbnail strategy */}
                                             <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-neutral-800 to-neutral-900">
                                                 {isActive ? (
@@ -97,11 +97,11 @@ export const VideoPlaylist = ({ isOpen, onClose }: VideoPlaylistProps) => {
                                                         <motion.div animate={{ height: [6, 14, 6] }} transition={{ repeat: Infinity, duration: 0.7 }} className="w-1 bg-accent rounded-full" />
                                                     </div>
                                                 ) : (
-                                                    <PlayCircle size={20} className="text-neutral-600 group-hover:text-neutral-400 transition-colors" />
+                                                    <PlayCircle size={20} className="text-foreground-muted group-hover:text-foreground-dim transition-colors" />
                                                 )}
                                             </div>
                                             
-                                            <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/60 backdrop-blur-md rounded-[4px] text-[8px] font-black text-white/60">
+                                            <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/60 backdrop-blur-md rounded-[4px] text-[8px] font-black text-white/90">
                                                 {video.resolution || 'HD'}
                                             </div>
                                         </div>
@@ -109,13 +109,13 @@ export const VideoPlaylist = ({ isOpen, onClose }: VideoPlaylistProps) => {
                                         <div className="flex-1 min-w-0">
                                             <h4 className={clsx(
                                                 "text-sm font-black italic tracking-tight truncate transition-colors",
-                                                isActive ? 'text-white' : 'text-neutral-400 group-hover:text-white'
+                                                isActive ? 'text-foreground' : 'text-foreground-dim group-hover:text-foreground'
                                             )}>
                                                 {video.title}
                                             </h4>
                                             <div className="flex items-center gap-2 mt-1">
-                                                <Film size={10} className="text-neutral-600" />
-                                                <p className="text-[9px] text-neutral-500 font-bold uppercase tracking-widest">
+                                                <Film size={10} className="text-foreground-muted" />
+                                                <p className="text-[9px] text-foreground-dim font-bold uppercase tracking-widest">
                                                     {video.folderId ? 'In Library' : 'Stand-alone'}
                                                 </p>
                                             </div>
@@ -137,7 +137,7 @@ export const VideoPlaylist = ({ isOpen, onClose }: VideoPlaylistProps) => {
 
                         {/* Footer Status */}
                         <div className="p-6 bg-white/[0.02] border-t border-white/5 text-center">
-                            <span className="text-[9px] font-black text-neutral-600 uppercase tracking-[0.4em]">
+                            <span className="text-[9px] font-black text-foreground-muted uppercase tracking-[0.4em]">
                                 End of Playlist
                             </span>
                         </div>

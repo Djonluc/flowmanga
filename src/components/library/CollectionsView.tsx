@@ -30,8 +30,8 @@ export const CollectionsView = () => {
                 <Layers size={24} />
             </div>
             <div>
-                <h2 className="text-3xl font-black text-white tracking-tighter uppercase italic">Collections</h2>
-                <p className="text-neutral-500 text-[10px] font-black uppercase tracking-widest mt-1">Manage your curated albums</p>
+                <h2 className="text-3xl font-black text-foreground tracking-tighter uppercase italic">Collections</h2>
+                <p className="text-foreground-dim text-[10px] font-black uppercase tracking-widest mt-1">Manage your curated albums</p>
             </div>
         </div>
 
@@ -59,21 +59,21 @@ export const CollectionsView = () => {
                   <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-400">
                     <FolderOpen size={20} />
                   </div>
-                  <h3 className="text-lg font-bold text-white truncate max-w-[150px]">{collection.name}</h3>
+                  <h3 className="text-lg font-bold text-foreground truncate max-w-[150px]">{collection.name}</h3>
                 </div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     if (confirm("Delete this collection?")) deleteCollection(collection.id);
                   }}
-                  className="p-2 text-neutral-500 hover:text-red-500 transition-colors"
+                  className="p-2 text-foreground-dim hover:text-red-500 transition-colors"
                 >
                   <Trash2 size={16} />
                 </button>
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <span className="px-3 py-1 rounded-lg bg-white/5 text-[10px] font-black text-neutral-400 uppercase tracking-widest">
+                <span className="px-3 py-1 rounded-lg bg-white/5 text-[10px] font-black text-foreground-dim uppercase tracking-widest">
                   {collection.seriesIds.length} Items
                 </span>
                 <span className="px-3 py-1 rounded-lg bg-indigo-500/10 text-[10px] font-black text-indigo-400 uppercase tracking-widest">
@@ -102,7 +102,7 @@ export const CollectionsView = () => {
                         );
                     })
                  ) : (
-                    <div className="w-full h-full rounded-2xl border-2 border-dashed border-white/5 flex flex-col items-center justify-center text-neutral-700 gap-2">
+                    <div className="w-full h-full rounded-2xl border-2 border-dashed border-white/5 flex flex-col items-center justify-center text-foreground-muted gap-2">
                         <Plus size={24} className="opacity-20" />
                         <span className="text-[10px] font-black uppercase tracking-widest">Empty Collection</span>
                     </div>
@@ -114,12 +114,12 @@ export const CollectionsView = () => {
 
         {collections.length === 0 && (
             <div className="col-span-full py-20 border-2 border-dashed border-white/5 rounded-[48px] flex flex-col items-center justify-center text-center gap-4 bg-white/[0.01]">
-                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-neutral-600">
+                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-foreground-muted">
                     <Layers size={32} />
                 </div>
                 <div>
-                    <h3 className="text-xl font-bold text-white/40">No Collections Yet</h3>
-                    <p className="text-neutral-600 text-xs mt-1">Start by creating a new album group</p>
+                    <h3 className="text-xl font-bold text-foreground/40">No Collections Yet</h3>
+                    <p className="text-foreground-muted text-xs mt-1">Start by creating a new album group</p>
                 </div>
             </div>
         )}
@@ -133,11 +133,11 @@ export const CollectionsView = () => {
                     <Shuffle size={20} />
                 </div>
                 <div>
-                    <h3 className="text-xl font-black text-white uppercase tracking-tighter italic">Random Discoveries</h3>
-                    <p className="text-neutral-500 text-[10px] font-black uppercase tracking-widest mt-1">Randomly picked from your collections</p>
+                    <h3 className="text-xl font-black text-foreground uppercase tracking-tighter italic">Random Discoveries</h3>
+                    <p className="text-foreground-dim text-[10px] font-black uppercase tracking-widest mt-1">Randomly picked from your collections</p>
                 </div>
             </div>
-            <button className="text-neutral-500 hover:text-white transition-colors">
+            <button className="text-foreground-dim hover:text-foreground transition-colors">
                 <Sparkles size={20} />
             </button>
          </div>

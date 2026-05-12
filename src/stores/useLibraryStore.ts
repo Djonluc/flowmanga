@@ -37,6 +37,8 @@ export interface Series {
   description?: string;
   tags: string[];
   source?: string;
+  artist?: string;
+  status?: string;
   books: Book[];
   anilistId?: string;
   malId?: string;
@@ -89,6 +91,7 @@ interface LibraryState {
   addToRecent: (book: any) => void;
   updateReadingProgress: (seriesId: string, chapterId: string, page: number) => Promise<void>;
   updateTags: (seriesId: string, tags: string[]) => Promise<void>;
+  clearReadingProgressForSeries: (seriesId: string) => Promise<void>;
   renameSeries: (seriesId: string, newTitle: string) => Promise<void>;
   deleteSeries: (seriesId: string | null, path: string | null, deleteFiles?: boolean) => Promise<void>;
   bulkDelete: (deleteFiles?: boolean) => Promise<void>;
@@ -303,6 +306,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       const tagsStr = tags.join(',');
       await db.execute('UPDATE Series SET tags = ? WHERE id = ?', [tagsStr, seriesId]);
       await get().loadFromDb(); 
+  },
+
+  clearReadingProgressForSeries: async (seriesId) => {
+      const db = getDb();
+      await db.execute('DELETE FROM ReadingProgress WHERE seriesId = ?', [seriesId]);
+      await get().loadFromDb();
   },
 
   renameSeries: async (seriesId, newTitle) => {

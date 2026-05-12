@@ -26,7 +26,7 @@ export const VideoFolderGrid: React.FC<VideoFolderGridProps> = ({ folders, onSel
                    />
                ) : (
                    <div className="w-full h-full flex items-center justify-center bg-white/[0.02]">
-                       <Folder className="w-16 h-16 text-neutral-800 group-hover:text-blue-500/50 transition-colors" />
+                       <Folder className="w-16 h-16 text-foreground group-hover:text-blue-500/50 transition-colors" />
                    </div>
                )}
                
@@ -37,7 +37,7 @@ export const VideoFolderGrid: React.FC<VideoFolderGridProps> = ({ folders, onSel
                </div>
            </div>
 
-           <h3 className="mt-4 text-white font-black text-xs uppercase tracking-widest text-center truncate w-full px-4 opacity-50 group-hover:opacity-100 transition-opacity">
+           <h3 className="mt-4 text-foreground font-black text-xs uppercase tracking-widest text-center truncate w-full px-4 opacity-50 group-hover:opacity-100 transition-opacity">
                {folder.name}
            </h3>
         </div>

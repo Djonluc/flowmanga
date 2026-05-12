@@ -38,7 +38,7 @@ export function bridgeContent(content: SourceContent, provider: SourceProvider):
 /**
  * Convert a provider's SourceSeries into the legacy ScrapeResult format.
  */
-export function bridgeSeries(series: SourceSeries, provider: SourceProvider): ScrapeResult {
+export function bridgeSeries(series: SourceSeries, _provider: SourceProvider): ScrapeResult {
   const chapters: SeriesScrapedChapter[] = series.chapters.map(ch => ({
     id: ch.id,
     number: ch.number,
@@ -58,16 +58,15 @@ export function bridgeSeries(series: SourceSeries, provider: SourceProvider): Sc
   };
 
   const bridgedResult: ScrapeResult = { series: legacySeries };
-  
-  if (series.metadata?.mangaId) {
-    bridgedResult.metadata = {
-      title: series.title,
-      coverUrl: series.coverUrl,
-      description: series.description,
-      tags: series.tags,
-      mangaId: series.metadata.mangaId
-    };
-  }
+
+  const withMeta = series as SourceSeries & { metadata?: { mangaId?: string } };
+  bridgedResult.metadata = {
+    title: series.title,
+    coverUrl: series.coverUrl,
+    description: series.description,
+    tags: series.tags ?? [],
+    mangaId: withMeta.metadata?.mangaId,
+  };
 
   return bridgedResult;
 }

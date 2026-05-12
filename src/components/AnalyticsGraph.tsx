@@ -14,11 +14,11 @@ export const AnalyticsGraph = () => {
         <div className="w-full flex flex-col gap-6">
             {/* Header / Legend */}
             <div className="flex items-center justify-between">
-                <h3 className="text-sm font-black text-white italic uppercase tracking-widest">Consistency</h3>
+                <h3 className="text-sm font-black text-foreground italic uppercase tracking-widest">Consistency</h3>
                 <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-tighter">
                     <div className="flex items-center gap-1.5">
                         <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
-                        <span className="text-neutral-500">Pages Read (Weekly)</span>
+                        <span className="text-foreground-dim">Pages Read (Weekly)</span>
                     </div>
                 </div>
             </div>
@@ -51,7 +51,7 @@ export const AnalyticsGraph = () => {
                             </div>
 
                             {/* Label */}
-                            <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-widest">
+                            <span className="text-[10px] font-bold text-foreground-muted uppercase tracking-widest">
                                 {dayLabel}
                             </span>
                         </div>

@@ -76,14 +76,14 @@ export function LocationModal({ isOpen, onClose, onSuccess }: LocationModalProps
                         <div className="p-8 space-y-8">
                             <div className="flex justify-between items-start">
                                 <div className="space-y-2">
-                                    <h2 className="text-3xl font-black text-white italic tracking-tighter uppercase">
+                                    <h2 className="text-3xl font-black text-foreground italic tracking-tighter uppercase">
                                         Setup <span className="text-blue-500">Library</span>
                                     </h2>
-                                    <p className="text-neutral-500 text-sm font-medium">Choose where FlowManga should store your downloads</p>
+                                    <p className="text-foreground-dim text-sm font-medium">Choose where FlowManga should store your downloads</p>
                                 </div>
                                 <button 
                                     onClick={onClose}
-                                    className="p-2 hover:bg-white/10 rounded-full text-neutral-500 hover:text-white transition-all"
+                                    className="p-2 hover:bg-white/10 rounded-full text-foreground-dim hover:text-foreground transition-all"
                                 >
                                     <X size={20} />
                                 </button>
@@ -100,35 +100,35 @@ export function LocationModal({ isOpen, onClose, onSuccess }: LocationModalProps
                                     </div>
                                     
                                     <div className="p-4 bg-blue-600 rounded-xl shadow-lg">
-                                        <Sparkles size={24} className="text-white" />
+                                        <Sparkles size={24} className="text-foreground" />
                                     </div>
                                     
                                     <div className="flex-1 space-y-1">
                                         <div className="flex items-center gap-2">
-                                            <h3 className="text-lg font-bold text-white">Use Recommended</h3>
-                                            <span className="px-2 py-0.5 bg-blue-600 text-[10px] font-black uppercase rounded text-white tracking-widest">Auto</span>
+                                            <h3 className="text-lg font-bold text-foreground">Use Recommended</h3>
+                                            <span className="px-2 py-0.5 bg-blue-600 text-[10px] font-black uppercase rounded text-foreground tracking-widest">Auto</span>
                                         </div>
-                                        <p className="text-sm text-neutral-400">Creates FlowManga folder in your Documents</p>
+                                        <p className="text-sm text-foreground-dim">Creates FlowManga folder in your Documents</p>
                                     </div>
                                     
-                                    <ChevronRight size={20} className="text-neutral-600 group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
+                                    <ChevronRight size={20} className="text-foreground-muted group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
                                 </button>
 
                                 {/* Custom Option */}
                                 <button
                                     onClick={handleChoose}
-                                    className="group flex items-center gap-6 p-6 bg-neutral-900/50 hover:bg-neutral-800 border border-white/5 hover:border-white/20 rounded-2xl transition-all text-left"
+                                    className="group flex items-center gap-6 p-6 bg-surface/50 hover:bg-surface-raised border border-white/5 hover:border-white/20 rounded-2xl transition-all text-left"
                                 >
-                                    <div className="p-4 bg-neutral-800 rounded-xl border border-white/10">
-                                        <FolderOpen size={24} className="text-neutral-400 group-hover:text-white transition-colors" />
+                                    <div className="p-4 bg-surface-raised rounded-xl border border-white/10">
+                                        <FolderOpen size={24} className="text-foreground-dim group-hover:text-foreground transition-colors" />
                                     </div>
                                     
                                     <div className="flex-1 space-y-1">
-                                        <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">Choose Custom Folder</h3>
-                                        <p className="text-sm text-neutral-500">Pick any directory on your computer</p>
+                                        <h3 className="text-lg font-bold text-foreground group-hover:text-blue-400 transition-colors">Choose Custom Folder</h3>
+                                        <p className="text-sm text-foreground-dim">Pick any directory on your computer</p>
                                     </div>
                                     
-                                    <ChevronRight size={20} className="text-neutral-600 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                                    <ChevronRight size={20} className="text-foreground-muted group-hover:text-foreground group-hover:translate-x-1 transition-all" />
                                 </button>
                             </div>
 
@@ -137,8 +137,8 @@ export function LocationModal({ isOpen, onClose, onSuccess }: LocationModalProps
                                     <Check size={14} />
                                 </div>
                                 <div className="space-y-1">
-                                    <p className="text-xs font-bold text-neutral-300">Why this matters?</p>
-                                    <p className="text-[10px] text-neutral-500 leading-relaxed font-medium">
+                                    <p className="text-xs font-bold text-foreground-muted">Why this matters?</p>
+                                    <p className="text-[10px] text-foreground-dim leading-relaxed font-medium">
                                         Standardizing your library prevents duplicates, enables automatic metadata tagging, 
                                         and ensures a clean reading experience across all your devices.
                                     </p>
@@ -147,7 +147,7 @@ export function LocationModal({ isOpen, onClose, onSuccess }: LocationModalProps
                         </div>
 
                         <div className="p-4 bg-black/40 border-t border-white/5 text-center">
-                            <p className="text-[10px] text-neutral-600 font-bold uppercase tracking-widest">
+                            <p className="text-[10px] text-foreground-muted font-bold uppercase tracking-widest">
                                 You can change this location anytime in settings
                             </p>
                         </div>

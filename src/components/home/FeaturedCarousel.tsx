@@ -15,7 +15,10 @@ type FeaturedSeries = (Series | SourceSearchResult) & { coverUrl?: string };
 export const FeaturedCarousel = ({ items: propItems }: { items?: any[] }) => {
   const { series } = useLibraryStore();
   const { openFolder } = useReadingStore();
+  const theme = useSettingsStore((s) => s.theme);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const isLightTheme = theme === "light" || theme === "paper";
+  const isOled = theme === "oled";
   
   const featuredItems = useMemo<FeaturedSeries[]>(() => {
     const sourceData = propItems && propItems.length > 0 ? propItems : series;
@@ -74,16 +77,50 @@ export const FeaturedCarousel = ({ items: propItems }: { items?: any[] }) => {
                   ? currentItem.cover || currentItem.coverUrl
                   : convertFileSrc(currentItem.cover || currentItem.coverUrl)
               }
-              className="w-full h-full object-cover opacity-20 scale-105 blur-[12px]"
+              className={clsx(
+                "w-full h-full object-cover scale-[1.08] blur-[10px] saturate-[1.12]",
+                isLightTheme && "opacity-[0.54] contrast-[1.06]",
+                !isLightTheme && isOled && "opacity-[0.56] brightness-[1.12] contrast-[1.08]",
+                !isLightTheme && !isOled && "opacity-[0.5] brightness-[1.1] contrast-[1.06]",
+              )}
               alt="Background"
             />
           ) : (
             <div className="w-full h-full bg-surface-elevated" />
           )}
-          {/* Layered Cinematic Overlays for Readability - Using Theme Variables */}
-          <div className="absolute inset-0 bg-background/20" />
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
-          <div className="absolute inset-y-0 left-0 w-[80%] bg-gradient-to-r from-background via-background/80 to-transparent pointer-events-none" />
+          {/* Soft vignettes: keep artwork visible; old stack (opacity-20 + /80 left fade) hid the blur entirely */}
+          <div
+            className={clsx(
+              "absolute inset-0",
+              isLightTheme ? "bg-background/5" : isOled ? "bg-background/5" : "bg-background/10",
+            )}
+          />
+          <div
+            className={clsx(
+              "absolute inset-0 bg-gradient-to-t pointer-events-none",
+              isLightTheme &&
+                "from-background/42 via-background/8 to-transparent",
+              !isLightTheme &&
+                isOled &&
+                "from-background/55 via-background/12 to-transparent",
+              !isLightTheme &&
+                !isOled &&
+                "from-background/62 via-background/16 to-transparent",
+            )}
+          />
+          <div
+            className={clsx(
+              "absolute inset-y-0 left-0 w-[min(78%,32rem)] bg-gradient-to-r pointer-events-none",
+              isLightTheme &&
+                "from-background/34 via-background/6 to-transparent",
+              !isLightTheme &&
+                isOled &&
+                "from-background/44 via-background/8 to-transparent",
+              !isLightTheme &&
+                !isOled &&
+                "from-background/50 via-background/10 to-transparent",
+            )}
+          />
         </motion.div>
       </AnimatePresence>
 

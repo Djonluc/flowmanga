@@ -42,7 +42,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="min-h-[400px] w-full flex items-center justify-center p-8 bg-[#050505] rounded-[40px] border border-white/5 relative overflow-hidden">
+        <div className="min-h-[400px] w-full flex items-center justify-center p-8 bg-background rounded-[40px] border border-border-subtle relative overflow-hidden">
           {/* Ambient Background */}
           <div className="absolute inset-0 pointer-events-none">
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-rose-500/10 blur-[100px] rounded-full" />
@@ -54,14 +54,14 @@ export class ErrorBoundary extends Component<Props, State> {
             </div>
 
             <div className="space-y-3">
-              <h2 className="text-3xl font-black text-white italic tracking-tighter uppercase">
+              <h2 className="text-3xl font-black text-foreground italic tracking-tighter uppercase">
                 {this.props.name ? `${this.props.name} Failed` : 'Anarchy in the Engine'}
               </h2>
-              <p className="text-neutral-400 text-sm font-medium leading-relaxed">
+              <p className="text-foreground-dim text-sm font-medium leading-relaxed">
                 The component encountered a reality-bending error. We've isolated the failure to prevent a total system collapse.
               </p>
               {this.state.error && (
-                <div className="mt-4 p-4 rounded-2xl bg-white/5 border border-white/5 text-[10px] font-mono text-neutral-500 text-left overflow-x-auto max-h-32 custom-scrollbar">
+                <div className="mt-4 p-4 rounded-2xl bg-white/5 border border-white/5 text-[10px] font-mono text-foreground-dim text-left overflow-x-auto max-h-32 custom-scrollbar">
                    {this.state.error.toString()}
                 </div>
               )}
@@ -77,7 +77,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </button>
               <button 
                 onClick={this.handleGoHome}
-                className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 text-white flex items-center justify-center hover:bg-white/10 transition-all"
+                className="w-14 h-14 rounded-2xl bg-surface-elevated border border-border-subtle text-foreground flex items-center justify-center hover:bg-surface-raised transition-all"
               >
                 <Home size={18} />
               </button>

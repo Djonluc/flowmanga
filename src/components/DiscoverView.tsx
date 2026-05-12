@@ -126,7 +126,7 @@ export const DiscoverView = () => {
           />
           <button 
             type="submit"
-            className="absolute right-2 top-2 bottom-2 px-4 rounded-xl bg-accent hover:opacity-90 text-white font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 flex items-center"
+            className="absolute right-2 top-2 bottom-2 px-4 rounded-xl bg-accent hover:opacity-90 text-foreground font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 flex items-center"
           >
             Seek
           </button>
@@ -178,15 +178,15 @@ export const DiscoverView = () => {
                     <Compass size={24} />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-white uppercase tracking-tight">
+                    <h2 className="text-xl font-black text-foreground uppercase tracking-tight">
                       Visions Found
                     </h2>
-                    <p className="text-neutral-500 text-sm font-medium">Found {filteredResults.length} matches across active sources</p>
+                    <p className="text-foreground-dim text-sm font-medium">Found {filteredResults.length} matches across active sources</p>
                   </div>
                 </div>
                 <button 
                   onClick={handleClear}
-                  className="px-6 py-2 rounded-full bg-white/5 hover:bg-white/10 text-[10px] font-black text-white/60 hover:text-white uppercase tracking-widest transition-colors border border-white/5"
+                  className="px-6 py-2 rounded-full bg-white/5 hover:bg-white/10 text-[10px] font-black text-foreground/60 hover:text-foreground uppercase tracking-widest transition-colors border border-white/5"
                 >
                   Dispel Visions
                 </button>
@@ -213,10 +213,10 @@ export const DiscoverView = () => {
               ) : (
                 <div className="py-32 flex flex-col items-center justify-center text-center">
                   <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6 border border-white/10">
-                    <Search size={32} className="text-white/20" />
+                    <Search size={32} className="text-foreground/20" />
                   </div>
-                  <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-3">The void is empty</h3>
-                  <p className="text-white/40 text-base max-w-md">
+                  <h3 className="text-2xl font-black text-foreground uppercase tracking-tight mb-3">The void is empty</h3>
+                  <p className="text-foreground/40 text-base max-w-md">
                     We couldn't manifest any content matching "{query}" across active sources. Try using different incantations or checking your source seals.
                   </p>
                 </div>
@@ -238,12 +238,12 @@ export const DiscoverView = () => {
                       <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shadow-lg text-indigo-500">
                         <Sparkles size={20} />
                       </div>
-                      <h2 className="text-3xl font-bold tracking-tight text-white leading-none">
+                      <h2 className="text-3xl font-bold tracking-tight text-foreground leading-none">
                         Scout
                       </h2>
                     </div>
                     <div className="flex items-center gap-2 mt-3">
-                        <p className="text-neutral-500 font-medium text-xs tracking-wide">
+                        <p className="text-foreground-dim font-medium text-xs tracking-wide">
                             Peer into unknown dimensions and ascending powers.
                         </p>
                     </div>
@@ -258,7 +258,7 @@ export const DiscoverView = () => {
                     <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400">
                       <Sparkles size={16} />
                     </div>
-                    <h2 className="text-2xl font-black text-white uppercase tracking-tight">Divine Intervention</h2>
+                    <h2 className="text-2xl font-black text-foreground uppercase tracking-tight">Divine Intervention</h2>
                   </div>
                   <div className="flex items-center gap-4">
                     <button 
@@ -269,7 +269,7 @@ export const DiscoverView = () => {
                     </button>
                     <button 
                       onClick={() => setActiveTab('random-grid')}
-                      className="flex items-center gap-2 text-[10px] font-black text-white/40 hover:text-white uppercase tracking-widest transition-all"
+                      className="flex items-center gap-2 text-[10px] font-black text-foreground/40 hover:text-foreground uppercase tracking-widest transition-all"
                     >
                       See More <ChevronRight size={14} />
                     </button>
@@ -306,7 +306,7 @@ export const DiscoverView = () => {
                     <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
                       <TrendingUp size={16} />
                     </div>
-                    <h2 className="text-2xl font-black text-white uppercase tracking-tight">Ascending Powers</h2>
+                    <h2 className="text-2xl font-black text-foreground uppercase tracking-tight">Ascending Powers</h2>
                   </div>
                   <button 
                     onClick={() => setActiveTab('trending-grid')}
@@ -346,7 +346,7 @@ export const DiscoverView = () => {
                     <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400">
                       <Zap size={16} />
                     </div>
-                    <h2 className="text-2xl font-black text-white uppercase tracking-tight">New Spirits</h2>
+                    <h2 className="text-2xl font-black text-foreground uppercase tracking-tight">New Spirits</h2>
                   </div>
                   <button 
                     onClick={() => setActiveTab('latest-grid')}
@@ -391,13 +391,13 @@ export const DiscoverView = () => {
                     <TrendingUp size={24} />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-white uppercase tracking-tight">Global Pulse</h2>
-                    <p className="text-neutral-500 text-sm font-medium">The most potent sagas across the world tonight.</p>
+                    <h2 className="text-xl font-black text-foreground uppercase tracking-tight">Global Pulse</h2>
+                    <p className="text-foreground-dim text-sm font-medium">The most potent sagas across the world tonight.</p>
                   </div>
                 </div>
                 <button 
                   onClick={() => setActiveTab('featured')}
-                  className="px-6 py-2 rounded-full bg-white/5 hover:bg-white/10 text-[10px] font-black text-white/60 hover:text-white uppercase tracking-widest transition-colors border border-white/5"
+                  className="px-6 py-2 rounded-full bg-white/5 hover:bg-white/10 text-[10px] font-black text-foreground/60 hover:text-foreground uppercase tracking-widest transition-colors border border-white/5"
                 >
                   Back to Featured
                 </button>
@@ -428,20 +428,20 @@ export const DiscoverView = () => {
                     <Sparkles size={24} />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-white uppercase tracking-tight">Infinite Chaos</h2>
-                    <p className="text-neutral-500 text-sm font-medium">A randomized journey through every active realm.</p>
+                    <h2 className="text-xl font-black text-foreground uppercase tracking-tight">Infinite Chaos</h2>
+                    <p className="text-foreground-dim text-sm font-medium">A randomized journey through every active realm.</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <button 
                     onClick={() => fetchRandom(true)}
-                    className="px-6 py-2 rounded-full bg-indigo-500 hover:bg-indigo-400 text-[10px] font-black text-white uppercase tracking-widest transition-all active:scale-95"
+                    className="px-6 py-2 rounded-full bg-indigo-500 hover:bg-indigo-400 text-[10px] font-black text-foreground uppercase tracking-widest transition-all active:scale-95"
                   >
                     Shuffle New
                   </button>
                   <button 
                     onClick={() => setActiveTab('featured')}
-                    className="px-6 py-2 rounded-full bg-white/5 hover:bg-white/10 text-[10px] font-black text-white/60 hover:text-white uppercase tracking-widest transition-colors border border-white/5"
+                    className="px-6 py-2 rounded-full bg-white/5 hover:bg-white/10 text-[10px] font-black text-foreground/60 hover:text-foreground uppercase tracking-widest transition-colors border border-white/5"
                   >
                     Back to Featured
                   </button>
@@ -473,13 +473,13 @@ export const DiscoverView = () => {
                     <Zap size={24} />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-white uppercase tracking-tight">Freshly Updated</h2>
-                    <p className="text-neutral-500 text-sm font-medium">The latest chapters from your favorite universes.</p>
+                    <h2 className="text-xl font-black text-foreground uppercase tracking-tight">Freshly Updated</h2>
+                    <p className="text-foreground-dim text-sm font-medium">The latest chapters from your favorite universes.</p>
                   </div>
                 </div>
                 <button 
                   onClick={() => setActiveTab('featured')}
-                  className="px-6 py-2 rounded-full bg-white/5 hover:bg-white/10 text-[10px] font-black text-white/60 hover:text-white uppercase tracking-widest transition-colors border border-white/5"
+                  className="px-6 py-2 rounded-full bg-white/5 hover:bg-white/10 text-[10px] font-black text-foreground/60 hover:text-foreground uppercase tracking-widest transition-colors border border-white/5"
                 >
                   Back to Featured
                 </button>

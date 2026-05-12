@@ -30,7 +30,14 @@ export class DownloadService {
             // Critical: Preserve existing chapters if they exist
             chapters: existingMeta.chapters || [],
             // Preserve total pages tracked locally
-            totalPages: existingMeta.totalPages || 0
+            totalPages: existingMeta.totalPages || 0,
+            // Do not wipe tags when incoming metadata omits them (object spread sets undefined)
+            tags:
+                Array.isArray(metadata.tags) && metadata.tags.length > 0
+                    ? metadata.tags
+                    : Array.isArray(existingMeta.tags) && existingMeta.tags.length > 0
+                      ? existingMeta.tags
+                      : metadata.tags ?? existingMeta.tags ?? [],
         };
 
         // Determine Global Index from Existing
@@ -42,10 +49,17 @@ export class DownloadService {
             if (metadata.coverUrl && !metadata.coverFile && !mergedMeta.coverFile) {
                 try {
                     const coverPath = `${mangaRoot}/cover.jpg`;
+                    const coverReferer =
+                        metadata.sourceUrl && typeof metadata.sourceUrl === 'string'
+                            ? metadata.sourceUrl
+                            : null;
                     await invoke('download_image', {
                         url: metadata.coverUrl,
                         filePath: coverPath,
-                        headers: (metadata.source !== 'mangadex' && metadata.sourceUrl) ? { 'Referer': metadata.sourceUrl } : null
+                        headers:
+                            metadata.source !== 'mangadex' && coverReferer
+                                ? { Referer: coverReferer }
+                                : null,
                     });
                     mergedMeta.coverFile = 'cover.jpg';
                 } catch (e) {
@@ -121,7 +135,13 @@ export class DownloadService {
                                 mangaRoot, 
                                 job.id, 
                                 store, 
-                                metadata
+                                metadata,
+                                task.chapter?.chUrl ||
+                                    task.chapter?.url ||
+                                    (typeof task.chapter?.sourceId === 'string' &&
+                                    task.chapter.sourceId.startsWith('http')
+                                        ? task.chapter.sourceId
+                                        : undefined),
                             );
 
                             const newChapterMeta = {
@@ -217,7 +237,15 @@ export class DownloadService {
         throw lastError || new Error("Failed to fetch chapter data after 3 attempts");
     }
 
-    private static async downloadChapterPages(images: any[], chapterNum: string, mangaRoot: string, jobId: string, store: any, metadata: any): Promise<string | null> {
+    private static async downloadChapterPages(
+        images: any[],
+        chapterNum: string,
+        mangaRoot: string,
+        jobId: string,
+        store: any,
+        metadata: any,
+        pageReferer?: string | null,
+    ): Promise<string | null> {
         const chPadded = parseFloat(chapterNum).toString().split('.')[0].padStart(3, '0');
         const { maxConcurrentPages } = useSettingsStore.getState();
 
@@ -252,10 +280,14 @@ export class DownloadService {
                 const filePath = `${mangaRoot}/${fileName}`;
                 
                 try {
+                    const referer =
+                        metadata.source === 'mangadex'
+                            ? null
+                            : pageReferer || metadata.sourceUrl || null;
                     await invoke('download_image', {
                         url: img.url,
                         filePath: filePath,
-                        headers: (metadata.source !== 'mangadex' && metadata.sourceUrl) ? { 'Referer': metadata.sourceUrl } : null,
+                        headers: referer ? { Referer: referer } : null,
                         encryptionKey: img.encryptionKey || null
                     });
 
@@ -310,7 +342,19 @@ export class DownloadService {
 
         try {
             const { images } = await this.fetchChapterData(chapter, metadata);
-            const thumbFile = await this.downloadChapterPages(images, chapter.number, mangaRoot, repairJobId, mockStore, metadata);
+            const chapterReferer =
+                typeof chapter.sourceId === 'string' && chapter.sourceId.startsWith('http')
+                    ? chapter.sourceId
+                    : undefined;
+            const thumbFile = await this.downloadChapterPages(
+                images,
+                chapter.number,
+                mangaRoot,
+                repairJobId,
+                mockStore,
+                metadata,
+                chapterReferer,
+            );
             
             if (images.length > 0) {
                 // Update metadata if needed (e.g. if page count changed)

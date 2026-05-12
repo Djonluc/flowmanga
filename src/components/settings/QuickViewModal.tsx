@@ -188,7 +188,7 @@ export const QuickViewModal = () => {
                                 {/* Interactive Tags */}
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between">
-                                        <h3 className="text-[10px] font-black text-neutral-600 uppercase tracking-[0.3em]">Taxonomy</h3>
+                                        <h3 className="text-[10px] font-black text-foreground-muted uppercase tracking-[0.3em]">Taxonomy</h3>
                                         {libraryItem && (
                                             <button 
                                                 onClick={() => openTagManager(libraryItem.id, libraryItem.tags)}
@@ -235,11 +235,11 @@ export const QuickViewModal = () => {
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-3">
                                                 <Sparkles size={16} className="text-amber-400" />
-                                                <h3 className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.3em]">Similar Vibes</h3>
+                                                <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.3em]">Similar Vibes</h3>
                                             </div>
                                             <div className="flex gap-2 opacity-0 group-hover/rail:opacity-100 transition-opacity">
-                                                <button onClick={() => scrollRail('left')} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition-all"><ChevronLeft size={16} /></button>
-                                                <button onClick={() => scrollRail('right')} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition-all"><ChevronRight size={16} /></button>
+                                                <button onClick={() => scrollRail('left')} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-foreground-dim hover:text-foreground transition-all"><ChevronLeft size={16} /></button>
+                                                <button onClick={() => scrollRail('right')} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-foreground-dim hover:text-foreground transition-all"><ChevronRight size={16} /></button>
                                             </div>
                                         </div>
                                         <div ref={railRef} className="flex gap-4 overflow-x-auto no-scrollbar scroll-smooth pb-4">
@@ -251,7 +251,7 @@ export const QuickViewModal = () => {
                                                 >
                                                     <img src={item.coverUrl} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" alt="" />
                                                     <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent flex flex-col justify-end p-3">
-                                                        <span className="text-[8px] font-black text-white uppercase truncate">{item.title}</span>
+                                                        <span className="text-[8px] font-black text-foreground uppercase truncate">{item.title}</span>
                                                     </div>
                                                 </div>
                                             ))}
@@ -269,7 +269,7 @@ export const QuickViewModal = () => {
                                             useLibraryStore.getState().setSelectedSeriesId(libraryItem.id);
                                             closeQuickView();
                                         }}
-                                        className="flex-1 h-18 bg-white/10 hover:bg-white/20 text-white rounded-[24px] text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 shadow-2xl border border-white/5"
+                                        className="flex-1 h-18 bg-white/10 hover:bg-white/20 text-foreground rounded-[24px] text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 shadow-2xl border border-white/5"
                                     >
                                         <BookOpen size={22} />
                                         Enter Archive
@@ -292,7 +292,7 @@ export const QuickViewModal = () => {
                                             await openShell(sourceUrl);
                                         }
                                     }}
-                                    className="flex-1 h-18 bg-white/5 hover:bg-white/10 text-white rounded-[24px] text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all border border-white/10"
+                                    className="flex-1 h-18 bg-white/5 hover:bg-white/10 text-foreground rounded-[24px] text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all border border-white/10"
                                     title="Open original site"
                                 >
                                     <Globe size={20} />
@@ -304,7 +304,7 @@ export const QuickViewModal = () => {
                                     disabled={!libraryItem}
                                     className={clsx(
                                         "w-18 h-18 rounded-[24px] flex items-center justify-center transition-all backdrop-blur-xl border border-white/10",
-                                        isFavorite ? "bg-amber-500 text-white shadow-[0_0_30px_rgba(245,158,11,0.4)] border-amber-400" : "bg-white/5 hover:bg-white/10 text-white",
+                                        isFavorite ? "bg-amber-500 text-foreground shadow-[0_0_30px_rgba(245,158,11,0.4)] border-amber-400" : "bg-white/5 hover:bg-white/10 text-foreground",
                                         !libraryItem && "opacity-20 cursor-not-allowed"
                                     )}
                                 >

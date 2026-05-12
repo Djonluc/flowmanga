@@ -39,10 +39,10 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
                         <AlertTriangle size={24} />
                     </div>
                     <div>
-                        <h3 className="text-xl font-black text-white uppercase italic tracking-tight">
+                        <h3 className="text-xl font-black text-foreground uppercase italic tracking-tight">
                             Delete {isSeries ? 'Series' : 'Item'}?
                         </h3>
-                        <p className="text-neutral-400 text-sm mt-1 leading-relaxed">
+                        <p className="text-foreground-dim text-sm mt-1 leading-relaxed">
                             This action is <span className="text-red-400 font-bold">permanent</span> and cannot be undone.
                         </p>
                     </div>
@@ -51,9 +51,9 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
                 {/* Content Details */}
                 <div className="p-6">
                     <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                        <h4 className="font-bold text-white mb-1 truncate">{title}</h4>
+                        <h4 className="font-bold text-foreground mb-1 truncate">{title}</h4>
                         {isSeries && itemCount !== undefined && (
-                            <p className="text-xs text-neutral-500 font-medium uppercase tracking-wider">
+                            <p className="text-xs text-foreground-dim font-medium uppercase tracking-wider">
                                 Contains {itemCount} {itemCount === 1 ? 'Chapter' : 'Chapters'}
                             </p>
                         )}
@@ -68,9 +68,9 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
                                 checked={deleteFiles}
                                 onChange={(e) => setDeleteFiles(e.target.checked)}
                             />
-                            <X size={12} className="absolute text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
+                            <X size={12} className="absolute text-foreground opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
                         </div>
-                        <span className="text-sm text-neutral-300 font-medium group-hover:text-white transition-colors">
+                        <span className="text-sm text-foreground-muted font-medium group-hover:text-foreground transition-colors">
                             Also delete files from disk
                         </span>
                     </label>
@@ -80,7 +80,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
                 <div className="p-6 pt-0 flex gap-3">
                     <button 
                         onClick={onClose}
-                        className="flex-1 py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-sm transition-colors"
+                        className="flex-1 py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-foreground font-bold text-sm transition-colors"
                     >
                         Cancel
                     </button>

@@ -53,25 +53,25 @@ export const DownloadPanel = () => {
                         animate={{ x: 0 }}
                         exit={{ x: '100%' }}
                         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                        className="fixed right-0 top-0 h-full w-96 bg-neutral-900 border-l border-white/10 shadow-2xl z-50 flex flex-col"
+                        className="fixed right-0 top-0 h-full w-96 bg-surface border-l border-white/10 shadow-2xl z-50 flex flex-col"
                     >
                         {/* Header */}
-                        <div className="flex flex-col border-b border-white/5 bg-neutral-900/50 backdrop-blur-md px-6 py-5">
+                        <div className="flex flex-col border-b border-white/5 bg-surface/50 backdrop-blur-md px-6 py-5">
                             <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
                                         <Download size={18} className="text-blue-500" />
                                     </div>
                                     <div>
-                                        <h2 className="text-sm font-black uppercase tracking-widest text-white leading-none">Summoning Center</h2>
-                                        <p className="text-[10px] text-neutral-500 mt-1 uppercase font-bold tracking-tighter">
+                                        <h2 className="text-sm font-black uppercase tracking-widest text-foreground leading-none">Summoning Center</h2>
+                                        <p className="text-[10px] text-foreground-dim mt-1 uppercase font-bold tracking-tighter">
                                             {queue.length} Soul Fragments • {activeJobs.length} Manifesting
                                         </p>
                                     </div>
                                 </div>
                                 <button 
                                     onClick={toggleDownloadPanel}
-                                    className="p-2 hover:bg-white/10 rounded-full text-neutral-400 hover:text-white transition-colors"
+                                    className="p-2 hover:bg-white/10 rounded-full text-foreground-dim hover:text-foreground transition-colors"
                                 >
                                     <X size={18} />
                                 </button>
@@ -90,10 +90,10 @@ export const DownloadPanel = () => {
                             {/* Empty State */}
                             {queue.length === 0 && (
                                 <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 opacity-30">
-                                    <Download size={48} className="text-neutral-500" />
+                                    <Download size={48} className="text-foreground-dim" />
                                     <div className="space-y-1">
-                                        <p className="text-sm font-bold text-white">Aether is quiet</p>
-                                        <p className="text-xs text-neutral-500">No souls are being summoned</p>
+                                        <p className="text-sm font-bold text-foreground">Aether is quiet</p>
+                                        <p className="text-xs text-foreground-dim">No souls are being summoned</p>
                                     </div>
                                 </div>
                             )}
@@ -121,7 +121,7 @@ export const DownloadPanel = () => {
                                                     <AlertCircle size={16} className="text-red-400" />
                                                 </div>
                                                 <div>
-                                                    <h4 className="text-xs font-bold text-white line-clamp-1">{job.title}</h4>
+                                                    <h4 className="text-xs font-bold text-foreground line-clamp-1">{job.title}</h4>
                                                     <p className="text-[10px] text-red-400/70 font-medium">Ritual failed</p>
                                                 </div>
                                             </div>
@@ -140,23 +140,23 @@ export const DownloadPanel = () => {
 
                             {/* Paused / Queued */}
                             {(pausedJobs.length > 0 || queuedJobs.length > 0) && (
-                                <Section title="Stasis" color="text-neutral-500">
+                                <Section title="Stasis" color="text-foreground-dim">
                                     {[...pausedJobs, ...queuedJobs].map((job, idx) => (
                                         <div key={`${job.id}-${idx}`} className="bg-white/5 rounded-2xl p-4 border border-white/5 flex justify-between items-center group hover:border-white/10 transition-colors">
                                            <div className="flex items-center gap-3 group-hover:opacity-100 transition-opacity">
                                                 <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
-                                                    <Clock size={16} className="text-neutral-400" />
+                                                    <Clock size={16} className="text-foreground-dim" />
                                                 </div>
                                                 <div>
-                                                    <h4 className="text-xs font-bold text-neutral-300 line-clamp-1">{job.title}</h4>
-                                                    <p className="text-[10px] text-neutral-500 font-medium">{job.chapterList.length} Chapters • {job.status}</p>
+                                                    <h4 className="text-xs font-bold text-foreground-muted line-clamp-1">{job.title}</h4>
+                                                    <p className="text-[10px] text-foreground-dim font-medium">{job.chapterList.length} Chapters • {job.status}</p>
                                                 </div>
                                             </div>
                                             <div className="flex gap-1 transition-opacity">
-                                                <button onClick={() => resumeJob(job.id)} title="Start" className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-neutral-400 hover:text-green-400 transition-colors">
+                                                <button onClick={() => resumeJob(job.id)} title="Start" className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-foreground-dim hover:text-green-400 transition-colors">
                                                     <Play size={14} />
                                                 </button>
-                                                <button onClick={() => removeJob(job.id)} title="Remove" className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-neutral-400 hover:text-red-400 transition-colors">
+                                                <button onClick={() => removeJob(job.id)} title="Remove" className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-foreground-dim hover:text-red-400 transition-colors">
                                                     <X size={14} />
                                                 </button>
                                             </div>
@@ -214,7 +214,7 @@ const ActionBtn = ({ icon, label, onClick, variant = 'default' }: { icon: React.
         className={clsx(
             "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all border",
             variant === 'default' 
-                ? "bg-white/5 border-white/10 text-neutral-400 hover:bg-white/10 hover:text-white"
+                ? "bg-white/5 border-white/10 text-foreground-dim hover:bg-white/10 hover:text-foreground"
                 : "bg-red-500/5 border-red-500/10 text-red-500 hover:bg-red-500/10 hover:border-red-500/20"
         )}
     >
@@ -227,16 +227,16 @@ const DownloadItem = ({ job, onPause, onRemove }: { job: any, onPause: () => voi
     <div className="bg-white/5 rounded-2xl p-4 border border-white/5 space-y-3 group hover:border-white/10 transition-colors">
         <div className="flex justify-between items-start gap-3">
             <div className="flex-1 min-w-0">
-                <h4 className="text-xs font-bold text-white truncate">{job.title}</h4>
-                <p className="text-[10px] text-neutral-500 font-medium mt-0.5">
+                <h4 className="text-xs font-bold text-foreground truncate">{job.title}</h4>
+                <p className="text-[10px] text-foreground-dim font-medium mt-0.5">
                     {job.downloadedChapters} / {job.totalChapters} Chapters
                 </p>
             </div>
             <div className="flex gap-1 shrink-0">
-                <button onClick={onPause} className="p-2 hover:bg-white/10 rounded-lg text-neutral-400 hover:text-yellow-400">
+                <button onClick={onPause} className="p-2 hover:bg-white/10 rounded-lg text-foreground-dim hover:text-yellow-400">
                     <Pause size={14} />
                 </button>
-                <button onClick={onRemove} className="p-2 hover:bg-white/10 rounded-lg text-neutral-400 hover:text-red-400">
+                <button onClick={onRemove} className="p-2 hover:bg-white/10 rounded-lg text-foreground-dim hover:text-red-400">
                     <X size={14} />
                 </button>
             </div>
@@ -252,7 +252,7 @@ const DownloadItem = ({ job, onPause, onRemove }: { job: any, onPause: () => voi
             </div>
             <div className="flex justify-between text-[10px] font-mono font-bold tracking-tighter">
                 <span className="text-blue-500/70">TRANSMUTING</span>
-                <span className="text-white">{Math.round(job.progress)}%</span>
+                <span className="text-foreground">{Math.round(job.progress)}%</span>
             </div>
         </div>
     </div>

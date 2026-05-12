@@ -21,7 +21,7 @@ export const ShortcutsGuide = () => {
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            className="relative bg-neutral-900 border border-white/10 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+            className="relative bg-surface border border-white/10 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-white/5 bg-white/5">
@@ -29,11 +29,11 @@ export const ShortcutsGuide = () => {
                 <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400">
                     <Keyboard size={20} />
                 </div>
-                <h2 className="text-xl font-bold text-white">Keyboard Shortcuts</h2>
+                <h2 className="text-xl font-bold text-foreground">Keyboard Shortcuts</h2>
               </div>
               <button 
                 onClick={toggleShortcuts}
-                className="p-1 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                className="p-1 rounded-full hover:bg-white/10 text-foreground-dim hover:text-foreground transition-colors"
               >
                 <X size={20} />
               </button>
@@ -44,7 +44,7 @@ export const ShortcutsGuide = () => {
                 
                 {/* Section: General */}
                 <div>
-                    <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3">General</h3>
+                    <h3 className="text-xs font-bold text-foreground-dim uppercase tracking-wider mb-3">General</h3>
                     <div className="space-y-2">
                         <ShortcutRow keys={['H']} label="Toggle HUD (Immersive Mode)" />
                         <ShortcutRow keys={['F']} label="Toggle Fullscreen" />
@@ -56,7 +56,7 @@ export const ShortcutsGuide = () => {
 
                 {/* Section: Reading Modes */}
                 <div>
-                    <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3">Reading Modes</h3>
+                    <h3 className="text-xs font-bold text-foreground-dim uppercase tracking-wider mb-3">Reading Modes</h3>
                     <div className="space-y-2">
                         <ShortcutRow keys={['V']} label="Vertical Mode" />
                         <ShortcutRow keys={['P']} label="Page Mode" />
@@ -66,7 +66,7 @@ export const ShortcutsGuide = () => {
 
                  {/* Section: Navigation */}
                  <div>
-                    <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3">Navigation</h3>
+                    <h3 className="text-xs font-bold text-foreground-dim uppercase tracking-wider mb-3">Navigation</h3>
                     <div className="space-y-2">
                         <ShortcutRow keys={['←', '→']} label="Next / Previous Page" />
                         <ShortcutRow keys={['Space']} label="Scroll / Next" />
@@ -75,8 +75,8 @@ export const ShortcutsGuide = () => {
 
             </div>
             
-            <div className="p-4 bg-white/5 text-center text-xs text-neutral-500">
-                Press <span className="text-neutral-300 font-bold">Esc</span> to close
+            <div className="p-4 bg-white/5 text-center text-xs text-foreground-dim">
+                Press <span className="text-foreground-muted font-bold">Esc</span> to close
             </div>
 
           </motion.div>
@@ -88,10 +88,10 @@ export const ShortcutsGuide = () => {
 
 const ShortcutRow = ({ keys, label }: { keys: string[], label: string }) => (
     <div className="flex items-center justify-between">
-        <span className="text-neutral-300 text-sm">{label}</span>
+        <span className="text-foreground-muted text-sm">{label}</span>
         <div className="flex gap-1">
             {keys.map(k => (
-                <kbd key={k} className="min-w-[24px] px-1.5 py-0.5 rounded bg-white/10 border border-white/10 text-neutral-300 text-xs font-mono font-bold text-center">
+                <kbd key={k} className="min-w-[24px] px-1.5 py-0.5 rounded bg-white/10 border border-white/10 text-foreground-muted text-xs font-mono font-bold text-center">
                     {k}
                 </kbd>
             ))}

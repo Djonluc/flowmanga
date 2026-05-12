@@ -19,14 +19,14 @@ export const ActivityHeatmap = () => {
     return (
         <div className="mt-8 border-t border-white/5 pt-8">
             <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.2em]">30-Day Activity Heatmap</h3>
+                <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.2em]">30-Day Activity Heatmap</h3>
                 <div className="flex items-center gap-1">
-                    <span className="text-[8px] font-black text-neutral-600 uppercase mr-1">Less</span>
+                    <span className="text-[8px] font-black text-foreground-muted uppercase mr-1">Less</span>
                     <div className="w-1.5 h-1.5 rounded-sm bg-white/5" />
                     <div className="w-1.5 h-1.5 rounded-sm bg-blue-500/20" />
                     <div className="w-1.5 h-1.5 rounded-sm bg-blue-500/50" />
                     <div className="w-1.5 h-1.5 rounded-sm bg-blue-500" />
-                    <span className="text-[8px] font-black text-neutral-600 uppercase ml-1">More</span>
+                    <span className="text-[8px] font-black text-foreground-muted uppercase ml-1">More</span>
                 </div>
             </div>
             

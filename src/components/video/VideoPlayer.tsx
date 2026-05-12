@@ -159,7 +159,7 @@ export const VideoPlayer: React.FC = () => {
                 <div className="flex flex-col">
                   <h2 className="text-white font-medium truncate">{currentVideo.title}</h2>
                   {currentVideo.resolution && (
-                    <span className="text-[10px] text-gray-400">{currentVideo.resolution}</span>
+                    <span className="text-[10px] text-foreground-dim">{currentVideo.resolution}</span>
                   )}
                 </div>
             </div>
@@ -169,7 +169,7 @@ export const VideoPlayer: React.FC = () => {
         <div className={`absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
             
             <div className="flex items-center space-x-3 mb-4 group/seek">
-                <span className="text-xs text-gray-300 w-10 text-right">{formatTime(currentTime)}</span>
+                <span className="text-xs text-foreground-muted w-10 text-right">{formatTime(currentTime)}</span>
                 <input 
                    type="range" 
                    min={0} 
@@ -178,23 +178,23 @@ export const VideoPlayer: React.FC = () => {
                    onChange={handleSeek}
                    className="flex-1 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:h-2 transition-all"
                 />
-                <span className="text-xs text-gray-300 w-10">{formatTime(duration)}</span>
+                <span className="text-xs text-foreground-muted w-10">{formatTime(duration)}</span>
             </div>
 
             <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                    <button onClick={prevVideo} className="text-gray-300 hover:text-white p-2 rounded-full transition-colors">
+                    <button onClick={prevVideo} className="text-foreground-muted hover:text-white p-2 rounded-full transition-colors">
                         <SkipBack className="w-6 h-6" />
                     </button>
                     <button onClick={() => togglePlay()} className="text-white bg-white/10 hover:bg-white/20 p-3 rounded-full transition-all scale-110">
                         {isPlaying ? <Pause className="w-8 h-8 fill-current" /> : <Play className="w-8 h-8 fill-current" />}
                     </button>
-                    <button onClick={nextVideo} className="text-gray-300 hover:text-white p-2 rounded-full transition-colors">
+                    <button onClick={nextVideo} className="text-foreground-muted hover:text-white p-2 rounded-full transition-colors">
                         <SkipForward className="w-6 h-6" />
                     </button>
 
                     <div className="group/vol flex items-center space-x-2 ml-4">
-                        <button onClick={() => setVolume(volume === 0 ? 1 : 0)} className="text-gray-300 hover:text-white transition-colors">
+                        <button onClick={() => setVolume(volume === 0 ? 1 : 0)} className="text-foreground-muted hover:text-white transition-colors">
                             {volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
                         </button>
                         <input 
@@ -212,7 +212,7 @@ export const VideoPlayer: React.FC = () => {
                 <div className="flex items-center space-x-4">
                     <button 
                        onClick={() => setPlaybackRate(playbackRate === 1 ? 1.5 : playbackRate === 1.5 ? 2 : playbackRate === 2 ? 0.5 : 1)}
-                       className="text-xs font-bold text-gray-300 hover:text-white border border-gray-500 px-2 py-1 rounded transition-colors"
+                       className="text-xs font-bold text-foreground-muted hover:text-white border border-gray-500 px-2 py-1 rounded transition-colors"
                     >
                         {playbackRate}x
                     </button>
@@ -220,14 +220,14 @@ export const VideoPlayer: React.FC = () => {
                     <div className="flex bg-white/5 rounded-full p-1 space-x-1">
                       <button 
                           onClick={() => useVideoStore.getState().toggleShuffle()}
-                          className={`p-1.5 rounded-full ${isShuffled ? 'text-blue-400 bg-white/10' : 'text-gray-500 hover:text-gray-300'}`}
+                          className={`p-1.5 rounded-full ${isShuffled ? 'text-blue-400 bg-white/10' : 'text-foreground-dim hover:text-foreground-muted'}`}
                           title={`Shuffle: ${isShuffled ? 'ON' : 'OFF'}`}
                       >
                           <Shuffle className="w-4 h-4" />
                       </button>
                       <button 
                           onClick={() => useVideoStore.getState().toggleRepeat()}
-                          className={`p-1.5 rounded-full ${repeatMode !== 'off' ? 'text-blue-400 bg-white/10' : 'text-gray-500 hover:text-gray-300'}`}
+                          className={`p-1.5 rounded-full ${repeatMode !== 'off' ? 'text-blue-400 bg-white/10' : 'text-foreground-dim hover:text-foreground-muted'}`}
                           title={`Repeat: ${repeatMode.toUpperCase()}`}
                       >
                           <Repeat className="w-4 h-4" />
@@ -241,13 +241,13 @@ export const VideoPlayer: React.FC = () => {
 
                     <button 
                         onClick={() => setShowPlaylist(true)} 
-                        className={`text-gray-300 hover:text-white p-2 transition-colors ${showPlaylist ? 'text-blue-400' : ''}`}
+                        className={`text-foreground-muted hover:text-white p-2 transition-colors ${showPlaylist ? 'text-blue-400' : ''}`}
                         title="Playlist"
                     >
                         <ListVideo className="w-5 h-5" />
                     </button>
 
-                    <button onClick={toggleFullscreen} className="text-gray-300 hover:text-white p-2 transition-colors">
+                    <button onClick={toggleFullscreen} className="text-foreground-muted hover:text-white p-2 transition-colors">
                         {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
                     </button>
                 </div>

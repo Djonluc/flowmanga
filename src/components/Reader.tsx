@@ -244,7 +244,7 @@ const ChapterTransitionOverlay = () => {
     <motion.div
       initial={{ opacity: 0, y: 40, x: "-50%", scale: 0.95 }}
       animate={controls}
-      className="fixed bottom-0 left-1/2 z-[100] px-6 py-3 bg-[#050505]/80 backdrop-blur-3xl rounded-full border border-white/10 text-white shadow-[0_20px_60px_rgba(0,0,0,0.8)] pointer-events-none select-none flex items-center gap-4"
+      className="fixed bottom-0 left-1/2 z-[100] px-6 py-3 bg-background/85 backdrop-blur-3xl rounded-full border border-border-subtle text-foreground shadow-[0_20px_60px_rgba(0,0,0,0.8)] pointer-events-none select-none flex items-center gap-4"
     >
       <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
         <Play size={14} fill="currentColor" className="ml-0.5" />
@@ -253,7 +253,7 @@ const ChapterTransitionOverlay = () => {
         <span className="text-[7px] font-black text-indigo-500 uppercase tracking-[0.4em]">
           Entering
         </span>
-        <span className="text-xs font-black uppercase tracking-widest text-neutral-200">
+        <span className="text-xs font-black uppercase tracking-widest text-foreground-muted">
           {title}
         </span>
       </div>
@@ -276,7 +276,7 @@ const FeedbackHUD = () => {
           className="fixed top-0 left-1/2 z-[101] px-10 py-4 bg-accent shadow-[0_32px_64px_rgba(59,130,246,0.5)] rounded-[32px] flex items-center gap-6 pointer-events-none select-none border border-white/20"
         >
           <div className="flex flex-col items-center">
-            <span className="text-[7px] font-black text-white/60 uppercase tracking-[0.5em] mb-0.5">
+            <span className="text-[7px] font-black text-white/70 uppercase tracking-[0.5em] mb-0.5">
               {feedback.type}
             </span>
             <span className="text-2xl font-black text-white italic tracking-tighter tabular-nums">

@@ -74,7 +74,7 @@ export const useScraperStore = create<ScraperState>((set, get) => ({
                     coverUrl: result.series.coverUrl,
                     source: result.series.source,
                     sourceUrl: result.series.seriesUrl,
-                    tags: result.series.tags,
+                    tags: result.series.tags ?? [],
                     mangaId: result.series.seriesUrl // Use URL as ID for non-MangaDex
                 };
                 feed = result.series.chapters.map(ch => ({

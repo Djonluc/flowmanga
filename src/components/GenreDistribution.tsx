@@ -55,10 +55,10 @@ export const GenreDistribution = () => {
         return (
             <div className="flex flex-col items-center justify-center p-8 h-full text-center">
                 <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
-                    <div className="w-8 h-8 rounded-full border-2 border-dashed border-neutral-700" />
+                    <div className="w-8 h-8 rounded-full border-2 border-dashed border-foreground-dim/25" />
                 </div>
-                <h3 className="text-sm font-black text-neutral-400 uppercase tracking-widest">No Genre Data</h3>
-                <p className="text-[10px] text-neutral-600 font-bold uppercase tracking-widest mt-2">Start reading to see insights</p>
+                <h3 className="text-sm font-black text-foreground-dim uppercase tracking-widest">No Genre Data</h3>
+                <p className="text-[10px] text-foreground-muted font-bold uppercase tracking-widest mt-2">Start reading to see insights</p>
             </div>
         );
     }
@@ -82,7 +82,7 @@ export const GenreDistribution = () => {
 
     return (
         <div className="flex flex-col gap-8 h-full">
-            <h3 className="text-sm font-black text-neutral-400 uppercase tracking-widest">Genre Distribution</h3>
+            <h3 className="text-sm font-black text-foreground-dim uppercase tracking-widest">Genre Distribution</h3>
             
             <div className="flex flex-col lg:flex-row items-center gap-12 flex-1">
                 {/* Donut Chart */}
@@ -108,8 +108,8 @@ export const GenreDistribution = () => {
                     
                     {/* Center Overlay */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-[10px] font-black text-neutral-500 uppercase tracking-tight">Top Genre</span>
-                        <span className="text-xl font-black text-white italic tracking-tighter truncate max-w-[140px] px-2 uppercase">
+                        <span className="text-[10px] font-black text-foreground-dim uppercase tracking-tight">Top Genre</span>
+                        <span className="text-xl font-black text-foreground italic tracking-tighter truncate max-w-[140px] px-2 uppercase">
                             {genreStats[0].name}
                         </span>
                     </div>
@@ -128,8 +128,8 @@ export const GenreDistribution = () => {
                             <div className="w-2 h-2 rounded-full shadow-lg" style={{ backgroundColor: stat.color, boxShadow: `0 0 10px ${stat.color}44` }} />
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between gap-2">
-                                    <span className="text-[10px] font-black text-white truncate uppercase tracking-tight">{stat.name}</span>
-                                    <span className="text-[9px] font-black text-neutral-500">{Math.round(stat.percentage)}%</span>
+                                    <span className="text-[10px] font-black text-foreground truncate uppercase tracking-tight">{stat.name}</span>
+                                    <span className="text-[9px] font-black text-foreground-dim">{Math.round(stat.percentage)}%</span>
                                 </div>
                                 <div className="mt-1 h-0.5 w-full bg-white/5 rounded-full overflow-hidden">
                                      <motion.div 

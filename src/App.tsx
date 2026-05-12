@@ -24,7 +24,7 @@ import { LocationModal } from './components/modals/LocationModal';
 import { SafetyCheckModal } from './components/modals/SafetyCheckModal';
 
 function App() {
-  const { isInitializing, zoomScale, accentColor } = useSettingsStore();
+  const { isInitializing, zoomScale, accentColor, theme } = useSettingsStore();
   
   // Sync Accent Color to CSS Variables
   useEffect(() => {
@@ -53,7 +53,10 @@ function App() {
 
   if (isInitializing) {
     return (
-      <div className="h-screen w-screen bg-black flex items-center justify-center relative overflow-hidden">
+      <div
+        data-theme={theme}
+        className="h-screen w-screen bg-background flex items-center justify-center relative overflow-hidden text-foreground"
+      >
         <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 to-purple-900/20" />
         <div className="absolute top-0 left-0 w-full h-1 bg-blue-600 animate-pulse" />
         
@@ -61,20 +64,20 @@ function App() {
           <div className="relative inline-block">
              <div className="w-24 h-24 border-t-2 border-blue-500 rounded-full animate-spin" />
              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-4xl font-black text-white italic tracking-tighter">F</span>
+                <span className="text-4xl font-black text-foreground italic tracking-tighter">F</span>
              </div>
           </div>
           
           <div className="space-y-2">
-            <h1 className="text-4xl font-black text-white tracking-tighter">
+            <h1 className="text-4xl font-black text-foreground tracking-tighter">
                 FLOW<span className="text-blue-500">MANGA</span>
             </h1>
-            <p className="text-neutral-500 font-medium tracking-widest uppercase text-xs">
+            <p className="text-foreground-dim font-medium tracking-widest uppercase text-xs">
                  Initializing Core Engine
             </p>
           </div>
           
-          <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+          <div className="w-full h-1 bg-border-subtle rounded-full overflow-hidden">
              <motion.div 
                className="h-full bg-blue-600 shadow-[0_0_20px_rgba(37,99,235,0.5)]"
                initial={{ width: 0 }}

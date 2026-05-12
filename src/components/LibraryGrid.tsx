@@ -467,7 +467,7 @@ export const LibraryGrid = () => {
                             <button
                               key={`selected-${tag}`}
                               onClick={() => toggleFilterTag(tag)}
-                              className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium tracking-wide bg-accent/20 border border-accent/30 text-white shadow-lg shadow-accent/10 flex items-center gap-1"
+                              className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium tracking-wide bg-accent/20 border border-accent/30 text-foreground shadow-lg shadow-accent/10 flex items-center gap-1"
                             >
                               {tag} <X size={10} />
                             </button>
@@ -557,12 +557,12 @@ export const LibraryGrid = () => {
                         <div className="w-8 h-8 rounded-xl bg-accent/20 flex items-center justify-center text-accent">
                           <Sparkles size={18} />
                         </div>
-                        <h3 className="text-xl font-black text-white uppercase tracking-tighter italic">
+                        <h3 className="text-xl font-black text-foreground uppercase tracking-tighter italic">
                           Spirit Revelations
                         </h3>
                       </div>
                       {isSearchingExternal && (
-                        <div className="flex items-center gap-2 text-[10px] font-black text-neutral-500 uppercase tracking-widest animate-pulse">
+                        <div className="flex items-center gap-2 text-[10px] font-black text-foreground-dim uppercase tracking-widest animate-pulse">
                           <RefreshCw size={12} className="animate-spin" />
                           Sensing Aether...
                         </div>
@@ -593,7 +593,7 @@ export const LibraryGrid = () => {
                                 }}
                               />
                               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
-                                <span className="text-[10px] font-black text-white uppercase tracking-widest">
+                                <span className="text-[10px] font-black text-foreground uppercase tracking-widest">
                                   View Tome
                                 </span>
                               </div>
@@ -601,7 +601,7 @@ export const LibraryGrid = () => {
                                 Web
                               </div>
                             </div>
-                            <h4 className="text-xs font-bold text-neutral-400 group-hover:text-white truncate transition-colors uppercase tracking-tight">
+                            <h4 className="text-xs font-bold text-foreground-dim group-hover:text-foreground truncate transition-colors uppercase tracking-tight">
                               {item.title}
                             </h4>
                           </motion.div>
@@ -610,8 +610,8 @@ export const LibraryGrid = () => {
                     ) : (
                       !isSearchingExternal && (
                         <div className="p-12 border border-dashed border-white/5 rounded-[32px] flex flex-col items-center justify-center text-center opacity-40">
-                          <Tag size={32} className="text-neutral-700 mb-4" />
-                          <p className="text-xs font-bold text-neutral-600 uppercase tracking-widest">
+                          <Tag size={32} className="text-foreground-muted mb-4" />
+                          <p className="text-xs font-bold text-foreground-muted uppercase tracking-widest">
                             No spirits found for these sigils
                           </p>
                         </div>
@@ -686,7 +686,7 @@ export const LibraryGrid = () => {
                 </button>
                 <button
                   onClick={toggleSelectionMode}
-                  className="p-3 bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white rounded-2xl transition-all border border-white/5"
+                  className="p-3 bg-white/5 hover:bg-white/10 text-foreground-dim hover:text-foreground rounded-2xl transition-all border border-white/5"
                 >
                   <X size={20} />
                 </button>
@@ -714,7 +714,7 @@ const EmptyState = ({
     >
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-accent/10 blur-[100px] rounded-full -z-10 animate-pulse" />
       <div className="w-24 h-24 rounded-[32px] bg-gradient-to-br from-accent to-accent/60 p-6 shadow-2xl shadow-accent/20 mb-8 transform -rotate-6">
-        <FolderOpen size={48} className="text-white" />
+        <FolderOpen size={48} className="text-foreground" />
       </div>
       <h1 className="text-4xl font-bold text-foreground tracking-tight mb-4">
         Archive <span className="text-accent">Silent</span>
@@ -731,7 +731,7 @@ const EmptyState = ({
             size={24}
             className="text-indigo-500 mb-3 group-hover:scale-110 transition-transform"
           />
-          <span className="block text-white font-semibold text-xs tracking-wide">
+          <span className="block text-foreground font-semibold text-xs tracking-wide">
             Acquire Tome
           </span>
         </button>
@@ -741,9 +741,9 @@ const EmptyState = ({
         >
           <FolderOpen
             size={24}
-            className="text-white mb-3 group-hover:scale-110 transition-transform"
+            className="text-foreground mb-3 group-hover:scale-110 transition-transform"
           />
-          <span className="block text-white font-semibold text-xs tracking-wide">
+          <span className="block text-foreground font-semibold text-xs tracking-wide">
             Connect Realm
           </span>
         </button>
@@ -754,7 +754,7 @@ const EmptyState = ({
 
 const DragOverlay = () => (
   <div className="absolute inset-0 z-50 bg-indigo-500/20 backdrop-blur-sm border-4 border-indigo-500 border-dashed m-4 rounded-xl flex items-center justify-center pointer-events-none">
-    <div className="bg-neutral-900/80 p-6 rounded-2xl text-white transform scale-110">
+    <div className="bg-surface/90 p-6 rounded-2xl text-foreground transform scale-110">
       <FolderOpen size={48} className="mx-auto mb-2 text-indigo-400" />
       <h3 className="text-xl font-bold">Unseal Folder</h3>
     </div>
@@ -772,9 +772,9 @@ const LoadingDisplay = () => (
 
 const NoResultsState = () => (
   <div className="h-full flex flex-col items-center justify-center text-center p-8">
-    <FolderOpen size={48} className="text-neutral-700 mb-4" />
-    <h3 className="text-xl font-bold text-neutral-400">No Tomes Found</h3>
-    <p className="text-xs text-neutral-600 mt-2">The sigils reveal nothing</p>
+    <FolderOpen size={48} className="text-foreground-muted mb-4" />
+    <h3 className="text-xl font-bold text-foreground-dim">No Tomes Found</h3>
+    <p className="text-xs text-foreground-muted mt-2">The sigils reveal nothing</p>
   </div>
 );
 
@@ -799,28 +799,28 @@ const ContextMenu = ({
       >
         <button
           onClick={() => onAction("tag", activeMenu.item)}
-          className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 text-white hover:bg-white/10 transition-colors"
+          className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 text-foreground hover:bg-white/10 transition-colors"
         >
           <Tag size={16} className="text-indigo-400" />
           Manage Tags
         </button>
         <button
           onClick={() => onAction("rename", activeMenu.item)}
-          className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 text-white hover:bg-white/10 transition-colors"
+          className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 text-foreground hover:bg-white/10 transition-colors"
         >
           <Edit2 size={16} className="text-purple-400" />
           Rename Series
         </button>
         <button
           onClick={() => onAction("refresh", activeMenu.item)}
-          className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 text-white hover:bg-white/10 transition-colors"
+          className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 text-foreground hover:bg-white/10 transition-colors"
         >
           <Sparkles size={16} className="text-accent" />
           Refresh Metadata
         </button>
         <button
           onClick={() => onAction("favorite", activeMenu.item)}
-          className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 text-white hover:bg-white/10 transition-colors"
+          className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 text-foreground hover:bg-white/10 transition-colors"
         >
           <Heart size={16} className="text-red-400" />
           Add to Favorites

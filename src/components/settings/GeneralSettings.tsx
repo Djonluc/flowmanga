@@ -75,7 +75,7 @@ export const GeneralSettings = () => {
             <div className="space-y-4 pt-4 border-t border-white/5">
                 <div className="flex items-center gap-3 mb-6">
                     <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
-                    <h4 className="text-white font-black uppercase tracking-widest text-sm italic">
+                    <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
                         Archive Management
                     </h4>
                 </div>
@@ -87,16 +87,16 @@ export const GeneralSettings = () => {
                                 <Folder size={28} />
                             </div>
                             <div className="flex flex-col min-w-0">
-                                <span className="text-neutral-400 text-[10px] font-black uppercase tracking-widest mb-1">Target Directory</span>
-                                <span className="text-white text-base font-bold truncate opacity-80" title={libraryPath || 'Not set'}>
+                                <span className="text-foreground-dim text-[10px] font-black uppercase tracking-widest mb-1">Target Directory</span>
+                                <span className="text-foreground text-base font-bold truncate opacity-80" title={libraryPath || 'Not set'}>
                                     {libraryPath || 'No directory selected'}
                                 </span>
-                                <p className="text-neutral-600 text-[10px] font-medium mt-1">Main storage for your manga collection and metadata.</p>
+                                <p className="text-foreground-muted text-[10px] font-medium mt-1">Main storage for your manga collection and metadata.</p>
                             </div>
                         </div>
                         <button 
                             onClick={handleBrowseLibrary}
-                            className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 whitespace-nowrap"
+                            className="px-6 py-3 bg-white/5 hover:bg-white/10 text-foreground border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 whitespace-nowrap"
                         >
                             Change Location
                         </button>
@@ -108,7 +108,7 @@ export const GeneralSettings = () => {
              <section className="space-y-4">
                 <div className="flex items-center gap-3 mb-6">
                     <div className="w-1.5 h-6 bg-amber-500 rounded-full" />
-                    <h4 className="text-white font-black uppercase tracking-widest text-sm italic">
+                    <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
                         Display & Interface
                     </h4>
                 </div>
@@ -122,21 +122,21 @@ export const GeneralSettings = () => {
                             <div className="flex flex-col gap-1">
                                 <div className="flex items-center gap-2">
                                     <Monitor size={14} className="text-amber-500" />
-                                    <span className="text-white text-base font-bold tracking-tight">UI Viewing Scale</span>
+                                    <span className="text-foreground text-base font-bold tracking-tight">UI Viewing Scale</span>
                                 </div>
-                                <p className="text-neutral-600 text-[10px] font-medium mt-1 leading-relaxed max-w-md">
+                                <p className="text-foreground-muted text-[10px] font-medium mt-1 leading-relaxed max-w-md">
                                     Adjust the native visual density of the application. This behaves like browser zoom (CTRL + Scroll) and persists across restarts.
                                 </p>
                             </div>
                         </div>
                         <div className="flex flex-col items-end gap-3 min-w-[240px]">
                             <div className="flex items-center gap-3">
-                                <span className="text-2xl font-black text-white italic tracking-tighter">
+                                <span className="text-2xl font-black text-foreground italic tracking-tighter">
                                     {Math.round(zoomScale * 100)}%
                                 </span>
                                 <button 
                                     onClick={() => setZoomScale(1.0)}
-                                    className="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[9px] font-black uppercase tracking-widest text-neutral-500 hover:text-white transition-all"
+                                    className="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[9px] font-black uppercase tracking-widest text-foreground-dim hover:text-foreground transition-all"
                                 >
                                     Reset
                                 </button>
@@ -156,7 +156,7 @@ export const GeneralSettings = () => {
 
                 <div className="flex items-center gap-3 mb-6 pt-4">
                     <div className="w-1.5 h-6 bg-emerald-500 rounded-full" />
-                    <h4 className="text-white font-black uppercase tracking-widest text-sm italic">
+                    <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
                         Maintenance & System
                     </h4>
                 </div>
@@ -170,14 +170,14 @@ export const GeneralSettings = () => {
                             </div>
                             <div className="flex flex-col">
                                 <span className="text-indigo-500 text-[10px] font-black uppercase tracking-widest mb-1">Global Discovery</span>
-                                <span className="text-white text-base font-bold tracking-tight">Force Reset Engine</span>
-                                <p className="text-neutral-600 text-[10px] font-medium mt-1 max-w-[300px]">Clear all cached discovery data and fetch fresh recommended content from all sources.</p>
+                                <span className="text-foreground text-base font-bold tracking-tight">Force Reset Engine</span>
+                                <p className="text-foreground-muted text-[10px] font-medium mt-1 max-w-[300px]">Clear all cached discovery data and fetch fresh recommended content from all sources.</p>
                             </div>
                         </div>
                         <button 
                             onClick={handleForceRefresh}
                             disabled={isRefreshing}
-                            className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none flex items-center gap-2"
+                            className="px-6 py-3 bg-white/5 hover:bg-white/10 text-foreground border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none flex items-center gap-2"
                         >
                             {isRefreshing ? 'Refreshing...' : 'Reset Now'}
                         </button>
@@ -190,8 +190,8 @@ export const GeneralSettings = () => {
                             </div>
                             <div className="flex flex-col">
                                 <span className="text-emerald-500 text-[10px] font-black uppercase tracking-widest mb-1">Integrity Check</span>
-                                <span className="text-white text-base font-bold">Verify Database Sync</span>
-                                <p className="text-neutral-600 text-[10px] font-medium mt-1">Reconcile library with disk. Removes broken links.</p>
+                                <span className="text-foreground text-base font-bold">Verify Database Sync</span>
+                                <p className="text-foreground-muted text-[10px] font-medium mt-1">Reconcile library with disk. Removes broken links.</p>
                             </div>
                         </div>
                         <button 
@@ -209,16 +209,16 @@ export const GeneralSettings = () => {
 
                     <div className="bg-white/5 p-6 rounded-[32px] border border-white/5 flex items-center justify-between">
                         <div className="flex items-center gap-5">
-                            <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center text-neutral-400">
+                            <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center text-foreground-dim">
                                 <Info size={28} />
                             </div>
                             <div className="flex flex-col">
-                                <span className="text-neutral-500 text-[10px] font-black uppercase tracking-widest mb-1">App Info</span>
+                                <span className="text-foreground-dim text-[10px] font-black uppercase tracking-widest mb-1">App Info</span>
                                 <div className="flex items-center gap-3">
-                                    <span className="text-white text-base font-bold tracking-tight">FlowManga V2</span>
+                                    <span className="text-foreground text-base font-bold tracking-tight">FlowManga V2</span>
                                     <span className="px-2 py-0.5 bg-blue-500/20 text-blue-500 text-[9px] font-black rounded-md uppercase tracking-widest border border-blue-500/20">Production</span>
                                 </div>
-                                <p className="text-neutral-600 text-[10px] font-medium mt-1">Powered by Tauri Framework & React 19</p>
+                                <p className="text-foreground-muted text-[10px] font-medium mt-1">Powered by Tauri Framework & React 19</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2 text-emerald-500 bg-emerald-500/10 px-4 py-2 rounded-xl border border-emerald-500/20">

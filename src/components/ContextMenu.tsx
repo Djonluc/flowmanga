@@ -62,7 +62,7 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
               top: position.y,
               zIndex: 9999,
             }}
-            className="bg-neutral-900 border border-white/10 rounded-lg shadow-2xl py-1 min-w-[200px]"
+            className="bg-surface border border-white/10 rounded-lg shadow-2xl py-1 min-w-[200px]"
           >
             {items.map((item, index) => (
               item.divider ? (
@@ -77,7 +77,7 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
                   className={`w-full px-4 py-2 text-left text-sm flex items-center gap-3 transition-colors ${
                     item.danger
                       ? 'text-red-400 hover:bg-red-500/10'
-                      : 'text-white hover:bg-white/10'
+                      : 'text-foreground hover:bg-white/10'
                   }`}
                 >
                   {item.icon && <span className="w-4 h-4">{item.icon}</span>}

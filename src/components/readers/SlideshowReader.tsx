@@ -133,12 +133,12 @@ export const SlideshowReader = () => {
             {/* Quick Navigation Zones */}
             <div className="absolute inset-y-0 left-0 w-1/4 group cursor-west-resize" onClick={prevSlide}>
                 <div className="absolute inset-y-0 left-0 w-20 bg-gradient-to-r from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <Rewind size={32} className="text-white opacity-50" />
+                    <Rewind size={32} className="text-foreground opacity-50" />
                 </div>
             </div>
             <div className="absolute inset-y-0 right-0 w-1/4 group cursor-east-resize" onClick={nextSlide}>
                 <div className="absolute inset-y-0 right-0 w-20 bg-gradient-to-l from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <FastForward size={32} className="text-white opacity-50" />
+                    <FastForward size={32} className="text-foreground opacity-50" />
                 </div>
             </div>
             
@@ -146,11 +146,11 @@ export const SlideshowReader = () => {
             <div className="absolute bottom-10 left-10 flex items-center gap-3 bg-black/60 backdrop-blur-2xl border border-white/10 px-6 py-3 rounded-full shadow-2xl z-40">
                 <div className={clsx("w-2 h-2 rounded-full", slideshowActive ? "bg-green-500 animate-pulse" : "bg-yellow-500")} />
                 <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-white uppercase tracking-[0.2em] leading-none">
+                    <span className="text-[10px] font-black text-foreground uppercase tracking-[0.2em] leading-none">
                         Slideshow {slideshowActive ? 'Active' : 'Paused'}
                     </span>
-                    <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest mt-1">
-                        Interval: {(slideshowInterval / 1000).toFixed(1)}s <span className="text-white/20 px-1">•</span> Page {currentPage + 1}/{totalPages}
+                    <span className="text-[8px] font-bold text-foreground/40 uppercase tracking-widest mt-1">
+                        Interval: {(slideshowInterval / 1000).toFixed(1)}s <span className="text-foreground/20 px-1">•</span> Page {currentPage + 1}/{totalPages}
                     </span>
                 </div>
             </div>

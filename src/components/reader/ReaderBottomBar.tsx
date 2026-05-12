@@ -140,10 +140,10 @@ export const ReaderBottomBar = ({ visible }: { visible: boolean }) => {
               Progress
             </span>
             <div className="flex items-baseline gap-1">
-              <span className="text-xl font-black text-white italic tracking-tighter">
+              <span className="text-xl font-black text-foreground italic tracking-tighter">
                 {currentIndex + 1}
               </span>
-              <span className="text-[10px] font-bold text-neutral-500">
+              <span className="text-[10px] font-bold text-foreground-dim">
                 / {totalPages}
               </span>
             </div>
@@ -175,7 +175,7 @@ export const ReaderBottomBar = ({ visible }: { visible: boolean }) => {
                       )}
                     </div>
                     <div className="flex flex-col items-center py-1">
-                      <span className="text-[8px] font-black text-white uppercase tracking-[0.3em]">
+                      <span className="text-[8px] font-black text-foreground uppercase tracking-[0.3em]">
                         Page {previewIndex + 1}
                       </span>
                     </div>
@@ -228,7 +228,7 @@ export const ReaderBottomBar = ({ visible }: { visible: boolean }) => {
 
           {/* Right Percentage */}
           <div className="text-right flex flex-col items-end min-w-[80px]">
-            <span className="text-[8px] font-black text-neutral-500 uppercase tracking-[0.4em]">
+            <span className="text-[8px] font-black text-foreground-dim uppercase tracking-[0.4em]">
               Completion
             </span>
             <span className="text-xl font-black text-blue-500 italic tracking-tighter">

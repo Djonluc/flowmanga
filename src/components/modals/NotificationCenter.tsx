@@ -29,7 +29,7 @@ export const NotificationCenter = () => {
             case 'success': return <CheckCircle2 size={16} className="text-green-400" />;
             case 'discovery': return <Sparkles size={16} className="text-indigo-400" />;
             case 'warning': return <AlertTriangle size={16} className="text-amber-400" />;
-            default: return <Bell size={16} className="text-neutral-400" />;
+            default: return <Bell size={16} className="text-foreground-dim" />;
         }
     };
 
@@ -54,17 +54,17 @@ export const NotificationCenter = () => {
                 <div className="flex items-center justify-between p-6 border-b border-white/5">
                     <div className="flex items-center gap-3">
                         <div className="relative">
-                            <Bell size={20} className="text-white" />
+                            <Bell size={20} className="text-foreground" />
                             {unreadCount > 0 && (
                                 <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-indigo-500 rounded-full border-2 border-[#0A0A0A]" />
                             )}
                         </div>
-                        <h2 className="text-lg font-bold text-white tracking-tight">Notifications</h2>
+                        <h2 className="text-lg font-bold text-foreground tracking-tight">Notifications</h2>
                     </div>
                     
                     <button 
                         onClick={closeNotificationCenter}
-                        className="p-2 text-neutral-500 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
+                        className="p-2 text-foreground-dim hover:text-foreground hover:bg-white/10 rounded-xl transition-colors"
                     >
                         <X size={20} />
                     </button>
@@ -86,8 +86,8 @@ export const NotificationCenter = () => {
                 <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar">
                     {notifications.length === 0 ? (
                         <div className="h-full flex flex-col items-center justify-center text-center opacity-50">
-                            <Bell size={40} className="mb-4 text-neutral-600" />
-                            <p className="text-sm font-medium text-neutral-400">You're all caught up!</p>
+                            <Bell size={40} className="mb-4 text-foreground-muted" />
+                            <p className="text-sm font-medium text-foreground-dim">You're all caught up!</p>
                         </div>
                     ) : (
                         notifications.map((notif) => (
@@ -113,14 +113,14 @@ export const NotificationCenter = () => {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between mb-1">
-                                            <h4 className={clsx("text-xs font-bold truncate pr-2", notif.read ? "text-neutral-400" : "text-white")}>
+                                            <h4 className={clsx("text-xs font-bold truncate pr-2", notif.read ? "text-foreground-dim" : "text-foreground")}>
                                                 {notif.title}
                                             </h4>
-                                            <span className="text-[9px] font-bold text-neutral-600 uppercase tracking-widest flex-shrink-0">
+                                            <span className="text-[9px] font-bold text-foreground-muted uppercase tracking-widest flex-shrink-0">
                                                 {notif.time}
                                             </span>
                                         </div>
-                                        <p className="text-[11px] text-neutral-500 font-medium leading-snug">
+                                        <p className="text-[11px] text-foreground-dim font-medium leading-snug">
                                             {notif.message}
                                         </p>
                                     </div>

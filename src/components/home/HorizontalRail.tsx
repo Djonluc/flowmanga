@@ -1,4 +1,4 @@
- import React, { useRef } from 'react';
+import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, ArrowRight, RefreshCcw } from 'lucide-react';
 import { MangaCard } from '../library/MangaCard';
@@ -108,6 +108,7 @@ export const HorizontalRail = ({
                                 <RefreshCcw size={14} className="hover:rotate-180 transition-transform duration-500" />
                             </button>
                         )}
+                        {layout !== 'masonry' && (
                         <div className="hidden gap-2 sm:flex">
                             <button 
                                 onClick={() => scroll('left')}
@@ -122,6 +123,7 @@ export const HorizontalRail = ({
                                 <ChevronRight size={16} />
                             </button>
                         </div>
+                        )}
                         {onViewAll && (
                             <Button variant="ghost" size="sm" className="text-foreground-dim hover:text-foreground font-medium tracking-wide text-xs" onClick={onViewAll}>
                                 <span className="hidden sm:inline">View All</span> <ArrowRight size={14} className="sm:ml-1.5" />
@@ -133,11 +135,11 @@ export const HorizontalRail = ({
 
             {items.length > 0 ? (
                 layout === 'masonry' ? (
-                    <div className="flex flex-col xl:flex-row gap-6 xl:gap-10 px-4 sm:px-6 md:px-16 pb-12 pt-4 transition-all duration-300 w-full">
+                    <div className="flex flex-col xl:flex-row xl:items-stretch gap-6 xl:gap-10 px-4 sm:px-6 md:px-16 pb-12 pt-4 transition-all duration-300 w-full">
                         {/* Hero Item */}
                         {items[0] && (
                             <motion.div 
-                                className="w-full xl:w-[40%] 2xl:w-[30%] flex-shrink-0"
+                                className="w-full xl:w-[38%] 2xl:w-[32%] flex-shrink-0 flex flex-col min-w-0"
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                             >
@@ -150,13 +152,14 @@ export const HorizontalRail = ({
                                 />
                             </motion.div>
                         )}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5 gap-4 md:gap-6 2xl:gap-8 w-full transition-all duration-300">
+                        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 2xl:gap-8 w-full min-w-0 xl:flex-1 content-start">
                             {(isScreenshotMode ? items.slice(1) : items.slice(1, 9)).map((item, idx) => (
                                 <motion.div 
                                     key={`${item.id}-${idx}`}
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: idx * 0.05 }}
+                                    className="min-w-0 w-full flex flex-col"
                                 >
                                     <MangaCard 
                                         item={item} 
@@ -178,7 +181,7 @@ export const HorizontalRail = ({
                         <div 
                             ref={scrollRef}
                             className={clsx(
-                                "flex gap-4 sm:gap-5 md:gap-8 px-4 sm:px-6 md:px-16 pb-12 pt-4 transition-all duration-300 w-full",
+                                "flex items-stretch gap-4 sm:gap-5 md:gap-8 px-4 sm:px-6 md:px-16 pb-12 pt-4 transition-all duration-300 w-full",
                                 isScreenshotMode 
                                     ? "flex-wrap justify-center overflow-visible" 
                                     : "overflow-x-auto no-scrollbar snap-x snap-mandatory"
@@ -204,16 +207,17 @@ export const HorizontalRail = ({
                             <motion.div 
                                 key={`${item.id}-${idx}`}
                                 className={clsx(
-                                    "transition-all duration-300",
+                                    "transition-all duration-300 flex flex-col",
                                     !isScreenshotMode && "snap-start",
                                     variant === 'landscape' 
-                                        ? "min-w-[280px] sm:min-w-[340px] lg:min-w-[400px]" 
-                                        : "min-w-[150px] sm:min-w-[180px] md:min-w-[220px] 2xl:min-w-[260px]"
+                                        ? "w-[280px] sm:w-[340px] lg:w-[400px] flex-shrink-0" 
+                                        : "w-[156px] sm:w-[176px] md:w-[204px] lg:w-[216px] 2xl:w-[232px] flex-shrink-0"
                                 )}
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: idx * 0.03 }}
                             >
+                                <div className="w-full flex-1 min-h-0 flex flex-col">
                                 <MangaCard 
                                     item={item} 
                                     onClick={() => onItemClick(item)} 
@@ -221,6 +225,7 @@ export const HorizontalRail = ({
                                     variant="standard"
                                     orientation={variant}
                                 />
+                                </div>
                             </motion.div>
                         ))}
                         

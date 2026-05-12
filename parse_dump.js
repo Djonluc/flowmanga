@@ -1,2 +1,0 @@
-"const fs = require('fs');\nconst data = fs.readFileSync('series_dump.html', 'utf-8');\n\n// Title\nconst titleMatch = data.match(/<h1[^>]*>([^<]+)<\\/h1>/) || data.match(/class=\"post-title\"[^>]*>\\s*<h1>([^<]+)<\\/h1>/);\nconsole.log(\"Title:\", titleMa
-<truncated 897 bytes>

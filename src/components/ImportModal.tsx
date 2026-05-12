@@ -123,13 +123,13 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                   <div className="p-2 bg-blue-500/20 rounded-lg">
                     <Globe size={18} className="text-blue-400" />
                   </div>
-                  <h2 className="text-xl font-black text-white italic tracking-tighter uppercase">
+                  <h2 className="text-xl font-black text-foreground italic tracking-tighter uppercase">
                     {mode === 'choose' ? 'Add Manga' : 'Online Link'}
                   </h2>
                 </div>
                 <button
                   onClick={onClose}
-                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-all"
+                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-foreground-dim hover:text-foreground transition-all"
                 >
                   <X size={18} />
                 </button>
@@ -140,31 +140,31 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                 {mode === 'choose' ? (
                   <div className="space-y-6">
                     <div className="space-y-1">
-                      <p className="text-lg font-bold text-white">Add New Content</p>
-                      <p className="text-sm text-neutral-400">Select your preferred source to expand your library</p>
+                      <p className="text-lg font-bold text-foreground">Add New Content</p>
+                      <p className="text-sm text-foreground-dim">Select your preferred source to expand your library</p>
                     </div>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <button
                         onClick={handleFolderClick}
-                        className="p-6 bg-neutral-900 hover:bg-neutral-800 border border-white/5 hover:border-blue-500/50 rounded-2xl transition-all group text-left"
+                        className="p-6 bg-surface hover:bg-surface-raised border border-white/5 hover:border-blue-500/50 rounded-2xl transition-all group text-left"
                       >
                         <div className="p-3 bg-blue-500/10 rounded-xl group-hover:bg-blue-500/20 transition-colors w-fit mb-4">
                           <FolderOpen size={28} className="text-blue-400" />
                         </div>
-                        <h3 className="font-bold text-white text-lg">Local Database</h3>
-                        <p className="text-sm text-neutral-500 leading-relaxed">Import directory or archives from your system</p>
+                        <h3 className="font-bold text-foreground text-lg">Local Database</h3>
+                        <p className="text-sm text-foreground-dim leading-relaxed">Import directory or archives from your system</p>
                       </button>
 
                       <button
                         onClick={() => setMode('web')}
-                        className="p-6 bg-neutral-900 hover:bg-neutral-800 border border-white/5 hover:border-purple-500/50 rounded-2xl transition-all group text-left"
+                        className="p-6 bg-surface hover:bg-surface-raised border border-white/5 hover:border-purple-500/50 rounded-2xl transition-all group text-left"
                       >
                         <div className="p-3 bg-purple-500/10 rounded-xl group-hover:bg-purple-500/20 transition-colors w-fit mb-4">
                           <Globe size={28} className="text-purple-400" />
                         </div>
-                        <h3 className="font-bold text-white text-lg">Online Link</h3>
-                        <p className="text-sm text-neutral-500 leading-relaxed">Scrape MangaDex & Official digital sources</p>
+                        <h3 className="font-bold text-foreground text-lg">Online Link</h3>
+                        <p className="text-sm text-foreground-dim leading-relaxed">Scrape MangaDex & Official digital sources</p>
                       </button>
                     </div>
                   </div>
@@ -173,16 +173,16 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                     {!isScraping && scrapedImages.length === 0 && chapterFeed.length === 0 && !isDownloading ? (
                         <form onSubmit={handleWebSubmit} className="space-y-6">
                           <div className="space-y-3">
-                            <label className="text-xs font-black text-neutral-500 uppercase tracking-[0.2em]">Source URL</label>
+                            <label className="text-xs font-black text-foreground-dim uppercase tracking-[0.2em]">Source URL</label>
                             <input
                                 type="text"
                                 value={localUrl}
                                 onChange={(e) => setLocalUrl(e.target.value)}
                                 placeholder="Paste MangaDex link here..."
                                 autoFocus
-                                className="w-full px-5 py-4 bg-black/40 border border-white/10 rounded-xl text-white placeholder-neutral-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-medium"
+                                className="w-full px-5 py-4 bg-black/40 border border-white/10 rounded-xl text-foreground placeholder:text-foreground-dim focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-medium"
                             />
-                            <p className="text-[10px] text-neutral-500 italic">Example: mangadex.org/title/uuid or /chapter/uuid</p>
+                            <p className="text-[10px] text-foreground-dim italic">Example: mangadex.org/title/uuid or /chapter/uuid</p>
                           </div>
                           
                           {error && (
@@ -200,7 +200,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                               <button
                               type="button"
                               onClick={() => setMode('choose')}
-                              className="flex-1 px-6 py-4 bg-neutral-900 text-white rounded-xl hover:bg-neutral-800 border border-white/5 transition-all font-bold"
+                              className="flex-1 px-6 py-4 bg-surface text-foreground rounded-xl hover:bg-surface-raised border border-white/5 transition-all font-bold"
                               >
                               Back
                               </button>
@@ -219,11 +219,11 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                 <div className="py-20 text-center space-y-6">
                                     <div className="relative inline-block">
                                       <Loader2 size={64} className="animate-spin text-blue-500" />
-                                      <Globe size={24} className="absolute inset-0 m-auto text-white animate-pulse" />
+                                      <Globe size={24} className="absolute inset-0 m-auto text-foreground animate-pulse" />
                                     </div>
                                     <div className="space-y-2">
-                                      <p className="text-xl font-black text-white italic tracking-tighter uppercase">Searching...</p>
-                                      <p className="text-neutral-500 text-sm">Getting things ready...</p>
+                                      <p className="text-xl font-black text-foreground italic tracking-tighter uppercase">Searching...</p>
+                                      <p className="text-foreground-dim text-sm">Getting things ready...</p>
                                     </div>
                                 </div>
                             )}
@@ -232,7 +232,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                     {/* Preview Card */}
                                     <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden p-6 relative">
-                                      <div className="absolute top-4 right-4 px-3 py-1 bg-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
+                                      <div className="absolute top-4 right-4 px-3 py-1 bg-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest text-foreground shadow-lg">
                                         EST. {useScraperStore.getState().estimatedSize}
                                       </div>
                                       <div className="flex flex-col md:flex-row gap-6">
@@ -247,7 +247,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                         )}
                                         <div className="flex-1 space-y-3 min-w-0">
                                           <div>
-                                            <h4 className="text-2xl font-black text-white tracking-tight line-clamp-2 leading-none mb-2 italic uppercase">
+                                            <h4 className="text-2xl font-black text-foreground tracking-tight line-clamp-2 leading-none mb-2 italic uppercase">
                                                 {metadata?.title || 'Unknown Title'}
                                             </h4>
                                             <div className="flex flex-wrap gap-2 items-center mb-2">
@@ -255,7 +255,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                                 {metadata?.source || 'MangaDex'}
                                               </span>
                                               {metadata?.author && (
-                                                <span className="text-neutral-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
+                                                <span className="text-foreground-dim text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
                                                    <User size={12} className="text-blue-500" />
                                                    {metadata.author}
                                                 </span>
@@ -263,7 +263,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                             </div>
                                             <div className="flex flex-wrap gap-1">
                                               {metadata?.tags?.slice(0, 6).map(tag => (
-                                                <span key={tag} className="px-1.5 py-0.5 bg-white/5 text-neutral-500 text-[9px] font-bold rounded uppercase tracking-widest border border-white/5">
+                                                <span key={tag} className="px-1.5 py-0.5 bg-white/5 text-foreground-dim text-[9px] font-bold rounded uppercase tracking-widest border border-white/5">
                                                   {tag}
                                                 </span>
                                               ))}
@@ -272,7 +272,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                           
                                           {metadata?.description && (
                                             <div className="space-y-1">
-                                              <p className={`text-neutral-400 text-[11px] leading-relaxed font-medium ${showFullDesc ? '' : 'line-clamp-2'}`}>
+                                              <p className={`text-foreground-dim text-[11px] leading-relaxed font-medium ${showFullDesc ? '' : 'line-clamp-2'}`}>
                                                 {metadata.description}
                                               </p>
                                               <button 
@@ -292,11 +292,11 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                       <div className="space-y-4">
                                         <div className="flex flex-col gap-4">
                                           <div className="flex items-center justify-between">
-                                            <label className="text-xs font-black text-neutral-500 uppercase tracking-[0.2em]">Batch Selection</label>
+                                            <label className="text-xs font-black text-foreground-dim uppercase tracking-[0.2em]">Batch Selection</label>
                                             <div className="flex gap-2">
                                               <button 
                                                 onClick={handleSelectAll}
-                                                className="px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] font-bold text-neutral-400 hover:text-white transition-all"
+                                                className="px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] font-bold text-foreground-dim hover:text-foreground transition-all"
                                               >
                                                 Select All
                                               </button>
@@ -304,14 +304,14 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                                 <button 
                                                   key={n}
                                                   onClick={() => handleSelectLatest(n)}
-                                                  className="px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] font-bold text-neutral-400 hover:text-white transition-all"
+                                                  className="px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] font-bold text-foreground-dim hover:text-foreground transition-all"
                                                 >
                                                   Latest {n}
                                                 </button>
                                               ))}
                                               <button 
                                                 onClick={() => handleSelectFirst(10)}
-                                                className="px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] font-bold text-neutral-400 hover:text-white transition-all"
+                                                className="px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] font-bold text-foreground-dim hover:text-foreground transition-all"
                                               >
                                                 First 10
                                               </button>
@@ -319,21 +319,21 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                           </div>
 
                                           <div className="flex items-center gap-3 bg-white/5 border border-white/10 p-4 rounded-xl">
-                                            <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest whitespace-nowrap">Chapter Range</label>
+                                            <label className="text-[10px] font-black text-foreground-dim uppercase tracking-widest whitespace-nowrap">Chapter Range</label>
                                             <div className="flex items-center gap-2 flex-1">
                                               <input 
                                                 type="number" 
                                                 value={rangeFrom}
                                                 onChange={(e) => setRangeFrom(e.target.value)}
-                                                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-white text-xs text-center"
+                                                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-foreground text-xs text-center"
                                                 placeholder="From"
                                               />
-                                              <span className="text-neutral-600">to</span>
+                                              <span className="text-foreground-muted">to</span>
                                               <input 
                                                 type="number" 
                                                 value={rangeTo}
                                                 onChange={(e) => setRangeTo(e.target.value)}
-                                                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-white text-xs text-center"
+                                                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-foreground text-xs text-center"
                                                 placeholder="To"
                                               />
                                               <button 
@@ -353,8 +353,8 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                               onClick={() => handleToggleChapter(chapter.id)}
                                               className={`p-3 rounded-xl border text-left transition-all relative ${
                                                 selectedChapterKeys.includes(chapter.id)
-                                                  ? 'bg-blue-600 border-blue-400 text-white shadow-[0_0_15px_rgba(37,99,235,0.3)]'
-                                                  : 'bg-black/20 border-white/5 text-neutral-400 hover:border-white/20'
+                                                  ? 'bg-blue-600 border-blue-400 text-foreground shadow-[0_0_15px_rgba(37,99,235,0.3)]'
+                                                  : 'bg-black/20 border-white/5 text-foreground-dim hover:border-white/20'
                                               }`}
                                             >
                                               <div className="flex flex-col">
@@ -389,11 +389,11 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                       </button>
                                       
                                       <div className="flex justify-center gap-6">
-                                        <button onClick={reset} className="text-neutral-500 text-xs font-bold uppercase hover:text-white transition-colors">
+                                        <button onClick={reset} className="text-foreground-dim text-xs font-bold uppercase hover:text-foreground transition-colors">
                                             Start Over
                                         </button>
-                                        <span className="text-neutral-800">|</span>
-                                         <p className="text-[10px] text-neutral-600 font-medium">Auto-naming and tags enabled</p>
+                                        <span className="text-foreground">|</span>
+                                         <p className="text-[10px] text-foreground-muted font-medium">Auto-naming and tags enabled</p>
                                       </div>
                                     </div>
                                 </div>
@@ -405,11 +405,11 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                         <div className="flex justify-between items-end">
                                             <div className="space-y-1">
                                               <p className="text-xs font-black text-blue-400 uppercase tracking-widest">In Progress</p>
-                                              <h3 className="text-2xl font-black text-white italic tracking-tighter uppercase leading-none">Downloading</h3>
+                                              <h3 className="text-2xl font-black text-foreground italic tracking-tighter uppercase leading-none">Downloading</h3>
                                             </div>
-                                            <span className="text-4xl font-black text-white italic">{Math.round(progress)}%</span>
+                                            <span className="text-4xl font-black text-foreground italic">{Math.round(progress)}%</span>
                                         </div>
-                                        <div className="h-3 bg-neutral-900 rounded-full border border-white/5 overflow-hidden p-0.5">
+                                        <div className="h-3 bg-surface rounded-full border border-white/5 overflow-hidden p-0.5">
                                             <motion.div 
                                               className="h-full bg-gradient-to-r from-blue-600 to-indigo-500 rounded-full shadow-[0_0_15px_rgba(37,99,235,0.5)]"
                                               initial={{ width: 0 }}
@@ -417,12 +417,12 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                               transition={{ type: "spring", bounce: 0, duration: 0.5 }}
                                             />
                                         </div>
-                                        <div className="flex justify-between text-[10px] text-neutral-500 font-bold uppercase tracking-widest">
+                                        <div className="flex justify-between text-[10px] text-foreground-dim font-bold uppercase tracking-widest">
                                           <span>Writing metadata...</span>
                                           <span>{failedCount} Failures</span>
                                         </div>
                                     </div>
-                                    <p className="text-center text-sm text-neutral-500 italic">Please do not close the application during import.</p>
+                                    <p className="text-center text-sm text-foreground-dim italic">Please do not close the application during import.</p>
                                 </div>
                             )}
                             
@@ -440,10 +440,10 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                     </div>
                                     
                                     <div className="space-y-2">
-                                        <h3 className="text-3xl font-black text-white italic tracking-tighter uppercase">
+                                        <h3 className="text-3xl font-black text-foreground italic tracking-tighter uppercase">
                                           {failedCount > 0 ? 'Batch Incomplete' : 'Success'}
                                         </h3>
-                                        <p className="text-neutral-400 font-medium">
+                                        <p className="text-foreground-dim font-medium">
                                             {failedCount > 0 
                                               ? `${failedCount} segments failed. Re-scrape may be required for missing pages.` 
                                               : 'Library updated. Content is now available for offline reading.'}
@@ -457,7 +457,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                                     import('@tauri-apps/plugin-shell').then(({ open }) => open(downloadPath));
                                                 }
                                             }}
-                                            className="flex-1 py-4 bg-neutral-900 border border-white/10 hover:bg-neutral-800 text-white rounded-2xl transition-all flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest"
+                                            className="flex-1 py-4 bg-surface border border-white/10 hover:bg-surface-raised text-foreground rounded-2xl transition-all flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest"
                                         >
                                             <FolderOpen size={16} />
                                             Explore

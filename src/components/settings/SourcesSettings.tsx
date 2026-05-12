@@ -57,7 +57,7 @@ export const SourcesSettings = () => {
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                     <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
-                    <h4 className="text-white font-black uppercase tracking-widest text-sm italic">
+                    <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
                         Active Roster (Sources)
                     </h4>
                 </div>
@@ -84,18 +84,18 @@ export const SourcesSettings = () => {
                                         "w-14 h-14 rounded-2xl flex items-center justify-center uppercase font-black text-xs transition-all duration-500",
                                         isSealed 
                                             ? "bg-rose-500/10 text-rose-500/40" 
-                                            : "bg-white/5 text-white/40 group-hover:bg-blue-500/10 group-hover:text-blue-500"
+                                            : "bg-white/5 text-foreground/40 group-hover:bg-blue-500/10 group-hover:text-blue-500"
                                     )}>
                                         {source.id.slice(0, 2)}
                                     </div>
                                     <div className="flex flex-col">
-                                        <span className="text-white text-base font-bold tracking-tight">
+                                        <span className="text-foreground text-base font-bold tracking-tight">
                                             {source.name}
                                             {isSealed && <span className="ml-2 text-[8px] text-rose-500 uppercase tracking-widest font-black">Sealed</span>}
                                         </span>
                                         <div className="flex items-center gap-2 mt-1">
                                             <div className={clsx("w-1.5 h-1.5 rounded-full", getStatusColor(status))} />
-                                            <span className={clsx("text-[8px] font-black uppercase tracking-widest", status === 'unknown' ? 'text-neutral-500' : getStatusColor(status).replace('bg-', 'text-'))}>
+                                            <span className={clsx("text-[8px] font-black uppercase tracking-widest", status === 'unknown' ? 'text-foreground-dim' : getStatusColor(status).replace('bg-', 'text-'))}>
                                                 {getStatusText(status, source.isEnabled !== false)}
                                             </span>
                                         </div>
@@ -104,7 +104,7 @@ export const SourcesSettings = () => {
                                 {!isSealed && (
                                     <button 
                                         onClick={() => handleOpenSite(`https://${source.domains[0]}`)}
-                                        className="p-3 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-xl transition-all active:scale-90"
+                                        className="p-3 bg-white/5 hover:bg-white/10 text-foreground/40 hover:text-foreground rounded-xl transition-all active:scale-90"
                                     >
                                         <ExternalLink size={16} />
                                     </button>
@@ -113,19 +113,19 @@ export const SourcesSettings = () => {
 
                             <div className="flex items-center gap-3">
                                 {source.capabilities.search && (
-                                    <div className="p-2 rounded-lg bg-white/5 text-white/40 flex items-center gap-2" title="Search Enabled">
+                                    <div className="p-2 rounded-lg bg-white/5 text-foreground/40 flex items-center gap-2" title="Search Enabled">
                                         <Search size={12} />
                                         <span className="text-[8px] font-black uppercase">Search</span>
                                     </div>
                                 )}
                                 {source.capabilities.seriesBrowse && (
-                                    <div className="p-2 rounded-lg bg-white/5 text-white/40 flex items-center gap-2" title="Browse Enabled">
+                                    <div className="p-2 rounded-lg bg-white/5 text-foreground/40 flex items-center gap-2" title="Browse Enabled">
                                         <Globe size={12} />
                                         <span className="text-[8px] font-black uppercase">Browse</span>
                                     </div>
                                 )}
                                 {source.capabilities.chapterFeed && (
-                                    <div className="p-2 rounded-lg bg-white/5 text-white/40 flex items-center gap-2" title="Chapter Feed Available">
+                                    <div className="p-2 rounded-lg bg-white/5 text-foreground/40 flex items-center gap-2" title="Chapter Feed Available">
                                         <Zap size={12} />
                                         <span className="text-[8px] font-black uppercase">Sync</span>
                                     </div>
@@ -150,8 +150,8 @@ export const SourcesSettings = () => {
                     <Zap size={32} />
                 </div>
                 <div className="flex-1">
-                    <h5 className="text-white font-black uppercase tracking-widest text-xs mb-1 italic">Unified Aggregation Engine</h5>
-                    <p className="text-neutral-500 text-xs font-medium leading-relaxed">
+                    <h5 className="text-foreground font-black uppercase tracking-widest text-xs mb-1 italic">Unified Aggregation Engine</h5>
+                    <p className="text-foreground-dim text-xs font-medium leading-relaxed">
                     Metadata and discovery are powered by the MangaDex API and registered source providers. Sources are validated at registration time to ensure stability.
                     </p>
                 </div>
@@ -161,7 +161,7 @@ export const SourcesSettings = () => {
             <div className="space-y-4 pt-4 border-t border-white/5">
                 <div className="flex items-center gap-3 mb-6">
                     <div className="w-1.5 h-6 bg-rose-600 rounded-full" />
-                    <h4 className="text-white font-black uppercase tracking-widest text-sm italic">
+                    <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
                         Content Filtering
                     </h4>
                 </div>
@@ -173,8 +173,8 @@ export const SourcesSettings = () => {
                         </div>
                         <div className="flex flex-col">
                             <span className="text-indigo-500 text-[10px] font-black uppercase tracking-widest mb-1">Aesthetic Focus</span>
-                            <span className="text-white text-base font-bold tracking-tight">Full Color Only</span>
-                            <p className="text-neutral-600 text-[10px] font-medium mt-1 max-w-[300px]">Prioritize full-color mangas, manhwas, and manhuas in recommendations and discovery.</p>
+                            <span className="text-foreground text-base font-bold tracking-tight">Full Color Only</span>
+                            <p className="text-foreground-muted text-[10px] font-medium mt-1 max-w-[300px]">Prioritize full-color mangas, manhwas, and manhuas in recommendations and discovery.</p>
                         </div>
                     </div>
                     
@@ -199,8 +199,8 @@ export const SourcesSettings = () => {
                         </div>
                         <div className="flex flex-col">
                             <span className="text-rose-500 text-[10px] font-black uppercase tracking-widest mb-1">Discovery Engine</span>
-                            <span className="text-white text-base font-bold tracking-tight">Show Adult Content</span>
-                            <p className="text-neutral-600 text-[10px] font-medium mt-1 max-w-[300px]">Include NSFW sources like nhentai and explicit manga tags in global discovery results.</p>
+                            <span className="text-foreground text-base font-bold tracking-tight">Show Adult Content</span>
+                            <p className="text-foreground-muted text-[10px] font-medium mt-1 max-w-[300px]">Include NSFW sources like nhentai and explicit manga tags in global discovery results.</p>
                         </div>
                     </div>
                     
@@ -221,9 +221,9 @@ export const SourcesSettings = () => {
                 <div className="group bg-white/5 p-6 rounded-[32px] border border-white/5 flex flex-col gap-4 hover:border-rose-500/20 transition-all duration-500">
                     <div className="flex flex-col">
                         <span className="text-rose-500 text-[10px] font-black uppercase tracking-widest mb-1">Custom Filters</span>
-                        <span className="text-white text-base font-bold tracking-tight">Exclude Tags & Genres</span>
-                        <p className="text-neutral-600 text-[10px] font-medium mt-1">
-                            Type any tags you want to globally hide (comma separated). For example: <span className="text-white/40 italic">loli, horror, mecha</span>
+                        <span className="text-foreground text-base font-bold tracking-tight">Exclude Tags & Genres</span>
+                        <p className="text-foreground-muted text-[10px] font-medium mt-1">
+                            Type any tags you want to globally hide (comma separated). For example: <span className="text-foreground/40 italic">loli, horror, mecha</span>
                         </p>
                     </div>
                     
@@ -237,7 +237,7 @@ export const SourcesSettings = () => {
                             setExcludedTags(tags);
                         }}
                         placeholder="e.g. loli, tragedy, gore..."
-                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm focus:outline-none focus:border-rose-500/50 transition-colors"
+                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-rose-500/50 transition-colors"
                     />
                 </div>
             </div>

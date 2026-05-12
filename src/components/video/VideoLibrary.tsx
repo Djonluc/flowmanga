@@ -42,14 +42,14 @@ export const VideoLibrary: React.FC = () => {
                     onClick={() => setSelectedFolder(null)}
                     className="p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-white/5 group"
                  >
-                     <ArrowLeft className="w-5 h-5 text-neutral-400 group-hover:text-white" />
+                     <ArrowLeft className="w-5 h-5 text-foreground-dim group-hover:text-foreground" />
                  </button>
              )}
              <div>
-                <h1 className="text-3xl font-black tracking-tight text-white leading-none">
+                <h1 className="text-3xl font-black tracking-tight text-foreground leading-none">
                     {selectedFolder ? selectedFolder.name : 'VIDEOS'}
                 </h1>
-                <p className="text-neutral-500 font-bold text-xs uppercase tracking-widest mt-2">
+                <p className="text-foreground-dim font-bold text-xs uppercase tracking-widest mt-2">
                     {selectedFolder ? `${selectedFolder.videos.length} items discovered` : `${folders.length} linked sources`}
                 </p>
              </div>
@@ -89,8 +89,8 @@ export const VideoLibrary: React.FC = () => {
                           <div className="w-20 h-20 rounded-3xl bg-blue-600/20 flex items-center justify-center mb-6">
                               <Plus className="w-10 h-10 text-blue-500" />
                           </div>
-                           <h2 className="text-2xl font-black text-white uppercase tracking-tight mb-2">No Videos Yet</h2>
-                          <p className="text-neutral-500 font-bold text-xs uppercase tracking-widest mb-8">Link a folder to populate your archive.</p>
+                           <h2 className="text-2xl font-black text-foreground uppercase tracking-tight mb-2">No Videos Yet</h2>
+                          <p className="text-foreground-dim font-bold text-xs uppercase tracking-widest mb-8">Link a folder to populate your archive.</p>
                           <button 
                             onClick={handleScanFolder}
                             className="w-full py-4 bg-white text-black rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-neutral-200 transition-all active:scale-95"

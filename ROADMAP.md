@@ -1,6 +1,8 @@
-# 🌊 FlowManga --- Ultimate Product, Roadmap & Ecosystem Document
+# 🌊 FlowManga — Product, Roadmap & Ecosystem Document
 
-FlowManga is a high-performance, immersive manga and comic reader built with Electron, React, and Framer Motion.
+> **Reality check (May 2026):** The shipping app in this repo is a **Tauri 2** desktop shell (Rust + WebView), **React 19**, **Vite 7**, and **SQLite** via `@tauri-apps/plugin-sql`. Sections below mix **historical planning**, **shipped behavior**, and **future vision**. For what the code actually does today, see [FEATURES.md](FEATURES.md).
+
+FlowManga is a high-performance, immersive manga and comic reader built with **Tauri 2**, React, and Framer Motion.
 
 This master document combines:
 - Product overview
@@ -38,12 +40,10 @@ FlowManga transforms local manga and comic collections into a cinematic reading 
 - Sidebar navigation
 
 ## Library System
-- Multi-folder unified indexing
-- Drag & drop support
-- Import to managed library (`flowmanga_library`)
-- Web link storage (future scraping integration)
-- Duplicate detection (future)
-- Missing chapter detection (future)
+- Multi-folder unified indexing (paths stored in SQLite; folders scanned in place)
+- OS “open path” integration for quick import (see `useLibraryEvents`)
+- Web URL import + chapter downloads into a **user-chosen** download directory (not a fixed `flowmanga_library` root in code)
+- Duplicate / missing-chapter UX: partly aspirational — verify in UI before assuming behavior
 
 ## Display Modes
 - High-performance virtualized Grid View
@@ -97,12 +97,12 @@ FlowManga transforms local manga and comic collections into a cinematic reading 
 
 # 🧱 FULL DEVELOPMENT ROADMAP
 
-## Phase 0 — Foundation (Weeks 1-3)
-- Electron shell
+## Phase 0 — Foundation (historical / largely shipped)
+- ~~Electron shell~~ **Tauri 2** shell (current)
 - React architecture
-- Global state management
-- Local DB (SQLite / IndexedDB)
-- File indexing engine
+- Global state management (Zustand)
+- Local DB (**SQLite** via Tauri SQL plugin — `flowmanga.db`)
+- File indexing engine (Rust `scan_manga_folder` / `scan_chapters`)
 - Virtualized grid rendering
 - Resume progress system
 **Exit Goal:** Load 1000+ volumes smoothly.

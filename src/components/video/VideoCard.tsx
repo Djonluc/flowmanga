@@ -32,14 +32,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onClick, isCurrent 
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center bg-white/[0.02]">
-           <Play className="w-12 h-12 text-neutral-800 group-hover:text-blue-500/50 transition-colors" />
+           <Play className="w-12 h-12 text-foreground group-hover:text-blue-500/50 transition-colors" />
         </div>
       )}
 
       {/* Overlay info */}
       <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent p-6 flex flex-col justify-end">
          <h3 className="text-white font-black text-xs uppercase tracking-widest truncate group-hover:text-blue-400 transition-colors">{video.title}</h3>
-         <div className="flex items-center text-[10px] font-bold text-neutral-500 mt-2 tracking-widest">
+         <div className="flex items-center text-[10px] font-bold text-foreground-dim mt-2 tracking-widest">
             <Clock className="w-3 h-3 mr-1.5 text-blue-500" />
             <span>{formatDuration(video.duration)}</span>
          </div>

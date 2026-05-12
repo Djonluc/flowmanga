@@ -17,6 +17,7 @@ import {
   Bookmark,
   Plus,
   Camera,
+  FolderOpen,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FeaturedCarousel } from "./home/FeaturedCarousel";
@@ -409,7 +410,7 @@ export const HomeView = () => {
                   editorialTitle="Resume your sagas."
                   icon={<Bookmark size={18} />}
                   items={continueReading}
-                  layout="standard"
+                  layout="masonry"
                   onItemClick={handleOpenItem}
                   onMenuClick={handleMenuClick}
                   onViewAll={() => setActiveView("history")}
@@ -418,7 +419,7 @@ export const HomeView = () => {
               </div>
             )}
 
-            {/* 3. Trending This Week - Larger Cards */}
+            {/* 3. Trending — hero + grid */}
             {trending.length > 0 && (
               <div className="relative z-10">
                 <HorizontalRail
@@ -426,7 +427,7 @@ export const HomeView = () => {
                   editorialTitle="Rising in the shadows."
                   icon={<TrendingUp size={18} />}
                   items={trending}
-                  layout="featured-first"
+                  layout="masonry"
                   onItemClick={handleExternalClick}
                   onRefresh={fetchExternalData}
                   accentColor="text-purple-400"
@@ -434,7 +435,7 @@ export const HomeView = () => {
               </div>
             )}
 
-            {/* 4. New Releases - Masonry Grid for variation */}
+            {/* 4. New Releases — same hero + grid layout as other rails */}
             <div className="relative z-10">
               <HorizontalRail
                 title="New Releases"
@@ -457,6 +458,7 @@ export const HomeView = () => {
                   editorialTitle="Chosen by the spirits."
                   icon={<Sparkles size={18} />}
                   items={personalized}
+                  layout="masonry"
                   onItemClick={handleExternalClick}
                   onRefresh={fetchExternalData}
                   accentColor="text-indigo-400"
@@ -498,76 +500,40 @@ const RightPanel = ({
   return (
     <div
       className={clsx(
-        "flex-col flex-shrink-0 bg-surface border-l border-border-subtle space-y-10 lg:space-y-12 overflow-y-auto no-scrollbar transition-all duration-500 backdrop-blur-2xl shadow-cinematic",
-        "p-6 lg:p-8 w-64 lg:w-72 xl:w-80",
-        isScreenshotMode ? "flex h-auto" : "hidden lg:flex h-full",
+        "flex flex-col flex-shrink-0 bg-surface border-l border-border-subtle overflow-y-auto no-scrollbar transition-all duration-500 backdrop-blur-2xl shadow-cinematic",
+        "flex gap-6 p-5 lg:p-6 w-64 lg:w-72 xl:w-80",
+        isScreenshotMode ? "h-auto" : "hidden lg:flex h-full",
       )}
     >
-      {/* 1. Quick Resume (Top priority if exists) */}
+      <div className="flex min-h-0 flex-1 flex-col gap-6">
       {continueReading && continueReading.length > 0 && (
-        <section className="space-y-4">
-          <div className="flex items-center justify-between px-1">
+        <section className="space-y-3 rounded-2xl border border-border-subtle bg-gradient-to-br from-surface-elevated/80 to-surface p-4 shadow-inner">
+          <div className="flex items-center justify-between">
             <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.25em]">
               Quick Resume
             </h3>
-            <Bookmark size={12} className="text-accent" />
+            <Bookmark size={12} className="shrink-0 text-accent" />
           </div>
-          <div className="p-1">
-            <MangaCard 
-                item={continueReading[0]}
-                variant="compact"
-                onClick={() => onItemClick(continueReading[0])}
-            />
-          </div>
+          <MangaCard 
+              item={continueReading[0]}
+              variant="compact"
+              onClick={() => onItemClick(continueReading[0])}
+          />
         </section>
       )}
 
-      {/* 2. Rising Powers / Trending */}
-      {trending.length > 0 && (
-        <section className="space-y-4 pt-2">
-          <div className="flex items-center justify-between px-1">
-            <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.25em]">
-              Rising Powers
-            </h3>
-            <TrendingUp size={12} className="text-accent" />
-          </div>
-          <div className="space-y-1">
-            {trending.slice(0, 5).map((item: any, idx: number) => (
-              <div
-                key={idx}
-                onClick={() => openQuickView(item)}
-                className="group flex items-center gap-4 p-3 rounded-2xl cursor-pointer bg-surface-elevated hover:bg-surface-raised transition-all border border-transparent hover:border-border-subtle hover:shadow-lg"
-              >
-                <div className="w-6 text-center">
-                  <span className="text-foreground-dim font-black text-sm tabular-nums group-hover:text-accent transition-colors">
-                    {idx + 1}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-foreground-muted text-xs font-bold truncate block group-hover:text-foreground transition-colors tracking-tight">
-                    {item.title}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* 3. Recently Read / Activity */}
       {activity.length > 0 && (
-        <section className="space-y-4 pt-2">
-          <div className="flex items-center justify-between px-1">
+        <section className="space-y-3 rounded-2xl border border-border-subtle bg-surface-elevated/25 p-4">
+          <div className="flex items-center justify-between">
             <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.25em]">
               Recently Read
             </h3>
-            <ActivityIcon size={12} className="text-accent" />
+            <ActivityIcon size={12} className="shrink-0 text-accent" />
           </div>
-          <div className="space-y-2">
-            {/* Filter activity to only unique series, skip the first one if it's the Quick Resume */}
+          <div className="flex flex-col gap-2">
             {(() => {
-                const seen = new Set();
-                let filtered = activity.filter(a => {
+                const seen = new Set<string>();
+                let filtered = activity.filter((a: { seriesId: string }) => {
                     if (seen.has(a.seriesId)) return false;
                     seen.add(a.seriesId);
                     return true;
@@ -576,34 +542,83 @@ const RightPanel = ({
                     filtered = filtered.slice(1);
                 }
                 return filtered.slice(0, 4).map((item: any, idx: number) => (
-                  <MangaCard 
-                      key={idx}
-                      item={item}
-                      variant="compact"
-                      onClick={() => onItemClick(item)}
-                  />
+                  <div
+                    key={`${item.seriesId}-${idx}`}
+                    className="rounded-xl border border-transparent transition-colors hover:border-border-subtle"
+                  >
+                    <MangaCard 
+                        item={item}
+                        variant="compact"
+                        onClick={() => onItemClick(item)}
+                    />
+                  </div>
                 ));
             })()}
           </div>
         </section>
       )}
 
-      {/* 4. Reading Stats */}
-      <section className="pt-8 border-t border-border-subtle mt-auto">
-        <div className="flex items-center justify-between px-1 mb-4">
+      {trending.length > 0 && (
+        <section className="space-y-3 rounded-2xl border border-border-subtle bg-surface-elevated/25 p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.25em]">
+              Rising Powers
+            </h3>
+            <TrendingUp size={12} className="shrink-0 text-accent" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {trending.slice(0, 5).map((item: any, idx: number) => {
+              const raw = item.coverUrl as string | undefined;
+              const thumbSrc = raw
+                ? raw.startsWith("http")
+                  ? raw
+                  : convertFileSrc(raw)
+                : "";
+              return (
+              <button
+                type="button"
+                key={item.id ?? idx}
+                onClick={() => openQuickView(item)}
+                className="group flex w-full items-center gap-3 rounded-xl border border-transparent p-2.5 text-left transition-all hover:border-border-subtle hover:bg-surface-raised"
+              >
+                <span className="w-6 shrink-0 text-center text-xs font-black tabular-nums text-foreground-dim group-hover:text-accent">
+                  {idx + 1}
+                </span>
+                <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded-lg border border-border-subtle bg-surface shadow-sm">
+                  {thumbSrc ? (
+                    <img src={thumbSrc} alt="" className="h-full w-full object-cover opacity-90 transition-opacity group-hover:opacity-100" loading="lazy" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-foreground-dim">
+                      <FolderOpen size={14} />
+                    </div>
+                  )}
+                </div>
+                <span className="min-w-0 flex-1 truncate text-xs font-bold tracking-tight text-foreground-muted group-hover:text-foreground">
+                  {item.title}
+                </span>
+              </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+      </div>
+
+      <section className="mt-auto shrink-0 rounded-2xl border border-border-subtle bg-surface-elevated/25 p-4">
+        <div className="mb-3 flex items-center justify-between">
             <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.25em]">
               Archive Status
             </h3>
-            <BarChart3 size={12} className="text-accent" />
+            <BarChart3 size={12} className="shrink-0 text-accent" />
         </div>
-        <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1 p-4 rounded-2xl bg-surface-elevated border border-border-subtle shadow-inner">
+        <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1 rounded-xl border border-border-subtle bg-surface p-3">
                 <span className="text-[9px] font-black text-foreground-dim uppercase tracking-[0.2em]">Series</span>
-                <span className="text-xl font-black text-foreground tracking-tighter">{stats.totalSeries || 0}</span>
+                <span className="text-lg font-black tracking-tighter text-foreground">{stats.totalSeries || 0}</span>
             </div>
-            <div className="flex flex-col gap-1 p-4 rounded-2xl bg-surface-elevated border border-border-subtle shadow-inner">
+            <div className="flex flex-col gap-1 rounded-xl border border-border-subtle bg-surface p-3">
                 <span className="text-[9px] font-black text-foreground-dim uppercase tracking-[0.2em]">Chapters</span>
-                <span className="text-xl font-black text-foreground tracking-tighter">{stats.totalChapters || 0}</span>
+                <span className="text-lg font-black tracking-tighter text-foreground">{stats.totalChapters || 0}</span>
             </div>
         </div>
       </section>

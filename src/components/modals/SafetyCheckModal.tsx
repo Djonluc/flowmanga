@@ -33,13 +33,13 @@ export function SafetyCheckModal({ isOpen, onClose, onAction, mangaTitle }: Safe
                                     <ShieldAlert size={28} className="text-orange-500" />
                                 </div>
                                 <div className="space-y-1">
-                                    <h2 className="text-xl font-black text-white italic tracking-tighter uppercase">Series Exists</h2>
-                                    <p className="text-neutral-500 text-xs font-medium">What would you like to do?</p>
+                                    <h2 className="text-xl font-black text-foreground italic tracking-tighter uppercase">Series Exists</h2>
+                                    <p className="text-foreground-dim text-xs font-medium">What would you like to do?</p>
                                 </div>
                             </div>
 
                             <div className="p-4 bg-orange-500/5 border border-orange-500/10 rounded-2xl">
-                                <p className="text-sm text-neutral-300 font-medium">
+                                <p className="text-sm text-foreground-muted font-medium">
                                     <span className="text-orange-400 font-bold">"{mangaTitle}"</span> is already in your library.
                                 </p>
                             </div>
@@ -53,21 +53,21 @@ export function SafetyCheckModal({ isOpen, onClose, onAction, mangaTitle }: Safe
                                         <RefreshCw size={18} className="text-blue-400" />
                                     </div>
                                     <div className="flex-1">
-                                        <p className="text-sm font-bold text-white">Update Existing</p>
-                                        <p className="text-[10px] text-neutral-500">Only download missing chapters</p>
+                                        <p className="text-sm font-bold text-foreground">Update Existing</p>
+                                        <p className="text-[10px] text-foreground-dim">Only download missing chapters</p>
                                     </div>
                                 </button>
 
                                 <button
                                     onClick={() => onAction('redownload')}
-                                    className="group flex items-center gap-4 p-4 bg-white/5 hover:bg-neutral-900 border border-white/5 hover:border-orange-500/50 rounded-2xl transition-all text-left"
+                                    className="group flex items-center gap-4 p-4 bg-white/5 hover:bg-surface border border-white/5 hover:border-orange-500/50 rounded-2xl transition-all text-left"
                                 >
                                     <div className="p-2 bg-orange-500/20 rounded-lg">
                                         <Download size={18} className="text-orange-400" />
                                     </div>
                                     <div className="flex-1">
-                                        <p className="text-sm font-bold text-white">Redownload All</p>
-                                        <p className="text-[10px] text-neutral-500">Overwrite everything in the folder</p>
+                                        <p className="text-sm font-bold text-foreground">Redownload All</p>
+                                        <p className="text-[10px] text-foreground-dim">Overwrite everything in the folder</p>
                                     </div>
                                 </button>
                             </div>
@@ -75,7 +75,7 @@ export function SafetyCheckModal({ isOpen, onClose, onAction, mangaTitle }: Safe
                             <div className="flex gap-3">
                                 <button
                                     onClick={onClose}
-                                    className="flex-1 py-3 bg-neutral-900 hover:bg-neutral-800 text-neutral-400 font-bold rounded-2xl transition-all text-xs uppercase tracking-widest"
+                                    className="flex-1 py-3 bg-surface hover:bg-surface-raised text-foreground-dim font-bold rounded-2xl transition-all text-xs uppercase tracking-widest"
                                 >
                                     Cancel
                                 </button>
