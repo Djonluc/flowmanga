@@ -27,6 +27,8 @@ import { FilterModal } from './modals/FilterModal';
 import { NotificationCenter } from './modals/NotificationCenter';
 import { ProfilePanel } from './modals/ProfilePanel';
 import { ErrorBoundary } from './shared/ErrorBoundary';
+import { ImageViewer } from './gallery/ImageViewer';
+import { SlideshowPlayer } from './gallery/SlideshowPlayer';
 
 interface LayoutProps {
     children: ReactNode;
@@ -110,6 +112,7 @@ export const Layout = ({ children, hideSidebar = false }: LayoutProps) => {
                     title={inputModalConfig.title}
                     placeholder={inputModalConfig.placeholder}
                     description={inputModalConfig.description}
+                    initialValue={inputModalConfig.initialValue}
                     onClose={closeInputModal}
                     onSubmit={inputModalConfig.onSubmit}
                 />
@@ -163,6 +166,10 @@ export const Layout = ({ children, hideSidebar = false }: LayoutProps) => {
                     </ErrorBoundary>
                 </div>
             </main>
+
+            {/* Gallery Ecosystem Overlays */}
+            <ImageViewer />
+            <SlideshowPlayer />
         </div>
     );
 };

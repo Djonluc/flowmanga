@@ -90,19 +90,27 @@ export interface SourceProvider {
   ): Promise<SourceSearchResult[]>;
 
   /** Fetch trending/popular content (for discovery) */
-  fetchPopular?(
-    page?: number,
-    limit?: number,
-    coloredOnly?: boolean,
-  ): Promise<SourceSearchResult[]>;
+  getTrending?(options?: SourceSearchOptions): Promise<SourceSearchResult[]>;
 
   /** Fetch latest updates (for discovery) */
-  fetchLatest?(
-    page?: number,
-    limit?: number,
-    coloredOnly?: boolean,
-  ): Promise<SourceSearchResult[]>;
+  getLatest?(options?: SourceSearchOptions): Promise<SourceSearchResult[]>;
+
+  /** Fetch random content */
+  getRandom?(options?: SourceSearchOptions): Promise<SourceSearchResult[]>;
+
+  /** Get autocomplete suggestions for search */
+  getAutocomplete?(query: string): Promise<string[]>;
+
+  /** Get related tags for expansion */
+  getRelatedTags?(tag: string): Promise<string[]>;
 }
+
+export interface SourceSearchOptions {
+  page?: number;
+  limit?: number;
+  contentFilter?: 'sfw' | 'all';
+}
+
 
 // ─── Capability Flags ───────────────────────────────────────────────
 
@@ -178,9 +186,13 @@ export interface SourceSearchResult {
   id: string;
   title: string;
   coverUrl?: string;
+  previewUrl?: string;
+  imageUrl?: string;
   tags?: string[];
   description?: string;
   source: string;
   contentType: ContentType;
   url: string;
+  dominantColor?: string;
 }
+

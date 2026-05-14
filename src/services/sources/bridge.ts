@@ -44,7 +44,7 @@ export function bridgeSeries(series: SourceSeries, _provider: SourceProvider): S
     number: ch.number,
     url: ch.url,
     title: ch.title,
-    source: ch.source || provider.id,
+    source: ch.source || _provider.id,
   }));
 
   const legacySeries: SeriesScrapeResult = {

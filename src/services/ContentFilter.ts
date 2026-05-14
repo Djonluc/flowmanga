@@ -89,8 +89,10 @@ export class ContentFilter {
                                  source.includes('asura') ||
                                  source.includes('flame') ||
                                  source.includes('reaper') ||
+                                 source.includes('zerochan') ||
                                  item.contentType === 'manhwa' ||
-                                 item.contentType === 'manhua';
+                                 item.contentType === 'manhua' ||
+                                 item.contentType === 'gallery';
 
       if (isNaturallyColored) return true;
 

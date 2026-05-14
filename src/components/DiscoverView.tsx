@@ -74,6 +74,7 @@ export const DiscoverView = () => {
     { id: 'manhua', label: 'Manhua' },
     { id: 'comic', label: 'Comics' },
     { id: 'doujin', label: 'Doujinshi' },
+    { id: 'gallery', label: 'Gallery' },
   ];
 
   const getFilteredItems = (items: any[]) => {
@@ -85,6 +86,7 @@ export const DiscoverView = () => {
       const tags = (item.tags || []).map((t: string) => t?.toLowerCase()).filter(Boolean);
       const contentType = item.contentType || 'manga';
       
+      if (activeType === 'gallery') return contentType === 'gallery' || src.includes('zerochan');
       if (activeType === 'doujin') return contentType === 'doujin' || src.includes('nhentai') || src.includes('rule34');
       
       const isComic = contentType === 'comic' || src.includes('dragonball') || src.includes('blue-lock') || tags.includes('comic');
@@ -96,7 +98,7 @@ export const DiscoverView = () => {
       const isManhua = src.includes('luacomic') || tags.includes('manhua');
       if (activeType === 'manhua') return isManhua;
       
-      if (activeType === 'manga') return (contentType === 'manga' && !isComic && !isManhwa && !isManhua && contentType !== 'doujin');
+      if (activeType === 'manga') return (contentType === 'manga' && !isComic && !isManhwa && !isManhua && contentType !== 'doujin' && contentType !== 'gallery');
       
       return true;
     });

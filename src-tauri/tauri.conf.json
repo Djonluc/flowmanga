@@ -14,8 +14,8 @@
       {
         "label": "main",
         "title": "FlowManga",
-        "width": 1920,
-        "height": 1080,
+        "width": 2049,
+        "height": 1045,
         "resizable": true,
         "fullscreen": false,
         "decorations": true,

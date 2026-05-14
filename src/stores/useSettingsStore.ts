@@ -7,7 +7,7 @@ export type ReadingMode =
   | "dual"
   | "slideshow"
   | "horizontal";
-export type Theme = "dark" | "light" | "oled" | "paper" | "cyberpunk";
+export type Theme = "dark" | "light" | "oled" | "paper" | "amethyst";
 export type AmbientMode =
   | "solid"
   | "blurred-page"
@@ -71,6 +71,10 @@ interface SettingsState {
 
   isScreenshotMode: boolean;
   toggleScreenshotMode: () => void;
+
+  windowWidth: number | null;
+  windowHeight: number | null;
+  setWindowSize: (w: number, h: number) => void;
 
   // Image Processing
   brightness: number;
@@ -234,6 +238,10 @@ export const useSettingsStore = create<SettingsState>()(
       isScreenshotMode: false,
       toggleScreenshotMode: () =>
         set((state) => ({ isScreenshotMode: !state.isScreenshotMode })),
+
+      windowWidth: null,
+      windowHeight: null,
+      setWindowSize: (w, h) => set({ windowWidth: w, windowHeight: h }),
 
       // Image Processing
       brightness: 1,

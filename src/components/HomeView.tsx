@@ -505,7 +505,7 @@ const RightPanel = ({
         isScreenshotMode ? "h-auto" : "hidden lg:flex h-full",
       )}
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-6">
+      <div className="flex flex-1 flex-col gap-6">
       {continueReading && continueReading.length > 0 && (
         <section className="space-y-3 rounded-2xl border border-border-subtle bg-gradient-to-br from-surface-elevated/80 to-surface p-4 shadow-inner">
           <div className="flex items-center justify-between">

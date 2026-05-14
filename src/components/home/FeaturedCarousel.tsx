@@ -124,8 +124,8 @@ export const FeaturedCarousel = ({ items: propItems }: { items?: any[] }) => {
         </motion.div>
       </AnimatePresence>
 
-      {/* Content Layer */}
-      <div className="absolute inset-0 z-10 flex flex-col justify-end p-[clamp(1.5rem,5vw,5rem)] w-full">
+      {/* Content Layer Safe Zone Constraints */}
+      <div className="absolute inset-0 z-10 flex flex-col justify-end p-[clamp(1.5rem,5vw,5rem)] w-full max-h-full pointer-events-none">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentItem.id}
@@ -133,33 +133,32 @@ export const FeaturedCarousel = ({ items: propItems }: { items?: any[] }) => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
             transition={{ duration: 0.7, ease: "easeOut" }}
-            className="space-y-[clamp(1rem,2vw,1.5rem)] w-full md:w-[60%] lg:w-[55%] max-w-3xl relative"
+            className="flex flex-col min-h-0 w-full md:w-[65%] lg:w-[60%] max-w-3xl relative pointer-events-auto max-h-full pb-[clamp(3rem,8vw,0rem)] md:pb-0"
           >
-            {/* Metadata Tags */}
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="px-4 py-2 bg-accent text-white rounded-xl text-[10px] font-black tracking-[0.2em] uppercase shadow-lg shadow-accent-glow/20 border border-white/10">
+            {/* Metadata Tags Zone - Horizontal Scroll Fallback */}
+            <div className="flex items-center gap-3 overflow-x-auto no-scrollbar flex-shrink-0 pb-1 mb-[clamp(0.5rem,1.5vw,1rem)] [mask-image:linear-gradient(to_right,white_85%,transparent)] w-full pr-8">
+              <span className="flex-shrink-0 px-4 py-2 bg-accent text-white rounded-xl text-[10px] font-black tracking-[0.2em] uppercase shadow-lg shadow-accent-glow/20 border border-white/10">
                 {currentItem.books && currentItem.books.length > 0 ? "In Archive" : "Global Trending"}
               </span>
-              <div className="flex items-center gap-1.5 px-3 py-2 bg-surface-elevated backdrop-blur-md rounded-xl border border-border-subtle text-[10px] font-bold text-foreground-dim uppercase tracking-widest drop-shadow-md">
+              <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 bg-surface-elevated backdrop-blur-md rounded-xl border border-border-subtle text-[10px] font-bold text-foreground-dim uppercase tracking-widest drop-shadow-md">
                 <Heart size={10} className="text-red-500" fill="currentColor" />
                 <span>{(Math.random() * 50 + 10).toFixed(1)}K Readers</span>
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-2 bg-surface-elevated backdrop-blur-md rounded-xl border border-border-subtle text-[10px] font-bold text-amber-400 uppercase tracking-widest drop-shadow-md">
+              <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 bg-surface-elevated backdrop-blur-md rounded-xl border border-border-subtle text-[10px] font-bold text-amber-400 uppercase tracking-widest drop-shadow-md">
                 <span>★ {(Math.random() * 1.5 + 8.4).toFixed(1)}</span>
               </div>
-              {currentItem.tags?.[0] && (
-                <span className="px-4 py-2 bg-surface-elevated backdrop-blur-md rounded-xl border border-border-subtle text-[10px] font-bold text-foreground-dim uppercase tracking-widest drop-shadow-md line-clamp-1 max-w-[150px]">
-                  {currentItem.tags[0]}
+              {currentItem.tags?.slice(0, 3).map((tag: string) => (
+                <span key={tag} className="flex-shrink-0 px-4 py-2 bg-surface-elevated backdrop-blur-md rounded-xl border border-border-subtle text-[10px] font-bold text-foreground-dim uppercase tracking-widest drop-shadow-md">
+                  {tag}
                 </span>
-              )}
+              ))}
             </div>
 
+            {/* Title Zone - Smart Clamped & Responsive */}
             <h1 
-              className="font-black text-foreground tracking-tighter drop-shadow-2xl line-clamp-2 md:line-clamp-3 overflow-hidden text-ellipsis" 
+              className="font-black text-foreground tracking-tighter drop-shadow-2xl flex-shrink-0 line-clamp-2 md:line-clamp-3 mb-[clamp(0.5rem,1.5vw,1rem)] overflow-hidden text-ellipsis" 
               style={{ 
-                fontSize: currentItem.title?.length > 80 ? "clamp(1.5rem, 3.5vw, 2.75rem)" : 
-                          currentItem.title?.length > 40 ? "clamp(1.75rem, 4vw, 3.5rem)" : 
-                          "clamp(2rem, 5vw, 4.5rem)",
+                fontSize: "clamp(1.75rem, 4vw, 3.5rem)",
                 lineHeight: "1.05"
               }}
               title={currentItem.title}
@@ -167,14 +166,18 @@ export const FeaturedCarousel = ({ items: propItems }: { items?: any[] }) => {
               {currentItem.title}
             </h1>
 
-            <p className="text-foreground-dim font-medium leading-relaxed max-w-2xl line-clamp-2 opacity-90 drop-shadow-lg" style={{ fontSize: "clamp(0.875rem, 1.5vw, 1.125rem)" }}>
-              {currentItem.description ||
-                "Embark on a journey through high-quality storytelling and stunning artistic manifestations. A tale of destiny awaits."}
-            </p>
+            {/* Description Zone - Compressible */}
+            <div className="flex-shrink min-h-0 overflow-hidden mb-[clamp(1rem,2.5vw,1.5rem)]">
+              <p className="text-foreground-dim font-medium leading-relaxed max-w-2xl line-clamp-2 sm:line-clamp-3 opacity-90 drop-shadow-lg" style={{ fontSize: "clamp(0.875rem, 1.2vw, 1.125rem)" }}>
+                {currentItem.description ||
+                  "Embark on a journey through high-quality storytelling and stunning artistic manifestations. A tale of destiny awaits."}
+              </p>
+            </div>
 
-            <div className="flex items-center gap-4 pt-4">
+            {/* CTA Zone - Anchored & Fixed Size */}
+            <div className="flex items-center gap-4 flex-shrink-0 pt-2">
               <button
-                className="h-14 px-10 bg-foreground text-background rounded-2xl font-black uppercase tracking-[0.2em] text-xs hover:scale-105 active:scale-95 transition-all shadow-2xl flex items-center gap-3 group/btn"
+                className="h-14 px-[clamp(1.5rem,3vw,2.5rem)] bg-foreground text-background rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] sm:text-xs hover:scale-105 active:scale-95 transition-all shadow-2xl flex items-center gap-3 group/btn"
                 onClick={() => {
                   if (currentItem.books && currentItem.books.length > 0) {
                     const bookToOpen =
@@ -191,12 +194,12 @@ export const FeaturedCarousel = ({ items: propItems }: { items?: any[] }) => {
                   }
                 }}
               >
-                <Play size={16} fill="currentColor" className="group-hover/btn:scale-125 transition-transform" />
-                <span>{currentItem.books?.length ? "Start Reading" : "View Details"}</span>
+                <Play size={16} fill="currentColor" className="group-hover/btn:scale-125 transition-transform shrink-0" />
+                <span className="whitespace-nowrap">{currentItem.books?.length ? "Start Reading" : "View Details"}</span>
               </button>
 
               <button
-                className="h-14 w-14 rounded-2xl flex items-center justify-center bg-surface-elevated border border-border-subtle text-foreground hover:bg-surface-raised transition-all backdrop-blur-md"
+                className="h-14 w-14 shrink-0 rounded-2xl flex items-center justify-center bg-surface-elevated border border-border-subtle text-foreground hover:bg-surface-raised transition-all backdrop-blur-md"
                 onClick={() => useLibraryStore.getState().toggleFavorite(currentItem.id)}
               >
                 <Heart size={20} fill={currentItem.tags?.includes("favorite") ? "currentColor" : "none"} className={currentItem.tags?.includes("favorite") ? "text-red-500" : ""} />
@@ -206,8 +209,8 @@ export const FeaturedCarousel = ({ items: propItems }: { items?: any[] }) => {
         </AnimatePresence>
       </div>
 
-      {/* Navigation Indicators */}
-      <div className="absolute bottom-12 right-12 z-20 flex items-center gap-6 bg-surface-elevated backdrop-blur-xl px-6 py-4 rounded-[32px] border border-border-subtle">
+      {/* Navigation Indicators Safe Zone */}
+      <div className="absolute bottom-[clamp(1rem,4vw,3rem)] right-[clamp(1rem,4vw,3rem)] z-20 flex items-center gap-[clamp(0.5rem,2vw,1.5rem)] bg-surface-elevated backdrop-blur-xl px-[clamp(1rem,2vw,1.5rem)] py-[clamp(0.5rem,1vw,1rem)] rounded-[32px] border border-border-subtle pointer-events-auto shadow-lg">
         <button onClick={prevSlide} className="text-foreground-dim hover:text-foreground transition-colors"><ChevronLeft size={20} /></button>
         <div className="flex gap-2">
             {featuredItems.map((_, idx) => (

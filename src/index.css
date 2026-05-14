@@ -126,25 +126,26 @@
   --shadow-elevated: 0 12px 24px -8px rgba(139, 69, 19, 0.1);
 }
 
-[data-theme='cyberpunk'] {
+[data-theme='amethyst'] {
   color-scheme: dark;
-  --color-background: #040108;
-  --color-surface: #0d021f;
-  --color-surface-elevated: rgba(0, 255, 255, 0.08);
-  --color-surface-raised: rgba(255, 0, 255, 0.1);
+  --color-background: transparent;
+  --bg-image: linear-gradient(rgba(10, 2, 20, 0.8), rgba(4, 1, 10, 0.95)), url('/logo.png');
+  --color-surface: rgba(20, 5, 40, 0.4);
+  --color-surface-elevated: rgba(168, 85, 247, 0.12);
+  --color-surface-raised: rgba(192, 132, 252, 0.2);
   
   --color-foreground: #ffffff;
-  --color-foreground-muted: #00ffff;
-  --color-foreground-dim: rgba(0, 255, 255, 0.5);
+  --color-foreground-muted: rgba(255, 255, 255, 0.8);
+  --color-foreground-dim: rgba(216, 180, 254, 0.6);
   
-  --color-border-subtle: rgba(255, 0, 255, 0.2);
-  --color-border-strong: rgba(255, 0, 255, 0.4);
+  --color-border-subtle: rgba(168, 85, 247, 0.25);
+  --color-border-strong: rgba(168, 85, 247, 0.5);
   
-  --color-accent: #00ffff;
-  --color-accent-soft: rgba(0, 255, 255, 0.05);
-  --color-accent-glow: rgba(0, 255, 255, 0.5);
+  --color-accent: #c084fc;
+  --color-accent-soft: rgba(192, 132, 252, 0.15);
+  --color-accent-glow: rgba(192, 132, 252, 0.8);
   
-  --shadow-ambient: 0 0 50px rgba(255, 0, 255, 0.15);
+  --shadow-ambient: 0 0 60px rgba(168, 85, 247, 0.2);
 }
 
 [data-theme='light'] {
@@ -171,6 +172,10 @@
 
 body {
   background-color: var(--color-background);
+  background-image: var(--bg-image, none);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
   color: var(--color-foreground);
   transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
   margin: 0;

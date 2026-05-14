@@ -38,18 +38,91 @@ function App() {
   useEffect(() => {
     const applyZoom = async () => {
         try {
-            const { getCurrentWindow } = await import('@tauri-apps/api/window');
-            const win = getCurrentWindow();
-            // setZoomLevel in Tauri takes 1.0 for 100%
-            await win.setZoomLevel(zoomScale);
+            const { getCurrentWebview } = await import('@tauri-apps/api/webview');
+            const webview = getCurrentWebview();
+            await webview.setZoom(zoomScale);
         } catch (err) {
             console.error('[App] Failed to apply native zoom:', err);
-            // Fallback to CSS zoom for dev/browser environments
-            document.body.style.zoom = zoomScale.toString();
         }
     };
     applyZoom();
   }, [zoomScale]);
+
+  // Track Native Viewport Zoom (ctrl + scroll) via devicePixelRatio
+  useEffect(() => {
+    let timeout: any;
+    const handleResize = () => {
+       clearTimeout(timeout);
+       timeout = setTimeout(async () => {
+          try {
+             const { getCurrentWindow } = await import('@tauri-apps/api/window');
+             const factor = await getCurrentWindow().scaleFactor();
+             
+             // In Chromium, devicePixelRatio = OS DPI Scale * Browser Zoom Level
+             const calculatedZoom = window.devicePixelRatio / factor;
+             
+             const currentStoreZoom = useSettingsStore.getState().zoomScale;
+             // Only persist if the user actually manually changed it (via ctrl+scroll)
+             if (Math.abs(calculatedZoom - currentStoreZoom) > 0.05) {
+                 useSettingsStore.getState().setZoomScale(calculatedZoom);
+             }
+          } catch(e) { }
+       }, 500); // debounce zoom events
+    };
+
+    window.addEventListener('resize', handleResize);
+    // Trigger once on mount to capture any initial OS state anomalies
+    handleResize();
+
+    return () => {
+       window.removeEventListener('resize', handleResize);
+       clearTimeout(timeout);
+    };
+  }, []);
+
+  // Restore and Track Window Dimensions
+  useEffect(() => {
+    let resizeTimer: any;
+    let unlisten: (() => void) | undefined;
+
+    const setupWindow = async () => {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        const { LogicalSize } = await import('@tauri-apps/api/dpi');
+        const win = getCurrentWindow();
+        
+        // Restore Size
+        const { windowWidth, windowHeight } = useSettingsStore.getState();
+        if (windowWidth && windowHeight) {
+           await win.setSize(new LogicalSize(windowWidth, windowHeight));
+        }
+
+        // Listen for resize
+        unlisten = await win.onResized(async () => {
+           clearTimeout(resizeTimer);
+           resizeTimer = setTimeout(async () => {
+              try {
+                const factor = await win.scaleFactor();
+                const size = await win.innerSize();
+                const logical = size.toLogical(factor);
+                useSettingsStore.getState().setWindowSize(logical.width, logical.height);
+              } catch (e) {
+                console.warn("[App] Failed to save window size", e);
+              }
+           }, 500); // 500ms debounce
+        });
+
+      } catch (err) {
+         console.warn("[App] Window dimension tracking unavailable in this environment:", err);
+      }
+    };
+    setupWindow();
+
+    return () => {
+      clearTimeout(resizeTimer);
+      if (unlisten) unlisten();
+    };
+  }, []);
 
   if (isInitializing) {
     return (
@@ -62,9 +135,9 @@ function App() {
         
         <div className="z-10 text-center space-y-8 max-w-md px-6">
           <div className="relative inline-block">
-             <div className="w-24 h-24 border-t-2 border-blue-500 rounded-full animate-spin" />
+             <div className="w-32 h-32 border-t-2 border-blue-500 rounded-full animate-spin" />
              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-4xl font-black text-foreground italic tracking-tighter">F</span>
+                <img src="/logo.png" alt="F" className="w-24 h-24 object-contain scale-[1.35] drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]" />
              </div>
           </div>
           

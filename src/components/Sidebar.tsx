@@ -150,12 +150,8 @@ export const Sidebar = () => {
       {/* Logo */}
       <div className="h-16 md:h-20 flex items-center px-4 md:px-6 mb-2 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 md:w-10 md:h-10 rounded-[12px] md:rounded-[14px] bg-gradient-to-tr from-indigo-500 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-[0_8px_16px_rgba(99,102,241,0.3)] flex-shrink-0">
-            <Zap
-              size={18}
-              fill="currentColor"
-              className="drop-shadow-[0_0_4px_rgba(255,255,255,0.5)]"
-            />
+          <div className="w-12 h-12 md:w-16 md:h-16 rounded-[12px] md:rounded-[14px] flex items-center justify-center flex-shrink-0 bg-transparent overflow-hidden drop-shadow-[0_0_15px_rgba(168,85,247,0.4)]">
+            <img src="/logo.png" alt="FlowManga" className="w-full h-full object-contain scale-[1.35]" />
           </div>
           <motion.div
             animate={{ opacity: isExpanded ? 1 : 0, x: isExpanded ? 0 : -10 }}

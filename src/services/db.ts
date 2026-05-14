@@ -112,9 +112,65 @@ export const initDatabase = async () => {
       sourceTagName TEXT NOT NULL,
       PRIMARY KEY (tagName, sourceId)
     );
+
+    -- Gallery Ecosystem Tables
+    CREATE TABLE IF NOT EXISTS GalleryImages (
+      id TEXT PRIMARY KEY,
+      imageUrl TEXT NOT NULL,
+      previewUrl TEXT,
+      tags TEXT DEFAULT '',
+      source TEXT DEFAULT 'zerochan',
+      rating TEXT DEFAULT 'safe',
+      width INTEGER,
+      height INTEGER,
+      dominantColor TEXT,
+      aesthetic TEXT,
+      artist TEXT,
+      savedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      liked BOOLEAN DEFAULT 0,
+      folderId TEXT,
+      zerochanId INTEGER,
+      FOREIGN KEY (folderId) REFERENCES GalleryFolders(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS GalleryFolders (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      coverUrl TEXT,
+      pinned BOOLEAN DEFAULT 0,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS FavoriteTags (
+      tag TEXT PRIMARY KEY,
+      addedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      usageCount INTEGER DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS GalleryHistory (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      imageId TEXT,
+      tag TEXT,
+      action TEXT NOT NULL,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS Slideshows (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      tags TEXT DEFAULT '',
+      folderId TEXT,
+      transition TEXT DEFAULT 'fade',
+      interval INTEGER DEFAULT 5000,
+      shuffle BOOLEAN DEFAULT 0,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Migration: Ensure lastPosition exists for existing databases
+
   try {
     await db.execute(
       "ALTER TABLE Videos ADD COLUMN lastPosition REAL DEFAULT 0",
@@ -163,9 +219,24 @@ export const initDatabase = async () => {
     await db.execute("ALTER TABLE Series ADD COLUMN providerId TEXT");
   } catch (e) {}
 
+  try {
+    await db.execute("ALTER TABLE Series ADD COLUMN displayTitle TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS GallerySettings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    `);
+  } catch (e) {}
+
   // console.log('[DB] Database initialized successfully');
   return db;
 };
+
+
 
 export const getDb = () => {
   if (!db)

@@ -25,6 +25,9 @@ import { MangaReadProvider } from './manga/MangaReadProvider';
 import { ManhuaPlusProvider } from './manga/ManhuaPlusProvider';
 import { WebtoonsProvider } from './manga/WebtoonsProvider';
 
+// Phase 3: Gallery / Image Board Sources
+import { ZerochanProvider } from './gallery/ZerochanProvider';
+
 // Register Phase 1
 sourceRegistry.register(new MangaDexProvider());
 sourceRegistry.register(new WebtoonsProvider());
@@ -41,6 +44,9 @@ const mangaread = new MangaReadProvider();
 sourceRegistry.register(mangaread);
 
 sourceRegistry.register(new ManhuaPlusProvider());
+
+// Phase 3: Gallery Sources
+sourceRegistry.register(new ZerochanProvider());
 
 export { sourceRegistry };
 export type { SourceProvider, ContentType, MediaType } from './types';

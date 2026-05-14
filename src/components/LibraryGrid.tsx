@@ -203,9 +203,9 @@ export const LibraryGrid = () => {
         title: "Rename Series",
         placeholder: "New title...",
         description: `Renaming: ${item.title}`,
-        initialValue: item.title,
-        onSubmit: (newTitle) => {
-          renameSeries(item.id, newTitle);
+        initialValue: item.displayName || item.title,
+        onSubmit: async (newTitle) => {
+          await useLibraryStore.getState().setSeriesDisplayTitle(item.id, newTitle);
           toast.success("Series renamed");
         },
       });

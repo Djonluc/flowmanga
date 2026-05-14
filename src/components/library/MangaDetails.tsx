@@ -16,6 +16,7 @@ import { useLibraryStore, type Book } from '../../stores/useLibraryStore';
 import { useReadingStore } from '../../stores/useReadingStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import { useDownloadStore } from '../../stores/useDownloadStore';
+import { useModalStore } from '../../stores/useModalStore';
 import { UpdateManager } from '../../services/UpdateManager';
 import { toast } from '../Toast';
 import { TagManagerModal } from './TagManagerModal';
@@ -27,10 +28,11 @@ interface MangaDetailsProps {
 }
 
 export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) => {
-  const { series, refreshMangaMetadata, toggleFavorite, deleteSeries, verifyLibraryIntegrity, refreshChapterThumbnails, clearReadingProgressForSeries, toggleFilterTag, scanLibrary } = useLibraryStore();
+  const { series, refreshMangaMetadata, toggleFavorite, deleteSeries, verifyLibraryIntegrity, refreshChapterThumbnails, clearReadingProgressForSeries, toggleFilterTag, scanLibrary, setSeriesDisplayTitle } = useLibraryStore();
   const { openFolder } = useReadingStore();
   const { setAmbientImage } = useSettingsStore();
   const { queue: activeJobs } = useDownloadStore();
+  const { openInputModal } = useModalStore();
   
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [accentColor, setAccentColor] = useState<string>('#6366f1');
@@ -106,55 +108,9 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
 
     if (coverSrc) setAmbientImage(coverSrc);
 
-    const pickBackdrop = async () => {
-      const applyFromPaths = (paths: string[]): boolean => {
-        const imgs = paths.filter((p) => {
-          if (!/\.(jpe?g|png|webp|gif)$/i.test(p)) return false;
-          const base = p.split(/[/\\]/).pop() || '';
-          if (base.toLowerCase() === 'cover.jpg' || base.toLowerCase() === 'cover.jpeg') return false;
-          if (base.toLowerCase() === 'metadata.json') return false;
-          return true;
-        });
-        if (imgs.length === 0) return false;
-        let idx: number;
-        if (imgs.length > 6) {
-          const start = Math.floor(imgs.length * 0.15);
-          const end = Math.floor(imgs.length * 0.85);
-          idx = start + Math.floor(Math.random() * Math.max(1, end - start));
-        } else {
-          idx = Math.floor(Math.random() * imgs.length);
-        }
-        const raw = imgs[Math.min(idx, imgs.length - 1)];
-        if (active) setHeroBackground(raw.startsWith('http') ? raw : convertFileSrc(raw));
-        return true;
-      };
-
-      try {
-        const paths: string[] = await invoke('read_folder', { path: selectedSeries.path });
-        if (active && applyFromPaths(paths)) return;
-      } catch (e) {
-        console.warn('[MangaDetails] read_folder (series root) failed:', e);
-      }
-
-      if (selectedSeries.books.length > 0) {
-        const bookIdx =
-          selectedSeries.books.length > 3
-            ? Math.floor(Math.random() * (selectedSeries.books.length - 2)) + 1
-            : Math.floor(Math.random() * selectedSeries.books.length);
-        const randomBook = selectedSeries.books[bookIdx];
-        try {
-          const paths: string[] = await invoke('read_folder', { path: randomBook.path });
-          if (active && applyFromPaths(paths)) return;
-        } catch (e) {
-          console.warn('[MangaDetails] read_folder (chapter path) failed:', e);
-        }
-      }
-
-      if (coverSrc && active) setHeroBackground(coverSrc);
-    };
-
-    void pickBackdrop();
-    const interval = setInterval(() => void pickBackdrop(), 90000);
+    if (coverSrc && active) {
+      setHeroBackground(coverSrc);
+    }
 
     const fetchRemote = async () => {
       setIsLoadingRemote(true);
@@ -179,7 +135,6 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
     return () => {
       active = false;
       setAmbientImage(null);
-      clearInterval(interval);
     };
   }, [
     selectedSeries?.id,
@@ -243,19 +198,19 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
               {heroBackground ? (
                   <motion.div 
                       key={heroBackground}
-                      initial={{ opacity: 0, scale: 1.08 }}
-                      animate={{ opacity: 0.5, scale: 1.02 }}
-                      exit={{ opacity: 0, scale: 1.12 }}
+                      initial={{ opacity: 0, scale: 1.05 }}
+                      animate={{ opacity: 0.8, scale: 1.0 }}
+                      exit={{ opacity: 0, scale: 1.05 }}
                       transition={{ duration: 2.2, ease: "easeOut" }}
-                      className="absolute inset-0 bg-center bg-cover blur-[44px] sm:blur-[52px] saturate-[1.12]"
-                      style={{ backgroundImage: `url(${heroBackground})` }}
+                      className="absolute inset-0 bg-center bg-cover bg-no-repeat blur-[4px] sm:blur-[8px] saturate-[1.1]"
+                      style={{ backgroundImage: `url(${heroBackground})`, backgroundPosition: 'center 20%' }}
                   />
               ) : coverSrc ? (
                   <motion.div 
                       initial={{ opacity: 0 }}
-                      animate={{ opacity: 0.42 }}
+                      animate={{ opacity: 0.6 }}
                       transition={{ duration: 1.4 }}
-                      className="absolute inset-0 bg-center bg-cover scale-110 blur-[64px] sm:blur-[80px] saturate-[1.2]"
+                      className="absolute inset-0 bg-center bg-cover scale-105 blur-[16px] sm:blur-[24px] saturate-[1.1]"
                       style={{ backgroundImage: `url(${coverSrc})` }}
                   />
               ) : (
@@ -263,13 +218,13 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
               )}
           </AnimatePresence>
           
-          {/* Multi-layered cinematic blending — leave more of the art visible, then grade into page bg */}
-          <div className="absolute inset-0 bg-gradient-to-b from-background/25 via-background/45 to-background" />
-          <div className="absolute inset-0 bg-gradient-to-r from-background/80 via-transparent to-transparent opacity-55" />
-          <div className="absolute inset-x-0 bottom-0 min-h-[55%] bg-gradient-to-t from-background via-background/55 to-transparent" />
+          {/* Multi-layered cinematic blending — localized protection instead of heavy global blur */}
+          <div className="absolute inset-0 bg-gradient-to-b from-background/10 via-background/30 to-background" />
+          <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/60 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 min-h-[60%] bg-gradient-to-t from-background via-background/70 to-transparent" />
           
           {/* Subtle vignette for depth - Now theme-aware */}
-          <div className="absolute inset-0 shadow-[inset_0_0_150px_var(--color-background)] opacity-20" />
+          <div className="absolute inset-0 shadow-[inset_0_0_150px_var(--color-background)] opacity-40" />
       </div>
 
       <div className="z-50 p-6 flex items-center justify-between">
@@ -351,6 +306,19 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
                                     toast.success('Chapter paths verified');
                                     setIsTopMoreMenuOpen(false);
                                 }} />
+                                <MenuAction icon={<Edit2 size={14} />} label="Rename Series" onClick={() => {
+                                    openInputModal({
+                                        title: 'Rename Series',
+                                        description: 'Set a custom local display title. The original source title will be preserved for syncing.',
+                                        placeholder: selectedSeries.title,
+                                        initialValue: selectedSeries.displayName,
+                                        onSubmit: async (newTitle) => {
+                                            await setSeriesDisplayTitle(selectedSeries.id, newTitle);
+                                            toast.success('Title updated');
+                                        }
+                                    });
+                                    setIsTopMoreMenuOpen(false);
+                                }} />
                                 <MenuAction icon={<Trash size={14} />} label="Clear Reading History" danger onClick={async () => {
                                     await clearReadingProgressForSeries(selectedSeries.id);
                                     toast.success('Reading progress cleared for this series');
@@ -392,7 +360,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({ seriesId, onBack }) 
              <div className="flex-1 min-w-0 space-y-10 py-2">
                 <div className="space-y-6 relative">
                     {/* Readability Protection Mask */}
-                    <div className="absolute -left-4 -top-4 -right-12 -bottom-4 bg-background/20 blur-3xl rounded-[60px] pointer-events-none" />
+                    <div className="absolute -inset-8 bg-gradient-radial from-background/90 via-background/50 to-transparent blur-2xl rounded-full pointer-events-none" />
                     
                     <motion.h1 
                         layoutId={`title-${selectedSeries.id}`}

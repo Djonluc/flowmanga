@@ -7,11 +7,18 @@
   "permissions": [
     {
       "identifier": "fs:scope",
-      "allow": ["$HOME/**", "$PICTURES/**", "$DOWNLOADS/**", "$DOCUMENTS/**", "$DESKTOP/**"]
+      "allow": [
+        "$HOME/**",
+        "$PICTURES/**",
+        "$DOWNLOADS/**",
+        "$DOCUMENTS/**",
+        "$DESKTOP/**"
+      ]
     },
     "core:default",
     "sql:default",
     "fs:default",
+    "http:default",
     "dialog:default",
     "shell:default",
     "log:default",

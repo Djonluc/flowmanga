@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 
@@ -9,13 +9,19 @@ interface InputModalProps {
   title: string;
   placeholder?: string;
   description?: string;
+  initialValue?: string;
 }
 
-export function InputModal({ isOpen, onClose, onSubmit, title, placeholder, description }: InputModalProps) {
-  const [value, setValue] = useState('');
+export function InputModal({ isOpen, onClose, onSubmit, title, placeholder, description, initialValue }: InputModalProps) {
+  const [value, setValue] = useState(initialValue || '');
+
+  useEffect(() => {
+    if (isOpen) {
+      setValue(initialValue || '');
+    }
+  }, [isOpen, initialValue]);
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
     if (value.trim()) {
       onSubmit(value.trim());
       setValue('');

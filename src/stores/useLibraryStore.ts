@@ -42,6 +42,7 @@ export interface Series {
   books: Book[];
   anilistId?: string;
   malId?: string;
+  displayTitle?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -93,6 +94,7 @@ interface LibraryState {
   updateTags: (seriesId: string, tags: string[]) => Promise<void>;
   clearReadingProgressForSeries: (seriesId: string) => Promise<void>;
   renameSeries: (seriesId: string, newTitle: string) => Promise<void>;
+  setSeriesDisplayTitle: (seriesId: string, displayTitle: string) => Promise<void>;
   deleteSeries: (seriesId: string | null, path: string | null, deleteFiles?: boolean) => Promise<void>;
   bulkDelete: (deleteFiles?: boolean) => Promise<void>;
   setSeriesCover: (seriesId: string, sourcePath: string) => Promise<void>;
@@ -173,7 +175,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         id: s.id,
         title: s.title, 
         path: s.path,
-        displayName: s.title, 
+        displayName: s.displayTitle || s.title,
+        displayTitle: s.displayTitle,
         author: s.author,
         cover: s.coverPath,
         description: s.description,
@@ -317,6 +320,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   renameSeries: async (seriesId, newTitle) => {
       const db = getDb();
       await db.execute('UPDATE Series SET title = ? WHERE id = ?', [newTitle, seriesId]);
+      await get().loadFromDb();
+  },
+
+  setSeriesDisplayTitle: async (seriesId, displayTitle) => {
+      const db = getDb();
+      await db.execute('UPDATE Series SET displayTitle = ? WHERE id = ?', [displayTitle, seriesId]);
+      
+      // Update local state directly so we don't need a full DB reload if we don't want to, but loadFromDb is safe
       await get().loadFromDb();
   },
 

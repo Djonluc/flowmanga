@@ -17,7 +17,7 @@ export const AppearanceSettings = () => {
         { id: 'light', label: 'Light', icon: Sun, color: '#ffffff' },
         { id: 'oled', label: 'OLED', icon: Palette, color: '#000000' },
         { id: 'paper', label: 'Paper', icon: FileText, color: '#f5f5dc' },
-        { id: 'cyberpunk', label: 'Cyber', icon: Zap, color: '#ff00ff' },
+        { id: 'amethyst', label: 'Amethyst', icon: Zap, color: '#c084fc' },
     ];
 
     const ambientModes: { id: AmbientMode; label: string }[] = [
@@ -45,14 +45,18 @@ export const AppearanceSettings = () => {
                                 className={clsx(
                                     "flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border transition-all relative overflow-hidden",
                                     active 
-                                        ? "border-blue-500 ring-1 ring-blue-500 shadow-lg shadow-blue-900/40" 
+                                        ? "ring-1 shadow-lg shadow-accent/40" 
                                         : "border-white/5 hover:bg-white/5 opacity-60 hover:opacity-100"
                                 )}
-                                style={{ backgroundColor: active ? `${t.color}33` : 'transparent' }}
+                                style={{ 
+                                   backgroundColor: active ? `${t.color}33` : 'transparent',
+                                   borderColor: active ? 'var(--color-accent)' : undefined,
+                                   boxShadow: active ? '0 0 15px var(--color-accent-glow)' : undefined
+                                }}
                             >
-                                <Icon size={24} style={{ color: active ? '#3b82f6' : 'currentColor' }} />
-                                <span className="text-[10px] font-black uppercase tracking-widest">{t.label}</span>
-                                {active && <div className="absolute inset-0 bg-blue-500/10" />}
+                                <Icon size={24} style={{ color: active ? 'var(--color-accent)' : 'currentColor' }} />
+                                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: active ? 'var(--color-accent)' : 'currentColor' }}>{t.label}</span>
+                                {active && <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--color-accent)' }} />}
                             </button>
                         );
                     })}
@@ -74,9 +78,10 @@ export const AppearanceSettings = () => {
                             className={clsx(
                                 "flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
                                 ambientMode === m.id 
-                                    ? "bg-blue-600 text-white shadow-lg" 
+                                    ? "text-white shadow-lg shadow-accent/40" 
                                     : "text-foreground-dim hover:text-foreground"
                             )}
+                            style={{ backgroundColor: ambientMode === m.id ? 'var(--color-accent)' : 'transparent' }}
                         >
                             {m.label}
                         </button>
@@ -133,12 +138,13 @@ export const AppearanceSettings = () => {
                             onClick={() => setAmbientNoise(!showAmbientNoise)}
                             className={clsx(
                                 "w-12 h-6 rounded-full transition-colors relative",
-                                showAmbientNoise ? "bg-blue-600" : "bg-white/10"
+                                !showAmbientNoise && "bg-white/10"
                             )}
+                            style={{ backgroundColor: showAmbientNoise ? 'var(--color-accent)' : undefined }}
                         >
                             <div className={clsx(
                                 "absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform",
-                                showAmbientNoise ? "translate-x-6" : "translate-x-0"
+                                showAmbientNoise ? "translate-x-6 shadow-[0_0_10px_var(--color-accent)]" : "translate-x-0"
                             )} />
                         </button>
                     </div>
