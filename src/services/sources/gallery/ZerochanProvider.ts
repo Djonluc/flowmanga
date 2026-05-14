@@ -7,6 +7,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  ProviderCategory,
   SourceProvider,
   SourceContent,
   SourceSearchResult,
@@ -14,7 +15,7 @@ import type {
   ContentType,
   MediaType,
   ReaderMode,
-  SourceSearchOptions
+  SourceSearchOptions,
 } from "../types";
 
 // ─── Rate Limiter (Token Bucket) ────────────────────────────────────
@@ -55,27 +56,30 @@ const ZEROCHAN_BASE = "https://www.zerochan.net";
  * Makes a rate-limited request to the Zerochan API via the Tauri backend
  * to avoid CORS and Scope issues.
  */
-async function zerochanGet(path: string, params: Record<string, any> = {}): Promise<any> {
+async function zerochanGet(
+  path: string,
+  params: Record<string, any> = {},
+): Promise<any> {
   await zerochanRateLimiter.acquire();
 
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
   const urlObj = new URL(`${ZEROCHAN_BASE}${cleanPath}`);
-  
+
   urlObj.searchParams.set("json", "");
   Object.entries(params).forEach(([key, val]) => {
     urlObj.searchParams.set(key, String(val));
   });
 
   const url = urlObj.toString();
-  
+
   try {
     const response: any = await invoke("fetch_json", {
       url,
       method: "GET",
       headers: {
         "User-Agent": ZEROCHAN_UA,
-        "Accept": "application/json"
-      }
+        Accept: "application/json",
+      },
     });
 
     return response || {};
@@ -85,7 +89,11 @@ async function zerochanGet(path: string, params: Record<string, any> = {}): Prom
   }
 }
 
-function constructFullUrl(tag: string, id: number, ext: string = "jpg"): string {
+function constructFullUrl(
+  tag: string,
+  id: number,
+  ext: string = "jpg",
+): string {
   const formattedTag = tag.replace(/ /g, ".");
   return `https://static.zerochan.net/${formattedTag}.full.${id}.${ext}`;
 }
@@ -96,13 +104,12 @@ function constructFullUrl(tag: string, id: number, ext: string = "jpg"): string 
  */
 function normalizeZerochanUrl(url: string, tag: string, id: number): string {
   if (!url) return constructFullUrl(tag, id);
-  
+
   // If the asset format is an optimized/preview type that isn't the native full version
-  if (url.includes('.avif') || url.includes('.webp')) {
-    return constructFullUrl(tag, id, 'jpg');
+  if (url.includes(".avif") || url.includes(".webp")) {
+    return constructFullUrl(tag, id, "jpg");
   }
 
-  
   return url;
 }
 
@@ -113,6 +120,7 @@ export class ZerochanProvider implements SourceProvider {
   readonly name = "Zerochan";
   readonly domains = ["zerochan.net", "static.zerochan.net"];
   readonly contentType: ContentType = "gallery";
+  readonly category: ProviderCategory = "image";
   readonly mediaTypes: MediaType[] = ["image"];
   readonly defaultPersistence = "discovery" as const;
   readonly readerModes: ReaderMode[] = ["gallery", "slideshow", "single"];
@@ -142,16 +150,18 @@ export class ZerochanProvider implements SourceProvider {
     if (/^\d+$/.test(path)) {
       const id = parseInt(path);
       const data = await zerochanGet(`/${id}`);
-      
-      const tag = data.tag || 'Untitled';
+
+      const tag = data.tag || "Untitled";
       const fullUrl = normalizeZerochanUrl(data.full, tag, id);
 
       return {
-        images: [{
-          url: fullUrl,
-          pageNumber: 1,
-          mediaType: "image" as MediaType,
-        }],
+        images: [
+          {
+            url: fullUrl,
+            pageNumber: 1,
+            mediaType: "image" as MediaType,
+          },
+        ],
         metadata: {
           title: `Zerochan #${id} - ${tag}`,
           description: data.tag,
@@ -159,7 +169,7 @@ export class ZerochanProvider implements SourceProvider {
           sourceId: String(id),
           sourceUrl: url,
           tags: data.tag ? [data.tag] : [],
-        }
+        },
       };
     }
 
@@ -182,19 +192,22 @@ export class ZerochanProvider implements SourceProvider {
     };
   }
 
-  async search(query: string, options: SourceSearchOptions): Promise<SourceSearchResult[]> {
+  async search(
+    query: string,
+    options: SourceSearchOptions,
+  ): Promise<SourceSearchResult[]> {
     const page = options.page || 1;
     const limit = options.limit || 24;
     const tag = query.trim();
-    
+
     if (!tag) return [];
-    
+
     const safeLimit = Math.min(limit, 100);
 
     // If query has spaces, it's a search, not a single tag
-    if (tag.includes(' ')) {
+    if (tag.includes(" ")) {
       try {
-        const data = await zerochanGet('/', { q: tag, p: page, l: safeLimit });
+        const data = await zerochanGet("/", { q: tag, p: page, l: safeLimit });
         const items = data.items || (Array.isArray(data) ? data : []);
         return this.mapItems(items, query);
       } catch (e) {
@@ -211,19 +224,24 @@ export class ZerochanProvider implements SourceProvider {
     } catch (e) {
       // Fallback to global search if tag-specific failed
       try {
-        const data = await zerochanGet('/', { q: tag, p: page, l: safeLimit });
+        const data = await zerochanGet("/", { q: tag, p: page, l: safeLimit });
         const items = data.items || (Array.isArray(data) ? data : []);
         return this.mapItems(items, query);
       } catch (innerE) {
-        console.error(`[ZerochanProvider] Both tag and global search failed for ${tag}:`, innerE);
+        console.error(
+          `[ZerochanProvider] Both tag and global search failed for ${tag}:`,
+          innerE,
+        );
         return [];
       }
     }
   }
 
-
-
-  async searchByTags(tags: string[], page: number = 1, limit: number = 24): Promise<SourceSearchResult[]> {
+  async searchByTags(
+    tags: string[],
+    page: number = 1,
+    limit: number = 24,
+  ): Promise<SourceSearchResult[]> {
     if (tags.length === 0) return [];
     const tagPath = tags.map((t) => encodeURIComponent(t)).join(",");
     const safeLimit = Math.min(limit, 250);
@@ -236,7 +254,9 @@ export class ZerochanProvider implements SourceProvider {
     }
   }
 
-  async getTrending(options: SourceSearchOptions = {}): Promise<SourceSearchResult[]> {
+  async getTrending(
+    options: SourceSearchOptions = {},
+  ): Promise<SourceSearchResult[]> {
     const page = options.page || 1;
     const limit = options.limit || 24;
     try {
@@ -247,8 +267,9 @@ export class ZerochanProvider implements SourceProvider {
     }
   }
 
-
-  async getLatest(options: SourceSearchOptions = {}): Promise<SourceSearchResult[]> {
+  async getLatest(
+    options: SourceSearchOptions = {},
+  ): Promise<SourceSearchResult[]> {
     const page = options.page || 1;
     const limit = options.limit || 24;
     try {
@@ -279,7 +300,8 @@ export class ZerochanProvider implements SourceProvider {
         const id = String(item.id);
         const primaryTag = item.tag || contextLabel;
         const fullUrl = normalizeZerochanUrl(item.full, primaryTag, item.id);
-        const thumbUrl = item.thumbnail || constructFullUrl(primaryTag, item.id);
+        const thumbUrl =
+          item.thumbnail || constructFullUrl(primaryTag, item.id);
 
         return {
           id,
@@ -292,7 +314,7 @@ export class ZerochanProvider implements SourceProvider {
           source: "zerochan",
           contentType: "gallery" as ContentType,
           url: `${ZEROCHAN_BASE}/${id}`,
-          dominantColor: '#a855f7'
+          dominantColor: "#a855f7",
         };
       });
   }

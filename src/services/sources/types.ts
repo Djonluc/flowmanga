@@ -19,6 +19,7 @@ export type ContentType = "manga" | "comic" | "doujin" | "gallery" | "album";
  * Supported media formats across all sources.
  */
 export type MediaType = "image" | "gif" | "video" | "animated";
+export type ProviderCategory = "image" | "manga" | "doujin";
 
 // ─── Provider Interface ─────────────────────────────────────────────
 
@@ -44,6 +45,9 @@ export interface SourceProvider {
 
   /** Supported media formats */
   readonly mediaTypes: MediaType[];
+
+  /** Provider classification used for strict discovery gating */
+  readonly category?: ProviderCategory;
 
   /** Feature capability flags */
   readonly capabilities: SourceCapabilities;
@@ -108,9 +112,8 @@ export interface SourceProvider {
 export interface SourceSearchOptions {
   page?: number;
   limit?: number;
-  contentFilter?: 'sfw' | 'all';
+  contentFilter?: "sfw" | "all";
 }
-
 
 // ─── Capability Flags ───────────────────────────────────────────────
 
@@ -188,11 +191,16 @@ export interface SourceSearchResult {
   coverUrl?: string;
   previewUrl?: string;
   imageUrl?: string;
+  fullResUrl?: string;
+  width?: number;
+  height?: number;
   tags?: string[];
+  rating?: string;
+  popularity?: number;
+  createdAt?: string;
   description?: string;
   source: string;
   contentType: ContentType;
   url: string;
   dominantColor?: string;
 }
-

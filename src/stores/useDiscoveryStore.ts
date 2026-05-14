@@ -65,7 +65,21 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
     set({ isSearching: true, error: null });
     try {
       const { coloredOnly } = useSettingsStore.getState();
-      const results = await DiscoveryService.searchGlobal(query, 20, coloredOnly);
+      const category =
+        get().activeType === "gallery"
+          ? "image"
+          : get().activeType === "doujin"
+            ? "doujin"
+            : get().activeType === "all"
+              ? undefined
+              : "manga";
+      const results = await DiscoveryService.searchGlobal(
+        query,
+        20,
+        coloredOnly,
+        1,
+        category,
+      );
       set({ results, isSearching: false });
     } catch (err) {
       console.error("[DiscoveryStore] Search failed:", err);
@@ -81,10 +95,17 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
     const currentIsColored =
       get().trending.length > 0 &&
       get().trending.some((item) => {
-        const tags = (item.tags || []).map(t => t.toLowerCase());
-        const src = item.source?.toLowerCase() || '';
-        return tags.some(t => ['full color', 'colored', 'manhwa', 'manhua', 'webtoon'].includes(t)) || 
-               src.includes('manhwaread') || src.includes('luacomic');
+        const tags = (item.tags || []).map((t) => t.toLowerCase());
+        const src = item.source?.toLowerCase() || "";
+        return (
+          tags.some((t) =>
+            ["full color", "colored", "manhwa", "manhua", "webtoon"].includes(
+              t,
+            ),
+          ) ||
+          src.includes("manhwaread") ||
+          src.includes("luacomic")
+        );
       });
 
     if (!force && get().trending.length > 0 && currentIsColored === coloredOnly)
@@ -92,7 +113,19 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
 
     set({ isLoadingTrending: true, error: null });
     try {
-      const trending = await DiscoveryService.getTrending(24, coloredOnly);
+      const category =
+        get().activeType === "gallery"
+          ? "image"
+          : get().activeType === "doujin"
+            ? "doujin"
+            : get().activeType === "all"
+              ? undefined
+              : "manga";
+      const trending = await DiscoveryService.getTrending(
+        24,
+        coloredOnly,
+        category,
+      );
       set({ trending, isLoadingTrending: false });
     } catch (err) {
       console.error("[DiscoveryStore] Fetch trending failed:", err);
@@ -105,10 +138,17 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
     const currentIsColored =
       get().latest.length > 0 &&
       get().latest.some((item) => {
-        const tags = (item.tags || []).map(t => t.toLowerCase());
-        const src = item.source?.toLowerCase() || '';
-        return tags.some(t => ['full color', 'colored', 'manhwa', 'manhua', 'webtoon'].includes(t)) || 
-               src.includes('manhwaread') || src.includes('luacomic');
+        const tags = (item.tags || []).map((t) => t.toLowerCase());
+        const src = item.source?.toLowerCase() || "";
+        return (
+          tags.some((t) =>
+            ["full color", "colored", "manhwa", "manhua", "webtoon"].includes(
+              t,
+            ),
+          ) ||
+          src.includes("manhwaread") ||
+          src.includes("luacomic")
+        );
       });
 
     if (!force && get().latest.length > 0 && currentIsColored === coloredOnly)
@@ -116,7 +156,19 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
 
     set({ isLoadingLatest: true, error: null });
     try {
-      const latest = await DiscoveryService.getLatest(24, coloredOnly);
+      const category =
+        get().activeType === "gallery"
+          ? "image"
+          : get().activeType === "doujin"
+            ? "doujin"
+            : get().activeType === "all"
+              ? undefined
+              : "manga";
+      const latest = await DiscoveryService.getLatest(
+        24,
+        coloredOnly,
+        category,
+      );
       set({ latest, isLoadingLatest: false });
     } catch (err) {
       console.error("[DiscoveryStore] Failed to fetch latest:", err);
@@ -130,7 +182,19 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
 
     set({ isLoadingRandom: true });
     try {
-      const random = await DiscoveryService.getRandom(24, coloredOnly);
+      const category =
+        get().activeType === "gallery"
+          ? "image"
+          : get().activeType === "doujin"
+            ? "doujin"
+            : get().activeType === "all"
+              ? undefined
+              : "manga";
+      const random = await DiscoveryService.getRandom(
+        24,
+        coloredOnly,
+        category,
+      );
       set({ random, isLoadingRandom: false });
     } catch (err) {
       console.error("[DiscoveryStore] Failed to fetch random:", err);
@@ -150,9 +214,9 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
     });
     await DiscoveryService.clearAllCache();
     await Promise.all([
-      get().fetchTrending(true), 
+      get().fetchTrending(true),
       get().fetchLatest(true),
-      get().fetchRandom(true)
+      get().fetchRandom(true),
     ]);
   },
 }));

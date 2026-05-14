@@ -10,14 +10,10 @@ import type {
   SourceSearchOptions,
 } from "../types";
 
-/**
- * Danbooru API Provider
- * Robust implementation for Danbooru.donmai.us
- */
-export class DanbooruProvider implements SourceProvider {
-  readonly id = "danbooru";
-  readonly name = "Danbooru";
-  readonly domains = ["danbooru.donmai.us", "cdn.donmai.us"];
+export class KonachanProvider implements SourceProvider {
+  readonly id = "konachan";
+  readonly name = "Konachan";
+  readonly domains = ["konachan.com", "konachan.net"];
   readonly contentType: ContentType = "gallery";
   readonly category: ProviderCategory = "image";
   readonly mediaTypes: MediaType[] = ["image"];
@@ -33,7 +29,7 @@ export class DanbooruProvider implements SourceProvider {
     authentication: false,
   };
 
-  private readonly baseUrl = "https://danbooru.donmai.us";
+  private readonly baseUrl = "https://konachan.com";
 
   matchesUrl(url: string): boolean {
     try {
@@ -50,15 +46,11 @@ export class DanbooruProvider implements SourceProvider {
       const id =
         parsed.searchParams.get("id") ||
         parsed.pathname.match(/\/(\d+)(?:$|\/)/)?.[1];
-      if (!id) {
-        return { images: [], metadata: { sourceUrl: url } };
-      }
+      if (!id) return { images: [], metadata: { sourceUrl: url } };
 
-      const post = await booruGet(this.baseUrl, "/posts.json", { id });
-      const item = Array.isArray(post) ? post[0] : post;
-      if (!item) {
-        return { images: [], metadata: { sourceUrl: url } };
-      }
+      const data = await booruGet(this.baseUrl, "/posts.json", { id });
+      const item = Array.isArray(data) ? data[0] : data;
+      if (!item) return { images: [], metadata: { sourceUrl: url } };
 
       return {
         images: [
@@ -74,13 +66,11 @@ export class DanbooruProvider implements SourceProvider {
         ],
         metadata: {
           title:
-            item.tag_string?.split(" ").slice(0, 3).join(" ") ||
-            `Danbooru #${id}`,
-          coverUrl:
-            item.preview_file_url || item.large_file_url || item.file_url,
+            item.tags?.split(" ").slice(0, 3).join(" ") || `Konachan #${id}`,
+          coverUrl: item.preview_url || item.sample_url || item.file_url,
           sourceId: String(item.id),
           sourceUrl: url,
-          tags: item.tag_string?.split(" ") || [],
+          tags: item.tags?.split(" ") || [],
           rating:
             item.rating === "s"
               ? "safe"
@@ -89,8 +79,8 @@ export class DanbooruProvider implements SourceProvider {
                 : "explicit",
         },
       };
-    } catch (e) {
-      console.error("[DanbooruProvider] fetchContent failed:", e);
+    } catch (error) {
+      console.error("[KonachanProvider] fetchContent failed:", error);
       return { images: [], metadata: { sourceUrl: url } };
     }
   }
@@ -110,16 +100,14 @@ export class DanbooruProvider implements SourceProvider {
     }
 
     const page = options.page || 1;
-    const safeLimit = Math.min(options.limit || 20, 200);
+    const safeLimit = Math.min(options.limit || 24, 200);
     const tags = buildBooruTags(query, options.contentFilter || "all");
-
     const data = await booruGet(this.baseUrl, "/posts.json", {
       tags,
       page,
       limit: safeLimit,
     });
-
-    return mapBooruPosts(data, "danbooru", this.baseUrl);
+    return mapBooruPosts(data, "konachan", this.baseUrl);
   }
 
   async searchByTags(
@@ -148,35 +136,42 @@ export class DanbooruProvider implements SourceProvider {
       "order:created_at",
       options.contentFilter || "all",
     );
-
     const data = await booruGet(this.baseUrl, "/posts.json", {
       tags,
       page,
       limit,
     });
-
-    return mapBooruPosts(data, "danbooru", this.baseUrl);
+    return mapBooruPosts(data, "konachan", this.baseUrl);
   }
 
   async getTrending(
     options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
-    const data = await booruGet(this.baseUrl, "/explore/posts/popular.json", {
-      limit: options.limit || 20,
-      scale: "day",
+    const page = options.page || 1;
+    const limit = Math.min(options.limit || 24, 200);
+    const tags = buildBooruTags("order:score", options.contentFilter || "all");
+    const data = await booruGet(this.baseUrl, "/posts.json", {
+      tags,
+      page,
+      limit,
     });
-    return mapBooruPosts(data, "danbooru", this.baseUrl);
+    return mapBooruPosts(data, "konachan", this.baseUrl);
   }
 
   async getRandom(
     options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
     const tags = buildBooruTags("", options.contentFilter || "all");
-    const data = await booruGet(this.baseUrl, "/posts/random.json", {
-      tags,
+    const fallbackPage = Math.floor(Math.random() * 20) + 1;
+    const data = await booruGet(this.baseUrl, "/posts/random.json", { tags });
+    if (data && (Array.isArray(data) ? data.length > 0 : data.id)) {
+      return mapBooruPosts(data, "konachan", this.baseUrl);
+    }
+    return this.search("", {
+      page: fallbackPage,
+      limit: options.limit || 12,
+      contentFilter: options.contentFilter,
     });
-    const results = Array.isArray(data) ? data : [data];
-    return mapBooruPosts(results, "danbooru", this.baseUrl);
   }
 
   async getAutocomplete(query: string): Promise<string[]> {
@@ -184,16 +179,14 @@ export class DanbooruProvider implements SourceProvider {
       "search[name_matches]": `*${query}*`,
       limit: 10,
     });
-
     if (!Array.isArray(data)) return [];
-    return data.map((t: any) => t.name).filter(Boolean);
+    return data.map((item: any) => item.name).filter(Boolean);
   }
 
   async getRelatedTags(tag: string): Promise<string[]> {
     const data = await booruGet(this.baseUrl, "/related_tag.json", {
       query: tag,
     });
-
     if (data && Array.isArray(data.tags)) {
       return data.tags.map((t: any) => t[0]).filter(Boolean);
     }

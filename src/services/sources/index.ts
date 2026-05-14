@@ -1,32 +1,35 @@
 /**
  * FlowManga Source Provider — Registration
- * 
+ *
  * This file registers all available source providers with the global registry.
  * Import this file once at app startup to make all providers available.
- * 
+ *
  * To add a new provider:
  * 1. Create the provider class implementing SourceProvider
  * 2. Import it here
  * 3. Register it with sourceRegistry.register(new YourProvider())
  */
 
-import { sourceRegistry } from './registry';
+import { sourceRegistry } from "./registry";
 
 // Phase 1: MangaDex
-import { MangaDexProvider } from './manga/MangaDexProvider';
+import { MangaDexProvider } from "./manga/MangaDexProvider";
 
 // Phase 2: Manga/Comic Sources
-import { ManhwaReadProvider } from './manga/ManhwaReadProvider';
-import { LuaComicProvider } from './manga/LuaComicProvider';
-import { BlueLockProvider } from './manga/BlueLockProvider';
-import { DBMProvider } from './manga/DBMProvider';
-import { NhentaiProvider } from './doujin/NhentaiProvider';
-import { MangaReadProvider } from './manga/MangaReadProvider';
-import { ManhuaPlusProvider } from './manga/ManhuaPlusProvider';
-import { WebtoonsProvider } from './manga/WebtoonsProvider';
+import { ManhwaReadProvider } from "./manga/ManhwaReadProvider";
+import { LuaComicProvider } from "./manga/LuaComicProvider";
+import { BlueLockProvider } from "./manga/BlueLockProvider";
+import { DBMProvider } from "./manga/DBMProvider";
+import { NhentaiProvider } from "./doujin/NhentaiProvider";
+import { MangaReadProvider } from "./manga/MangaReadProvider";
+import { ManhuaPlusProvider } from "./manga/ManhuaPlusProvider";
+import { WebtoonsProvider } from "./manga/WebtoonsProvider";
 
 // Phase 3: Gallery / Image Board Sources
-import { ZerochanProvider } from './gallery/ZerochanProvider';
+import { ZerochanProvider } from "./gallery/ZerochanProvider";
+import { DanbooruProvider } from "./gallery/DanbooruProvider";
+import { KonachanProvider } from "./gallery/KonachanProvider";
+import { YandereProvider } from "./gallery/YandereProvider";
 
 // Register Phase 1
 sourceRegistry.register(new MangaDexProvider());
@@ -47,6 +50,9 @@ sourceRegistry.register(new ManhuaPlusProvider());
 
 // Phase 3: Gallery Sources
 sourceRegistry.register(new ZerochanProvider());
+sourceRegistry.register(new DanbooruProvider());
+sourceRegistry.register(new KonachanProvider());
+sourceRegistry.register(new YandereProvider());
 
 export { sourceRegistry };
-export type { SourceProvider, ContentType, MediaType } from './types';
+export type { SourceProvider, ContentType, MediaType } from "./types";

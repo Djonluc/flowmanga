@@ -1,12 +1,12 @@
 /**
  * FlowManga Source Provider Registry
- * 
+ *
  * Central registry that maps URLs to their corresponding SourceProvider.
  * ScraperService delegates to this registry before falling back to
  * generic/headless scraping strategies.
  */
 
-import type { SourceProvider, ContentType } from './types';
+import type { SourceProvider, ContentType, ProviderCategory } from "./types";
 
 class SourceRegistry {
   private providers: Map<string, SourceProvider> = new Map();
@@ -54,7 +54,23 @@ class SourceRegistry {
    * List providers filtered by content type.
    */
   listByType(type: ContentType): SourceProvider[] {
-    return this.list().filter(p => p.contentType === type);
+    return this.list().filter((p) => p.contentType === type);
+  }
+
+  listByCategory(category: ProviderCategory): SourceProvider[] {
+    return this.list().filter(
+      (provider) =>
+        provider.category === category ||
+        this.inferCategory(provider) === category,
+    );
+  }
+
+  private inferCategory(provider: SourceProvider): ProviderCategory {
+    if (provider.category) return provider.category;
+    if (provider.contentType === "gallery" || provider.contentType === "album")
+      return "image";
+    if (provider.contentType === "doujin") return "doujin";
+    return "manga";
   }
 
   /**
@@ -62,7 +78,7 @@ class SourceRegistry {
    */
   hasDomain(domain: string): boolean {
     for (const provider of this.providers.values()) {
-      if (provider.domains.some(d => domain.includes(d))) return true;
+      if (provider.domains.some((d) => domain.includes(d))) return true;
     }
     return false;
   }
