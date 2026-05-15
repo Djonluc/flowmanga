@@ -1,22 +1,22 @@
 /**
  * nhentai Source Provider
- * 
+ *
  * Doujin/gallery source. Each gallery is a self-contained album
  * with N pages — no chapters, no series hierarchy.
- * 
+ *
  * URL Patterns:
- *   Gallery: https://nhentai.to/g/{id}/
- *   Page:    https://nhentai.to/g/{id}/{page}/
- *   Search:  https://nhentai.to/search?q={query}
- * 
+ *   Gallery: https://nhentai.net/g/{id}/
+ *   Page:    https://nhentai.net/g/{id}/{page}/
+ *   Search:  https://nhentai.net/search?q={query}
+ *
  * Image Patterns:
- *   Thumbnail: https://t.nhentai.to/galleries/{media_id}/{page}t.{ext}
- *   Full:      https://i.nhentai.to/galleries/{media_id}/{page}.{ext}
- * 
+ *   Thumbnail: https://t.nhentai.net/galleries/{media_id}/{page}t.{ext}
+ *   Full:      https://i.nhentai.net/galleries/{media_id}/{page}.{ext}
+ *
  * Content is modeled as a doujin (single album, opt-in Library save).
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from "@tauri-apps/api/core";
 import type {
   SourceProvider,
   SourceContent,
@@ -27,24 +27,25 @@ import type {
   ContentType,
   MediaType,
   ReaderMode,
-} from '../types';
+} from "../types";
 
 // nhentai uses single-letter media type codes
 const MEDIA_EXT_MAP: Record<string, string> = {
-  j: 'jpg',
-  p: 'png',
-  g: 'gif',
-  w: 'webp',
+  j: "jpg",
+  p: "png",
+  g: "gif",
+  w: "webp",
 };
 
 export class NhentaiProvider implements SourceProvider {
-  readonly id = 'nhentai';
-  readonly name = 'nhentai';
-  readonly domains = ['nhentai.to', 'nhentai.net'];
-  readonly contentType: ContentType = 'doujin';
-  readonly mediaTypes: MediaType[] = ['image'];
-  readonly defaultPersistence = 'ask' as const;
-  readonly readerModes: ReaderMode[] = ['vertical', 'gallery'];
+  readonly id = "nhentai";
+  readonly name = "NHentai";
+  readonly domains = ["nhentai.net"];
+  readonly contentType: ContentType = "doujin";
+  readonly mediaTypes: MediaType[] = ["image"];
+  readonly category: ProviderCategory = "doujin";
+  readonly defaultPersistence = "ask" as const;
+  readonly readerModes: ReaderMode[] = ["vertical", "gallery"];
 
   readonly capabilities: SourceCapabilities = {
     search: true,
@@ -59,8 +60,8 @@ export class NhentaiProvider implements SourceProvider {
 
   matchesUrl(url: string): boolean {
     try {
-      const hostname = new URL(url).hostname.replace('www.', '');
-      return this.domains.some(d => hostname.includes(d));
+      const hostname = new URL(url).hostname.replace("www.", "");
+      return this.domains.some((d) => hostname.includes(d));
     } catch {
       return false;
     }
@@ -70,48 +71,57 @@ export class NhentaiProvider implements SourceProvider {
 
   async fetchContent(url: string): Promise<SourceContent> {
     const galleryId = this.extractGalleryId(url);
-    if (!galleryId) throw new Error('Could not extract gallery ID from nhentai URL');
+    if (!galleryId)
+      throw new Error("Could not extract gallery ID from nhentai URL");
 
     // Fetch the gallery page HTML
-    const galleryUrl = `https://nhentai.to/g/${galleryId}/`;
-    const html = await invoke<string>('fetch_html', { url: galleryUrl, headers: null });
+    const galleryUrl = `https://nhentai.net/g/${galleryId}/`;
+    const html = await invoke<string>("fetch_html", {
+      url: galleryUrl,
+      headers: null,
+    });
     const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
+    const doc = parser.parseFromString(html, "text/html");
 
     // Extract metadata
-    const title = doc.querySelector('h1.title span.pretty')?.textContent?.trim() ||
-                  doc.querySelector('h1')?.textContent?.trim() ||
-                  doc.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
-                  `Gallery ${galleryId}`;
+    const title =
+      doc.querySelector("h1.title span.pretty")?.textContent?.trim() ||
+      doc.querySelector("h1")?.textContent?.trim() ||
+      doc.querySelector('meta[property="og:title"]')?.getAttribute("content") ||
+      `Gallery ${galleryId}`;
 
     // Extract tags
     const tags: string[] = [];
-    doc.querySelectorAll('a.tag span.name').forEach(el => {
+    doc.querySelectorAll("a.tag span.name").forEach((el) => {
       const name = el.textContent?.trim();
       if (name) tags.push(name);
     });
 
     // Extract cover
-    const coverEl = doc.querySelector('#cover img');
-    const coverUrl = coverEl?.getAttribute('data-src') || coverEl?.getAttribute('src') || '';
+    const coverEl = doc.querySelector("#cover img");
+    const coverUrl =
+      coverEl?.getAttribute("data-src") || coverEl?.getAttribute("src") || "";
 
     // Extract image URLs from thumbnail container
-    const images: SourceContent['images'] = [];
-    const thumbContainer = doc.querySelectorAll('#thumbnail-container img, .gallerythumb img, .thumb-container img');
-    
+    const images: SourceContent["images"] = [];
+    const thumbContainer = doc.querySelectorAll(
+      "#thumbnail-container img, .gallerythumb img, .thumb-container img",
+    );
+
     if (thumbContainer.length > 0) {
       thumbContainer.forEach((img, i) => {
-        const thumbSrc = img.getAttribute('data-src') || img.getAttribute('src') || '';
+        const thumbSrc =
+          img.getAttribute("data-src") || img.getAttribute("src") || "";
         if (!thumbSrc) return;
-        
+
         // Convert thumbnail URL to full-size URL
-        // Thumb: https://t.nhentai.to/galleries/{media_id}/{page}t.{ext}
-        // Full:  https://i.nhentai.to/galleries/{media_id}/{page}.{ext}
+        // Thumb: https://t.nhentai.net/galleries/{media_id}/{page}t.{ext}
+        // Full:  https://i.nhentai.net/galleries/{media_id}/{page}.{ext}
         const fullUrl = thumbSrc
-          .replace('//t.nhentai', '//i.nhentai')
-          .replace('//t2.nhentai', '//i2.nhentai')
-          .replace('//t3.nhentai', '//i3.nhentai')
-          .replace(/(\d+)t\.(jpg|jpeg|png|gif|webp)$/i, '$1.$2');
+          .replace("//t.nhentai", "//i.nhentai")
+          .replace("//t2.nhentai", "//i2.nhentai")
+          .replace("//t3.nhentai", "//i3.nhentai")
+          .replace(/(\d+)t\.(jpg|jpeg|png|gif|webp)$/i, "$1.$2");
 
         images.push({
           url: fullUrl,
@@ -127,9 +137,9 @@ export class NhentaiProvider implements SourceProvider {
         const mediaId = scriptData.media_id;
         const pages = scriptData.images?.pages || [];
         pages.forEach((page: any, i: number) => {
-          const ext = MEDIA_EXT_MAP[page.t] || 'jpg';
+          const ext = MEDIA_EXT_MAP[page.t] || "jpg";
           images.push({
-            url: `https://i.nhentai.to/galleries/${mediaId}/${i + 1}.${ext}`,
+            url: `https://i.nhentai.net/galleries/${mediaId}/${i + 1}.${ext}`,
             pageNumber: i + 1,
           });
         });
@@ -137,7 +147,7 @@ export class NhentaiProvider implements SourceProvider {
     }
 
     if (images.length === 0) {
-      throw new Error('Could not extract images from nhentai gallery');
+      throw new Error("Could not extract images from nhentai gallery");
     }
 
     return {
@@ -157,124 +167,197 @@ export class NhentaiProvider implements SourceProvider {
 
   async fetchSeries(url: string): Promise<SourceSeries> {
     const content = await this.fetchContent(url);
-    const galleryId = this.extractGalleryId(url) || 'unknown';
+    const galleryId = this.extractGalleryId(url) || "unknown";
 
     return {
       title: content.metadata?.title || `Gallery ${galleryId}`,
-      description: content.metadata?.tags?.join(', ') || '',
-      coverUrl: content.metadata?.coverUrl || '',
+      description: content.metadata?.tags?.join(", ") || "",
+      coverUrl: content.metadata?.coverUrl || "",
       seriesUrl: url,
-      source: 'nhentai.to',
+      source: "nhentai.net",
       tags: content.metadata?.tags,
-      chapters: [{
-        id: url,
-        number: '1',
-        url: url,
-        title: 'Gallery',
-        source: 'nhentai.to',
-      }],
+      chapters: [
+        {
+          id: url,
+          number: "1",
+          url: url,
+          title: "Gallery",
+          source: "nhentai.net",
+        },
+      ],
     };
   }
 
   // ─── Search ───────────────────────────────────────────────────────
 
-  async search(query: string, page: number = 1, _limit?: number): Promise<SourceSearchResult[]> {
-    const searchUrl = `https://nhentai.to/search?q=${encodeURIComponent(query)}&page=${page}`;
-    
+  async search(
+    query: string,
+    page: number = 1,
+    _limit?: number,
+  ): Promise<SourceSearchResult[]> {
+    const searchUrl = `https://nhentai.net/search?q=${encodeURIComponent(query)}&page=${page}`;
+
     try {
-      const html = await invoke<string>('fetch_html', { url: searchUrl, headers: null });
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-
-      const results: SourceSearchResult[] = [];
-      
-      doc.querySelectorAll('a[href*="/g/"]').forEach(a => {
-        const href = a.getAttribute('href') || '';
-        const idMatch = href.match(/\/g\/(\d+)/);
-        if (!idMatch) return;
-
-        const title = a.querySelector('.caption')?.textContent?.trim() ||
-                      a.textContent?.trim() || '';
-        if (!title || title.length < 3) return;
-
-        const coverImg = a.querySelector('img');
-        const coverUrl = coverImg?.getAttribute('data-src') || coverImg?.getAttribute('src') || '';
-
-        // Avoid duplicates
-        if (results.find(r => r.id === idMatch[1])) return;
-
-        results.push({
-          id: idMatch[1],
-          title,
-          coverUrl,
-          source: 'nhentai.to',
-          contentType: 'doujin',
-          url: `https://nhentai.to/g/${idMatch[1]}/`,
-        });
+      const html = await invoke<string>("fetch_html", {
+        url: searchUrl,
+        headers: null,
       });
-
-      return results;
-    } catch (e) {
-      console.error('[nhentai] Search failed:', e);
-      return [];
-    }
-  }
-
-  async searchByTags(tags: string[], page: number = 1, _limit?: number): Promise<SourceSearchResult[]> {
-    // nhentai tag search is just a regular search with tags as query terms
-    const query = tags.join(' ');
-    return this.search(query, page);
-  }
-
-  async fetchPopular(_page?: number, _limit?: number, coloredOnly: boolean = false): Promise<SourceSearchResult[]> {
-    const results = await this.scrapeListing('https://nhentai.to/popular');
-    if (coloredOnly) {
-        return results.filter(r => (r.tags || []).some(t => t.toLowerCase().includes('color')));
-    }
-    return results;
-  }
- 
-  async fetchLatest(_page?: number, _limit?: number, coloredOnly: boolean = false): Promise<SourceSearchResult[]> {
-    const results = await this.scrapeListing('https://nhentai.to/go');
-    if (coloredOnly) {
-        return results.filter(r => (r.tags || []).some(t => t.toLowerCase().includes('color')));
-    }
-    return results;
-  }
-
-  private async scrapeListing(url: string): Promise<SourceSearchResult[]> {
-    try {
-      const html = await invoke<string>('fetch_html', { url, headers: null });
       const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
+      const doc = parser.parseFromString(html, "text/html");
+
       const results: SourceSearchResult[] = [];
 
-      doc.querySelectorAll('a[href*="/g/"]').forEach(a => {
-        const href = a.getAttribute('href') || '';
+      doc.querySelectorAll('a[href*="/g/"]').forEach((a) => {
+        const href = a.getAttribute("href") || "";
         const idMatch = href.match(/\/g\/(\d+)/);
         if (!idMatch) return;
 
-        const title = a.querySelector('.caption')?.textContent?.trim() ||
-                      a.textContent?.trim() || '';
+        const title =
+          a.querySelector(".caption")?.textContent?.trim() ||
+          a.textContent?.trim() ||
+          "";
         if (!title || title.length < 3) return;
 
-        const coverImg = a.querySelector('img');
-        const coverUrl = coverImg?.getAttribute('data-src') || coverImg?.getAttribute('src') || '';
+        const coverImg = a.querySelector("img");
+        const coverUrl =
+          coverImg?.getAttribute("data-src") ||
+          coverImg?.getAttribute("src") ||
+          "";
 
+        // Extract tags from the gallery element
         const tags: string[] = [];
-        if (title.toLowerCase().includes('color')) tags.push('Full Color');
+        a.querySelectorAll(".tag").forEach((tagEl) => {
+          const tagName = tagEl.textContent?.trim();
+          if (tagName) tags.push(tagName);
+        });
+
+        // Also check for tags in the parent container
+        const container = a.closest(".gallery");
+        if (container) {
+          container.querySelectorAll(".tag").forEach((tagEl) => {
+            const tagName = tagEl.textContent?.trim();
+            if (tagName && !tags.includes(tagName)) tags.push(tagName);
+          });
+        }
+
+        // Fallback: check title for common indicators
+        if (
+          title.toLowerCase().includes("color") ||
+          title.toLowerCase().includes("colored")
+        ) {
+          if (!tags.some((t) => t.toLowerCase().includes("color")))
+            tags.push("full color");
+        }
 
         // Avoid duplicates
-        if (results.find(r => r.id === idMatch[1])) return;
+        if (results.find((r) => r.id === idMatch[1])) return;
 
         results.push({
           id: idMatch[1],
           title,
           tags,
           coverUrl,
-          source: 'nhentai.to',
-          contentType: 'doujin',
-          url: `https://nhentai.to/g/${idMatch[1]}/`,
+          source: "nhentai.net",
+          contentType: "doujin",
+          url: `https://nhentai.net/g/${idMatch[1]}/`,
+        });
+      });
+
+      return results;
+    } catch (e) {
+      console.error("[nhentai] Search failed:", e);
+      return [];
+    }
+  }
+
+  async searchByTags(
+    tags: string[],
+    page: number = 1,
+    _limit?: number,
+  ): Promise<SourceSearchResult[]> {
+    // nhentai tag search is just a regular search with tags as query terms
+    const query = tags.join(" ");
+    return this.search(query, page);
+  }
+
+  async fetchPopular(
+    _page?: number,
+    _limit?: number,
+    coloredOnly: boolean = false,
+  ): Promise<SourceSearchResult[]> {
+    const results = await this.scrapeListing("https://nhentai.net/popular");
+    if (coloredOnly) {
+      return results.filter((r) =>
+        (r.tags || []).some((t) => t.toLowerCase().includes("color")),
+      );
+    }
+    return results;
+  }
+
+  async fetchLatest(
+    _page?: number,
+    _limit?: number,
+    coloredOnly: boolean = false,
+  ): Promise<SourceSearchResult[]> {
+    const results = await this.scrapeListing("https://nhentai.net/go");
+    if (coloredOnly) {
+      return results.filter((r) =>
+        (r.tags || []).some((t) => t.toLowerCase().includes("color")),
+      );
+    }
+    return results;
+  }
+
+  private async scrapeListing(url: string): Promise<SourceSearchResult[]> {
+    try {
+      const html = await invoke<string>("fetch_html", { url, headers: null });
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const results: SourceSearchResult[] = [];
+
+      doc.querySelectorAll('a[href*="/g/"]').forEach((a) => {
+        const href = a.getAttribute("href") || "";
+        const idMatch = href.match(/\/g\/(\d+)/);
+        if (!idMatch) return;
+
+        const title =
+          a.querySelector(".caption")?.textContent?.trim() ||
+          a.textContent?.trim() ||
+          "";
+        if (!title || title.length < 3) return;
+
+        const coverImg = a.querySelector("img");
+        const coverUrl =
+          coverImg?.getAttribute("data-src") ||
+          coverImg?.getAttribute("src") ||
+          "";
+
+        // Extract tags from the gallery link element
+        const tags: string[] = [];
+        a.querySelectorAll(".tag").forEach((tagEl) => {
+          const tagName = tagEl.textContent?.trim();
+          if (tagName) tags.push(tagName);
+        });
+
+        // Fallback: check title for common indicators
+        if (
+          title.toLowerCase().includes("color") ||
+          title.toLowerCase().includes("colored")
+        ) {
+          if (!tags.includes("full color")) tags.push("full color");
+        }
+
+        // Avoid duplicates
+        if (results.find((r) => r.id === idMatch[1])) return;
+
+        results.push({
+          id: idMatch[1],
+          title,
+          tags,
+          coverUrl,
+          source: "nhentai.net",
+          contentType: "doujin",
+          url: `https://nhentai.net/g/${idMatch[1]}/`,
         });
       });
 
@@ -294,23 +377,31 @@ export class NhentaiProvider implements SourceProvider {
 
   private extractGalleryJson(doc: Document): any | null {
     // nhentai embeds gallery data in a script tag as JSON
-    const scripts = doc.querySelectorAll('script');
+    const scripts = doc.querySelectorAll("script");
     for (const script of Array.from(scripts)) {
-      const content = script.textContent || '';
+      const content = script.textContent || "";
       // Look for the gallery JSON object
-      const match = content.match(/window\._gallery\s*=\s*JSON\.parse\("(.+?)"\)/);
+      const match = content.match(
+        /window\._gallery\s*=\s*JSON\.parse\("(.+?)"\)/,
+      );
       if (match) {
         try {
-          const decoded = match[1].replace(/\\u0022/g, '"').replace(/\\\\/g, '\\');
+          const decoded = match[1]
+            .replace(/\\u0022/g, '"')
+            .replace(/\\\\/g, "\\");
           return JSON.parse(decoded);
-        } catch { /* continue */ }
+        } catch {
+          /* continue */
+        }
       }
       // Alternative pattern
       const match2 = content.match(/gallery\s*:\s*(\{.+?\})\s*[,;]/);
       if (match2) {
         try {
           return JSON.parse(match2[1]);
-        } catch { /* continue */ }
+        } catch {
+          /* continue */
+        }
       }
     }
     return null;

@@ -11,6 +11,10 @@ import type { SourceProvider, ContentType, ProviderCategory } from "./types";
 class SourceRegistry {
   private providers: Map<string, SourceProvider> = new Map();
 
+  private isEnabled(provider: SourceProvider): boolean {
+    return provider.isEnabled !== false;
+  }
+
   /**
    * Register a provider. Overwrites any existing provider with the same id.
    */
@@ -31,6 +35,7 @@ class SourceRegistry {
    */
   resolve(url: string): SourceProvider | null {
     for (const provider of this.providers.values()) {
+      if (!this.isEnabled(provider)) continue;
       if (provider.matchesUrl(url)) return provider;
     }
     return null;
@@ -44,10 +49,12 @@ class SourceRegistry {
   }
 
   /**
-   * List all registered providers.
+   * List all registered and enabled providers.
    */
   list(): SourceProvider[] {
-    return Array.from(this.providers.values());
+    return Array.from(this.providers.values()).filter((provider) =>
+      this.isEnabled(provider),
+    );
   }
 
   /**

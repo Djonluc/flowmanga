@@ -1,4 +1,9 @@
-import { booruGet, buildBooruTags, mapBooruPosts } from "./BooruProviderBase";
+import {
+  booruGet,
+  buildBooruTags,
+  buildBooruTagsFromArray,
+  mapBooruPosts,
+} from "./BooruProviderBase";
 import type {
   ContentType,
   MediaType,
@@ -48,7 +53,7 @@ export class KonachanProvider implements SourceProvider {
         parsed.pathname.match(/\/(\d+)(?:$|\/)/)?.[1];
       if (!id) return { images: [], metadata: { sourceUrl: url } };
 
-      const data = await booruGet(this.baseUrl, "/posts.json", { id });
+      const data = await booruGet(this.baseUrl, "/post.json", { id });
       const item = Array.isArray(data) ? data[0] : data;
       if (!item) return { images: [], metadata: { sourceUrl: url } };
 
@@ -102,7 +107,7 @@ export class KonachanProvider implements SourceProvider {
     const page = options.page || 1;
     const safeLimit = Math.min(options.limit || 24, 200);
     const tags = buildBooruTags(query, options.contentFilter || "all");
-    const data = await booruGet(this.baseUrl, "/posts.json", {
+    const data = await booruGet(this.baseUrl, "/post.json", {
       tags,
       page,
       limit: safeLimit,
@@ -124,7 +129,11 @@ export class KonachanProvider implements SourceProvider {
       options = pageOrOptions;
     }
 
-    return this.search(tags.join(" "), options);
+    const normalized = buildBooruTagsFromArray(
+      tags,
+      options.contentFilter || "all",
+    );
+    return this.search(normalized, options);
   }
 
   async getLatest(
@@ -136,7 +145,7 @@ export class KonachanProvider implements SourceProvider {
       "order:created_at",
       options.contentFilter || "all",
     );
-    const data = await booruGet(this.baseUrl, "/posts.json", {
+    const data = await booruGet(this.baseUrl, "/post.json", {
       tags,
       page,
       limit,
@@ -150,7 +159,7 @@ export class KonachanProvider implements SourceProvider {
     const page = options.page || 1;
     const limit = Math.min(options.limit || 24, 200);
     const tags = buildBooruTags("order:score", options.contentFilter || "all");
-    const data = await booruGet(this.baseUrl, "/posts.json", {
+    const data = await booruGet(this.baseUrl, "/post.json", {
       tags,
       page,
       limit,
@@ -161,22 +170,18 @@ export class KonachanProvider implements SourceProvider {
   async getRandom(
     options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
-    const tags = buildBooruTags("", options.contentFilter || "all");
-    const fallbackPage = Math.floor(Math.random() * 20) + 1;
-    const data = await booruGet(this.baseUrl, "/posts/random.json", { tags });
+    const tags = buildBooruTags("order:random", options.contentFilter || "all");
+    const limit = options.limit || 12;
+    const data = await booruGet(this.baseUrl, "/post.json", { tags, limit });
     if (data && (Array.isArray(data) ? data.length > 0 : data.id)) {
       return mapBooruPosts(data, "konachan", this.baseUrl);
     }
-    return this.search("", {
-      page: fallbackPage,
-      limit: options.limit || 12,
-      contentFilter: options.contentFilter,
-    });
+    return [];
   }
 
   async getAutocomplete(query: string): Promise<string[]> {
-    const data = await booruGet(this.baseUrl, "/tags/autocomplete.json", {
-      "search[name_matches]": `*${query}*`,
+    const data = await booruGet(this.baseUrl, "/tag.json", {
+      name_pattern: `*${query}*`,
       limit: 10,
     });
     if (!Array.isArray(data)) return [];
@@ -184,11 +189,16 @@ export class KonachanProvider implements SourceProvider {
   }
 
   async getRelatedTags(tag: string): Promise<string[]> {
-    const data = await booruGet(this.baseUrl, "/related_tag.json", {
-      query: tag,
+    const data = await booruGet(this.baseUrl, "/tag/related.json", {
+      tags: tag,
     });
-    if (data && Array.isArray(data.tags)) {
-      return data.tags.map((t: any) => t[0]).filter(Boolean);
+    if (data && typeof data === 'object') {
+      // Moebooru /tag/related.json returns something like: {"tag1": [...], "tag2": [...]} or just an array
+      // It depends on the format, but usually it's an object with the tag name as key or an array of objects
+      const tagList = Array.isArray(data) ? data : Object.values(data)[0] || [];
+      if (Array.isArray(tagList)) {
+         return tagList.map((t: any) => t[0] || t.name).filter(Boolean);
+      }
     }
     return [];
   }

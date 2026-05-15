@@ -1,14 +1,24 @@
 /**
  * DiscoverFeed
- * 
+ *
  * Mixed feed of latest + random images with curated aesthetic sections.
  * Dynamically populates multiple discovery channels.
  */
 
-import React, { useEffect } from 'react';
-import { Loader2, Compass, Shuffle, Sparkles, Image as ImageIcon, Flame, History, Heart, Ghost } from 'lucide-react';
-import { useGalleryStore } from '../../stores/useGalleryStore';
-import { GalleryImageCard } from './GalleryImageCard';
+import React, { useEffect } from "react";
+import {
+  Loader2,
+  Compass,
+  Shuffle,
+  Sparkles,
+  Image as ImageIcon,
+  Flame,
+  History,
+  Heart,
+  Ghost,
+} from "lucide-react";
+import { useGalleryStore } from "../../stores/useGalleryStore";
+import { GalleryImageCard } from "./GalleryImageCard";
 
 interface DiscoverySectionProps {
   title: string;
@@ -25,7 +35,17 @@ interface DiscoverySectionProps {
 }
 
 const DiscoverySection: React.FC<DiscoverySectionProps> = ({
-  title, subtitle, icon, iconColor, images, isLoading, onRefresh, onPlaySlideshow, savedIds, openViewer, saveImage
+  title,
+  subtitle,
+  icon,
+  iconColor,
+  images,
+  isLoading,
+  onRefresh,
+  onPlaySlideshow,
+  savedIds,
+  openViewer,
+  saveImage,
 }) => {
   if (!isLoading && images.length === 0) return null;
 
@@ -33,12 +53,18 @@ const DiscoverySection: React.FC<DiscoverySectionProps> = ({
     <section className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-2xl ${iconColor} bg-opacity-10 flex items-center justify-center ${iconColor.replace('bg-', 'text-')}`}>
+          <div
+            className={`w-10 h-10 rounded-2xl ${iconColor} bg-opacity-10 flex items-center justify-center ${iconColor.replace("bg-", "text-")}`}
+          >
             {icon}
           </div>
           <div>
-            <h3 className="text-xl font-black text-foreground uppercase tracking-tighter italic">{title}</h3>
-            <p className="text-foreground-dim text-[10px] font-black uppercase tracking-widest mt-0.5">{subtitle}</p>
+            <h3 className="text-xl font-black text-foreground uppercase tracking-tighter italic">
+              {title}
+            </h3>
+            <p className="text-foreground-dim text-[10px] font-black uppercase tracking-widest mt-0.5">
+              {subtitle}
+            </p>
           </div>
         </div>
 
@@ -61,7 +87,11 @@ const DiscoverySection: React.FC<DiscoverySectionProps> = ({
               disabled={isLoading}
               className="px-4 py-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 text-foreground-dim hover:text-white text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
             >
-              {isLoading ? <Loader2 size={12} className="animate-spin" /> : 'Refresh'}
+              {isLoading ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                "Refresh"
+              )}
             </button>
           )}
         </div>
@@ -73,11 +103,11 @@ const DiscoverySection: React.FC<DiscoverySectionProps> = ({
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {images.slice(0, 12).map((item, index) => (
+          {images.slice(0, 24).map((item, index) => (
             <GalleryImageCard
               key={`${title}-${item.id}`}
               id={item.id}
-              imageUrl={item.coverUrl || item.imageUrl || ''}
+              imageUrl={item.coverUrl || item.imageUrl || ""}
               previewUrl={item.coverUrl || item.previewUrl}
               title={item.title}
               tags={item.tags}
@@ -94,30 +124,51 @@ const DiscoverySection: React.FC<DiscoverySectionProps> = ({
 
 export const DiscoverFeed: React.FC = () => {
   const {
-    latestImages, randomVisions, popularImages, recommendedAesthetics,
-    recentPopular, likedDiscovery, continueExploring, wallpaperImages,
-    isLoadingLatest, isLoadingRandom, isLoadingPopular, isLoadingRecommended, 
-    isLoadingRecentPopular, isLoadingLikedDiscovery, isLoadingContinueExploring, isLoadingWallpapers,
-    fetchLatest, fetchRandomVisions, fetchPopular, fetchRecommendedAesthetics,
-    fetchRecentPopular, fetchLikedDiscovery, fetchContinueExploring, fetchWallpapers,
-    savedImages, saveImage, openViewer, startSlideshowFromContext
+    latestImages,
+    randomVisions,
+    popularImages,
+    recommendedAesthetics,
+    recentPopular,
+    likedDiscovery,
+    continueExploring,
+    wallpaperImages,
+    isLoadingLatest,
+    isLoadingRandom,
+    isLoadingPopular,
+    isLoadingRecommended,
+    isLoadingRecentPopular,
+    isLoadingLikedDiscovery,
+    isLoadingContinueExploring,
+    isLoadingWallpapers,
+    fetchLatest,
+    fetchRandomVisions,
+    fetchPopular,
+    fetchRecommendedAesthetics,
+    fetchRecentPopular,
+    fetchLikedDiscovery,
+    fetchContinueExploring,
+    fetchWallpapers,
+    savedImages,
+    saveImage,
+    openViewer,
+    startSlideshowFromContext,
   } = useGalleryStore();
 
   useEffect(() => {
     const loadAll = async () => {
-      if (latestImages.length === 0) fetchLatest();
-      if (randomVisions.length === 0) fetchRandomVisions();
-      if (popularImages.length === 0) fetchPopular();
-      if (recommendedAesthetics.length === 0) fetchRecommendedAesthetics();
-      if (recentPopular.length === 0) fetchRecentPopular();
-      if (likedDiscovery.length === 0) fetchLikedDiscovery();
-      if (continueExploring.length === 0) fetchContinueExploring();
-      if (wallpaperImages.length === 0) fetchWallpapers();
+      if (latestImages.length === 0) await fetchLatest();
+      if (randomVisions.length === 0) await fetchRandomVisions();
+      if (popularImages.length === 0) await fetchPopular();
+      if (recommendedAesthetics.length === 0) await fetchRecommendedAesthetics();
+      if (recentPopular.length === 0) await fetchRecentPopular();
+      if (likedDiscovery.length === 0) await fetchLikedDiscovery();
+      if (continueExploring.length === 0) await fetchContinueExploring();
+      if (wallpaperImages.length === 0) await fetchWallpapers();
     };
     loadAll();
   }, []);
 
-  const savedIds = new Set(savedImages.map(i => i.id));
+  const savedIds = new Set(savedImages.map((i) => i.id));
 
   return (
     <div className="space-y-16 pb-12">

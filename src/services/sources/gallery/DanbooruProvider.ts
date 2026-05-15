@@ -1,4 +1,9 @@
-import { booruGet, buildBooruTags, mapBooruPosts } from "./BooruProviderBase";
+import {
+  booruGet,
+  buildBooruTags,
+  buildBooruTagsFromArray,
+  mapBooruPosts,
+} from "./BooruProviderBase";
 import type {
   ContentType,
   MediaType,
@@ -110,8 +115,9 @@ export class DanbooruProvider implements SourceProvider {
     }
 
     const page = options.page || 1;
-    const safeLimit = Math.min(options.limit || 20, 200);
-    const tags = buildBooruTags(query, options.contentFilter || "all");
+    const maxTags = options.contentFilter === "sfw" ? 1 : 2;
+    const tagArray = query.split(" ").filter(Boolean).slice(0, maxTags);
+    const tags = buildBooruTags(tagArray.join(" "), options.contentFilter || "all");
 
     const data = await booruGet(this.baseUrl, "/posts.json", {
       tags,
@@ -136,7 +142,14 @@ export class DanbooruProvider implements SourceProvider {
       options = pageOrOptions;
     }
 
-    return this.search(tags.join(" "), options);
+    const maxTags = options.contentFilter === "sfw" ? 1 : 2;
+    const limitedTags = tags.slice(0, maxTags);
+
+    const normalized = buildBooruTagsFromArray(
+      limitedTags,
+      options.contentFilter || "all",
+    );
+    return this.search(normalized, options);
   }
 
   async getLatest(

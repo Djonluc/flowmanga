@@ -1,25 +1,29 @@
 /**
  * WallpaperGrid
- * 
+ *
  * High-resolution focused section for discovering wallpapers.
  */
 
-import React, { useEffect } from 'react';
-import { Loader2, Image as ImageIcon } from 'lucide-react';
-import { useGalleryStore } from '../../stores/useGalleryStore';
-import { GalleryImageCard } from './GalleryImageCard';
+import React, { useEffect } from "react";
+import { Loader2, Image as ImageIcon } from "lucide-react";
+import { useGalleryStore } from "../../stores/useGalleryStore";
+import { GalleryImageCard } from "./GalleryImageCard";
 
 export const WallpaperGrid: React.FC = () => {
-  const { 
-    wallpaperImages, isLoadingWallpapers, fetchWallpapers,
-    savedImages, saveImage, openViewer
+  const {
+    wallpaperImages,
+    isLoadingWallpapers,
+    fetchWallpapers,
+    savedImages,
+    saveImage,
+    openViewer,
   } = useGalleryStore();
 
   useEffect(() => {
     if (wallpaperImages.length === 0) fetchWallpapers();
   }, []);
 
-  const savedIds = new Set(savedImages.map(i => i.id));
+  const savedIds = new Set(savedImages.map((i) => i.id));
 
   return (
     <div className="space-y-6">
@@ -30,14 +34,22 @@ export const WallpaperGrid: React.FC = () => {
             <ImageIcon size={20} />
           </div>
           <div>
-            <h3 className="text-xl font-black text-foreground uppercase tracking-tighter italic">Wallpapers</h3>
-            <p className="text-foreground-dim text-[10px] font-black uppercase tracking-widest mt-0.5">High-definition anime visions</p>
+            <h3 className="text-xl font-black text-foreground uppercase tracking-tighter italic">
+              Wallpapers
+            </h3>
+            <p className="text-foreground-dim text-[10px] font-black uppercase tracking-widest mt-0.5">
+              High-definition anime visions
+            </p>
           </div>
         </div>
 
         {wallpaperImages.length > 0 && (
           <button
-            onClick={() => useGalleryStore.getState().startSlideshowFromContext(wallpaperImages)}
+            onClick={() =>
+              useGalleryStore
+                .getState()
+                .startSlideshowFromContext(wallpaperImages)
+            }
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-500 text-[10px] font-black uppercase tracking-widest transition-all border border-cyan-500/20"
           >
             <span className="relative flex h-2 w-2">
@@ -60,12 +72,14 @@ export const WallpaperGrid: React.FC = () => {
             <div key={item.id} className="aspect-video">
               <GalleryImageCard
                 id={item.id}
-                imageUrl={item.coverUrl || ''}
+                imageUrl={item.coverUrl || ""}
                 previewUrl={item.coverUrl}
                 title={item.title}
                 tags={item.tags}
                 saved={savedIds.has(item.id)}
-                onView={() => openViewer(item as any, wallpaperImages as any[], index)}
+                onView={() =>
+                  openViewer(item as any, wallpaperImages as any[], index)
+                }
                 onSave={() => saveImage(item)}
               />
             </div>
@@ -77,11 +91,17 @@ export const WallpaperGrid: React.FC = () => {
       {wallpaperImages.length > 0 && (
         <div className="flex justify-center pt-4 pb-8">
           <button
-            onClick={() => fetchWallpapers(Math.ceil(wallpaperImages.length / 24) + 1)}
+            onClick={() =>
+              fetchWallpapers(Math.ceil(wallpaperImages.length / 48) + 1)
+            }
             disabled={isLoadingWallpapers}
             className="px-8 py-3 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 text-foreground-dim text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50"
           >
-            {isLoadingWallpapers ? <Loader2 size={14} className="animate-spin" /> : 'Load More'}
+            {isLoadingWallpapers ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              "Load More"
+            )}
           </button>
         </div>
       )}

@@ -10,7 +10,6 @@ import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Flame, Compass, Sparkles, FolderOpen, Film, Search, Tag, Image as ImageIcon } from 'lucide-react';
 import { useGalleryStore, type GalleryTab } from '../../stores/useGalleryStore';
-import { TrendingGrid } from './TrendingGrid';
 import { DiscoverFeed } from './DiscoverFeed';
 import { PicksForYou } from './PicksForYou';
 import { SavedCollections } from './SavedCollections';
@@ -20,7 +19,6 @@ import { WallpaperGrid } from './WallpaperGrid';
 import { FollowingTags } from './FollowingTags';
 
 const TABS: { id: GalleryTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'trending', label: 'Trending', icon: <Flame size={16} /> },
   { id: 'discover', label: 'Discover', icon: <Compass size={16} /> },
   { id: 'picks', label: 'For You', icon: <Sparkles size={16} /> },
   { id: 'wallpapers', label: 'Wallpapers', icon: <ImageIcon size={16} /> },
@@ -39,7 +37,6 @@ export const GalleryHub: React.FC = () => {
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'trending': return <TrendingGrid />;
       case 'discover': return <DiscoverFeed />;
       case 'picks': return <PicksForYou />;
       case 'wallpapers': return <WallpaperGrid />;
@@ -47,7 +44,7 @@ export const GalleryHub: React.FC = () => {
       case 'slideshows': return <SlideshowManager />;
       case 'following': return <FollowingTags />;
       case 'search': return <TagSearch />;
-      default: return <TrendingGrid />;
+      default: return <DiscoverFeed />;
     }
   };
 

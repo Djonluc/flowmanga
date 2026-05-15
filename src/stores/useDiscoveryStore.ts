@@ -75,7 +75,7 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
               : "manga";
       const results = await DiscoveryService.searchGlobal(
         query,
-        20,
+        48, // Increased limit for better results
         coloredOnly,
         1,
         category,

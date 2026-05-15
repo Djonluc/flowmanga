@@ -104,22 +104,22 @@ export const HomeView = () => {
       ).slice(0, 5); // Use top 5 tags
 
       const [trendRaw, personRaw] = await Promise.all([
-        DiscoveryService.getRandom(30, coloredOnly),
+        DiscoveryService.getRandom(60, coloredOnly), // Increased for better variety
         favoriteTags.length > 0
           ? ScraperService.getRecommendationsByTags(
               favoriteTags,
-              20,
+              48, // Increased for better recommendations
               coloredOnly,
             )
-          : ScraperService.getPersonalizedRecommendations(20, coloredOnly),
+          : ScraperService.getPersonalizedRecommendations(48, coloredOnly), // Increased for better recommendations
       ]);
 
       // Filter out existing manga and shuffle for variety
-      const trend = trendRaw.filter((m) => !existingIds.has(m.id)).slice(0, 12);
+      const trend = trendRaw.filter((m) => !existingIds.has(m.id)).slice(0, 24); // Increased display limit
       const person = personRaw
         .filter((m) => !existingIds.has(m.id))
         .sort(() => Math.random() - 0.5) // Randomize for variety as requested
-        .slice(0, 12);
+        .slice(0, 24); // Increased display limit
 
       setTrending(trend);
       setPersonalized(person);
@@ -139,15 +139,17 @@ export const HomeView = () => {
                 JOIN Series s ON rp.seriesId = s.id
                 ORDER BY rp.lastReadAt DESC
             `);
-      
+
       // Group by series to remove duplicates, keeping only the most recently read chapter per series
       const uniqueSeries = new Set();
-      const groupedHistory = history.filter(item => {
+      const groupedHistory = history
+        .filter((item) => {
           if (uniqueSeries.has(item.seriesId)) return false;
           uniqueSeries.add(item.seriesId);
           return true;
-      }).slice(0, 12);
-      
+        })
+        .slice(0, 12);
+
       setContinueReading(groupedHistory);
 
       const added = [...series]
@@ -203,12 +205,12 @@ export const HomeView = () => {
     // If it's a history item (has seriesId)
     if ("seriesId" in item) {
       if (series.length === 0 && !isInitializing) {
-          toast.warn("Library data is still manifesting. Please wait a moment.");
-          return;
+        toast.warn("Library data is still manifesting. Please wait a moment.");
+        return;
       }
 
       const fullSeries = series.find((s) => s.id === item.seriesId);
-      
+
       // Fallback: If not in library store yet, try to load it or just open with limited data
       const sequence = fullSeries
         ? fullSeries.books.map((b) => ({
@@ -216,7 +218,9 @@ export const HomeView = () => {
             path: b.path,
             title: b.title,
           }))
-        : item.filePath ? [{ id: item.chapterId, path: item.filePath, title: item.title }] : [];
+        : item.filePath
+          ? [{ id: item.chapterId, path: item.filePath, title: item.title }]
+          : [];
 
       try {
         await openFolder(
@@ -381,13 +385,13 @@ export const HomeView = () => {
       <div
         className={clsx(
           "flex bg-transparent relative h-full overflow-hidden",
-          isScreenshotMode && "h-auto overflow-visible"
+          isScreenshotMode && "h-auto overflow-visible",
         )}
       >
         <div
           className={clsx(
             "flex-1 min-w-0 pb-32 h-full overflow-y-auto no-scrollbar",
-            isScreenshotMode && "h-auto overflow-visible"
+            isScreenshotMode && "h-auto overflow-visible",
           )}
         >
           {/* 1. Hero Banner */}
@@ -398,8 +402,8 @@ export const HomeView = () => {
           <div className="w-full max-w-[2400px] mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 flex flex-col gap-12 sm:gap-16 md:gap-24 transition-all duration-300 relative">
             {/* Ambient Background Glows */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full pointer-events-none -z-10">
-                <div className="absolute top-[10%] left-[10%] w-[40%] h-[40%] bg-accent-soft blur-[120px] rounded-full" />
-                <div className="absolute top-[40%] right-[10%] w-[35%] h-[35%] bg-accent-soft blur-[100px] rounded-full opacity-50" />
+              <div className="absolute top-[10%] left-[10%] w-[40%] h-[40%] bg-accent-soft blur-[120px] rounded-full" />
+              <div className="absolute top-[40%] right-[10%] w-[35%] h-[35%] bg-accent-soft blur-[100px] rounded-full opacity-50" />
             </div>
 
             {/* 2. Continue Reading - Horizontal Rail */}
@@ -506,124 +510,138 @@ const RightPanel = ({
       )}
     >
       <div className="flex flex-1 flex-col gap-6">
-      {continueReading && continueReading.length > 0 && (
-        <section className="space-y-3 rounded-2xl border border-border-subtle bg-gradient-to-br from-surface-elevated/80 to-surface p-4 shadow-inner">
-          <div className="flex items-center justify-between">
-            <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.25em]">
-              Quick Resume
-            </h3>
-            <Bookmark size={12} className="shrink-0 text-accent" />
-          </div>
-          <MangaCard 
+        {continueReading && continueReading.length > 0 && (
+          <section className="space-y-3 rounded-2xl border border-border-subtle bg-gradient-to-br from-surface-elevated/80 to-surface p-4 shadow-inner">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.25em]">
+                Quick Resume
+              </h3>
+              <Bookmark size={12} className="shrink-0 text-accent" />
+            </div>
+            <MangaCard
               item={continueReading[0]}
               variant="compact"
               onClick={() => onItemClick(continueReading[0])}
-          />
-        </section>
-      )}
+            />
+          </section>
+        )}
 
-      {activity.length > 0 && (
-        <section className="space-y-3 rounded-2xl border border-border-subtle bg-surface-elevated/25 p-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.25em]">
-              Recently Read
-            </h3>
-            <ActivityIcon size={12} className="shrink-0 text-accent" />
-          </div>
-          <div className="flex flex-col gap-2">
-            {(() => {
+        {activity.length > 0 && (
+          <section className="space-y-3 rounded-2xl border border-border-subtle bg-surface-elevated/25 p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.25em]">
+                Recently Read
+              </h3>
+              <ActivityIcon size={12} className="shrink-0 text-accent" />
+            </div>
+            <div className="flex flex-col gap-2">
+              {(() => {
                 const seen = new Set<string>();
                 let filtered = activity.filter((a: { seriesId: string }) => {
-                    if (seen.has(a.seriesId)) return false;
-                    seen.add(a.seriesId);
-                    return true;
+                  if (seen.has(a.seriesId)) return false;
+                  seen.add(a.seriesId);
+                  return true;
                 });
-                if (continueReading.length > 0 && filtered[0]?.seriesId === continueReading[0].seriesId) {
-                    filtered = filtered.slice(1);
+                if (
+                  continueReading.length > 0 &&
+                  filtered[0]?.seriesId === continueReading[0].seriesId
+                ) {
+                  filtered = filtered.slice(1);
                 }
                 return filtered.slice(0, 4).map((item: any, idx: number) => (
                   <div
                     key={`${item.seriesId}-${idx}`}
                     className="rounded-xl border border-transparent transition-colors hover:border-border-subtle"
                   >
-                    <MangaCard 
-                        item={item}
-                        variant="compact"
-                        onClick={() => onItemClick(item)}
+                    <MangaCard
+                      item={item}
+                      variant="compact"
+                      onClick={() => onItemClick(item)}
                     />
                   </div>
                 ));
-            })()}
-          </div>
-        </section>
-      )}
+              })()}
+            </div>
+          </section>
+        )}
 
-      {trending.length > 0 && (
-        <section className="space-y-3 rounded-2xl border border-border-subtle bg-surface-elevated/25 p-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.25em]">
-              Rising Powers
-            </h3>
-            <TrendingUp size={12} className="shrink-0 text-accent" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {trending.slice(0, 5).map((item: any, idx: number) => {
-              const raw = item.coverUrl as string | undefined;
-              const thumbSrc = raw
-                ? raw.startsWith("http")
-                  ? raw
-                  : convertFileSrc(raw)
-                : "";
-              return (
-              <button
-                type="button"
-                key={item.id ?? idx}
-                onClick={() => openQuickView(item)}
-                className="group flex w-full items-center gap-3 rounded-xl border border-transparent p-2.5 text-left transition-all hover:border-border-subtle hover:bg-surface-raised"
-              >
-                <span className="w-6 shrink-0 text-center text-xs font-black tabular-nums text-foreground-dim group-hover:text-accent">
-                  {idx + 1}
-                </span>
-                <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded-lg border border-border-subtle bg-surface shadow-sm">
-                  {thumbSrc ? (
-                    <img src={thumbSrc} alt="" className="h-full w-full object-cover opacity-90 transition-opacity group-hover:opacity-100" loading="lazy" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-foreground-dim">
-                      <FolderOpen size={14} />
+        {trending.length > 0 && (
+          <section className="space-y-3 rounded-2xl border border-border-subtle bg-surface-elevated/25 p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.25em]">
+                Rising Powers
+              </h3>
+              <TrendingUp size={12} className="shrink-0 text-accent" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {trending.slice(0, 5).map((item: any, idx: number) => {
+                const raw = item.coverUrl as string | undefined;
+                const thumbSrc = raw
+                  ? raw.startsWith("http")
+                    ? raw
+                    : convertFileSrc(raw)
+                  : "";
+                return (
+                  <button
+                    type="button"
+                    key={item.id ?? idx}
+                    onClick={() => openQuickView(item)}
+                    className="group flex w-full items-center gap-3 rounded-xl border border-transparent p-2.5 text-left transition-all hover:border-border-subtle hover:bg-surface-raised"
+                  >
+                    <span className="w-6 shrink-0 text-center text-xs font-black tabular-nums text-foreground-dim group-hover:text-accent">
+                      {idx + 1}
+                    </span>
+                    <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded-lg border border-border-subtle bg-surface shadow-sm">
+                      {thumbSrc ? (
+                        <img
+                          src={thumbSrc}
+                          alt=""
+                          className="h-full w-full object-cover opacity-90 transition-opacity group-hover:opacity-100"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-foreground-dim">
+                          <FolderOpen size={14} />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                <span className="min-w-0 flex-1 truncate text-xs font-bold tracking-tight text-foreground-muted group-hover:text-foreground">
-                  {item.title}
-                </span>
-              </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
+                    <span className="min-w-0 flex-1 truncate text-xs font-bold tracking-tight text-foreground-muted group-hover:text-foreground">
+                      {item.title}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
       </div>
 
       <section className="mt-auto shrink-0 rounded-2xl border border-border-subtle bg-surface-elevated/25 p-4">
         <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.25em]">
-              Archive Status
-            </h3>
-            <BarChart3 size={12} className="shrink-0 text-accent" />
+          <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.25em]">
+            Archive Status
+          </h3>
+          <BarChart3 size={12} className="shrink-0 text-accent" />
         </div>
         <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1 rounded-xl border border-border-subtle bg-surface p-3">
-                <span className="text-[9px] font-black text-foreground-dim uppercase tracking-[0.2em]">Series</span>
-                <span className="text-lg font-black tracking-tighter text-foreground">{stats.totalSeries || 0}</span>
-            </div>
-            <div className="flex flex-col gap-1 rounded-xl border border-border-subtle bg-surface p-3">
-                <span className="text-[9px] font-black text-foreground-dim uppercase tracking-[0.2em]">Chapters</span>
-                <span className="text-lg font-black tracking-tighter text-foreground">{stats.totalChapters || 0}</span>
-            </div>
+          <div className="flex flex-col gap-1 rounded-xl border border-border-subtle bg-surface p-3">
+            <span className="text-[9px] font-black text-foreground-dim uppercase tracking-[0.2em]">
+              Series
+            </span>
+            <span className="text-lg font-black tracking-tighter text-foreground">
+              {stats.totalSeries || 0}
+            </span>
+          </div>
+          <div className="flex flex-col gap-1 rounded-xl border border-border-subtle bg-surface p-3">
+            <span className="text-[9px] font-black text-foreground-dim uppercase tracking-[0.2em]">
+              Chapters
+            </span>
+            <span className="text-lg font-black tracking-tighter text-foreground">
+              {stats.totalChapters || 0}
+            </span>
+          </div>
         </div>
       </section>
     </div>
   );
 };
-
-

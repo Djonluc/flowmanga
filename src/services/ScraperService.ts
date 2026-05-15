@@ -1320,7 +1320,7 @@ export class ScraperService {
 
   static async getRecommendationsByTags(
     tags: string[],
-    limit: number = 20,
+    limit: number = 48,
     coloredOnly: boolean = false,
   ): Promise<any[]> {
     const results = await DiscoveryService.searchGlobalByTags(
@@ -1332,7 +1332,7 @@ export class ScraperService {
   }
 
   static async getPersonalizedRecommendations(
-    limit: number = 20,
+    limit: number = 48,
     coloredOnly: boolean = false,
   ): Promise<any[]> {
     const results = await DiscoveryService.getTrending(limit, coloredOnly);
@@ -1340,7 +1340,7 @@ export class ScraperService {
   }
 
   static async getRecentlyUpdated(
-    limit: number = 20,
+    limit: number = 48,
     coloredOnly: boolean = false,
   ): Promise<any[]> {
     const results = await DiscoveryService.getLatest(limit, coloredOnly);
@@ -1348,7 +1348,7 @@ export class ScraperService {
   }
 
   static async getTrending(
-    limit: number = 20,
+    limit: number = 48,
     _coloredOnly: boolean = false,
   ): Promise<any[]> {
     const trending = await DiscoveryService.getTrending(limit, _coloredOnly);

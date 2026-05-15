@@ -8,10 +8,6 @@ import { create } from "zustand";
 import { getDb } from "../services/db";
 import { toast } from "../components/Toast";
 import { DiscoveryService } from "../services/DiscoveryService";
-import { ZerochanProvider } from "../services/sources/gallery/ZerochanProvider";
-import { DanbooruProvider } from "../services/sources/gallery/DanbooruProvider";
-import { KonachanProvider } from "../services/sources/gallery/KonachanProvider";
-import { YandereProvider } from "../services/sources/gallery/YandereProvider";
 import type {
   SourceSearchResult,
   SourceSearchOptions,
@@ -63,7 +59,6 @@ export interface Slideshow {
 }
 
 export type GalleryTab =
-  | "trending"
   | "discover"
   | "picks"
   | "wallpapers"
@@ -104,18 +99,7 @@ const AESTHETIC_COMBOS = [
   ["Ocean", "Underwater"],
 ];
 
-// ─── Provider Registry ──────────────────────────────────────────────
-
-const PROVIDERS: Record<string, SourceProvider> = {
-  zerochan: new ZerochanProvider(),
-  danbooru: new DanbooruProvider(),
-  konachan: new KonachanProvider(),
-  yandere: new YandereProvider(),
-};
-
-function getProvider(id: string = "zerochan"): SourceProvider {
-  return PROVIDERS[id] || PROVIDERS.zerochan;
-}
+// ─── Utilities ───────────────────────────────────────────────────────
 
 function buildResultKey(item: SourceSearchResult) {
   return `${item.id}||${item.imageUrl || item.url || item.previewUrl || ""}`;
@@ -151,7 +135,6 @@ interface GalleryState {
   slideshows: Slideshow[];
 
   // Discovery Feeds
-  trendingImages: SourceSearchResult[];
   popularImages: SourceSearchResult[];
   latestImages: SourceSearchResult[];
   randomVisions: SourceSearchResult[];
@@ -169,8 +152,6 @@ interface GalleryState {
 
   // UI State
   activeTab: GalleryTab;
-  activeProvider: string;
-  isLoadingTrending: boolean;
   isLoadingPopular: boolean;
   isLoadingLatest: boolean;
   isLoadingRandom: boolean;
@@ -200,7 +181,6 @@ interface GalleryState {
 
   // Actions — UI
   setActiveTab: (tab: GalleryTab) => void;
-  setActiveProvider: (provider: string) => void;
   setSearchQuery: (query: string) => void;
   setDownloadPath: (path: string) => void;
   setContentFilter: (filter: "sfw" | "all") => void;
@@ -213,7 +193,6 @@ interface GalleryState {
   loadSlideshows: () => Promise<void>;
 
   // Actions — Discovery
-  fetchTrending: (page?: number) => Promise<void>;
   fetchPopular: (page?: number) => Promise<void>;
   fetchLatest: (page?: number) => Promise<void>;
   fetchRandomVisions: () => Promise<void>;
@@ -289,7 +268,6 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   favoriteTags: [],
   slideshows: [],
 
-  trendingImages: [],
   popularImages: [],
   latestImages: [],
   randomVisions: [],
@@ -304,9 +282,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   searchResults: [],
   searchSuggestions: [],
 
-  activeTab: "trending",
-  activeProvider: "zerochan",
-  isLoadingTrending: false,
+  activeTab: "discover",
   isLoadingPopular: false,
   isLoadingLatest: false,
   isLoadingRandom: false,
@@ -335,7 +311,6 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   // ─── UI Actions ──────────────────────────────────────────────────
 
   setActiveTab: (tab) => set({ activeTab: tab }),
-  setActiveProvider: (provider) => set({ activeProvider: provider }),
   setSearchQuery: (query) => set({ searchQuery: query }),
   setDownloadPath: async (path: string) => {
     try {
@@ -489,7 +464,6 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   fetchAllDiscovery: async () => {
     // Parallel load with independent error handling
     const tasks = [
-      get().fetchTrending(),
       get().fetchPopular(),
       get().fetchLatest(),
       get().fetchRandomVisions(),
@@ -504,47 +478,19 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     await Promise.allSettled(tasks);
   },
 
-  fetchTrending: async (page = 1) => {
-    if (get().isLoadingTrending) return;
-    set({ isLoadingTrending: true });
-    try {
-      const results = await DiscoveryService.getTrending(
-        24,
-        get().contentFilter,
-        "image",
-      );
-      const unique = dedupeResults(results, [
-        get().popularImages,
-        get().latestImages,
-        get().randomVisions,
-        get().recommendedAesthetics,
-        get().recentPopular,
-        get().likedDiscovery,
-        get().continueExploring,
-        get().wallpaperImages,
-      ]);
-      if (page === 1) set({ trendingImages: unique });
-      else set({ trendingImages: [...get().trendingImages, ...unique] });
-    } catch (e) {
-      console.error("[GalleryStore] Failed to fetch trending:", e);
-    } finally {
-      set({ isLoadingTrending: false });
-    }
-  },
-
   fetchPopular: async (page = 1) => {
     if (get().isLoadingPopular) return;
     set({ isLoadingPopular: true });
     try {
       const results = await DiscoveryService.searchGlobal(
         "masterpiece highres",
-        24,
+        48,
         get().contentFilter,
         page,
         "image",
       );
       const unique = dedupeResults(results, [
-        get().trendingImages,
+        get().popularImages,
         get().latestImages,
         get().randomVisions,
         get().recommendedAesthetics,
@@ -559,6 +505,8 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       console.error("[GalleryStore] Failed to fetch popular:", e);
     } finally {
       set({ isLoadingPopular: false });
+      // Background preload more content
+      if (page === 1) setTimeout(() => get().preloadMoreContent(), 1000);
     }
   },
 
@@ -567,12 +515,11 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     set({ isLoadingLatest: true });
     try {
       const results = await DiscoveryService.getLatest(
-        24,
+        48,
         get().contentFilter,
         "image",
       );
       const unique = dedupeResults(results, [
-        get().trendingImages,
         get().popularImages,
         get().randomVisions,
         get().recommendedAesthetics,
@@ -587,6 +534,8 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       console.error("[GalleryStore] Failed to fetch latest:", e);
     } finally {
       set({ isLoadingLatest: false });
+      // Background preload more content
+      if (page === 1) setTimeout(() => get().preloadMoreContent(), 1000);
     }
   },
 
@@ -595,12 +544,11 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     set({ isLoadingRandom: true });
     try {
       const results = await DiscoveryService.getRandom(
-        12,
+        48,
         get().contentFilter,
         "image",
       );
       const unique = dedupeResults(results, [
-        get().trendingImages,
         get().popularImages,
         get().latestImages,
         get().recommendedAesthetics,
@@ -623,13 +571,12 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     try {
       const results = await DiscoveryService.searchGlobal(
         "Wallpaper",
-        24,
+        48,
         get().contentFilter,
         page,
         "image",
       );
       const unique = dedupeResults(results, [
-        get().trendingImages,
         get().popularImages,
         get().latestImages,
         get().randomVisions,
@@ -665,7 +612,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
           .slice(0, 2);
         results = await DiscoveryService.searchGlobal(
           aesthetics.join(" "),
-          24,
+          48,
           contentFilter,
           1,
           "image",
@@ -676,7 +623,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         );
         results = await DiscoveryService.searchGlobal(
           seeds.join(" "),
-          24,
+          48,
           contentFilter,
           1,
           "image",
@@ -690,7 +637,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
           ];
         results = await DiscoveryService.searchGlobal(
           fallbackAesthetic,
-          24,
+          48,
           contentFilter,
           1,
           "image",
@@ -701,7 +648,6 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         picksForYou: dedupeResults(results, [
           get().latestImages,
           get().popularImages,
-          get().trendingImages,
           get().randomVisions,
           get().recommendedAesthetics,
           get().recentPopular,
@@ -727,14 +673,15 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         ];
       const results = await DiscoveryService.searchGlobal(
         randomAesthetic,
-        12,
+        48,
         get().contentFilter,
+        1,
+        "image",
       );
       set({
         recommendedAesthetics: dedupeResults(results, [
           get().latestImages,
           get().popularImages,
-          get().trendingImages,
           get().randomVisions,
           get().recentPopular,
           get().likedDiscovery,
@@ -742,6 +689,9 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
           get().wallpaperImages,
         ]),
       });
+
+      // Preload thumbnails for better performance
+      DiscoveryService.preloadThumbnails(results);
     } catch (e) {
       console.error(
         "[GalleryStore] Failed to fetch recommended aesthetics:",
@@ -757,7 +707,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     set({ isLoadingRecentPopular: true });
     try {
       const results = await DiscoveryService.getTrending(
-        12,
+        48,
         get().contentFilter,
         "image",
       );
@@ -765,7 +715,6 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         recentPopular: dedupeResults(results, [
           get().latestImages,
           get().popularImages,
-          get().trendingImages,
           get().randomVisions,
           get().recommendedAesthetics,
           get().likedDiscovery,
@@ -793,7 +742,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       const seeds = randomLiked.tags.slice(0, 3);
       const results = await DiscoveryService.searchGlobalByTags(
         seeds,
-        12,
+        48,
         get().contentFilter,
         "image",
       );
@@ -801,7 +750,6 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         likedDiscovery: dedupeResults(results, [
           get().latestImages,
           get().popularImages,
-          get().trendingImages,
           get().randomVisions,
           get().recommendedAesthetics,
           get().recentPopular,
@@ -828,7 +776,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       const lastTag = history[0];
       const results = await DiscoveryService.searchGlobal(
         lastTag,
-        12,
+        48,
         get().contentFilter,
         1,
         "image",
@@ -837,7 +785,6 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         continueExploring: dedupeResults(results, [
           get().latestImages,
           get().popularImages,
-          get().trendingImages,
           get().randomVisions,
           get().recommendedAesthetics,
           get().recentPopular,
@@ -890,6 +837,39 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     } catch (e) {
       console.error("[GalleryStore] Autocomplete failed:", e);
     }
+  },
+
+  // ─── Background Preloading ──────────────────────────────────────
+
+  preloadMoreContent: async () => {
+    // Preload additional pages for main feeds in background
+    const preloadPromises = [
+      get().fetchPopular(Math.ceil(get().popularImages.length / 48) + 1),
+      get().fetchLatest(Math.ceil(get().latestImages.length / 48) + 1),
+      get().fetchWallpapers(Math.ceil(get().wallpaperImages.length / 48) + 1),
+    ];
+
+    // Preload more recommendations
+    if (get().recommendedAesthetics.length < 24) {
+      preloadPromises.push(get().fetchRecommendedAesthetics());
+    }
+    if (get().recentPopular.length < 24) {
+      preloadPromises.push(get().fetchRecentPopular());
+    }
+    if (get().likedDiscovery.length < 24) {
+      preloadPromises.push(get().fetchLikedDiscovery());
+    }
+    if (get().continueExploring.length < 24) {
+      preloadPromises.push(get().fetchContinueExploring());
+    }
+
+    // Execute preloads silently (no loading states)
+    Promise.allSettled(preloadPromises).catch((e) =>
+      console.log(
+        "[GalleryStore] Background preload completed with some failures:",
+        e,
+      ),
+    );
   },
 
   // ─── Image Management ───────────────────────────────────────────

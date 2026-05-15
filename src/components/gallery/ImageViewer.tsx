@@ -15,7 +15,6 @@ import {
   ChevronRight,
   Heart,
   Download,
-  Loader2,
   Maximize,
   ExternalLink,
   Tag,
@@ -26,6 +25,7 @@ import {
 } from "lucide-react";
 
 import { useGalleryStore } from "../../stores/useGalleryStore";
+import { useMediaLoader } from "../../hooks/useMediaLoader";
 
 export const ImageViewer: React.FC = () => {
   const {
@@ -53,17 +53,21 @@ export const ImageViewer: React.FC = () => {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [showHud, setShowHud] = useState(true);
   const [isHighResLoading, setIsHighResLoading] = useState(false);
-  const [imageErrorCount, setImageErrorCount] = useState(0);
   const [showAllTags, setShowAllTags] = useState(false);
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
   const [highResLoaded, setHighResLoaded] = useState(false);
   const [highResError, setHighResError] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [localUrl, setLocalUrl] = useState<string | null>(null);
-  const hudTimer = useRef<any>(null);
+  const [highResImage, setHighResImage] = useState<HTMLImageElement | null>(
+    null,
+  );
+  const hudTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+
+  const { preloadHighResImage } = useMediaLoader();
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -73,30 +77,61 @@ export const ImageViewer: React.FC = () => {
     }
   };
 
-  // Set image to 1:1 pixel zoom (unscaled natural size)
-  const setActualSize = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  };
+  const [touchState, setTouchState] = useState<{
+    mode: "drag" | "pinch" | null;
+    x: number;
+    y: number;
+    pan: { x: number; y: number };
+    zoom: number;
+    distance: number;
+  }>({ mode: null, x: 0, y: 0, pan: { x: 0, y: 0 }, zoom: 1, distance: 0 });
 
-  // Fit image to screen (CSS object-contain already handles this at zoom=1)
+  const [naturalZoom, setNaturalZoom] = useState(1);
+
+  const measureImageZoom = useCallback(() => {
+    if (!imageRef.current || !containerRef.current) return;
+
+    const img = imageRef.current;
+    const renderedWidth = img.clientWidth;
+    const renderedHeight = img.clientHeight;
+    const naturalWidth = img.naturalWidth;
+    const naturalHeight = img.naturalHeight;
+
+    if (renderedWidth && renderedHeight && naturalWidth && naturalHeight) {
+      const ratio = Math.max(
+        naturalWidth / renderedWidth,
+        naturalHeight / renderedHeight,
+        1,
+      );
+      setNaturalZoom(ratio);
+    }
+  }, []);
+
+  const setActualSize = useCallback(() => {
+    setZoom(naturalZoom);
+    setPan({ x: 0, y: 0 });
+  }, [naturalZoom]);
+
   const resetView = useCallback(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
   }, []);
 
-  // Clamp pan values based on zoom and viewport size
+  const changeZoom = useCallback((delta: number) => {
+    setZoom((current) => Math.max(0.5, Math.min(current + delta, 30)));
+  }, []);
+
   const clampPan = useCallback(
     (x: number, y: number): { x: number; y: number } => {
-      if (!containerRef.current || zoom === 1) return { x: 0, y: 0 };
+      if (!containerRef.current || zoom <= 1 || !imageRef.current)
+        return { x: 0, y: 0 };
 
       const container = containerRef.current;
-      const viewportW = container.clientWidth;
-      const viewportH = container.clientHeight;
-
-      // Rough estimate: at zoom level, image is roughly scaled
-      const maxX = (viewportW * (zoom - 1)) / 2;
-      const maxY = (viewportH * (zoom - 1)) / 2;
+      const img = imageRef.current;
+      const width = img.clientWidth * zoom;
+      const height = img.clientHeight * zoom;
+      const maxX = Math.max(0, (width - container.clientWidth) / 2);
+      const maxY = Math.max(0, (height - container.clientHeight) / 2);
 
       return {
         x: Math.max(-maxX, Math.min(maxX, x)),
@@ -133,8 +168,8 @@ export const ImageViewer: React.FC = () => {
         if (matches && matches[1]) {
           ext = matches[1].toLowerCase();
         }
-      } catch (e) {
-        console.warn("Failed to parse extension, defaulting to jpg");
+      } catch (error) {
+        console.warn("Failed to parse extension, defaulting to jpg", error);
       }
 
       const filename = `flowmanga_vision_${id}.${ext}`;
@@ -147,7 +182,7 @@ export const ImageViewer: React.FC = () => {
         url,
         filePath: fullPath,
         headers: {
-          Referer: "https://www.zerochan.net/",
+          Referer: sourceUrl || "https://flowmanga.app/",
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         },
@@ -189,7 +224,9 @@ export const ImageViewer: React.FC = () => {
   // Auto-hide HUD
   const refreshHud = useCallback(() => {
     setShowHud(true);
-    clearTimeout(hudTimer.current);
+    if (hudTimer.current) {
+      clearTimeout(hudTimer.current);
+    }
     if (!useGalleryStore.getState().isHudPinned) {
       hudTimer.current = setTimeout(() => setShowHud(false), 3000);
     }
@@ -217,14 +254,20 @@ export const ImageViewer: React.FC = () => {
           break;
         case "l":
         case "L":
-          if (isSaved) isLiked ? unlikeImage(image.id) : likeImage(image.id);
+          if (isSaved) {
+            if (isLiked) {
+              unlikeImage(image.id);
+            } else {
+              likeImage(image.id);
+            }
+          }
           break;
         case "+":
         case "=":
-          setZoom((z) => Math.min(z + 0.5, 20));
+          changeZoom(0.5);
           break;
         case "-":
-          setZoom((z) => Math.max(z - 0.5, 0.1));
+          changeZoom(-0.5);
           break;
         case "0":
           resetView();
@@ -247,11 +290,16 @@ export const ImageViewer: React.FC = () => {
     unlikeImage,
     likeImage,
     savedImages,
+    changeZoom,
   ]);
 
   useEffect(() => {
     refreshHud();
-    return () => clearTimeout(hudTimer.current);
+    return () => {
+      if (hudTimer.current) {
+        clearTimeout(hudTimer.current);
+      }
+    };
   }, [viewerIndex, refreshHud]);
 
   // Scroll zoom (Manually attached to avoid passive listener issues)
@@ -263,8 +311,9 @@ export const ImageViewer: React.FC = () => {
       e.preventDefault();
       // More sensitive zoom for better feel
       const delta = -e.deltaY * 0.003;
-      const newZoom = Math.min(Math.max(zoom * (1 + delta), 0.1), 30);
+      const newZoom = Math.min(Math.max(zoom * (1 + delta), 0.5), 30);
       setZoom(newZoom);
+      if (newZoom <= 1) setPan({ x: 0, y: 0 });
       refreshHud();
     };
 
@@ -301,6 +350,67 @@ export const ImageViewer: React.FC = () => {
 
   const handleMouseUp = useCallback(() => setIsDragging(false), []);
 
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const distance = Math.hypot(dx, dy);
+        setTouchState({
+          mode: "pinch",
+          x: 0,
+          y: 0,
+          pan,
+          zoom,
+          distance,
+        });
+      } else if (e.touches.length === 1) {
+        setTouchState({
+          mode: "drag",
+          x: e.touches[0].clientX,
+          y: e.touches[0].clientY,
+          pan,
+          zoom,
+          distance: 0,
+        });
+      }
+    },
+    [pan, zoom],
+  );
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      if (!touchState.mode) return;
+      if (touchState.mode === "pinch" && e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const distance = Math.hypot(dx, dy);
+        const targetZoom = Math.min(
+          Math.max((touchState.zoom * distance) / touchState.distance, 0.5),
+          30,
+        );
+        setZoom(targetZoom);
+      }
+      if (touchState.mode === "drag" && e.touches.length === 1 && zoom > 1) {
+        const newX = e.touches[0].clientX - touchState.x + touchState.pan.x;
+        const newY = e.touches[0].clientY - touchState.y + touchState.pan.y;
+        setPan(clampPan(newX, newY));
+      }
+    },
+    [touchState, zoom, clampPan],
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    setTouchState({
+      mode: null,
+      x: 0,
+      y: 0,
+      pan: { x: 0, y: 0 },
+      zoom: 1,
+      distance: 0,
+    });
+  }, []);
+
   const handleTagClick = useCallback(
     (tag: string) => {
       closeViewer();
@@ -312,65 +422,94 @@ export const ImageViewer: React.FC = () => {
 
   const isOpen = !!viewerImage;
   const image = viewerImage;
+  const typedImage = image as {
+    imageUrl?: string;
+    coverUrl?: string;
+    previewUrl?: string;
+    title?: string;
+    url?: string;
+    source?: string;
+    tags?: string[];
+  } | null;
 
-  // Base URLs from the image object
-  const rawImageUrl = image
-    ? "imageUrl" in image
-      ? image.imageUrl
-      : (image as any).coverUrl || ""
+  const rawImageUrl = typedImage
+    ? "imageUrl" in typedImage && typedImage.imageUrl
+      ? typedImage.imageUrl
+      : typedImage.coverUrl || ""
     : "";
-  const previewUrl = image
-    ? "previewUrl" in image
-      ? image.previewUrl
-      : (image as any).coverUrl || ""
+  const previewUrl = typedImage
+    ? "previewUrl" in typedImage && typedImage.previewUrl
+      ? typedImage.previewUrl
+      : typedImage.coverUrl || ""
     : "";
   const tags: string[] =
-    image && "tags" in image && Array.isArray(image.tags) ? image.tags : [];
-  const title = image
-    ? "title" in image
-      ? (image as any).title
+    typedImage && "tags" in typedImage && Array.isArray(typedImage.tags)
+      ? typedImage.tags
+      : [];
+  const title = typedImage
+    ? "title" in typedImage
+      ? typedImage.title || tags[0] || "Untitled"
       : tags[0] || "Untitled"
     : "";
-  const source = image ? ("source" in image ? image.source : "zerochan") : "";
+  const source = image ? ("source" in image ? image.source : "unknown") : "";
   const sourceUrl = image
     ? "url" in image
-      ? (image as any).url
-      : `https://www.zerochan.net/${image.id}`
+      ? typedImage?.url || ""
+      : ""
     : "";
 
-  // Derived High-Res URL with format fallback logic
-  const imageUrl = React.useMemo(() => {
-    if (!rawImageUrl) return "";
+  const formattedSource = source
+    ? source
+        .toString()
+        .replace(/\./g, " ")
+        .replace(/(^\w|\s\w)/g, (match) => match.toUpperCase())
+    : "Source";
 
-    // Ensure we aren't using an optimized preview format for the high-res view
-    let url = rawImageUrl;
-    if (url.match(/\.(avif)$/i)) {
-      url = url.replace(/\.(avif)$/i, ".jpg");
+  // Build intelligent array of fallback URLs
+  const fallbackUrls = React.useMemo(() => {
+    if (!typedImage) return [];
+
+    const urls: string[] = [];
+    if ("fullResUrl" in typedImage && typedImage.fullResUrl)
+      urls.push(typedImage.fullResUrl as string);
+    if ("imageUrl" in typedImage && typedImage.imageUrl)
+      urls.push(typedImage.imageUrl as string);
+
+    const first = urls[0];
+    if (first) {
+      if (first.match(/\.(avif)$/i))
+        urls.push(first.replace(/\.(avif)$/i, ".jpg"));
+      urls.push(first.replace(/\.[^.]+$/, ".jpg"));
+      urls.push(first.replace(/\.[^.]+$/, ".png"));
+      urls.push(first.replace(/\.[^.]+$/, ".webp"));
     }
 
-    // Apply extension fallbacks based on error count
-    if (imageErrorCount === 1) return url.replace(/\.[^.]+$/, ".png");
-    if (imageErrorCount === 2) return url.replace(/\.[^.]+$/, ".jpg");
-    if (imageErrorCount === 3) return url.replace(/\.[^.]+$/, ".webp");
+    return Array.from(new Set(urls)).filter(Boolean);
+  }, [typedImage]);
 
-    return url;
-  }, [rawImageUrl, imageErrorCount]);
-
-  const isUpgrading = imageUrl !== previewUrl && !highResError;
+  const primaryUrl = localUrl || fallbackUrls[0] || previewUrl;
+  const imageUrl = localUrl || primaryUrl || previewUrl || rawImageUrl;
 
   useEffect(() => {
     if (isOpen && image) {
-      setImageErrorCount(0);
       setShowAllTags(false);
       setHighResLoaded(false);
       setHighResError(false);
       setLocalUrl(null);
+      setHighResImage(null);
       setZoom(1);
       setPan({ x: 0, y: 0 });
-      setIsHighResLoading(imageUrl !== previewUrl);
+      setIsHighResLoading(
+        fallbackUrls.length > 0 && fallbackUrls[0] !== previewUrl,
+      );
 
-      // Check for local version
-      const checkLocal = async () => {
+      let ignore = false;
+
+      const loadHighRes = async () => {
+        setHighResLoaded(false);
+        setHighResError(false);
+        setIsHighResLoading(fallbackUrls.length > 0 && fallbackUrls[0] !== previewUrl);
+
         try {
           const { documentDir, join } = await import("@tauri-apps/api/path");
           const { exists } = await import("@tauri-apps/plugin-fs");
@@ -386,21 +525,76 @@ export const ImageViewer: React.FC = () => {
             const filename = `flowmanga_vision_${image.id}.${ext}`;
             const fullPath = await join(baseDir, filename);
             if (await exists(fullPath)) {
+              if (ignore) return;
               console.log("[ImageViewer] Using local version:", fullPath);
               setLocalUrl(convertFileSrc(fullPath));
               setIsHighResLoading(false);
               setHighResLoaded(true);
+              measureImageZoom();
               return;
             }
           }
         } catch (e) {
           console.error("[ImageViewer] Local check failed:", e);
         }
+
+        if (fallbackUrls.length > 0 && fallbackUrls[0] !== previewUrl) {
+          preloadHighResImage(fallbackUrls, source).then((loadedImage) => {
+            if (ignore) return;
+            if (loadedImage) {
+              setHighResImage(loadedImage);
+              setHighResLoaded(true);
+              setIsHighResLoading(false);
+              setHighResError(false);
+              measureImageZoom();
+            } else {
+              console.warn(
+                "[ImageViewer] All high-res fallback tiers failed to load for:",
+                fallbackUrls[0],
+              );
+              setHighResError(true);
+              setIsHighResLoading(false);
+            }
+          });
+        } else {
+          if (!ignore) setIsHighResLoading(false);
+        }
       };
 
-      checkLocal();
+      loadHighRes();
+      return () => {
+        ignore = true;
+      };
     }
-  }, [isOpen, image?.id, imageUrl, previewUrl, downloadPath]);
+  }, [
+    isOpen,
+    image,
+    image?.id,
+    previewUrl,
+    downloadPath,
+    preloadHighResImage,
+    fallbackUrls,
+    source,
+    measureImageZoom,
+  ]);
+
+  const retryHighRes = useCallback(() => {
+    if (!image) return;
+    setHighResError(false);
+    setIsHighResLoading(true);
+    preloadHighResImage(fallbackUrls, source).then((loadedImage) => {
+      if (loadedImage) {
+        setHighResImage(loadedImage);
+        setHighResLoaded(true);
+        setIsHighResLoading(false);
+        setHighResError(false);
+        measureImageZoom();
+      } else {
+        setHighResError(true);
+        setIsHighResLoading(false);
+      }
+    });
+  }, [image, fallbackUrls, source, preloadHighResImage, measureImageZoom]);
 
   return (
     <AnimatePresence>
@@ -526,6 +720,9 @@ export const ImageViewer: React.FC = () => {
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
               style={{
                 cursor: isDragging ? "grabbing" : zoom > 1 ? "grab" : "default",
               }}
@@ -537,6 +734,7 @@ export const ImageViewer: React.FC = () => {
                   ref={imageRef}
                   src={previewUrl}
                   alt={title}
+                  decoding="async"
                   style={{
                     maxWidth: "100%",
                     maxHeight: "100%",
@@ -552,30 +750,17 @@ export const ImageViewer: React.FC = () => {
                 />
 
                 {/* High-Res Layer */}
-                {imageUrl !== previewUrl && !highResError && (
+                {primaryUrl !== previewUrl && !highResError && highResImage && (
                   <motion.img
-                    key={localUrl || imageUrl}
-                    src={localUrl || imageUrl}
+                    src={localUrl || highResImage.src}
                     alt={title}
+                    decoding="async"
                     style={{
                       maxWidth: "100%",
                       maxHeight: "100%",
                       width: "auto",
                       height: "auto",
                       transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
-                    }}
-                    onLoad={(e) => {
-                      setHighResLoaded(true);
-                      setIsHighResLoading(false);
-                      setHighResError(false);
-                    }}
-                    onError={() => {
-                      if (imageErrorCount < 3) {
-                        setImageErrorCount((prev) => prev + 1);
-                      } else {
-                        setHighResError(true);
-                        setIsHighResLoading(false);
-                      }
                     }}
                     className="object-contain select-none absolute inset-0 m-auto will-change-transform"
                     initial={{ opacity: 0 }}
@@ -587,25 +772,30 @@ export const ImageViewer: React.FC = () => {
 
                 {/* Fallback/Retry Layer if High-Res fails */}
                 {highResError && (
-                  <motion.img
-                    src={previewUrl}
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "100%",
-                      width: "auto",
-                      height: "auto",
-                      transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
-                    }}
-                    className="object-contain select-none absolute inset-0 m-auto grayscale-[0.5]"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    draggable={false}
-                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-30">
+                    <div className="flex flex-col items-center gap-6 p-8 rounded-3xl bg-black/60 border border-white/10 shadow-2xl max-w-sm text-center">
+                      <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center">
+                        <RotateCcw size={32} className="text-red-400" />
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="text-white font-black uppercase tracking-widest text-sm">Resolution Failed</h3>
+                        <p className="text-white/60 text-xs leading-relaxed">
+                          We couldn't secure the high-resolution vision from {formattedSource}. The optimized preview is still active.
+                        </p>
+                      </div>
+                      <button
+                        onClick={retryHighRes}
+                        className="px-8 py-3 rounded-xl bg-white text-black font-black uppercase tracking-widest text-[10px] hover:bg-neutral-200 transition-all active:scale-95"
+                      >
+                        Retry Resolution
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
 
               {/* High-Res Loading Indicator */}
-              {isHighResLoading && !highResError && (
+              {isHighResLoading && !highResError && !highResLoaded && (
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-4">
                   <div className="w-12 h-12 rounded-full border-2 border-white/10 border-t-purple-500 animate-spin" />
                   <p className="text-white/40 text-[10px] font-black uppercase tracking-widest bg-black/40 px-3 py-1 rounded-full backdrop-blur-md">
@@ -688,13 +878,17 @@ export const ImageViewer: React.FC = () => {
 
                     <div className="flex flex-col gap-3">
                       <button
-                        onClick={() =>
-                          isSaved
-                            ? isLiked
-                              ? unlikeImage(image.id)
-                              : likeImage(image.id)
-                            : saveImage(image as any)
-                        }
+                        onClick={() => {
+                          if (isSaved) {
+                            if (isLiked) {
+                              unlikeImage(image.id);
+                            } else {
+                              likeImage(image.id);
+                            }
+                          } else {
+                            saveImage(image);
+                          }
+                        }}
                         className={`w-full py-4 rounded-2xl flex items-center justify-center gap-3 font-black uppercase tracking-widest text-[10px] transition-all active:scale-95 ${
                           isLiked
                             ? "bg-pink-500 text-white shadow-lg shadow-pink-500/20"
@@ -751,15 +945,17 @@ export const ImageViewer: React.FC = () => {
                         Open Optimized View
                       </a>
 
-                      <a
-                        href={sourceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="w-full py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white/40 hover:text-white border border-white/5 flex items-center justify-center gap-3 font-black uppercase tracking-widest text-[10px] transition-all"
-                      >
-                        <ExternalLink size={16} />
-                        View on Zerochan
-                      </a>
+                      {sourceUrl && (
+                        <a
+                          href={sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="w-full py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white/40 hover:text-white border border-white/5 flex items-center justify-center gap-3 font-black uppercase tracking-widest text-[10px] transition-all"
+                        >
+                          <ExternalLink size={16} />
+                          View on {formattedSource}
+                        </a>
+                      )}
                     </div>
 
                     {/* Recommendations Placeholder */}
@@ -787,8 +983,10 @@ export const ImageViewer: React.FC = () => {
                               <img
                                 src={
                                   "previewUrl" in rec
-                                    ? (rec as any).previewUrl
-                                    : (rec as any).coverUrl
+                                    ? rec.previewUrl
+                                    : "coverUrl" in rec
+                                      ? rec.coverUrl
+                                      : ""
                                 }
                                 className="w-full h-full object-cover"
                                 alt=""

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, 
-  TrendingUp, 
   Zap, 
   Compass, 
   Filter, 
@@ -23,17 +22,14 @@ import clsx from 'clsx';
 export const DiscoverView = () => {
   const { 
     results,
-    trending,
     latest, 
     random,
     isSearching, 
-    isLoadingTrending, 
     isLoadingLatest, 
     isLoadingRandom,
     query,
     activeType,
     search, 
-    fetchTrending, 
     fetchLatest,
     fetchRandom,
     setQuery,
@@ -43,16 +39,15 @@ export const DiscoverView = () => {
   } = useDiscoveryStore();
 
   const { openQuickView, openTagManager } = useModalStore();
-  const [activeTab, setActiveTab] = useState<'featured' | 'search' | 'trending-grid' | 'latest-grid' | 'random-grid'>('featured');
+  const [activeTab, setActiveTab] = useState<'featured' | 'search' | 'latest-grid' | 'random-grid'>('featured');
   const [activeMenu, setActiveMenu] = useState<{ x: number, y: number, item: any } | null>(null);
 
   const { coloredOnly } = useSettingsStore();
 
   useEffect(() => {
-    fetchTrending();
     fetchLatest();
     fetchRandom();
-  }, [fetchTrending, fetchLatest, fetchRandom, coloredOnly]);
+  }, [fetchLatest, fetchRandom, coloredOnly]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,7 +100,6 @@ export const DiscoverView = () => {
   };
 
   const filteredResults = getFilteredItems(results);
-  const filteredTrending = getFilteredItems(trending);
   const filteredLatest = getFilteredItems(latest);
   const filteredRandom = getFilteredItems(random);
 
@@ -301,46 +295,6 @@ export const DiscoverView = () => {
                 )}
               </section>
 
-              {/* Trending Rail */}
-              <section className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
-                      <TrendingUp size={16} />
-                    </div>
-                    <h2 className="text-2xl font-black text-foreground uppercase tracking-tight">Ascending Powers</h2>
-                  </div>
-                  <button 
-                    onClick={() => setActiveTab('trending-grid')}
-                    className="flex items-center gap-2 text-[10px] font-black text-indigo-400 hover:text-indigo-300 uppercase tracking-widest transition-all"
-                  >
-                    View All <ChevronRight size={14} />
-                  </button>
-                </div>
-
-                {isLoadingTrending ? (
-                  <div className="flex gap-6 overflow-hidden">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <div key={i} className="w-[260px] h-[390px] flex-shrink-0 rounded-[32px] bg-surface-elevated animate-pulse border border-border-subtle" />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex gap-6 overflow-x-auto custom-scrollbar pb-6 -mx-8 px-8 lg:-mx-12 lg:px-12 scroll-smooth">
-                    {filteredTrending.map((item) => (
-                      item && (
-                        <div key={item.id} className="w-[260px] flex-shrink-0">
-                          <MangaCard
-                            item={item}
-                            onClick={() => openQuickView(item)}
-                            onMenuClick={(e, item) => setActiveMenu({ x: e.clientX, y: e.clientY, item })}
-                          />
-                        </div>
-                      )
-                    ))}
-                  </div>
-                )}
-              </section>
-
               {/* Latest Updates Rail */}
               <section className="space-y-6">
                 <div className="flex items-center justify-between">
@@ -378,43 +332,6 @@ export const DiscoverView = () => {
                   </div>
                 )}
               </section>
-            </motion.div>
-          ) : activeTab === 'trending-grid' ? (
-            <motion.div
-              key="trending-grid"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="space-y-8"
-            >
-              <div className="flex items-center justify-between bg-white/5 border border-white/5 rounded-3xl p-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 flex items-center justify-center text-indigo-400">
-                    <TrendingUp size={24} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-black text-foreground uppercase tracking-tight">Global Pulse</h2>
-                    <p className="text-foreground-dim text-sm font-medium">The most potent sagas across the world tonight.</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setActiveTab('featured')}
-                  className="px-6 py-2 rounded-full bg-white/5 hover:bg-white/10 text-[10px] font-black text-foreground/60 hover:text-foreground uppercase tracking-widest transition-colors border border-white/5"
-                >
-                  Back to Featured
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7 gap-6">
-                {filteredTrending.map((item) => (
-                  <MangaCard
-                    key={item.id}
-                    item={item}
-                    onClick={() => openQuickView(item)}
-                    onMenuClick={(e, item) => setActiveMenu({ x: e.clientX, y: e.clientY, item })}
-                  />
-                ))}
-              </div>
             </motion.div>
           ) : activeTab === 'random-grid' ? (
             <motion.div

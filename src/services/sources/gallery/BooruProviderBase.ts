@@ -8,12 +8,22 @@ function buildApiUrl(baseUrl: string, endpoint: string): URL {
   const url = endpoint.startsWith("http")
     ? new URL(endpoint)
     : new URL(`${baseUrl}${endpoint}`);
-  if (!url.pathname.endsWith(".json")) {
+
+  const isDapi =
+    url.pathname.endsWith("/index.php") ||
+    url.searchParams.get("page") === "dapi";
+
+  if (!url.pathname.endsWith(".json") && !endpoint.includes("?")) {
     const normalizedPath = url.pathname.endsWith("/")
       ? url.pathname.slice(0, -1)
       : url.pathname;
     url.pathname = `${normalizedPath}.json`;
   }
+
+  if (isDapi && !url.searchParams.has("json")) {
+    url.searchParams.set("json", "1");
+  }
+
   return url;
 }
 
@@ -23,9 +33,14 @@ export async function booruGet(
   params: Record<string, any> = {},
 ) {
   const url = buildApiUrl(baseUrl, endpoint);
+  const isDapi =
+    url.pathname.endsWith("/index.php") ||
+    url.searchParams.get("page") === "dapi";
+
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
-      url.searchParams.set(key, String(value));
+      const paramKey = key === "page" && isDapi ? "pid" : key;
+      url.searchParams.set(paramKey, String(value));
     }
   });
 
@@ -56,7 +71,28 @@ function normalizeRating(rating: string | undefined) {
   return "explicit";
 }
 
-export function normalizeBooruPost(
+export function normalizeBooruTag(tag: string) {
+  return tag
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^\w\-:@~]/g, "")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+}
+
+export function buildBooruTagsFromArray(
+  tags: string[],
+  contentFilter: "sfw" | "all" = "all",
+) {
+  const normalizedTags = tags
+    .map((tag) => normalizeBooruTag(tag))
+    .filter(Boolean);
+  const ratingTag = contentFilter === "sfw" ? "rating:s" : "";
+  return [...normalizedTags, ratingTag].filter(Boolean).join(" ").trim();
+}
+
+function normalizeBooruPost(
   post: any,
   source: string,
   baseUrl: string,
@@ -71,7 +107,9 @@ export function normalizeBooruPost(
   const previewUrl =
     post.preview_url || post.sample_url || post.jpeg_url || fullUrl;
   const imageUrl =
-    post.jpeg_url || post.large_file_url || post.file_url || fullUrl;
+    post.sample_url || post.large_file_url || post.jpeg_url || post.file_url || fullUrl;
+  const fullResUrl =
+    post.file_url || post.large_file_url || post.jpeg_url || fullUrl;
   const tags =
     typeof post.tags === "string"
       ? post.tags.split(" ").filter(Boolean)
@@ -86,7 +124,7 @@ export function normalizeBooruPost(
     coverUrl: previewUrl,
     previewUrl,
     imageUrl,
-    fullResUrl: imageUrl,
+    fullResUrl,
     width: post.width,
     height: post.height,
     tags,
