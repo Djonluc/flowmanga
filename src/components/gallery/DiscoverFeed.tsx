@@ -47,7 +47,7 @@ const DiscoverySection: React.FC<DiscoverySectionProps> = ({
   openViewer,
   saveImage,
 }) => {
-  if (!isLoading && images.length === 0) return null;
+  if (!isLoading && (!images || images.length === 0)) return null;
 
   return (
     <section className="space-y-6">
@@ -69,7 +69,7 @@ const DiscoverySection: React.FC<DiscoverySectionProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
-          {onPlaySlideshow && images.length > 0 && (
+          {onPlaySlideshow && images && images.length > 0 && (
             <button
               onClick={onPlaySlideshow}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white text-[10px] font-black uppercase tracking-widest transition-all border border-white/10`}
@@ -97,25 +97,28 @@ const DiscoverySection: React.FC<DiscoverySectionProps> = ({
         </div>
       </div>
 
-      {isLoading && images.length === 0 ? (
+      {isLoading && (!images || images.length === 0) ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 size={24} className="animate-spin text-foreground-dim/20" />
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {images.slice(0, 24).map((item, index) => (
-            <GalleryImageCard
-              key={`${title}-${item.id}`}
-              id={item.id}
-              imageUrl={item.coverUrl || item.imageUrl || ""}
-              previewUrl={item.coverUrl || item.previewUrl}
-              title={item.title}
-              tags={item.tags}
-              saved={savedIds.has(item.id)}
-              onView={() => openViewer(item, images, index)}
-              onSave={() => saveImage(item)}
-            />
-          ))}
+          {(images || []).map((item, index) => {
+            if (!item) return null;
+            return (
+              <GalleryImageCard
+                key={`${title}-${item.id}-${index}`}
+                id={item.id}
+                imageUrl={item.coverUrl || item.imageUrl || ""}
+                previewUrl={item.coverUrl || item.previewUrl}
+                title={item.title}
+                tags={item.tags}
+                saved={savedIds.has(item.id)}
+                onView={() => openViewer(item, images, index)}
+                onSave={() => saveImage(item)}
+              />
+            );
+          })}
         </div>
       )}
     </section>
@@ -131,7 +134,7 @@ export const DiscoverFeed: React.FC = () => {
     recentPopular,
     likedDiscovery,
     continueExploring,
-    wallpaperImages,
+    picksForYou,
     isLoadingLatest,
     isLoadingRandom,
     isLoadingPopular,
@@ -139,7 +142,7 @@ export const DiscoverFeed: React.FC = () => {
     isLoadingRecentPopular,
     isLoadingLikedDiscovery,
     isLoadingContinueExploring,
-    isLoadingWallpapers,
+    isLoadingPicks,
     fetchLatest,
     fetchRandomVisions,
     fetchPopular,
@@ -147,31 +150,66 @@ export const DiscoverFeed: React.FC = () => {
     fetchRecentPopular,
     fetchLikedDiscovery,
     fetchContinueExploring,
-    fetchWallpapers,
+    generatePicksForYou,
     savedImages,
     saveImage,
     openViewer,
     startSlideshowFromContext,
+    preloadMoreContent,
   } = useGalleryStore();
+
+  const observerTarget = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const loadAll = async () => {
-      if (latestImages.length === 0) await fetchLatest();
-      if (randomVisions.length === 0) await fetchRandomVisions();
-      if (popularImages.length === 0) await fetchPopular();
-      if (recommendedAesthetics.length === 0) await fetchRecommendedAesthetics();
-      if (recentPopular.length === 0) await fetchRecentPopular();
-      if (likedDiscovery.length === 0) await fetchLikedDiscovery();
-      if (continueExploring.length === 0) await fetchContinueExploring();
-      if (wallpaperImages.length === 0) await fetchWallpapers();
+      if (!latestImages || latestImages.length === 0) await fetchLatest();
+      if (!randomVisions || randomVisions.length === 0) await fetchRandomVisions();
+      if (!popularImages || popularImages.length === 0) await fetchPopular();
+      if (!recommendedAesthetics || recommendedAesthetics.length === 0) await fetchRecommendedAesthetics();
+      if (!recentPopular || recentPopular.length === 0) await fetchRecentPopular();
+      if (!likedDiscovery || likedDiscovery.length === 0) await fetchLikedDiscovery();
+      if (!continueExploring || continueExploring.length === 0) await fetchContinueExploring();
+      if (!picksForYou || picksForYou.length === 0) await generatePicksForYou();
     };
     loadAll();
   }, []);
+
+  // Infinite Scroll Observer for Discovery
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          preloadMoreContent();
+        }
+      },
+      { threshold: 0.1, rootMargin: "400px" }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => observer.disconnect();
+  }, [preloadMoreContent]);
 
   const savedIds = new Set(savedImages.map((i) => i.id));
 
   return (
     <div className="space-y-16 pb-12">
+      <DiscoverySection
+        title="Evergreen Popular"
+        subtitle="Consistently high engagement across sources"
+        icon={<Sparkles size={20} />}
+        iconColor="bg-amber-500"
+        images={popularImages}
+        isLoading={isLoadingPopular}
+        onRefresh={() => fetchPopular()}
+        onPlaySlideshow={() => startSlideshowFromContext(popularImages)}
+        savedIds={savedIds}
+        openViewer={openViewer}
+        saveImage={saveImage}
+      />
+
       <DiscoverySection
         title="Fresh Arrivals"
         subtitle="Newly indexed artwork"
@@ -200,19 +238,6 @@ export const DiscoverFeed: React.FC = () => {
         saveImage={saveImage}
       />
 
-      <DiscoverySection
-        title="Evergreen Popular"
-        subtitle="Consistently high engagement"
-        icon={<Sparkles size={20} />}
-        iconColor="bg-amber-500"
-        images={popularImages}
-        isLoading={isLoadingPopular}
-        onRefresh={() => fetchPopular()}
-        onPlaySlideshow={() => startSlideshowFromContext(popularImages)}
-        savedIds={savedIds}
-        openViewer={openViewer}
-        saveImage={saveImage}
-      />
 
       <DiscoverySection
         title="Aesthetic Spotlight"
@@ -270,19 +295,13 @@ export const DiscoverFeed: React.FC = () => {
         saveImage={saveImage}
       />
 
-      <DiscoverySection
-        title="Visions for Desktop"
-        subtitle="High-resolution wallpapers"
-        icon={<ImageIcon size={20} />}
-        iconColor="bg-cyan-500"
-        images={wallpaperImages}
-        isLoading={isLoadingWallpapers}
-        onRefresh={() => fetchWallpapers()}
-        onPlaySlideshow={() => startSlideshowFromContext(wallpaperImages)}
-        savedIds={savedIds}
-        openViewer={openViewer}
-        saveImage={saveImage}
-      />
+      {/* Infinite Scroll Signal */}
+      <div ref={observerTarget} className="h-32 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4 opacity-20 group">
+          <Loader2 size={32} className="animate-spin text-purple-500" />
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white">Synthesizing Endless Feed</p>
+        </div>
+      </div>
     </div>
   );
 };

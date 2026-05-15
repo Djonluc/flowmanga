@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Heart, Download, FolderPlus, Eye } from 'lucide-react';
+import { Heart, Download, FolderPlus, Eye, Play } from 'lucide-react';
 
 interface GalleryImageCardProps {
   id: string;
@@ -20,6 +20,7 @@ interface GalleryImageCardProps {
   onView?: () => void;
   onLike?: () => void;
   onSave?: () => void;
+  onPlay?: () => void;
   onAddToFolder?: () => void;
 }
 
@@ -34,6 +35,7 @@ export const GalleryImageCard: React.FC<GalleryImageCardProps> = ({
   onView,
   onLike,
   onSave,
+  onPlay,
   onAddToFolder,
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -129,6 +131,14 @@ export const GalleryImageCard: React.FC<GalleryImageCardProps> = ({
             className="p-2.5 rounded-xl bg-black/60 text-white/70 hover:bg-indigo-500/90 hover:text-white backdrop-blur-2xl transition-all active:scale-90 shadow-xl border border-white/10"
           >
             <FolderPlus size={16} />
+          </button>
+        )}
+        {onPlay && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onPlay(); }}
+            className="p-2.5 rounded-xl bg-purple-500 text-white shadow-lg shadow-purple-500/40 transition-all active:scale-90 border border-purple-400"
+          >
+            <Play size={16} fill="currentColor" />
           </button>
         )}
       </div>

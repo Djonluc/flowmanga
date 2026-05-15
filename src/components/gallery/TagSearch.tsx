@@ -87,10 +87,13 @@ export const TagSearch: React.FC = () => {
     saveImage,
     openViewer,
     favoriteTag,
+    currentSearchPage,
+    startSlideshowFromContext,
   } = useGalleryStore();
 
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const [inputValue, setInputValue] = useState("");
+  const observerTarget = React.useRef<HTMLDivElement>(null);
   const savedIds = new Set(savedImages.map((i) => i.id));
 
   // Sync with global search query (e.g. from tag clicks in viewer)
@@ -113,7 +116,7 @@ export const TagSearch: React.FC = () => {
         const next = [...activeTags, trimmed];
         setActiveTags(next);
         setInputValue("");
-        searchByTags(next.join(","));
+        searchByTags(next.join(" "));
       }
     },
     [activeTags, searchByTags],
@@ -123,7 +126,7 @@ export const TagSearch: React.FC = () => {
     (tag: string) => {
       const next = activeTags.filter((t) => t !== tag);
       setActiveTags(next);
-      if (next.length > 0) searchByTags(next.join(","));
+      if (next.length > 0) searchByTags(next.join(" "));
     },
     [activeTags, searchByTags],
   );
@@ -131,8 +134,28 @@ export const TagSearch: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (inputValue.trim()) addTag(inputValue);
-    else if (activeTags.length > 0) searchByTags(activeTags.join(","));
+    else if (activeTags.length > 0) searchByTags(activeTags.join(" "), 1);
   };
+
+  // Infinite Scroll Observer
+  useEffect(() => {
+    if (isSearching || activeTags.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isSearching && searchResults.length > 0) {
+          searchByTags(activeTags.join(","), currentSearchPage + 1);
+        }
+      },
+      { threshold: 0.1, rootMargin: "200px" }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => observer.disconnect();
+  }, [isSearching, searchResults.length, activeTags, currentSearchPage, searchByTags]);
 
   return (
     <div className="space-y-8">
@@ -248,9 +271,21 @@ export const TagSearch: React.FC = () => {
       {searchResults.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-foreground-dim text-[10px] font-black uppercase tracking-widest">
-              {searchResults.length} Results
-            </p>
+            <div className="flex items-center gap-4">
+              <p className="text-foreground-dim text-[10px] font-black uppercase tracking-widest">
+                {searchResults.length} Results
+              </p>
+              <button
+                onClick={() => startSlideshowFromContext(searchResults)}
+                className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-purple-500/10 text-purple-400 text-[10px] font-black uppercase tracking-widest hover:bg-purple-500/20 transition-all active:scale-95 border border-purple-500/10"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400/40 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                </span>
+                Play Slideshow
+              </button>
+            </div>
             {activeTags.length > 0 && (
               <button
                 onClick={() => activeTags.forEach((t) => favoriteTag(t))}
@@ -263,7 +298,7 @@ export const TagSearch: React.FC = () => {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {searchResults.map((item, index) => (
               <GalleryImageCard
-                key={item.id}
+                key={`${item.id}-${index}`}
                 id={item.id}
                 imageUrl={item.coverUrl || ""}
                 previewUrl={item.coverUrl}
@@ -273,9 +308,22 @@ export const TagSearch: React.FC = () => {
                 onView={() =>
                   openViewer(item as any, searchResults as any[], index)
                 }
+                onPlay={() =>
+                  startSlideshowFromContext(searchResults as any[], index)
+                }
                 onSave={() => saveImage(item)}
               />
             ))}
+          </div>
+
+          {/* Infinite Scroll Target */}
+          <div ref={observerTarget} className="h-20 flex items-center justify-center">
+            {isSearching && (
+              <div className="flex items-center gap-3 text-purple-400/60 animate-pulse">
+                <Loader2 size={16} className="animate-spin" />
+                <span className="text-[10px] font-black uppercase tracking-[0.2em]">Resolving More Visions</span>
+              </div>
+            )}
           </div>
         </div>
       )}

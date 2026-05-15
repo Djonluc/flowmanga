@@ -220,7 +220,12 @@ export class ZerochanProvider implements SourceProvider {
     try {
       const data = await zerochanGet(`/${tag}`, { p: page, l: safeLimit });
       const items = data.items || (Array.isArray(data) ? data : []);
-      return this.mapItems(items, query);
+      if (items.length > 0) return this.mapItems(items, query);
+      
+      // If no items in tag path, try global search
+      const globalData = await zerochanGet("/", { q: tag, p: page, l: safeLimit });
+      const globalItems = globalData.items || (Array.isArray(globalData) ? globalData : []);
+      return this.mapItems(globalItems, query);
     } catch (e) {
       // Fallback to global search if tag-specific failed
       try {

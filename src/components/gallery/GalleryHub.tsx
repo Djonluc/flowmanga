@@ -15,13 +15,11 @@ import { PicksForYou } from './PicksForYou';
 import { SavedCollections } from './SavedCollections';
 import { SlideshowManager } from './SlideshowManager';
 import { TagSearch } from './TagSearch';
-import { WallpaperGrid } from './WallpaperGrid';
 import { FollowingTags } from './FollowingTags';
 
 const TABS: { id: GalleryTab; label: string; icon: React.ReactNode }[] = [
   { id: 'discover', label: 'Discover', icon: <Compass size={16} /> },
   { id: 'picks', label: 'For You', icon: <Sparkles size={16} /> },
-  { id: 'wallpapers', label: 'Wallpapers', icon: <ImageIcon size={16} /> },
   { id: 'collections', label: 'Collections', icon: <FolderOpen size={16} /> },
   { id: 'slideshows', label: 'Slideshows', icon: <Film size={16} /> },
   { id: 'following', label: 'Following', icon: <Tag size={16} /> },
@@ -33,13 +31,16 @@ export const GalleryHub: React.FC = () => {
 
   useEffect(() => {
     loadFromDb();
-  }, []);
+    // Safety redirect if activeTab is decommissioned
+    if (activeTab === ('wallpapers' as any)) {
+      setActiveTab('discover');
+    }
+  }, [activeTab]);
 
   const renderTab = () => {
     switch (activeTab) {
       case 'discover': return <DiscoverFeed />;
       case 'picks': return <PicksForYou />;
-      case 'wallpapers': return <WallpaperGrid />;
       case 'collections': return <SavedCollections />;
       case 'slideshows': return <SlideshowManager />;
       case 'following': return <FollowingTags />;

@@ -22,6 +22,11 @@ export interface GalleryImage {
   imageUrl: string;
   previewUrl?: string;
   tags: string[];
+  generalTags?: string[];
+  characterTags?: string[];
+  copyrightTags?: string[];
+  artistTags?: string[];
+  metaTags?: string[];
   source: string;
   rating: string;
   width?: number;
@@ -58,10 +63,26 @@ export interface Slideshow {
   createdAt: string;
 }
 
+export interface UserSmartCollection {
+  id: string;
+  name: string;
+  tags: string[]; // array of tags
+  pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SmartCollection {
+  tag: string;
+  count: number;
+  images: GalleryImage[];
+  isManual?: boolean;
+  id?: string;
+}
+
 export type GalleryTab =
   | "discover"
   | "picks"
-  | "wallpapers"
   | "collections"
   | "slideshows"
   | "following"
@@ -133,6 +154,8 @@ interface GalleryState {
   folders: GalleryFolder[];
   favoriteTags: string[];
   slideshows: Slideshow[];
+  smartCollections: { tag: string; count: number; images: GalleryImage[] }[];
+  localFolders: { id: string; path: string; name: string }[];
 
   // Discovery Feeds
   popularImages: SourceSearchResult[];
@@ -143,11 +166,11 @@ interface GalleryState {
   recentPopular: SourceSearchResult[];
   likedDiscovery: SourceSearchResult[];
   continueExploring: SourceSearchResult[];
-  wallpaperImages: SourceSearchResult[];
 
   // Search
   searchQuery: string;
   searchResults: SourceSearchResult[];
+  currentSearchPage: number;
   searchSuggestions: string[];
 
   // UI State
@@ -160,7 +183,6 @@ interface GalleryState {
   isLoadingRecentPopular: boolean;
   isLoadingLikedDiscovery: boolean;
   isLoadingContinueExploring: boolean;
-  isLoadingWallpapers: boolean;
   isSearching: boolean;
   isLoadingFolders: boolean;
   downloadPath: string | null;
@@ -173,6 +195,11 @@ interface GalleryState {
   slideshowImages: GalleryImage[];
   slideshowIndex: number;
   isSlideshowPlaying: boolean;
+  slideshowShuffle: boolean;
+  slideshowRepeat: boolean;
+  slideshowRandom: boolean;
+  slideshowHudVisible: boolean;
+  lastSlideshowPosition: Record<string, number>;
 
   // Image Viewer
   viewerImage: (GalleryImage | SourceSearchResult) | null;
@@ -191,12 +218,15 @@ interface GalleryState {
   loadFolders: () => Promise<void>;
   loadFavoriteTags: () => Promise<void>;
   loadSlideshows: () => Promise<void>;
+  generateSmartCollections: () => void;
+  addLocalFolder: () => Promise<void>;
+  removeLocalFolder: (id: string) => Promise<void>;
+  loadLocalFolders: () => Promise<void>;
 
   // Actions — Discovery
   fetchPopular: (page?: number) => Promise<void>;
   fetchLatest: (page?: number) => Promise<void>;
   fetchRandomVisions: () => Promise<void>;
-  fetchWallpapers: (page?: number) => Promise<void>;
   generatePicksForYou: () => Promise<void>;
   fetchRecommendedAesthetics: () => Promise<void>;
   fetchRecentPopular: () => Promise<void>;
@@ -204,7 +234,7 @@ interface GalleryState {
   fetchContinueExploring: () => Promise<void>;
 
   fetchAllDiscovery: () => Promise<void>;
-  searchByTags: (query: string) => Promise<void>;
+  searchByTags: (query: string, page?: number) => Promise<void>;
   fetchSuggestions: (query: string) => Promise<void>;
 
   // Actions — Image Management
@@ -248,6 +278,19 @@ interface GalleryState {
   stopSlideshow: () => void;
   nextSlide: () => void;
   prevSlide: () => void;
+  toggleSlideshowShuffle: () => void;
+  toggleSlideshowRepeat: () => void;
+  toggleSlideshowRandom: () => void;
+  setSlideshowHudVisible: (visible: boolean) => void;
+  setSlideshowIndex: (index: number) => void;
+
+  // Actions — Smart Collections
+  generateSmartCollections: () => void;
+  loadUserSmartCollections: () => Promise<void>;
+  createUserSmartCollection: (name: string, tags: string[]) => Promise<void>;
+  deleteUserSmartCollection: (id: string) => Promise<void>;
+  togglePinUserSmartCollection: (id: string) => Promise<void>;
+  updateUserSmartCollection: (id: string, name: string, tags: string[]) => Promise<void>;
 
   // Actions — Image Viewer
   openViewer: (
@@ -267,6 +310,9 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   folders: [],
   favoriteTags: [],
   slideshows: [],
+  smartCollections: [],
+  localFolders: [],
+  userSmartCollections: [],
 
   popularImages: [],
   latestImages: [],
@@ -276,10 +322,10 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   recentPopular: [],
   likedDiscovery: [],
   continueExploring: [],
-  wallpaperImages: [],
 
   searchQuery: "",
   searchResults: [],
+  currentSearchPage: 1,
   searchSuggestions: [],
 
   activeTab: "discover",
@@ -291,7 +337,6 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   isLoadingRecentPopular: false,
   isLoadingLikedDiscovery: false,
   isLoadingContinueExploring: false,
-  isLoadingWallpapers: false,
   isSearching: false,
   isLoadingFolders: false,
   downloadPath: null,
@@ -303,6 +348,11 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   slideshowImages: [],
   slideshowIndex: 0,
   isSlideshowPlaying: false,
+  slideshowShuffle: false,
+  slideshowRepeat: false,
+  slideshowRandom: false,
+  slideshowHudVisible: true,
+  lastSlideshowPosition: {},
 
   viewerImage: null,
   viewerContext: [],
@@ -386,11 +436,15 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         );
       }
 
-      // 3. Load Related Data
+      // 3. Generate Smart Insights
+      get().generateSmartCollections();
+
+      // 4. Load Related Data
       await Promise.all([
         get().loadFolders(),
         get().loadFavoriteTags(),
         get().loadSlideshows(),
+        get().loadLocalFolders(),
       ]);
     } catch (e) {
       console.error("[GalleryStore] loadFromDb critical failure:", e);
@@ -472,7 +526,6 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       get().fetchRecentPopular(),
       get().fetchLikedDiscovery(),
       get().fetchContinueExploring(),
-      get().fetchWallpapers(),
     ];
 
     await Promise.allSettled(tasks);
@@ -482,11 +535,13 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     if (get().isLoadingPopular) return;
     set({ isLoadingPopular: true });
     try {
+      // Use randomized page for refresh to ensure variety
+      const fetchPage = page === 1 ? Math.floor(Math.random() * 5) + 1 : page;
       const results = await DiscoveryService.searchGlobal(
         "masterpiece highres",
         48,
         get().contentFilter,
-        page,
+        fetchPage,
         "image",
       );
       const unique = dedupeResults(results, [
@@ -497,7 +552,6 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         get().recentPopular,
         get().likedDiscovery,
         get().continueExploring,
-        get().wallpaperImages,
       ]);
       if (page === 1) set({ popularImages: unique });
       else set({ popularImages: [...get().popularImages, ...unique] });
@@ -526,7 +580,6 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         get().recentPopular,
         get().likedDiscovery,
         get().continueExploring,
-        get().wallpaperImages,
       ]);
       if (page === 1) set({ latestImages: unique });
       else set({ latestImages: [...get().latestImages, ...unique] });
@@ -543,8 +596,9 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     if (get().isLoadingRandom) return;
     set({ isLoadingRandom: true });
     try {
+      // Use higher limit for random to increase pool size
       const results = await DiscoveryService.getRandom(
-        48,
+        64,
         get().contentFilter,
         "image",
       );
@@ -555,42 +609,12 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         get().recentPopular,
         get().likedDiscovery,
         get().continueExploring,
-        get().wallpaperImages,
       ]);
       set({ randomVisions: unique });
     } catch (e) {
       console.error("[GalleryStore] Failed to fetch random visions:", e);
     } finally {
       set({ isLoadingRandom: false });
-    }
-  },
-
-  fetchWallpapers: async (page = 1) => {
-    if (get().isLoadingWallpapers) return;
-    set({ isLoadingWallpapers: true });
-    try {
-      const results = await DiscoveryService.searchGlobal(
-        "Wallpaper",
-        48,
-        get().contentFilter,
-        page,
-        "image",
-      );
-      const unique = dedupeResults(results, [
-        get().popularImages,
-        get().latestImages,
-        get().randomVisions,
-        get().recommendedAesthetics,
-        get().recentPopular,
-        get().likedDiscovery,
-        get().continueExploring,
-      ]);
-      if (page === 1) set({ wallpaperImages: unique });
-      else set({ wallpaperImages: [...get().wallpaperImages, ...unique] });
-    } catch (e) {
-      console.error("[GalleryStore] Failed to fetch wallpapers:", e);
-    } finally {
-      set({ isLoadingWallpapers: false });
     }
   },
 
@@ -612,7 +636,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
           .slice(0, 2);
         results = await DiscoveryService.searchGlobal(
           aesthetics.join(" "),
-          48,
+          64,
           contentFilter,
           1,
           "image",
@@ -623,7 +647,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         );
         results = await DiscoveryService.searchGlobal(
           seeds.join(" "),
-          48,
+          64,
           contentFilter,
           1,
           "image",
@@ -644,8 +668,15 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         );
       }
 
+      const savedIds = new Set(savedImages.map((i) => i.id));
+      const historyIds = new Set(viewHistory);
+
+      const filtered = results.filter(
+        (res) => !savedIds.has(res.id) && !historyIds.has(res.id),
+      );
+
       set({
-        picksForYou: dedupeResults(results, [
+        picksForYou: dedupeResults(filtered, [
           get().latestImages,
           get().popularImages,
           get().randomVisions,
@@ -653,7 +684,6 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
           get().recentPopular,
           get().likedDiscovery,
           get().continueExploring,
-          get().wallpaperImages,
         ]),
       });
     } catch (e) {
@@ -678,15 +708,20 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         1,
         "image",
       );
+      const savedIds = new Set(get().savedImages.map((i) => i.id));
+      const historyIds = new Set(get().viewHistory);
+      const filtered = results.filter(
+        (res) => !savedIds.has(res.id) && !historyIds.has(res.id),
+      );
+
       set({
-        recommendedAesthetics: dedupeResults(results, [
+        recommendedAesthetics: dedupeResults(filtered, [
           get().latestImages,
           get().popularImages,
           get().randomVisions,
           get().recentPopular,
           get().likedDiscovery,
           get().continueExploring,
-          get().wallpaperImages,
         ]),
       });
 
@@ -711,15 +746,20 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         get().contentFilter,
         "image",
       );
+      const savedIds = new Set(get().savedImages.map((i) => i.id));
+      const historyIds = new Set(get().viewHistory);
+      const filtered = results.filter(
+        (res) => !savedIds.has(res.id) && !historyIds.has(res.id),
+      );
+
       set({
-        recentPopular: dedupeResults(results, [
+        recentPopular: dedupeResults(filtered, [
           get().latestImages,
           get().popularImages,
           get().randomVisions,
           get().recommendedAesthetics,
           get().likedDiscovery,
           get().continueExploring,
-          get().wallpaperImages,
         ]),
       });
     } catch (e) {
@@ -746,15 +786,20 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         get().contentFilter,
         "image",
       );
+      const savedIds = new Set(get().savedImages.map((i) => i.id));
+      const historyIds = new Set(get().viewHistory);
+      const filtered = results.filter(
+        (res) => !savedIds.has(res.id) && !historyIds.has(res.id),
+      );
+
       set({
-        likedDiscovery: dedupeResults(results, [
+        likedDiscovery: dedupeResults(filtered, [
           get().latestImages,
           get().popularImages,
           get().randomVisions,
           get().recommendedAesthetics,
           get().recentPopular,
           get().continueExploring,
-          get().wallpaperImages,
         ]),
       });
     } catch (e) {
@@ -781,15 +826,20 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         1,
         "image",
       );
+      const savedIds = new Set(get().savedImages.map((i) => i.id));
+      const historyIds = new Set(get().viewHistory);
+      const filtered = results.filter(
+        (res) => !savedIds.has(res.id) && !historyIds.has(res.id),
+      );
+
       set({
-        continueExploring: dedupeResults(results, [
+        continueExploring: dedupeResults(filtered, [
           get().latestImages,
           get().popularImages,
           get().randomVisions,
           get().recommendedAesthetics,
           get().recentPopular,
           get().likedDiscovery,
-          get().wallpaperImages,
         ]),
       });
     } catch (e) {
@@ -799,18 +849,51 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     }
   },
 
-  searchByTags: async (query) => {
+  searchByTags: async (query, page = 1) => {
     if (!query.trim()) return;
-    set({ isSearching: true, searchQuery: query });
+    set({ isSearching: true, searchQuery: query, currentSearchPage: page });
     try {
-      const tags = query.split(" ").filter(Boolean);
+      const tags = query.split(/[ ,+]+/).filter(Boolean);
       const results = await DiscoveryService.searchGlobalByTags(
         tags,
         48,
-        get().contentFilter,
+        get().contentFilter === "sfw",
+        page,
       );
-      set({ searchResults: results });
-      get().trackInteraction(tags);
+
+      set((state) => {
+        const nextResults =
+          page === 1 ? results : [...state.searchResults, ...results];
+        
+        // If we are playing a dynamic slideshow (from search), sync the images
+        if (state.isSlideshowPlaying && state.activeSlideshowId === "dynamic") {
+          const galleryImages: GalleryImage[] = results.map((img) => {
+            if ("imageUrl" in img) return img as GalleryImage;
+            const res = img as any;
+            return {
+              id: res.id,
+              imageUrl: res.imageUrl || res.coverUrl || "",
+              previewUrl: res.previewUrl || res.coverUrl || "",
+              tags: res.tags || [],
+              source: res.source || "zerochan",
+              rating: "safe",
+              savedAt: new Date().toISOString(),
+              liked: false,
+            } as GalleryImage;
+          });
+          
+          return {
+            searchResults: dedupeResults(nextResults),
+            slideshowImages: [...state.slideshowImages, ...galleryImages],
+          };
+        }
+
+        return {
+          searchResults: dedupeResults(nextResults),
+        };
+      });
+
+      if (page === 1) get().trackInteraction(tags);
     } catch (e) {
       console.error("[GalleryStore] Search failed:", e);
     } finally {
@@ -846,7 +929,6 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     const preloadPromises = [
       get().fetchPopular(Math.ceil(get().popularImages.length / 48) + 1),
       get().fetchLatest(Math.ceil(get().latestImages.length / 48) + 1),
-      get().fetchWallpapers(Math.ceil(get().wallpaperImages.length / 48) + 1),
     ];
 
     // Preload more recommendations
@@ -1096,23 +1178,209 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     });
   },
 
-  stopSlideshow: () =>
+  stopSlideshow: () => {
+    const { activeSlideshowId, slideshowIndex, lastSlideshowPosition } = get();
+    if (activeSlideshowId) {
+      set({
+        lastSlideshowPosition: {
+          ...lastSlideshowPosition,
+          [activeSlideshowId]: slideshowIndex,
+        },
+      });
+    }
     set({
       activeSlideshowId: null,
       slideshowImages: [],
       slideshowIndex: 0,
       isSlideshowPlaying: false,
-    }),
+    });
+  },
   nextSlide: () =>
-    set((state) => ({
-      slideshowIndex: (state.slideshowIndex + 1) % state.slideshowImages.length,
-    })),
+    set((state) => {
+      let nextIdx = state.slideshowIndex + 1;
+      if (state.slideshowRandom) {
+        nextIdx = Math.floor(Math.random() * state.slideshowImages.length);
+      } else if (nextIdx >= state.slideshowImages.length) {
+        nextIdx = state.slideshowRepeat ? 0 : state.slideshowImages.length - 1;
+        if (!state.slideshowRepeat && state.isSlideshowPlaying) {
+          // Auto-stop if reached end and no repeat
+          return { isSlideshowPlaying: false, slideshowIndex: state.slideshowImages.length - 1 };
+        }
+      }
+      return { slideshowIndex: nextIdx };
+    }),
   prevSlide: () =>
-    set((state) => ({
-      slideshowIndex:
-        (state.slideshowIndex - 1 + state.slideshowImages.length) %
-        state.slideshowImages.length,
-    })),
+    set((state) => {
+      let prevIdx = state.slideshowIndex - 1;
+      if (prevIdx < 0) {
+        prevIdx = state.slideshowRepeat ? state.slideshowImages.length - 1 : 0;
+      }
+      return { slideshowIndex: prevIdx };
+    }),
+  toggleSlideshowShuffle: () =>
+    set((state) => {
+      const nextShuffle = !state.slideshowShuffle;
+      let newImages = [...state.slideshowImages];
+      if (nextShuffle) {
+        newImages = newImages.sort(() => Math.random() - 0.5);
+      } else {
+        // In a real app, we might want to restore original order, but for now just toggle state
+      }
+      return { slideshowShuffle: nextShuffle, slideshowImages: newImages };
+    }),
+  toggleSlideshowRepeat: () =>
+    set((state) => ({ slideshowRepeat: !state.slideshowRepeat })),
+  toggleSlideshowRandom: () =>
+    set((state) => ({ slideshowRandom: !state.slideshowRandom })),
+  setSlideshowHudVisible: (visible) => set({ slideshowHudVisible: visible }),
+  setSlideshowIndex: (index) => set({ slideshowIndex: index }),
+
+  generateSmartCollections: () => {
+    const { savedImages, userSmartCollections } = get();
+    
+    // 1. Process User-Defined Smart Collections (Highest Priority)
+    const manualSmart: SmartCollection[] = userSmartCollections.map(usc => {
+      const matchingImages = savedImages.filter(img => {
+        const imgTags = (img.tags || []).map(t => t.toLowerCase().trim());
+        // Match ALL tags in the collection (AND-style)
+        return usc.tags.every(tag => imgTags.includes(tag.toLowerCase().trim()));
+      });
+      
+      return {
+        tag: usc.name,
+        count: matchingImages.length,
+        images: matchingImages,
+        isManual: true,
+        id: usc.id
+      };
+    });
+
+    // 2. Process Auto-Generated Clusters
+    const tagCounts: Record<string, { count: number; images: GalleryImage[] }> = {};
+    
+    savedImages.forEach(img => {
+      img.tags.forEach(tag => {
+        const normalized = tag.toLowerCase().trim();
+        if (normalized.length < 3) return;
+        if (!tagCounts[normalized]) {
+          tagCounts[normalized] = { count: 0, images: [] };
+        }
+        tagCounts[normalized].count++;
+        tagCounts[normalized].images.push(img);
+      });
+    });
+
+    const threshold = Math.max(3, Math.floor(savedImages.length * 0.03));
+    const autoSmart = Object.entries(tagCounts)
+      .map(([tag, data]) => ({ tag, ...data }))
+      .filter(item => item.count >= threshold)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 12);
+
+    // 3. Merge (Manual first, then Auto)
+    // Filter out auto-generated tags that are already covered by manual collections with the same name
+    const manualNames = new Set(manualSmart.map(m => m.tag.toLowerCase()));
+    const finalAuto = autoSmart.filter(a => !manualNames.has(a.tag.toLowerCase()));
+
+    set({ smartCollections: [...manualSmart, ...finalAuto] });
+  },
+
+  loadUserSmartCollections: async () => {
+    try {
+      const db = getDb();
+      const rows = await db.select<any[]>("SELECT * FROM UserSmartCollections");
+      const mapped: UserSmartCollection[] = rows.map(r => ({
+        ...r,
+        tags: JSON.parse(r.tags),
+        pinned: !!r.pinned
+      }));
+      set({ userSmartCollections: mapped });
+      get().generateSmartCollections();
+    } catch (e) {
+      console.warn("[GalleryStore] UserSmartCollections not ready:", e);
+    }
+  },
+
+  createUserSmartCollection: async (name, tags) => {
+    const db = getDb();
+    const id = crypto.randomUUID();
+    await db.execute(
+      "INSERT INTO UserSmartCollections (id, name, tags) VALUES (?, ?, ?)",
+      [id, name, JSON.stringify(tags)]
+    );
+    await get().loadUserSmartCollections();
+    toast.success(`Created "${name}" collection`);
+  },
+
+  deleteUserSmartCollection: async (id) => {
+    const db = getDb();
+    await db.execute("DELETE FROM UserSmartCollections WHERE id = ?", [id]);
+    await get().loadUserSmartCollections();
+    toast.success("Collection deleted");
+  },
+
+  togglePinUserSmartCollection: async (id) => {
+    const coll = get().userSmartCollections.find(c => c.id === id);
+    if (!coll) return;
+    const db = getDb();
+    await db.execute(
+      "UPDATE UserSmartCollections SET pinned = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
+      [!coll.pinned ? 1 : 0, id]
+    );
+    await get().loadUserSmartCollections();
+  },
+
+  updateUserSmartCollection: async (id, name, tags) => {
+    const db = getDb();
+    await db.execute(
+      "UPDATE UserSmartCollections SET name = ?, tags = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
+      [name, JSON.stringify(tags), id]
+    );
+    await get().loadUserSmartCollections();
+    toast.success("Collection updated");
+  },
+
+  addLocalFolder: async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: "Select Image Folder",
+      });
+
+      if (selected && typeof selected === "string") {
+        const db = getDb();
+        const id = crypto.randomUUID();
+        const name = selected.split(/[\\/]/).pop() || "Local Folder";
+        
+        await db.execute(
+          "INSERT INTO LocalFolders (id, path, name) VALUES (?, ?, ?)",
+          [id, selected, name]
+        );
+        await get().loadLocalFolders();
+        toast.success(`Added ${name}`);
+      }
+    } catch (e) {
+      console.error("[GalleryStore] addLocalFolder failed:", e);
+    }
+  },
+
+  removeLocalFolder: async (id) => {
+    const db = getDb();
+    await db.execute("DELETE FROM LocalFolders WHERE id = ?", [id]);
+    await get().loadLocalFolders();
+  },
+
+  loadLocalFolders: async () => {
+    try {
+      const db = getDb();
+      const folders = await db.select<any[]>("SELECT * FROM LocalFolders");
+      set({ localFolders: folders });
+    } catch (e) {
+      console.warn("[GalleryStore] LocalFolders table not ready:", e);
+    }
+  },
 
   // ─── Image Viewer ──────────────────────────────────────────────
 

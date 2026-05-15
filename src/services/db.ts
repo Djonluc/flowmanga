@@ -130,6 +130,11 @@ export const initDatabase = async () => {
       liked BOOLEAN DEFAULT 0,
       folderId TEXT,
       zerochanId INTEGER,
+      generalTags TEXT,
+      characterTags TEXT,
+      copyrightTags TEXT,
+      artistTags TEXT,
+      metaTags TEXT,
       FOREIGN KEY (folderId) REFERENCES GalleryFolders(id) ON DELETE SET NULL
     );
 
@@ -166,6 +171,22 @@ export const initDatabase = async () => {
       interval INTEGER DEFAULT 5000,
       shuffle BOOLEAN DEFAULT 0,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS LocalFolders (
+      id TEXT PRIMARY KEY,
+      path TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS UserSmartCollections (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      tags TEXT NOT NULL,
+      pinned BOOLEAN DEFAULT 0,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
 

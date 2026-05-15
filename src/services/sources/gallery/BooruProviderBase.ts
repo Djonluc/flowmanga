@@ -111,11 +111,29 @@ function normalizeBooruPost(
   const fullResUrl =
     post.file_url || post.large_file_url || post.jpeg_url || fullUrl;
   const tags =
-    typeof post.tags === "string"
-      ? post.tags.split(" ").filter(Boolean)
-      : Array.isArray(post.tags)
-        ? post.tags
-        : [];
+    typeof post.tag_string === "string"
+      ? post.tag_string.split(" ").filter(Boolean)
+      : typeof post.tags === "string"
+        ? post.tags.split(" ").filter(Boolean)
+        : Array.isArray(post.tags)
+          ? post.tags
+          : [];
+
+  const generalTags = typeof post.tag_string_general === "string" 
+    ? post.tag_string_general.split(" ").filter(Boolean) 
+    : [];
+  const characterTags = typeof post.tag_string_character === "string"
+    ? post.tag_string_character.split(" ").filter(Boolean)
+    : [];
+  const copyrightTags = typeof post.tag_string_copyright === "string"
+    ? post.tag_string_copyright.split(" ").filter(Boolean)
+    : [];
+  const artistTags = typeof post.tag_string_artist === "string"
+    ? post.tag_string_artist.split(" ").filter(Boolean)
+    : [];
+  const metaTags = typeof post.tag_string_meta === "string"
+    ? post.tag_string_meta.split(" ").filter(Boolean)
+    : [];
 
   return {
     id: `${source}-${post.id}`,
@@ -128,6 +146,11 @@ function normalizeBooruPost(
     width: post.width,
     height: post.height,
     tags,
+    generalTags,
+    characterTags,
+    copyrightTags,
+    artistTags,
+    metaTags,
     source,
     contentType: "gallery",
     url: `${baseUrl}/posts/${post.id}`,

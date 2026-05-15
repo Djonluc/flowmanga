@@ -122,7 +122,7 @@ export class DanbooruProvider implements SourceProvider {
     const data = await booruGet(this.baseUrl, "/posts.json", {
       tags,
       page,
-      limit: safeLimit,
+      limit: options.limit || 20,
     });
 
     return mapBooruPosts(data, "danbooru", this.baseUrl);

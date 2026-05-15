@@ -20,6 +20,15 @@ import {
   Monitor,
   Settings,
   Sparkles,
+  Shuffle,
+  Repeat,
+  Dices,
+  Eye,
+  EyeOff,
+  Info,
+  Tag,
+  Globe,
+  LayoutList,
 } from "lucide-react";
 import { useGalleryStore } from "../../stores/useGalleryStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -35,6 +44,19 @@ export const SlideshowPlayer: React.FC = () => {
     nextSlide,
     prevSlide,
     stopSlideshow,
+    slideshowShuffle,
+    slideshowRepeat,
+    slideshowRandom,
+    slideshowHudVisible,
+    toggleSlideshowShuffle,
+    toggleSlideshowRepeat,
+    toggleSlideshowRandom,
+    setSlideshowHudVisible,
+    setSlideshowIndex,
+    isSearching,
+    searchByTags,
+    searchQuery,
+    currentSearchPage,
   } = useGalleryStore();
 
   const {
@@ -53,8 +75,9 @@ export const SlideshowPlayer: React.FC = () => {
   const [touchDelta, setTouchDelta] = useState(0);
   const [renderedUrl, setRenderedUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [speed, setSpeed] = useState<number>(slideshowInterval);
-  const [showOverlay, setShowOverlay] = useState<"play" | "pause" | null>(null);
+  const [showOverlay, setShowOverlay] = useState<"play" | "pause" | "shuffle" | "repeat" | "random" | null>(null);
+  const [showQueue, setShowQueue] = useState(false);
+  const [showMetadata, setShowMetadata] = useState(true);
   const controlTimer = useRef<any>(null);
   const overlayTimer = useRef<any>(null);
   const autoTimer = useRef<any>(null);
@@ -64,11 +87,9 @@ export const SlideshowPlayer: React.FC = () => {
   const currentImage = slideshowImages[slideshowIndex];
   const { preloadHighResImage } = useMediaLoader();
 
-  useEffect(() => {
-    setSpeed(activeShow?.interval || slideshowInterval);
-  }, [activeShow?.interval, slideshowInterval]);
 
   const transitionType = slideshowTransition;
+  const effectiveInterval = Math.max(1000, activeShow?.interval || slideshowInterval);
 
   const fallbackUrls = useCallback((image: any) => {
     if (!image) return [];
@@ -132,25 +153,99 @@ export const SlideshowPlayer: React.FC = () => {
   ]);
 
   useEffect(() => {
-    if (!isSlideshowPlaying || isPaused || !currentImage) return;
-    clearInterval(autoTimer.current);
+    if (!isSlideshowPlaying || isPaused || !currentImage) {
+      if (autoTimer.current) {
+        clearInterval(autoTimer.current);
+        autoTimer.current = null;
+      }
+      return;
+    }
+    
+    if (autoTimer.current) clearInterval(autoTimer.current);
+    
     autoTimer.current = setInterval(() => {
+      const state = useGalleryStore.getState();
+      if (!state.isSlideshowPlaying) {
+        if (autoTimer.current) clearInterval(autoTimer.current);
+        return;
+      }
+      
       nextSlide();
-    }, speed);
-    return () => clearInterval(autoTimer.current);
-  }, [isSlideshowPlaying, isPaused, speed, nextSlide, currentImage]);
+    }, effectiveInterval);
+    
+    return () => {
+      if (autoTimer.current) clearInterval(autoTimer.current);
+    };
+  }, [isSlideshowPlaying, isPaused, effectiveInterval, currentImage, nextSlide]);
+
+  // Auto-pagination trigger for search-based slideshows
+  useEffect(() => {
+    if (
+      isSlideshowPlaying && 
+      activeSlideshowId === "dynamic" && 
+      searchQuery &&
+      slideshowIndex >= slideshowImages.length - 3 &&
+      slideshowImages.length > 0 &&
+      !isSearching
+    ) {
+      // Trigger next page load
+      searchByTags(searchQuery, currentSearchPage + 1);
+    }
+  }, [isSlideshowPlaying, activeSlideshowId, slideshowIndex, slideshowImages.length, searchQuery, currentSearchPage, searchByTags, isSearching]);
 
   const refreshControls = useCallback(() => {
-    setShowControls(true);
+    setSlideshowHudVisible(true);
     clearTimeout(controlTimer.current);
-    controlTimer.current = setTimeout(() => setShowControls(false), 3000);
-  }, []);
+    controlTimer.current = setTimeout(() => {
+      if (!isPaused) setSlideshowHudVisible(false);
+    }, 4000);
+  }, [isPaused, setSlideshowHudVisible]);
 
   useEffect(() => {
     if (!isSlideshowPlaying) return;
     refreshControls();
     return () => clearTimeout(controlTimer.current);
   }, [isSlideshowPlaying, slideshowIndex, refreshControls]);
+
+  const togglePause = useCallback(() => {
+    setIsPaused((prev) => {
+      const next = !prev;
+      setShowOverlay(next ? "pause" : "play");
+      clearTimeout(overlayTimer.current);
+      overlayTimer.current = setTimeout(() => setShowOverlay(null), 800);
+      return next;
+    });
+    refreshControls();
+  }, [refreshControls]);
+
+  const toggleFullscreen = useCallback(async () => {
+    if (!document.fullscreenElement) {
+      await containerRef.current?.requestFullscreen().catch(() => {});
+    } else {
+      await document.exitFullscreen().catch(() => {});
+    }
+  }, []);
+
+  const toggleShuffle = useCallback(() => {
+    toggleSlideshowShuffle();
+    setShowOverlay("shuffle");
+    clearTimeout(overlayTimer.current);
+    overlayTimer.current = setTimeout(() => setShowOverlay(null), 800);
+  }, [toggleSlideshowShuffle]);
+
+  const toggleRepeat = useCallback(() => {
+    toggleSlideshowRepeat();
+    setShowOverlay("repeat");
+    clearTimeout(overlayTimer.current);
+    overlayTimer.current = setTimeout(() => setShowOverlay(null), 800);
+  }, [toggleSlideshowRepeat]);
+
+  const toggleRandom = useCallback(() => {
+    toggleSlideshowRandom();
+    setShowOverlay("random");
+    clearTimeout(overlayTimer.current);
+    overlayTimer.current = setTimeout(() => setShowOverlay(null), 800);
+  }, [toggleSlideshowRandom]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -176,6 +271,30 @@ export const SlideshowPlayer: React.FC = () => {
         case "F":
           toggleFullscreen();
           break;
+        case "m":
+        case "M":
+          setShowMetadata((prev) => !prev);
+          break;
+        case "h":
+        case "H":
+          setSlideshowHudVisible(!slideshowHudVisible);
+          break;
+        case "q":
+        case "Q":
+          setShowQueue((prev) => !prev);
+          break;
+        case "s":
+        case "S":
+          toggleShuffle();
+          break;
+        case "r":
+        case "R":
+          toggleRepeat();
+          break;
+        case "d":
+        case "D":
+          toggleRandom();
+          break;
       }
     };
     window.addEventListener("keydown", handler);
@@ -186,6 +305,13 @@ export const SlideshowPlayer: React.FC = () => {
     nextSlide,
     prevSlide,
     refreshControls,
+    slideshowHudVisible,
+    setSlideshowHudVisible,
+    togglePause,
+    toggleFullscreen,
+    toggleShuffle,
+    toggleRepeat,
+    toggleRandom,
   ]);
 
   useEffect(() => {
@@ -195,8 +321,8 @@ export const SlideshowPlayer: React.FC = () => {
   }, []);
 
   const changeSpeed = (delta: number) => {
-    const next = Math.max(1000, Math.min(20000, speed + delta));
-    setSpeed(next);
+    const currentInterval = activeShow?.interval || slideshowInterval;
+    const next = Math.max(1000, Math.min(20000, currentInterval + delta));
     setSlideshowInterval(next);
   };
 
@@ -238,24 +364,6 @@ export const SlideshowPlayer: React.FC = () => {
     refreshControls();
   };
 
-  const toggleFullscreen = async () => {
-    if (!document.fullscreenElement) {
-      await containerRef.current?.requestFullscreen().catch(() => {});
-    } else {
-      await document.exitFullscreen().catch(() => {});
-    }
-  };
-
-  const togglePause = () => {
-    setIsPaused((prev) => {
-      const next = !prev;
-      setShowOverlay(next ? "pause" : "play");
-      clearTimeout(overlayTimer.current);
-      overlayTimer.current = setTimeout(() => setShowOverlay(null), 800);
-      return next;
-    });
-    refreshControls();
-  };
 
   const transitionVariants = useMemo(() => {
     if (transitionType === "slide") {
@@ -300,13 +408,20 @@ export const SlideshowPlayer: React.FC = () => {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      <div className="absolute inset-0 overflow-hidden">
-        <img
-          src={currentImage.previewUrl || currentImage.imageUrl}
-          className="w-full h-full object-cover scale-125 blur-[80px] opacity-30"
-          alt=""
-        />
-        <div className="absolute inset-0 bg-black/60" />
+      {/* Cinematic HUD Hide Layer */}
+      <div
+        className={`absolute inset-0 transition-opacity duration-1000 ${
+          slideshowHudVisible ? "opacity-100" : "opacity-0"
+        }`}
+      >
+        <div className="absolute inset-0 overflow-hidden">
+          <img
+            src={currentImage.previewUrl || currentImage.imageUrl}
+            className="w-full h-full object-cover scale-125 blur-[120px] opacity-30"
+            alt=""
+          />
+          <div className="absolute inset-0 bg-black/60" />
+        </div>
       </div>
 
       <div className="absolute inset-0 flex items-center justify-center p-6">
@@ -347,15 +462,19 @@ export const SlideshowPlayer: React.FC = () => {
                   exit={{ opacity: 0, scale: 1.5 }}
                   className="absolute inset-0 flex items-center justify-center pointer-events-none z-50"
                 >
-                  <div className="w-24 h-24 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 flex items-center justify-center">
-                    {showOverlay === "pause" ? (
+                  <div className="w-24 h-24 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white">
+                    {showOverlay === "pause" && (
                       <div className="flex gap-2">
                         <div className="w-3 h-8 bg-white rounded-full" />
                         <div className="w-3 h-8 bg-white rounded-full" />
                       </div>
-                    ) : (
+                    )}
+                    {showOverlay === "play" && (
                       <div className="w-0 h-0 border-t-[15px] border-t-transparent border-l-[25px] border-l-white border-b-[15px] border-b-transparent ml-2" />
                     )}
+                    {showOverlay === "shuffle" && <Shuffle size={40} className={slideshowShuffle ? "text-purple-400" : "text-white"} />}
+                    {showOverlay === "repeat" && <Repeat size={40} className={slideshowRepeat ? "text-purple-400" : "text-white"} />}
+                    {showOverlay === "random" && <Dices size={40} className={slideshowRandom ? "text-purple-400" : "text-white"} />}
                   </div>
                 </motion.div>
               )}
@@ -364,113 +483,200 @@ export const SlideshowPlayer: React.FC = () => {
         </AnimatePresence>
       </div>
 
-      <div
-        className={`absolute inset-x-0 bottom-0 p-6 bg-linear-to-t from-black/90 to-transparent transition-opacity duration-300 ${
-          showControls ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
-      >
-        <div className="max-w-5xl mx-auto space-y-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-white/60">
-            <div className="space-y-1">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-purple-300/80">
-                {activeShow ? activeShow.name : "Slideshow"} · {sourceLabel}
-              </p>
-              <h2 className="text-sm sm:text-base font-black text-white truncate">
-                {currentTitle}
-              </h2>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[10px] uppercase tracking-[0.24em] text-white/70">
-                <Sparkles size={12} /> {isPaused ? "Paused" : "Playing"}
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[10px] uppercase tracking-[0.24em] text-white/70">
-                <Monitor size={12} /> {(speed / 1000).toFixed(1)}s
-              </span>
-            </div>
-          </div>
+      <AnimatePresence>
+        {slideshowHudVisible && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="absolute inset-x-0 bottom-0 p-6 bg-linear-to-t from-black/90 to-transparent z-50"
+          >
+            <div className="max-w-5xl mx-auto space-y-4">
+              {showMetadata && (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-white/60">
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-purple-300/80 flex items-center gap-2">
+                      <Globe size={10} /> {sourceLabel} · {slideshowIndex + 1} / {slideshowImages.length}
+                    </p>
+                    <h2 className="text-sm sm:text-base font-black text-white truncate max-w-md">
+                      {currentTitle}
+                    </h2>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {currentImage.tags?.slice(0, 5).map((tag) => (
+                        <span key={tag} className="text-[8px] uppercase tracking-widest bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[10px] uppercase tracking-[0.24em] text-white/70">
+                      <Sparkles size={12} /> {isPaused ? "Paused" : "Playing"}
+                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[10px] uppercase tracking-[0.24em] text-white/70">
+                      <Monitor size={12} /> {(effectiveInterval / 1000).toFixed(1)}s
+                    </span>
+                  </div>
+                </div>
+              )}
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              <button
-                onClick={() => prevSlide()}
-                className="rounded-2xl bg-white/10 px-4 py-3 text-white/70 hover:bg-white/15 transition"
-              >
-                <ArrowLeft size={18} /> Previous
-              </button>
-              <button
-                onClick={togglePause}
-                className="rounded-2xl bg-purple-600 px-4 py-3 text-white font-black uppercase tracking-[0.12em] transition hover:bg-purple-500 active:scale-95"
-              >
-                {isPaused ? "Resume" : "Pause"}
-              </button>
-              <button
-                onClick={() => nextSlide()}
-                className="rounded-2xl bg-white/10 px-4 py-3 text-white/70 hover:bg-white/15 transition"
-              >
-                Next <ArrowRight size={18} />
-              </button>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => prevSlide()}
+                    className="rounded-2xl bg-white/10 p-4 text-white/70 hover:bg-white/15 transition active:scale-95"
+                    title="Previous"
+                  >
+                    <ArrowLeft size={20} />
+                  </button>
+                  <button
+                    onClick={togglePause}
+                    className="rounded-2xl bg-purple-600 px-8 py-4 text-white font-black uppercase tracking-[0.12em] transition hover:bg-purple-500 active:scale-95 shadow-lg shadow-purple-500/20"
+                  >
+                    {isPaused ? "Resume" : "Pause"}
+                  </button>
+                  <button
+                    onClick={() => nextSlide()}
+                    className="rounded-2xl bg-white/10 p-4 text-white/70 hover:bg-white/15 transition active:scale-95"
+                    title="Next"
+                  >
+                    <ArrowRight size={20} />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={toggleShuffle}
+                    className={`p-3 rounded-xl transition ${slideshowShuffle ? "bg-purple-500 text-white" : "bg-white/5 text-white/40 hover:text-white"}`}
+                    title="Shuffle"
+                  >
+                    <Shuffle size={18} />
+                  </button>
+                  <button
+                    onClick={toggleRepeat}
+                    className={`p-3 rounded-xl transition ${slideshowRepeat ? "bg-purple-500 text-white" : "bg-white/5 text-white/40 hover:text-white"}`}
+                    title="Repeat"
+                  >
+                    <Repeat size={18} />
+                  </button>
+                  <button
+                    onClick={toggleRandom}
+                    className={`p-3 rounded-xl transition ${slideshowRandom ? "bg-purple-500 text-white" : "bg-white/5 text-white/40 hover:text-white"}`}
+                    title="Random"
+                  >
+                    <Dices size={18} />
+                  </button>
+                  <div className="w-[1px] h-6 bg-white/10 mx-1" />
+                  <button
+                    onClick={() => setShowQueue(!showQueue)}
+                    className={`p-3 rounded-xl transition ${showQueue ? "bg-purple-500 text-white" : "bg-white/5 text-white/40 hover:text-white"}`}
+                    title="Queue Preview"
+                  >
+                    <LayoutList size={18} />
+                  </button>
+                  <button
+                    onClick={() => setShowMetadata(!showMetadata)}
+                    className={`p-3 rounded-xl transition ${showMetadata ? "bg-purple-500 text-white" : "bg-white/5 text-white/40 hover:text-white"}`}
+                    title="Toggle Metadata"
+                  >
+                    <Info size={18} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
+                  <motion.div
+                    className="h-full bg-purple-500"
+                    initial={false}
+                    animate={{ width: `${((slideshowIndex + 1) / slideshowImages.length) * 100}%` }}
+                  />
+                </div>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => changeSpeed(-500)}
+                    className="text-[10px] font-black uppercase tracking-widest text-white/30 hover:text-white transition"
+                  >
+                    Slower
+                  </button>
+                  <button
+                    onClick={() => changeSpeed(500)}
+                    className="text-[10px] font-black uppercase tracking-widest text-white/30 hover:text-white transition"
+                  >
+                    Faster
+                  </button>
+                </div>
+              </div>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-            <div className="grid grid-cols-2 gap-2 sm:w-auto">
-              <button
-                onClick={() => changeSpeed(-500)}
-                className="rounded-2xl bg-white/10 px-4 py-3 text-white/70 hover:bg-white/15 transition"
-              >
-                - Speed
-              </button>
-              <button
-                onClick={() => changeSpeed(500)}
-                className="rounded-2xl bg-white/10 px-4 py-3 text-white/70 hover:bg-white/15 transition"
-              >
-                + Speed
-              </button>
+      {/* Queue Sidebar */}
+      <AnimatePresence>
+        {showQueue && slideshowHudVisible && (
+          <motion.div
+            initial={{ opacity: 0, x: 300 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 300 }}
+            className="absolute top-0 right-0 bottom-0 w-80 bg-black/80 backdrop-blur-3xl border-l border-white/10 z-[60] p-6 flex flex-col"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white/40">Upcoming Vision</h3>
+              <button onClick={() => setShowQueue(false)} className="text-white/40 hover:text-white"><X size={16} /></button>
             </div>
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-3">
-            {(["fade", "slide", "none"] as const).map((type) => (
-              <button
-                key={type}
-                onClick={() => toggleTransition(type)}
-                className={`rounded-2xl px-4 py-3 text-[10px] uppercase tracking-[0.24em] transition ${
-                  slideshowTransition === type
-                    ? "bg-purple-500 text-white"
-                    : "bg-white/5 text-white/70 hover:bg-white/10"
-                }`}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.24em] text-white/50">
-            <span>
-              {slideshowIndex + 1} / {slideshowImages.length}
-            </span>
-            <span>{sourceLabel}</span>
-          </div>
-        </div>
-      </div>
+            <div className="flex-1 overflow-y-auto no-scrollbar space-y-4">
+              {slideshowImages.slice(slideshowIndex + 1, slideshowIndex + 11).map((img, i) => (
+                <div 
+                  key={`${img.id}-${i}`} 
+                  className="flex gap-4 items-center group cursor-pointer" 
+                  onClick={() => setSlideshowIndex(slideshowIndex + 1 + i)}
+                >
+                  <div className="w-20 h-20 rounded-xl overflow-hidden bg-white/5 shrink-0 border border-white/5">
+                    <img src={img.previewUrl || img.imageUrl} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition" alt="" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black text-white truncate">{img.tags?.[0] || "Untitled"}</p>
+                    <p className="text-[8px] uppercase tracking-widest text-white/20 mt-1">{img.source}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <button
         type="button"
         onClick={toggleFullscreen}
         className={`absolute top-6 left-6 z-50 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white/70 transition ${
-          showControls ? "opacity-100" : "opacity-0 pointer-events-none"
+          slideshowHudVisible ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
       >
-        <Settings size={16} className="inline-block mr-2" />
-        {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+        <Monitor size={16} className="inline-block mr-2" />
+        {isFullscreen ? "Exit" : "Fullscreen"}
       </button>
 
-      <button
-        onClick={stopSlideshow}
-        className={`absolute top-6 right-6 z-50 rounded-2xl bg-white/5 p-3 text-white/70 hover:bg-white/10 transition ${
-          showControls ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
-      >
-        <X size={20} />
-      </button>
+      <div className="absolute top-6 right-6 z-50 flex gap-2">
+        <button
+          onClick={() => setSlideshowHudVisible(!slideshowHudVisible)}
+          className={`rounded-2xl bg-white/5 p-3 text-white/70 hover:bg-white/10 transition ${
+            slideshowHudVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
+          title={slideshowHudVisible ? "Hide HUD" : "Show HUD"}
+        >
+          {slideshowHudVisible ? <EyeOff size={20} /> : <Eye size={20} />}
+        </button>
+        <button
+          onClick={stopSlideshow}
+          className={`rounded-2xl bg-white/5 p-3 text-white/70 hover:bg-white/10 transition ${
+            slideshowHudVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
+        >
+          <X size={20} />
+        </button>
+      </div>
     </motion.div>
+
   );
 };

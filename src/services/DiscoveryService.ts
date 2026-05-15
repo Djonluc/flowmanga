@@ -342,6 +342,7 @@ export class DiscoveryService {
     tags: string[],
     limit: number = 48,
     coloredOnly: boolean = false,
+    page: number = 1,
     category?: ProviderCategory,
   ): Promise<SourceSearchResult[]> {
     const providers = this.getProvidersByCategory(category);
@@ -350,22 +351,12 @@ export class DiscoveryService {
     const tasks = providers.map(async (p) => {
       if (!p.searchByTags) return [];
       try {
-        // Search multiple pages for better results
-        const pagePromises = [];
-        for (let page = 1; page <= 3; page++) {
-          // Search up to 3 pages per provider
-          pagePromises.push(
-            this.withTimeout(
-              p.searchByTags(tags, page, Math.min(limit, 50)),
-              this.DEFAULT_TIMEOUT,
-              [],
-            ),
-          );
-        }
-        const pageResults = await Promise.allSettled(pagePromises);
-        const combined = pageResults
-          .map((r) => (r.status === "fulfilled" ? r.value : []))
-          .flat();
+        const result = await this.withTimeout(
+          p.searchByTags(tags, page, Math.min(limit, 50)),
+          this.DEFAULT_TIMEOUT,
+          [],
+        );
+        const combined = result;
 
         console.log(
           `[DiscoveryService] Provider '${p.name}' returned ${combined.length} results for tags: ${tags.join(", ")}`,

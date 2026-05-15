@@ -195,6 +195,11 @@ export interface SourceSearchResult {
   width?: number;
   height?: number;
   tags?: string[];
+  generalTags?: string[];
+  characterTags?: string[];
+  copyrightTags?: string[];
+  artistTags?: string[];
+  metaTags?: string[];
   rating?: string;
   popularity?: number;
   createdAt?: string;
