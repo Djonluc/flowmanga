@@ -127,7 +127,13 @@ export const TagSearch: React.FC = () => {
   const removeTag = useCallback(
     (tag: string) => {
       const next = activeTags.filter((t) => t !== tag);
-      if (next.length > 0) searchByTags(next.join(" "));
+      if (next.length > 0) {
+        searchByTags(next.join(" "));
+      } else {
+        // Clear search when no tags are left
+        useGalleryStore.getState().setSearchQuery("");
+        useGalleryStore.setState({ searchResults: [], currentSearchPage: 1 });
+      }
     },
     [activeTags, searchByTags],
   );
@@ -194,7 +200,12 @@ export const TagSearch: React.FC = () => {
               >
                 {tag}
                 <button
-                  onClick={() => removeTag(tag)}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    removeTag(tag);
+                  }}
                   className="hover:text-white"
                 >
                   <X size={10} />

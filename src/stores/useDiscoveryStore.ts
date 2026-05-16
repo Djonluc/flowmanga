@@ -24,7 +24,11 @@ interface DiscoveryState {
   // UI State
   query: string;
   currentSearchPage: number;
+  currentLatestPage: number;
+  currentRandomPage: number;
   hasMoreSearchResults: boolean;
+  hasMoreLatest: boolean;
+  hasMoreRandom: boolean;
   isSearching: boolean;
   isLoadingTrending: boolean;
   isLoadingLatest: boolean;
@@ -35,8 +39,10 @@ interface DiscoveryState {
   // Actions
   search: (query: string, page?: number) => Promise<void>;
   loadMoreSearchResults: () => Promise<void>;
+  loadMoreLatest: () => Promise<void>;
+  loadMoreRandom: () => Promise<void>;
   fetchTrending: (force?: boolean) => Promise<void>;
-  fetchLatest: (force?: boolean) => Promise<void>;
+  fetchLatest: (force?: boolean, page?: number) => Promise<void>;
   fetchRandom: (force?: boolean) => Promise<void>;
   forceRefresh: () => Promise<void>;
   setQuery: (query: string) => void;
@@ -51,7 +57,11 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
   random: [],
   query: "",
   currentSearchPage: 1,
+  currentLatestPage: 1,
+  currentRandomPage: 1,
   hasMoreSearchResults: true,
+  hasMoreLatest: true,
+  hasMoreRandom: true,
   isSearching: false,
   isLoadingTrending: false,
   isLoadingLatest: false,
@@ -68,7 +78,11 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
       results: [],
       query: "",
       currentSearchPage: 1,
+      currentLatestPage: 1,
+      currentRandomPage: 1,
       hasMoreSearchResults: true,
+      hasMoreLatest: true,
+      hasMoreRandom: true,
       error: null,
     }),
 
@@ -100,7 +114,7 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
           isSearching: false,
           query,
           currentSearchPage: page,
-          hasMoreSearchResults: results.length >= 48,
+          hasMoreSearchResults: results.length > 0 && page < 20, // Allow up to 20 pages if results are still coming in
         };
       });
     } catch (err) {
@@ -123,6 +137,18 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
     }
 
     await get().search(state.query, state.currentSearchPage + 1);
+  },
+
+  loadMoreLatest: async () => {
+    const state = get();
+    if (state.isLoadingLatest || !state.hasMoreLatest) return;
+    await get().fetchLatest(true, state.currentLatestPage + 1);
+  },
+
+  loadMoreRandom: async () => {
+    const state = get();
+    if (state.isLoadingRandom) return;
+    await get().fetchRandom(true);
   },
 
   fetchTrending: async (force = false) => {
@@ -164,7 +190,7 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
     }
   },
 
-  fetchLatest: async (force = false) => {
+  fetchLatest: async (force = false, page = 1) => {
     const { coloredOnly } = useSettingsStore.getState();
     const currentIsColored =
       get().latest.length > 0 &&
@@ -182,7 +208,7 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
         );
       });
 
-    if (!force && get().latest.length > 0 && currentIsColored === coloredOnly)
+    if (!force && page === 1 && get().latest.length > 0 && currentIsColored === coloredOnly)
       return;
 
     set({ isLoadingLatest: true, error: null });
@@ -191,14 +217,20 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
         get().activeType === "gallery"
           ? "image"
           : "manga";
-      const latest = await DiscoveryService.getLatest(
+      const results = await DiscoveryService.getLatest(
         24,
         coloredOnly,
         category,
+        page
       );
-      set({ latest, isLoadingLatest: false });
+      set((state) => ({ 
+        latest: page === 1 ? results : [...state.latest, ...results],
+        isLoadingLatest: false,
+        currentLatestPage: page,
+        hasMoreLatest: results.length > 0
+      }));
     } catch (err) {
-      console.error("[DiscoveryStore] Failed to fetch latest:", err);
+      console.error("[DiscoveryStore] Fetch latest failed:", err);
       set({ isLoadingLatest: false });
     }
   },
@@ -213,14 +245,17 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
         get().activeType === "gallery"
           ? "image"
           : "manga";
-      const random = await DiscoveryService.getRandom(
+      const results = await DiscoveryService.getRandom(
         24,
         coloredOnly,
-        category,
+        category
       );
-      set({ random, isLoadingRandom: false });
+      set((state) => ({ 
+        random: force ? [...state.random, ...results] : results,
+        isLoadingRandom: false 
+      }));
     } catch (err) {
-      console.error("[DiscoveryStore] Failed to fetch random:", err);
+      console.error("[DiscoveryStore] Fetch random failed:", err);
       set({ isLoadingRandom: false });
     }
   },

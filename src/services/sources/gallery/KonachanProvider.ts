@@ -32,6 +32,7 @@ export class KonachanProvider implements SourceProvider {
     chapterFeed: false,
     pagination: true,
     authentication: true,
+    authUrl: "https://konachan.com/user/edit",
   };
 
   private readonly baseUrl = "https://konachan.com";

@@ -79,7 +79,7 @@ export const Sidebar = () => {
     };
 
     loadRecentHistory();
-    const interval = setInterval(loadRecentHistory, 10000);
+    const interval = setInterval(loadRecentHistory, 60000); // Reduced from 10s to 60s
     return () => clearInterval(interval);
   }, []);
 

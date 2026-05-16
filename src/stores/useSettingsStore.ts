@@ -361,7 +361,13 @@ export const useSettingsStore = create<SettingsState>()(
 
       // Content Filtering
       showAdultContent: false,
-      setShowAdultContent: (show) => set({ showAdultContent: show }),
+      setShowAdultContent: (show) => {
+        set({ showAdultContent: show });
+        // Invalidate all discovery caches to prevent stale NSFW content leakage
+        import("../services/DiscoveryService").then(({ DiscoveryService }) => {
+          DiscoveryService.clearAllCache();
+        });
+      },
       excludedTags: [
         'bestiality',
         'scat',

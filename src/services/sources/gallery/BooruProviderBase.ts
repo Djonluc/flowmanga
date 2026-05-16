@@ -75,9 +75,23 @@ export async function booruGet(
     }
   });
 
-  if (auth?.apiKey && auth?.userId) {
-    url.searchParams.set("api_key", auth.apiKey);
-    url.searchParams.set("user_id", auth.userId);
+  if (auth) {
+    const isDanbooru = url.toString().includes("danbooru");
+    const idKey = isDanbooru ? "login" : "user_id";
+    
+    // Sanitize inputs: if the user pasted a full query string like "&api_key=...&user_id=...", extract the values
+    const sanitize = (val: string) => {
+      if (!val) return val;
+      // Extract from &key=value or ?key=value
+      const match = val.match(/(?:^|[?&])(?:api_key|user_id|login)=([^&]+)/);
+      return match ? match[1] : val;
+    };
+
+    const cleanApiKey = sanitize(auth.apiKey || "");
+    const cleanUserId = sanitize(auth.userId || "");
+
+    if (cleanApiKey) url.searchParams.set("api_key", cleanApiKey);
+    if (cleanUserId) url.searchParams.set(idKey, cleanUserId);
   }
 
   try {
@@ -92,6 +106,9 @@ export async function booruGet(
 
     return response ?? [];
   } catch (error) {
+    if (error && String(error).includes("401")) {
+      console.warn(`[BooruProviderBase] ${url.hostname} requires authentication. Please check your User ID and API Key in Settings > Sources.`);
+    }
     console.error(
       `[BooruProviderBase] API Error for ${url.toString()}:`,
       error,
@@ -287,7 +304,9 @@ export function mapBooruPosts(
           asString(item.large_file_url) ||
           asString(item.jpeg_url) ||
           asString(item.preview_url),
-        ),
+        ) &&
+        // Filter out video files as they are not supported in the image viewer yet
+        !asString(item.file_url || "").match(/\.(mp4|webm|mov)$/i),
     )
     .map((item) => normalizeBooruPost(item, source, baseUrl));
 }

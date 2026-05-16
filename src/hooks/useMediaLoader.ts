@@ -1,8 +1,25 @@
 import { useRef, useCallback } from 'react';
 import { ReliabilityTracker } from '../services/DiscoveryService';
 
+const MAX_CACHE_SIZE = 50;
+
 export const useMediaLoader = () => {
   const highResCache = useRef<Map<string, HTMLImageElement>>(new Map());
+
+  const evictOldest = useCallback(() => {
+    const cache = highResCache.current;
+    if (cache.size <= MAX_CACHE_SIZE) return;
+    const excess = cache.size - MAX_CACHE_SIZE;
+    const keys = cache.keys();
+    for (let i = 0; i < excess; i++) {
+      const oldest = keys.next().value;
+      if (oldest) {
+        const img = cache.get(oldest);
+        if (img) img.src = ""; // Release decoded image memory
+        cache.delete(oldest);
+      }
+    }
+  }, []);
 
   const preloadHighResImage = useCallback(
     async (urls: string[], sourceName: string): Promise<HTMLImageElement | null> => {
@@ -26,6 +43,7 @@ export const useMediaLoader = () => {
 
           const url = urls[index];
           const img = new Image();
+          img.referrerPolicy = "no-referrer";
 
           const cleanup = () => {
             img.onload = null;
@@ -48,8 +66,9 @@ export const useMediaLoader = () => {
               attemptLoad(index + 1);
               return;
             }
-            // Cache successful loads
+            // Cache successful loads with LRU eviction
             highResCache.current.set(url, img);
+            evictOldest();
             ReliabilityTracker.report(sourceName, 'success');
             resolveOnce(img);
           };
@@ -80,7 +99,7 @@ export const useMediaLoader = () => {
         attemptLoad(0);
       });
     },
-    []
+    [evictOldest]
   );
 
   return { preloadHighResImage, highResCache: highResCache.current };

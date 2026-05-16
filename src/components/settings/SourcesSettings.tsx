@@ -5,7 +5,16 @@ import { useSettingsStore } from '../../stores/useSettingsStore';
 import { sourceRegistry } from '../../services/sources/registry';
 
 export const SourcesSettings = () => {
-    const { showAdultContent, setShowAdultContent, excludedTags, setExcludedTags, coloredOnly, toggleColoredOnly } = useSettingsStore();
+    const { 
+        showAdultContent, 
+        setShowAdultContent, 
+        excludedTags, 
+        setExcludedTags, 
+        coloredOnly, 
+        toggleColoredOnly,
+        booruAuth,
+        setBooruAuth
+    } = useSettingsStore();
     const [tagInput, setTagInput] = useState(excludedTags?.join(', ') || '');
     
     const providers = sourceRegistry.list();
@@ -155,6 +164,77 @@ export const SourcesSettings = () => {
                     Metadata and discovery are powered by the MangaDex API and registered source providers. Sources are validated at registration time to ensure stability.
                     </p>
                 </div>
+            </div>
+
+            {/* Source Authentication */}
+            <div className="space-y-4 pt-4 border-t border-white/5">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="w-1.5 h-6 bg-amber-600 rounded-full" />
+                    <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
+                        Source Authentication
+                    </h4>
+                </div>
+
+                {providers.filter(p => p.capabilities.authentication).map(p => (
+                    <div key={`auth-${p.id}`} className="group bg-white/5 p-6 rounded-[32px] border border-white/5 flex flex-col gap-6 hover:border-amber-500/20 transition-all duration-500">
+                        <div className="flex items-center gap-5">
+                            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+                                <ShieldCheck size={28} />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-amber-500 text-[10px] font-black uppercase tracking-widest mb-1">Secure Protocol</span>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-foreground text-base font-bold tracking-tight">{p.name} API Access</span>
+                                    <button 
+                                        onClick={() => handleOpenSite(p.capabilities.authUrl || `https://${p.domains[0]}`)}
+                                        className="text-[10px] font-black text-blue-500 hover:text-blue-400 uppercase tracking-widest bg-blue-500/10 px-2 py-0.5 rounded-md flex items-center gap-1 group/link"
+                                    >
+                                        Get API Key
+                                        <ExternalLink size={10} className="group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-transform" />
+                                    </button>
+                                </div>
+                                <p className="text-foreground-muted text-[10px] font-medium mt-1">
+                                    Gelbooru and other DAPI sources now require mandatory authentication. Enter your User ID and API Key from your account settings.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-foreground/40 uppercase tracking-widest ml-2">User ID</label>
+                                <input
+                                    type="text"
+                                    value={booruAuth?.[p.id]?.userId || ''}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setBooruAuth(p.id, {
+                                            ...booruAuth?.[p.id],
+                                            userId: val
+                                        });
+                                    }}
+                                    placeholder="Enter User ID"
+                                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-amber-500/50 transition-colors"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-foreground/40 uppercase tracking-widest ml-2">API Key</label>
+                                <input
+                                    type="password"
+                                    value={booruAuth?.[p.id]?.apiKey || ''}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setBooruAuth(p.id, {
+                                            ...booruAuth?.[p.id],
+                                            apiKey: val
+                                        });
+                                    }}
+                                    placeholder="Enter API Key"
+                                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-amber-500/50 transition-colors"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                ))}
             </div>
 
             {/* Content Filtering */}

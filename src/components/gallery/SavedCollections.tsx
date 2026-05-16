@@ -9,6 +9,8 @@ import { Flame, Compass, Sparkles, FolderOpen, Film, Search, Tag, Plus, Trash2, 
 import { motion } from "framer-motion";
 import { useGalleryStore } from "../../stores/useGalleryStore";
 import { useModalStore } from "../../stores/useModalStore";
+import { useSettingsStore } from "../../stores/useSettingsStore";
+import { ContentFilter } from "../../services/ContentFilter";
 import { GalleryImageCard } from "./GalleryImageCard";
 import { toast } from "../Toast";
 
@@ -17,6 +19,7 @@ const GALLERY_SOURCES = new Set([
   "danbooru",
   "konachan",
   "yandere",
+  "gelbooru",
 ]);
 
 export const SavedCollections: React.FC = () => {
@@ -38,19 +41,26 @@ export const SavedCollections: React.FC = () => {
     updateUserSmartCollection,
     openViewer,
   } = useGalleryStore();
+  const { showAdultContent } = useSettingsStore();
   const { openInputModal } = useModalStore();
 
-  const [selectedSmartCollection, setSelectedSmartCollection] = React.useState<SmartCollection | null>(null);
+  const [selectedSmartCollection, setSelectedSmartCollection] = React.useState<any | null>(null);
 
   React.useEffect(() => {
     useGalleryStore.getState().loadUserSmartCollections();
   }, []);
 
+  // Re-generate smart collections when adult content filter changes
+  React.useEffect(() => {
+    useGalleryStore.getState().generateSmartCollections();
+  }, [showAdultContent]);
+
   const gallerySavedImages = savedImages.filter(
     (image) =>
-      image.contentType === "gallery" ||
+      (image.contentType === "gallery" ||
       image.contentType === "album" ||
-      GALLERY_SOURCES.has(image.source),
+      GALLERY_SOURCES.has(image.source)) &&
+      (showAdultContent || !ContentFilter.isAdult(image)),
   );
 
   const likedImages = gallerySavedImages.filter((i) => i.liked);

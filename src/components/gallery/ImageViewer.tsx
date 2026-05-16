@@ -42,6 +42,9 @@ export const ImageViewer: React.FC = () => {
     unlikeImage,
     searchByTags,
     setActiveTab,
+    favoriteTags,
+    favoriteTag,
+    unfavoriteTag,
     isHudPinned,
     toggleHudPin,
     downloadPath,
@@ -413,10 +416,12 @@ export const ImageViewer: React.FC = () => {
   }, []);
 
   const handleTagClick = useCallback(
-    (tag: string) => {
+    (tag: string, category?: string) => {
       closeViewer();
       setActiveTab("search");
-      searchByTags(tag);
+      // Use category prefix if available for more precise booru searching
+      const query = category === "artist" ? `artist:${tag}` : tag;
+      searchByTags(query);
     },
     [closeViewer, setActiveTab, searchByTags],
   );
@@ -431,6 +436,11 @@ export const ImageViewer: React.FC = () => {
     url?: string;
     source?: string;
     tags?: string[];
+    artistTags?: string[];
+    characterTags?: string[];
+    copyrightTags?: string[];
+    generalTags?: string[];
+    metaTags?: string[];
   } | null;
 
   const rawImageUrl = typedImage
@@ -446,6 +456,36 @@ export const ImageViewer: React.FC = () => {
   const tags: string[] =
     typedImage && "tags" in typedImage && Array.isArray(typedImage.tags)
       ? typedImage.tags
+      : [];
+  const artistTags =
+    typedImage &&
+    "artistTags" in typedImage &&
+    Array.isArray(typedImage.artistTags)
+      ? typedImage.artistTags
+      : [];
+  const characterTags =
+    typedImage &&
+    "characterTags" in typedImage &&
+    Array.isArray(typedImage.characterTags)
+      ? typedImage.characterTags
+      : [];
+  const copyrightTags =
+    typedImage &&
+    "copyrightTags" in typedImage &&
+    Array.isArray(typedImage.copyrightTags)
+      ? typedImage.copyrightTags
+      : [];
+  const generalTags =
+    typedImage &&
+    "generalTags" in typedImage &&
+    Array.isArray(typedImage.generalTags)
+      ? typedImage.generalTags
+      : [];
+  const metaTags =
+    typedImage &&
+    "metaTags" in typedImage &&
+    Array.isArray(typedImage.metaTags)
+      ? typedImage.metaTags
       : [];
   const title = typedImage
     ? "title" in typedImage
@@ -855,25 +895,138 @@ export const ImageViewer: React.FC = () => {
                       </p>
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      {(showAllTags ? tags : tags.slice(0, 12)).map((tag) => (
-                        <button
-                          key={tag}
-                          onClick={() => handleTagClick(tag)}
-                          className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-purple-500/20 text-white/60 hover:text-purple-400 text-[10px] font-bold uppercase tracking-wider transition-all border border-white/5"
-                        >
-                          {tag}
-                        </button>
-                      ))}
-                      {tags.length > 12 && (
-                        <button
-                          onClick={() => setShowAllTags(!showAllTags)}
-                          className="px-3 py-1.5 rounded-xl bg-purple-500/10 text-purple-400 text-[10px] font-black uppercase tracking-widest hover:bg-purple-500/20 transition-all border border-purple-500/10"
-                        >
-                          {showAllTags
-                            ? "Show Less"
-                            : `+${tags.length - 12} More`}
-                        </button>
+                    <div className="space-y-6">
+                      {artistTags.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-[9px] font-black uppercase tracking-[0.2em] text-pink-500/60">
+                            Artists
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {artistTags.map((tag) => (
+                              <button
+                                key={tag}
+                                onClick={() => handleTagClick(tag, "artist")}
+                                className="px-3 py-1.5 rounded-xl bg-pink-500/5 hover:bg-pink-500/20 text-pink-400 hover:text-pink-300 text-[10px] font-bold uppercase tracking-wider transition-all border border-pink-500/10"
+                              >
+                                {tag}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {characterTags.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-[9px] font-black uppercase tracking-[0.2em] text-green-500/60">
+                            Characters
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {characterTags.map((tag) => (
+                              <button
+                                key={tag}
+                                onClick={() => handleTagClick(tag)}
+                                className="px-3 py-1.5 rounded-xl bg-green-500/5 hover:bg-green-500/20 text-green-400 hover:text-green-300 text-[10px] font-bold uppercase tracking-wider transition-all border border-green-500/10"
+                              >
+                                {tag}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {copyrightTags.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-500/60">
+                            Series / Copyright
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {copyrightTags.map((tag) => (
+                              <button
+                                key={tag}
+                                onClick={() => handleTagClick(tag)}
+                                className="px-3 py-1.5 rounded-xl bg-blue-500/5 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 text-[10px] font-bold uppercase tracking-wider transition-all border border-blue-500/10"
+                              >
+                                {tag}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {(generalTags.length > 0 || tags.length > 0) && (
+                        <div className="space-y-3">
+                          <h4 className="text-[9px] font-black uppercase tracking-[0.2em] text-white/20">
+                            Tags
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {(showAllTags
+                              ? generalTags.length > 0
+                                ? generalTags
+                                : tags
+                              : (generalTags.length > 0
+                                  ? generalTags
+                                  : tags
+                                ).slice(0, 24)
+                            ).map((tag) => {
+                              const isFavorited = favoriteTags.includes(
+                                tag.toLowerCase().trim(),
+                              );
+                              return (
+                                <div
+                                  key={tag}
+                                  className="group/tag flex items-center gap-1"
+                                >
+                                  <button
+                                    onClick={() => handleTagClick(tag)}
+                                    className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-purple-500/20 text-white/60 hover:text-purple-400 text-[10px] font-bold uppercase tracking-wider transition-all border border-white/5"
+                                  >
+                                    {tag}
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (isFavorited)
+                                        unfavoriteTag(tag.toLowerCase().trim());
+                                      else
+                                        favoriteTag(tag.toLowerCase().trim());
+                                    }}
+                                    className={`p-1.5 rounded-lg transition-all ${
+                                      isFavorited
+                                        ? "bg-pink-500/20 text-pink-500 opacity-100"
+                                        : "opacity-0 group-hover/tag:opacity-100 text-white/20 hover:text-pink-400"
+                                    }`}
+                                    title={
+                                      isFavorited ? "Unfollow Tag" : "Follow Tag"
+                                    }
+                                  >
+                                    <Heart
+                                      size={10}
+                                      fill={
+                                        isFavorited ? "currentColor" : "none"
+                                      }
+                                    />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                            {(generalTags.length > 24 ||
+                              (generalTags.length === 0 && tags.length > 24)) && (
+                              <button
+                                onClick={() => setShowAllTags(!showAllTags)}
+                                className="px-3 py-1.5 rounded-xl bg-purple-500/10 text-purple-400 text-[10px] font-black uppercase tracking-widest hover:bg-purple-500/20 transition-all border border-purple-500/10"
+                              >
+                                {showAllTags
+                                  ? "Show Less"
+                                  : `+${
+                                      (generalTags.length > 0
+                                        ? generalTags
+                                        : tags
+                                      ).length - 24
+                                    } More`}
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
 

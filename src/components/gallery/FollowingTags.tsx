@@ -7,6 +7,7 @@
 import React from 'react';
 import { Tag, Trash2, Search, ArrowRight } from 'lucide-react';
 import { useGalleryStore } from '../../stores/useGalleryStore';
+import { useModalStore } from '../../stores/useModalStore';
 
 export const FollowingTags: React.FC = () => {
   const { 
@@ -21,14 +22,36 @@ export const FollowingTags: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-2xl bg-pink-500/10 flex items-center justify-center text-pink-500">
-          <Tag size={20} />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-pink-500/10 flex items-center justify-center text-pink-500">
+            <Tag size={20} />
+          </div>
+          <div>
+            <h3 className="text-xl font-black text-foreground uppercase tracking-tighter italic">Following Tags</h3>
+            <p className="text-foreground-dim text-[10px] font-black uppercase tracking-widest mt-0.5">Your curated visual streams</p>
+          </div>
         </div>
-        <div>
-          <h3 className="text-xl font-black text-foreground uppercase tracking-tighter italic">Following Tags</h3>
-          <p className="text-foreground-dim text-[10px] font-black uppercase tracking-widest mt-0.5">Your curated visual streams</p>
-        </div>
+        
+        <button
+          onClick={() => {
+            const { openInputModal } = useModalStore.getState();
+            openInputModal({
+              title: "Follow New Tag",
+              placeholder: "Enter tag name...",
+              description: "This tag will be added to your followed list for quick access.",
+              onSubmit: (tag) => {
+                if (tag.trim()) {
+                  useGalleryStore.getState().favoriteTag(tag.trim().toLowerCase());
+                }
+              }
+            });
+          }}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-pink-500/10 hover:bg-pink-500/20 text-pink-500 text-[10px] font-black uppercase tracking-widest transition-all border border-pink-500/20"
+        >
+          <Tag size={12} />
+          Follow Tag
+        </button>
       </div>
 
       {favoriteTags.length > 0 ? (

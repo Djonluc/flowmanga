@@ -7,6 +7,8 @@
 import { create } from "zustand";
 import { getDb } from "../services/db";
 import { toast } from "../components/Toast";
+import { useSettingsStore } from "./useSettingsStore";
+import { ContentFilter } from "../services/ContentFilter";
 import { DiscoveryService } from "../services/DiscoveryService";
 import type {
   SourceSearchResult,
@@ -14,6 +16,12 @@ import type {
   ContentType,
 } from "../services/sources/types";
 import type { SourceProvider } from "../services/sources/types";
+
+// Module-level timers and controllers for request management
+let _suggestionDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let _searchAbortController: AbortController | null = null;
+let _discoveryAbortController: AbortController | null = null;
+let _suggestionAbortController: AbortController | null = null;
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -211,6 +219,8 @@ interface GalleryState {
   setSearchQuery: (query: string) => void;
   setDownloadPath: (path: string) => void;
   setContentFilter: (filter: "sfw" | "all") => void;
+  cancelDiscovery: () => void;
+  fetchAllDiscovery: () => Promise<void>;
   toggleHudPin: () => void;
 
   // Actions — Data Loading
@@ -233,7 +243,6 @@ interface GalleryState {
   fetchLikedDiscovery: () => Promise<void>;
   fetchContinueExploring: () => Promise<void>;
 
-  fetchAllDiscovery: () => Promise<void>;
   searchByTags: (query: string, page?: number) => Promise<void>;
   fetchSuggestions: (query: string) => Promise<void>;
 
@@ -286,7 +295,6 @@ interface GalleryState {
   setSlideshowIndex: (index: number) => void;
 
   // Actions — Smart Collections
-  generateSmartCollections: () => void;
   loadUserSmartCollections: () => Promise<void>;
   createUserSmartCollection: (name: string, tags: string[]) => Promise<void>;
   deleteUserSmartCollection: (id: string) => Promise<void>;
@@ -383,10 +391,20 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         ["contentFilter", filter],
       );
       set({ contentFilter: filter });
+      // Clear caches so stale content from previous filter mode is not served
+      await DiscoveryService.clearAllCache();
+      get().cancelDiscovery(); // Stop any in-flight discovery
       await get().fetchAllDiscovery();
     } catch (e) {
       console.error("[GalleryStore] Failed to save contentFilter:", e);
     }
+  },
+
+  cancelDiscovery: () => {
+    if (_discoveryAbortController) {
+      _discoveryAbortController.abort();
+    }
+    _discoveryAbortController = new AbortController();
   },
   toggleHudPin: () => set((state) => ({ isHudPinned: !state.isHudPinned })),
 
@@ -543,12 +561,14 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     try {
       // Use randomized page for refresh to ensure variety
       const fetchPage = page === 1 ? Math.floor(Math.random() * 5) + 1 : page;
+      if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
       const results = await DiscoveryService.searchGlobal(
         "masterpiece highres",
         48,
         get().contentFilter,
         fetchPage,
         "image",
+        _discoveryAbortController.signal,
       );
       const unique = dedupeResults(results, [
         get().popularImages,
@@ -565,19 +585,19 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       console.error("[GalleryStore] Failed to fetch popular:", e);
     } finally {
       set({ isLoadingPopular: false });
-      // Background preload more content
-      if (page === 1) setTimeout(() => get().preloadMoreContent(), 1000);
     }
   },
 
   fetchLatest: async (page = 1) => {
     if (get().isLoadingLatest) return;
     set({ isLoadingLatest: true });
+    if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
     try {
       const results = await DiscoveryService.getLatest(
         48,
         get().contentFilter,
         "image",
+        _discoveryAbortController.signal,
       );
       const unique = dedupeResults(results, [
         get().popularImages,
@@ -593,8 +613,6 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       console.error("[GalleryStore] Failed to fetch latest:", e);
     } finally {
       set({ isLoadingLatest: false });
-      // Background preload more content
-      if (page === 1) setTimeout(() => get().preloadMoreContent(), 1000);
     }
   },
 
@@ -603,10 +621,12 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     set({ isLoadingRandom: true });
     try {
       // Use higher limit for random to increase pool size
+      if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
       const results = await DiscoveryService.getRandom(
         64,
         get().contentFilter,
         "image",
+        _discoveryAbortController.signal,
       );
       const unique = dedupeResults(results, [
         get().popularImages,
@@ -627,6 +647,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   generatePicksForYou: async (page = 1) => {
     if (get().isLoadingPicks) return;
     set({ isLoadingPicks: true });
+    if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
     try {
       const { viewHistory, favoriteTags, savedImages, contentFilter } = get();
       const hasHistory =
@@ -646,6 +667,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
           contentFilter,
           1,
           "image",
+          _discoveryAbortController.signal,
         );
       } else {
         const seeds = Array.from(
@@ -657,6 +679,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
           contentFilter,
           page,
           "image",
+          _discoveryAbortController.signal,
         );
       }
 
@@ -671,6 +694,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
           contentFilter,
           1,
           "image",
+          _discoveryAbortController.signal,
         );
       }
 
@@ -729,6 +753,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   fetchRecommendedAesthetics: async () => {
     if (get().isLoadingRecommended) return;
     set({ isLoadingRecommended: true });
+    if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
     try {
       const randomAesthetic =
         CURATED_AESTHETICS[
@@ -740,6 +765,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         get().contentFilter,
         1,
         "image",
+        _discoveryAbortController.signal,
       );
       const savedIds = new Set(get().savedImages.map((i) => i.id));
       const historyIds = new Set(get().viewHistory);
@@ -773,11 +799,13 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   fetchRecentPopular: async () => {
     if (get().isLoadingRecentPopular) return;
     set({ isLoadingRecentPopular: true });
+    if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
     try {
       const results = await DiscoveryService.getTrending(
         48,
         get().contentFilter,
         "image",
+        _discoveryAbortController.signal,
       );
       const savedIds = new Set(get().savedImages.map((i) => i.id));
       const historyIds = new Set(get().viewHistory);
@@ -805,6 +833,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   fetchLikedDiscovery: async () => {
     if (get().isLoadingLikedDiscovery) return;
     set({ isLoadingLikedDiscovery: true });
+    if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
     const liked = get().savedImages.filter((i) => i.liked);
     if (liked.length === 0) {
       set({ isLoadingLikedDiscovery: false });
@@ -818,6 +847,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         48,
         get().contentFilter,
         "image",
+        _discoveryAbortController.signal,
       );
       const savedIds = new Set(get().savedImages.map((i) => i.id));
       const historyIds = new Set(get().viewHistory);
@@ -845,6 +875,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   fetchContinueExploring: async () => {
     if (get().isLoadingContinueExploring) return;
     set({ isLoadingContinueExploring: true });
+    if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
     const history = get().viewHistory;
     if (history.length === 0) {
       set({ isLoadingContinueExploring: false });
@@ -858,6 +889,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         get().contentFilter,
         1,
         "image",
+        _discoveryAbortController.signal,
       );
       const savedIds = new Set(get().savedImages.map((i) => i.id));
       const historyIds = new Set(get().viewHistory);
@@ -883,8 +915,18 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   },
 
   searchByTags: async (query, page = 1) => {
-    if (!query.trim()) return;
+    if (!query.trim()) {
+      set({ searchResults: [], searchQuery: "", currentSearchPage: 1 });
+      return;
+    }
+    
     set({ isSearching: true, searchQuery: query, currentSearchPage: page });
+
+    if (page === 1) {
+      if (_searchAbortController) _searchAbortController.abort();
+      _searchAbortController = new AbortController();
+    }
+
     try {
       const tags = query.split(/[ ,+]+/).filter(Boolean);
       const results = await DiscoveryService.searchGlobalByTags(
@@ -892,11 +934,15 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         48,
         get().contentFilter === "sfw",
         page,
+        "image",
+        _searchAbortController?.signal,
       );
 
       set((state) => {
         const nextResults =
           page === 1 ? results : [...state.searchResults, ...results];
+        // Cap search results to prevent unbounded memory growth
+        const cappedResults = dedupeResults(nextResults).slice(-300);
         
         // If we are playing a dynamic slideshow (from search), sync the images
         if (state.isSlideshowPlaying && state.activeSlideshowId === "dynamic") {
@@ -916,19 +962,25 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
           });
           
           return {
-            searchResults: dedupeResults(nextResults),
+            searchResults: cappedResults,
             slideshowImages: [...state.slideshowImages, ...galleryImages],
+            currentSearchPage: page,
+            searchQuery: query,
           };
         }
 
         return {
-          searchResults: dedupeResults(nextResults),
+          searchResults: cappedResults,
+          currentSearchPage: page,
+          searchQuery: query,
         };
       });
 
       if (page === 1) get().trackInteraction(tags);
     } catch (e) {
-      console.error("[GalleryStore] Search failed:", e);
+      if ((e as Error).name !== "AbortError") {
+        console.error("[GalleryStore] Tag search failed:", e);
+      }
     } finally {
       set({ isSearching: false });
     }
@@ -936,25 +988,36 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
 
   fetchSuggestions: async (query) => {
     if (!query || query.length < 2) return;
-    try {
-      const suggestions = await DiscoveryService.searchGlobal(
-        query,
-        24,
-        get().contentFilter,
-        1,
-        "image",
-      );
-      const rawSuggestions = suggestions
-        .map((item) => item.tags?.[0] || item.title || query)
-        .filter(Boolean);
-      
-      const uniqueSuggestions = [...new Set(rawSuggestions.map(s => s.toLowerCase().trim()))]
-        .slice(0, 10);
 
-      set({ searchSuggestions: uniqueSuggestions });
-    } catch (e) {
-      console.error("[GalleryStore] Autocomplete failed:", e);
-    }
+    // Debounce: cancel previous pending suggestion fetch
+    if (_suggestionDebounceTimer) clearTimeout(_suggestionDebounceTimer);
+
+    _suggestionDebounceTimer = setTimeout(async () => {
+      // Abort previous suggestions if still in flight
+      if (_suggestionAbortController) _suggestionAbortController.abort();
+      _suggestionAbortController = new AbortController();
+
+      try {
+        const suggestions = await DiscoveryService.searchGlobal(
+          query,
+          24,
+          get().contentFilter,
+          1,
+          "image",
+          _suggestionAbortController.signal,
+        );
+        const rawSuggestions = suggestions
+          .map((item) => item.tags?.[0] || item.title || query)
+          .filter(Boolean);
+        
+        const uniqueSuggestions = [...new Set(rawSuggestions.map(s => s.toLowerCase().trim()))]
+          .slice(0, 10);
+
+        set({ searchSuggestions: uniqueSuggestions });
+      } catch (e) {
+        console.error("[GalleryStore] Autocomplete failed:", e);
+      }
+    }, 400);
   },
 
   // ─── Background Preloading ──────────────────────────────────────
@@ -1320,9 +1383,15 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   generateSmartCollections: () => {
     const { savedImages, userSmartCollections } = get();
     
+    // Filter out adult content if setting is disabled
+    const { showAdultContent } = useSettingsStore.getState();
+    const filteredImages = showAdultContent 
+      ? savedImages 
+      : savedImages.filter(img => !ContentFilter.isAdult(img));
+    
     // 1. Process User-Defined Smart Collections (Highest Priority)
     const manualSmart: SmartCollection[] = userSmartCollections.map(usc => {
-      const matchingImages = savedImages.filter(img => {
+      const matchingImages = filteredImages.filter(img => {
         const imgTags = [
           ...(img.tags || []),
           ...(img.generalTags || []),
@@ -1347,7 +1416,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     // 2. Process Auto-Generated Clusters
     const tagCounts: Record<string, { count: number; images: GalleryImage[] }> = {};
     
-    savedImages.forEach(img => {
+    filteredImages.forEach(img => {
       const allTags = [
         ...(img.tags || []),
         ...(img.generalTags || []),
@@ -1369,7 +1438,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       });
     });
 
-    const threshold = Math.max(3, Math.floor(savedImages.length * 0.03));
+    const threshold = Math.max(3, Math.floor(filteredImages.length * 0.03));
     const autoSmart = Object.entries(tagCounts)
       .map(([tag, data]) => ({ tag, ...data }))
       .filter(item => item.count >= threshold)

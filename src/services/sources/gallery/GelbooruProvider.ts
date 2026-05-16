@@ -36,6 +36,7 @@ export class GelbooruProvider implements SourceProvider {
     chapterFeed: false,
     pagination: true,
     authentication: true,
+    authUrl: "https://gelbooru.com/index.php?page=account&s=options",
   };
 
   private readonly baseUrl = "https://gelbooru.com";

@@ -125,6 +125,32 @@ const DiscoverySection: React.FC<DiscoverySectionProps> = ({
   );
 };
 
+const LazySection: React.FC<DiscoverySectionProps & { onInView: () => void }> = (props) => {
+  const [hasTriggered, setHasTriggered] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !hasTriggered) {
+          setHasTriggered(true);
+          props.onInView();
+        }
+      },
+      { rootMargin: "600px" } // Load well before it hits the viewport
+    );
+
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [hasTriggered, props.onInView]);
+
+  return (
+    <div ref={ref} className="min-h-[200px]">
+      <DiscoverySection {...props} />
+    </div>
+  );
+};
+
 export const DiscoverFeed: React.FC = () => {
   const {
     latestImages,
@@ -156,29 +182,36 @@ export const DiscoverFeed: React.FC = () => {
     openViewer,
     startSlideshowFromContext,
     preloadMoreContent,
+    cancelDiscovery,
   } = useGalleryStore();
 
   const observerTarget = React.useRef<HTMLDivElement>(null);
+  const preloadCooldownRef = React.useRef<number>(0);
 
+  // Phase 3.3: Cancel all in-flight discovery fetches when leaving this view
   useEffect(() => {
-    const loadAll = async () => {
-      if (!latestImages || latestImages.length === 0) await fetchLatest();
-      if (!randomVisions || randomVisions.length === 0) await fetchRandomVisions();
-      if (!popularImages || popularImages.length === 0) await fetchPopular();
-      if (!recommendedAesthetics || recommendedAesthetics.length === 0) await fetchRecommendedAesthetics();
-      if (!recentPopular || recentPopular.length === 0) await fetchRecentPopular();
-      if (!likedDiscovery || likedDiscovery.length === 0) await fetchLikedDiscovery();
-      if (!continueExploring || continueExploring.length === 0) await fetchContinueExploring();
-      if (!picksForYou || picksForYou.length === 0) await generatePicksForYou();
+    return () => {
+      cancelDiscovery();
     };
-    loadAll();
-  }, []);
+  }, [cancelDiscovery]);
 
-  // Infinite Scroll Observer for Discovery
+  // Phase 5.1: Lazy loading logic. Only load top sections eagerly.
+  useEffect(() => {
+    const loadTopSections = async () => {
+      if (!popularImages || popularImages.length === 0) await fetchPopular();
+      if (!latestImages || latestImages.length === 0) await fetchLatest();
+    };
+    loadTopSections();
+  }, []); // Only first-time mount for top sections
+
+  // Infinite Scroll Observer for Discovery — debounced with 10s cooldown
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
+          const now = Date.now();
+          if (now - preloadCooldownRef.current < 10000) return; // 10s cooldown
+          preloadCooldownRef.current = now;
           preloadMoreContent();
         }
       },
@@ -224,7 +257,7 @@ export const DiscoverFeed: React.FC = () => {
         saveImage={saveImage}
       />
 
-      <DiscoverySection
+      <LazySection
         title="Random Visions"
         subtitle="Aesthetic serendipity"
         icon={<Shuffle size={20} />}
@@ -236,10 +269,13 @@ export const DiscoverFeed: React.FC = () => {
         savedIds={savedIds}
         openViewer={openViewer}
         saveImage={saveImage}
+        onInView={() => {
+          if (!randomVisions || randomVisions.length === 0) fetchRandomVisions();
+        }}
       />
 
 
-      <DiscoverySection
+      <LazySection
         title="Aesthetic Spotlight"
         subtitle="Curated themes for you"
         icon={<Ghost size={20} />}
@@ -251,9 +287,12 @@ export const DiscoverFeed: React.FC = () => {
         savedIds={savedIds}
         openViewer={openViewer}
         saveImage={saveImage}
+        onInView={() => {
+          if (!recommendedAesthetics || recommendedAesthetics.length === 0) fetchRecommendedAesthetics();
+        }}
       />
 
-      <DiscoverySection
+      <LazySection
         title="Recent Engagement"
         subtitle="Spiking activity now"
         icon={<Flame size={20} />}
@@ -265,9 +304,12 @@ export const DiscoverFeed: React.FC = () => {
         savedIds={savedIds}
         openViewer={openViewer}
         saveImage={saveImage}
+        onInView={() => {
+          if (!recentPopular || recentPopular.length === 0) fetchRecentPopular();
+        }}
       />
 
-      <DiscoverySection
+      <LazySection
         title="Continue Exploring"
         subtitle="Based on your recent history"
         icon={<History size={20} />}
@@ -279,9 +321,12 @@ export const DiscoverFeed: React.FC = () => {
         savedIds={savedIds}
         openViewer={openViewer}
         saveImage={saveImage}
+        onInView={() => {
+          if (!continueExploring || continueExploring.length === 0) fetchContinueExploring();
+        }}
       />
 
-      <DiscoverySection
+      <LazySection
         title="Because You Liked"
         subtitle="Expanding your favorites"
         icon={<Heart size={20} />}
@@ -293,6 +338,9 @@ export const DiscoverFeed: React.FC = () => {
         savedIds={savedIds}
         openViewer={openViewer}
         saveImage={saveImage}
+        onInView={() => {
+          if (!likedDiscovery || likedDiscovery.length === 0) fetchLikedDiscovery();
+        }}
       />
 
       {/* Infinite Scroll Signal */}

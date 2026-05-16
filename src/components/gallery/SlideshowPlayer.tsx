@@ -199,7 +199,12 @@ export const SlideshowPlayer: React.FC = () => {
 
   useEffect(() => {
     if (!isSlideshowPlaying) return;
-    refreshControls();
+    // Only refresh controls automatically if they are already visible.
+    // This prevents the HUD from popping up on every slide transition
+    // if the user (or the auto-hide timer) has hidden it.
+    if (useGalleryStore.getState().slideshowHudVisible) {
+      refreshControls();
+    }
     return () => clearTimeout(controlTimer.current);
   }, [isSlideshowPlaying, slideshowIndex, refreshControls]);
 
@@ -253,11 +258,9 @@ export const SlideshowPlayer: React.FC = () => {
         case "ArrowRight":
         case " ":
           nextSlide();
-          refreshControls();
           break;
         case "ArrowLeft":
           prevSlide();
-          refreshControls();
           break;
         case "p":
         case "P":

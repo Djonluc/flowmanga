@@ -3,119 +3,120 @@ import type { SourceSearchResult } from "./sources/types";
 
 export class ContentFilter {
   static filterResults(items: SourceSearchResult[]): SourceSearchResult[] {
+    const { showAdultContent } = useSettingsStore.getState();
+    if (showAdultContent) return items;
+
+    return items.filter((item) => !this.isAdult(item));
+  }
+
+  static isAdult(item: any): boolean {
     const { showAdultContent, excludedTags = [] } = useSettingsStore.getState();
+    if (showAdultContent) return false;
+
+    const titleLower = (item.title || "").toLowerCase();
+    const source = (item.source || "").toLowerCase();
+
+    // 1. Adult Content Filter
+    const isAdultSite =
+      source.includes("nhentai") ||
+      source.includes("rule34") ||
+      source.includes("luscious") ||
+      source.includes("kemono") ||
+      source.includes("hentai") ||
+      source.includes("danbooru") ||
+      source.includes("gelbooru") ||
+      source.includes("konachan") ||
+      source.includes("yandere");
+
+    const allItemTags = [
+      ...(item.tags || []),
+      ...(item.generalTags || []),
+      ...(item.characterTags || []),
+      ...(item.copyrightTags || []),
+      ...(item.artistTags || []),
+      ...(item.metaTags || []),
+    ].map((tag) => tag.toLowerCase().trim());
+
+    const hasAdultTag = allItemTags.some((t) =>
+      [
+        "hentai",
+        "smut",
+        "erotica",
+        "adult",
+        "porn",
+        "doujinshi",
+        "18+",
+        "nsfw",
+        "yuri",
+        "yaoi",
+        "bara",
+        "shounen ai",
+        "shoujo ai",
+        "boys love",
+        "girls love",
+      ].includes(t),
+    );
+
+    const adultKeywords = [
+      "hentai",
+      "smut",
+      "18+",
+      "yuri",
+      "yaoi",
+      "bara",
+      "boys love",
+      "girls love",
+      "bl",
+      "gl",
+    ];
+    const hasAdultTitle = adultKeywords.some((keyword) =>
+      titleLower.includes(keyword),
+    );
+
+    if (isAdultSite || hasAdultTag || hasAdultTitle) return true;
+
+    // 2. Custom Excluded Tags
     const excludedTagsLower = excludedTags
       .map((t) => t.toLowerCase().trim())
       .filter(Boolean);
 
-    return items.filter((item) => {
-      const titleLower = item.title.toLowerCase();
-
-      // 1. Adult Content Filter
-      if (!showAdultContent) {
-        const isAdultSite =
-          item.source?.toLowerCase().includes("nhentai") ||
-          item.source?.toLowerCase().includes("rule34") ||
-          item.source?.toLowerCase().includes("luscious") ||
-          item.source?.toLowerCase().includes("kemono") ||
-          item.source?.toLowerCase().includes("hentai");
-
-        const hasAdultTag = item.tags?.some((tag) => {
-          const t = tag.toLowerCase();
-          return [
-            "hentai",
-            "smut",
-            "erotica",
-            "adult",
-            "porn",
-            "doujinshi",
-            "18+",
-            "nsfw",
-            "yuri",
-            "yaoi",
-            "bara",
-            "shounen ai",
-            "shoujo ai",
-            "boys love",
-            "girls love",
-          ].includes(t);
-        });
-
-        const adultKeywords = [
-          "hentai",
-          "smut",
-          "18+",
-          "yuri",
-          "yaoi",
-          "bara",
-          "boys love",
-          "girls love",
-          "bl",
-          "gl",
-        ];
-        const hasAdultTitle = adultKeywords.some((keyword) =>
-          titleLower.includes(keyword),
-        );
-
-        if (isAdultSite || hasAdultTag || hasAdultTitle) return false;
-      }
-
-      // 2. Custom Excluded Tags (Checks all available tag fields and title)
-      const allItemTags = [
-        ...(item.tags || []),
-        ...(item.generalTags || []),
-        ...(item.characterTags || []),
-        ...(item.copyrightTags || []),
-        ...(item.artistTags || []),
-        ...(item.metaTags || []),
-      ]
-        .map((tag) => tag.toLowerCase().trim())
-        .filter(Boolean);
-
-      if (excludedTagsLower.length > 0) {
-        const hasExcludedTag = allItemTags.some((tag) =>
-          excludedTagsLower.some((excluded) => tag.includes(excluded)),
-        );
-        if (hasExcludedTag) return false;
-
-        const hasExcludedWordInTitle = excludedTagsLower.some((excluded) =>
-          titleLower.includes(excluded),
-        );
-        if (hasExcludedWordInTitle) return false;
-      }
-
-      // 3. Global Hard Exclusions (Always remove explicit abusive themes)
-      const hardExclusions = [
-        //'yaoi',
-        //'yuri',
-        // 'boys love',
-        //'girls love',
-        // "shounen ai",
-        // "shoujo ai",
-        "jinx",
-        "painter of the night",
-        "bestiality",
-        "scat",
-        "zoophilia",
-        "coprophagia",
-        "coprophilia",
-        "watersports",
-        "golden shower",
-        "feces",
-        "urine",
-      ];
-      const urlLower = item.url?.toLowerCase() || "";
-      const hasHardExclusion = hardExclusions.some(
-        (ex) =>
-          titleLower.includes(ex) ||
-          urlLower.includes(ex.replace(/\s+/g, "-")) ||
-          allItemTags.some((tag) => tag.includes(ex)),
+    if (excludedTagsLower.length > 0) {
+      const hasExcludedTag = allItemTags.some((tag) =>
+        excludedTagsLower.some((excluded) => tag.includes(excluded)),
       );
+      if (hasExcludedTag) return true;
 
-      if (hasHardExclusion) return false;
+      const hasExcludedWordInTitle = excludedTagsLower.some((excluded) =>
+        titleLower.includes(excluded),
+      );
+      if (hasExcludedWordInTitle) return true;
+    }
 
-      return true;
-    });
+    // 3. Global Hard Exclusions
+    const hardExclusions = [
+      "jinx",
+      "painter of the night",
+      "bestiality",
+      "scat",
+      "zoophilia",
+      "coprophagia",
+      "coprophilia",
+      "watersports",
+      "golden shower",
+      "feces",
+      "urine",
+    ];
+    const urlLower = (item.url || item.imageUrl || "").toLowerCase();
+    const hasHardExclusion = hardExclusions.some(
+      (ex) =>
+        titleLower.includes(ex) ||
+        urlLower.includes(ex.replace(/\s+/g, "-")) ||
+        allItemTags.some((tag) => tag.includes(ex)),
+    );
+
+    if (hasHardExclusion) return true;
+
+    return false;
   }
 
   static normalizeTags(tags: string[] = []): string[] {

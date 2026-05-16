@@ -65,7 +65,7 @@ async function zerochanGet(
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
   const urlObj = new URL(`${ZEROCHAN_BASE}${cleanPath}`);
 
-  urlObj.searchParams.set("json", "");
+  urlObj.searchParams.set("json", "1");
   Object.entries(params).forEach(([key, val]) => {
     urlObj.searchParams.set(key, String(val));
   });
@@ -174,7 +174,9 @@ export class ZerochanProvider implements SourceProvider {
     }
 
     const pageParam = parsed.searchParams.get("p") || "1";
-    const data = await zerochanGet(`/${path}`, { p: pageParam, l: 48 });
+    // Zerochan prefers '+' for spaces in tags in the URL path
+    const formattedPath = path.replace(/ /g, "+").replace(/_/g, "+");
+    const data = await zerochanGet(`/${formattedPath}`, { p: pageParam, l: 48 });
     const items: any[] = data.items || [];
 
     const images = items.map((item: any, index: number) => ({
@@ -198,7 +200,9 @@ export class ZerochanProvider implements SourceProvider {
   ): Promise<SourceSearchResult[]> {
     const page = options.page || 1;
     const limit = options.limit || 24;
-    const tag = query.trim();
+    // Strip prefixes for global search too
+    const parts = query.trim().split(":");
+    const tag = parts[parts.length - 1];
 
     if (!tag) return [];
 
@@ -264,7 +268,13 @@ export class ZerochanProvider implements SourceProvider {
 
     const page = options.page || 1;
     const currentLimit = options.limit || 24;
-    const tagPath = tags.map((t) => encodeURIComponent(t)).join(",");
+    // Zerochan doesn't use category prefixes like 'artist:', so we strip them
+    const tagPath = tags
+      .map((t) => {
+        const parts = t.split(":");
+        return encodeURIComponent(parts[parts.length - 1]);
+      })
+      .join(",");
     const safeLimit = Math.min(currentLimit, 250);
 
     try {

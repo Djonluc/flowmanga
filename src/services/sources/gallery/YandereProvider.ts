@@ -33,6 +33,7 @@ export class YandereProvider implements SourceProvider {
     chapterFeed: false,
     pagination: true,
     authentication: true,
+    authUrl: "https://yande.re/user/edit",
   };
 
   private readonly baseUrl = "https://yande.re";

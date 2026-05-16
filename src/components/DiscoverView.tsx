@@ -36,7 +36,11 @@ export const DiscoverView = () => {
     activeType,
     search,
     loadMoreSearchResults,
+    loadMoreLatest,
+    loadMoreRandom,
     hasMoreSearchResults,
+    hasMoreLatest,
+    hasMoreRandom,
     fetchLatest,
     fetchRandom,
     setQuery,
@@ -72,20 +76,28 @@ export const DiscoverView = () => {
   }, [fetchLatest, fetchRandom, coloredOnly, activeType]);
 
   useEffect(() => {
-    if (activeTab !== "search" || isSearching || !hasMoreSearchResults) return;
+    const isFetching = isSearching || isLoadingLatest || isLoadingRandom;
+    const hasMore = 
+      (activeTab === "search" && hasMoreSearchResults) ||
+      (activeTab === "latest-grid" && hasMoreLatest) ||
+      (activeTab === "random-grid");
+
+    if (activeTab === "featured" || isFetching || !hasMore) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          loadMoreSearchResults();
+          if (activeTab === "search") loadMoreSearchResults();
+          else if (activeTab === "latest-grid") loadMoreLatest();
+          else if (activeTab === "random-grid") loadMoreRandom();
         }
       },
-      { threshold: 0.2, rootMargin: "300px" },
+      { threshold: 0.1, rootMargin: "600px" },
     );
 
     if (observerTarget.current) observer.observe(observerTarget.current);
     return () => observer.disconnect();
-  }, [activeTab, isSearching, hasMoreSearchResults, loadMoreSearchResults]);
+  }, [activeTab, isSearching, isLoadingLatest, isLoadingRandom, hasMoreSearchResults, hasMoreLatest, loadMoreSearchResults, loadMoreLatest, loadMoreRandom]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -502,6 +514,16 @@ export const DiscoverView = () => {
                   />
                 ))}
               </div>
+              <div ref={observerTarget} className="h-24 flex items-center justify-center">
+                {isLoadingRandom && (
+                  <div className="flex items-center gap-3 text-foreground-dim animate-pulse">
+                    <Loader2 size={16} className="animate-spin" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-dim">
+                      Summoning more randomness...
+                    </span>
+                  </div>
+                )}
+              </div>
             </motion.div>
           ) : (
             <motion.div
@@ -544,6 +566,16 @@ export const DiscoverView = () => {
                     }
                   />
                 ))}
+              </div>
+              <div ref={observerTarget} className="h-24 flex items-center justify-center">
+                {isLoadingLatest && (
+                  <div className="flex items-center gap-3 text-foreground-dim animate-pulse">
+                    <Loader2 size={16} className="animate-spin" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-dim">
+                      Fetching latest spirits...
+                    </span>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

@@ -98,11 +98,14 @@ export class ReliabilityTracker {
 }
 
 export class DiscoveryService {
-  private static cache = new Map<string, CacheEntry>();
+  private static readonly DEFAULT_TIMEOUT = 12000;
+  private static readonly SEARCH_CACHE_TTL = 1000 * 60 * 15; // 15 minutes
+  private static readonly CACHE_TTL = 1000 * 60 * 60; // 1 hour
+  private static readonly MAX_CACHE_ENTRIES = 50;
+  private static readonly MAX_CONCURRENT_REQUESTS = 4; // Phase 5.3: Limit concurrent provider requests
+
+  private static cache = new Map<string, { data: any; timestamp: number }>();
   private static searchOffsets = new Map<string, Record<string, number>>();
-  private static CACHE_TTL = 1000 * 60 * 60 * 2; // 2 hours
-  private static SEARCH_CACHE_TTL = 1000 * 60 * 30; // 30 minutes for search results
-  private static DEFAULT_TIMEOUT = 15000; // 15 seconds
 
   static async clearAllCache() {
     this.cache.clear();
@@ -122,6 +125,7 @@ export class DiscoveryService {
     limit: number = 20,
     coloredOnly: boolean = false,
     mediaDomain?: MediaDomain,
+    signal?: AbortSignal,
   ): Promise<SourceSearchResult[]> {
     const cacheKey = `latest_${limit}_${coloredOnly}_${mediaDomain ?? "all"}`;
 
@@ -149,6 +153,7 @@ export class DiscoveryService {
             limit,
             coloredOnly,
             mediaDomain,
+            signal,
           );
         }
 
@@ -164,6 +169,7 @@ export class DiscoveryService {
       limit,
       coloredOnly,
       mediaDomain,
+      signal,
     );
   }
 
@@ -174,6 +180,7 @@ export class DiscoveryService {
     limit: number = 20,
     coloredOnly: boolean = false,
     mediaDomain?: MediaDomain,
+    signal?: AbortSignal,
   ): Promise<SourceSearchResult[]> {
     const cacheKey = `trending_${limit}_${coloredOnly}_${mediaDomain ?? "all"}`;
 
@@ -201,6 +208,7 @@ export class DiscoveryService {
             limit,
             coloredOnly,
             mediaDomain,
+            signal,
           );
         }
 
@@ -216,6 +224,7 @@ export class DiscoveryService {
       limit,
       coloredOnly,
       mediaDomain,
+      signal,
     );
   }
 
@@ -225,6 +234,7 @@ export class DiscoveryService {
     limit: number,
     coloredOnly: boolean,
     mediaDomain?: MediaDomain,
+    signal?: AbortSignal,
   ): Promise<SourceSearchResult[]> {
     // Local Provider Scraping
     type DiscoveryFallbackProvider = {
@@ -260,77 +270,96 @@ export class DiscoveryService {
       },
     );
     const { booruAuth } = useSettingsStore.getState();
-    const tasks = providers.map((p) => {
-      const method = type === "trending" ? p.getTrending : p.getLatest;
-      if (method) {
-        return this.withTimeout(
-          method.call(p, {
-            page: 1,
-            limit,
-            auth: booruAuth[p.id],
-          }),
-          this.DEFAULT_TIMEOUT,
-          [],
-        );
+    const tasks = providers.map((p) => async () => {
+      if (signal?.aborted) return [];
+      try {
+        if (type === "latest" && p.getLatest) {
+          return await this.withTimeout(
+            p.getLatest({
+              page: 1,
+              limit,
+              auth: booruAuth[p.id],
+              signal,
+            }),
+            this.DEFAULT_TIMEOUT,
+            [],
+            signal,
+          );
+        }
+        if (type === "trending" && p.getTrending) {
+          return await this.withTimeout(
+            p.getTrending({
+              page: 1,
+              limit,
+              auth: booruAuth[p.id],
+              signal,
+            }),
+            this.DEFAULT_TIMEOUT,
+            [],
+            signal,
+          );
+        }
+
+        const anyProvider = p as {
+          fetchPopular?: (
+            page: number,
+            limit: number,
+            coloredOnly: boolean,
+          ) => Promise<SourceSearchResult[]>;
+          fetchLatest?: (
+            page: number,
+            limit: number,
+            coloredOnly: boolean,
+          ) => Promise<SourceSearchResult[]>;
+          search?: (
+            query: string,
+            options: SourceSearchOptions,
+          ) => Promise<SourceSearchResult[]>;
+        };
+
+        if (
+          type === "trending" &&
+          typeof anyProvider.fetchPopular === "function"
+        ) {
+          return await this.withTimeout(
+            anyProvider.fetchPopular(1, limit, coloredOnly),
+            this.DEFAULT_TIMEOUT,
+            [],
+            signal,
+          );
+        }
+
+        if (typeof anyProvider.fetchLatest === "function") {
+          return await this.withTimeout(
+            anyProvider.fetchLatest(1, limit, coloredOnly),
+            this.DEFAULT_TIMEOUT,
+            [],
+            signal,
+          );
+        }
+
+        if (p.search) {
+          return await this.withTimeout(
+            p.search("a", {
+              page: 1,
+              limit,
+              auth: booruAuth[p.id],
+              signal,
+            }),
+            this.DEFAULT_TIMEOUT,
+            [],
+            signal,
+          );
+        }
+      } catch {
+        return [];
       }
 
-      const anyProvider = p as {
-        fetchPopular?: (
-          page: number,
-          limit: number,
-          coloredOnly: boolean,
-        ) => Promise<SourceSearchResult[]>;
-        fetchLatest?: (
-          page: number,
-          limit: number,
-          coloredOnly: boolean,
-        ) => Promise<SourceSearchResult[]>;
-        search?: (
-          query: string,
-          options: SourceSearchOptions,
-        ) => Promise<SourceSearchResult[]>;
-      };
-
-      if (
-        type === "trending" &&
-        typeof anyProvider.fetchPopular === "function"
-      ) {
-        return this.withTimeout(
-          anyProvider.fetchPopular(1, limit, coloredOnly),
-          this.DEFAULT_TIMEOUT,
-          [],
-        );
-      }
-
-      if (typeof anyProvider.fetchLatest === "function") {
-        return this.withTimeout(
-          anyProvider.fetchLatest(1, limit, coloredOnly),
-          this.DEFAULT_TIMEOUT,
-          [],
-        );
-      }
-
-      if (p.search) {
-        return this.withTimeout(
-          p.search("a", {
-            page: 1,
-            limit,
-            auth: booruAuth[p.id],
-          }),
-          this.DEFAULT_TIMEOUT,
-          [],
-        );
-      }
-
-      return Promise.resolve([] as SourceSearchResult[]);
+      return [];
     });
 
-    const results = await Promise.allSettled(tasks);
-    const flattenedResults: SourceSearchResult[][] = results.map((r) =>
-      r.status === "fulfilled" ? r.value : [],
-    );
-
-    const interleaved = this.interleave(flattenedResults, limit, coloredOnly);
+    const results = await this.pool(tasks, this.MAX_CONCURRENT_REQUESTS);
+    const interleaved = this.interleave(results, limit, coloredOnly);
     this.setCache(cacheKey, interleaved);
     return interleaved;
   }
@@ -342,6 +371,7 @@ export class DiscoveryService {
     limit: number = 20,
     coloredOnly: boolean = false,
     mediaDomain?: MediaDomain,
+    signal?: AbortSignal,
   ): Promise<SourceSearchResult[]> {
     const providers = this.getProvidersByMediaDomain(mediaDomain).filter(
       (p) => {
@@ -384,7 +414,7 @@ export class DiscoveryService {
     if (providers.length === 0) return [];
 
     const { booruAuth } = useSettingsStore.getState();
-    const tasks = providers.map((p) => {
+    const tasks = providers.map((p) => async () => {
       const page = Math.floor(Math.random() * 5) + 1;
       const methods: Array<() => Promise<SourceSearchResult[]>> = [];
       if (p.getRandom) {
@@ -396,6 +426,7 @@ export class DiscoveryService {
             page,
             limit,
             auth: booruAuth[p.id],
+            signal,
           }),
         );
       }
@@ -405,6 +436,7 @@ export class DiscoveryService {
             page,
             limit,
             auth: booruAuth[p.id],
+            signal,
           }),
         );
       }
@@ -447,25 +479,23 @@ export class DiscoveryService {
             page,
             limit,
             auth: booruAuth[p.id],
+            signal,
           }),
         );
       }
 
       if (methods.length === 0) {
-        return Promise.resolve([] as SourceSearchResult[]);
+        return [];
       }
 
       const randomMethod = methods[Math.floor(Math.random() * methods.length)];
-      return this.withTimeout(randomMethod(), this.DEFAULT_TIMEOUT, []);
+      return await this.withTimeout(randomMethod(), this.DEFAULT_TIMEOUT, [], signal);
     });
 
-    const results = await Promise.allSettled(tasks);
-    const flattened = results
-      .map((r) => (r.status === "fulfilled" ? r.value : []))
-      .flat();
+    const results = await this.pool(tasks, this.MAX_CONCURRENT_REQUESTS);
 
     const seen = new Set<string>();
-    const unique = flattened.filter((item) => {
+    const unique = results.flat().filter((item) => {
       if (!item || !item.id) return false;
       if (seen.has(item.id)) return false;
       seen.add(item.id);
@@ -487,6 +517,7 @@ export class DiscoveryService {
     coloredOnly: boolean = false,
     page: number = 1,
     mediaDomain?: MediaDomain,
+    signal?: AbortSignal,
   ): Promise<SourceSearchResult[]> {
     const cacheKey = `search_${query}_${limit}_${coloredOnly}_${page}_${mediaDomain ?? "all"}`;
 
@@ -509,24 +540,24 @@ export class DiscoveryService {
     }
     const offsets = this.searchOffsets.get(queryKey) || {};
 
-    const tasks = [...providers].sort(() => Math.random() - 0.5).map((p) => {
-      if (!p.search) return Promise.resolve([]);
+    const tasks = [...providers].sort(() => Math.random() - 0.5).map((p) => async () => {
+      if (!p.search) return [];
       const actualPage = page + (offsets[p.id] || 0);
-      return this.withTimeout(
+      return await this.withTimeout(
         p.search(query, {
           page: actualPage,
           limit: Math.min(limit * 2, 100),
           auth: booruAuth[p.id],
+          signal,
         }), // Fetch more per provider for better aggregation
         this.DEFAULT_TIMEOUT,
         [],
+        signal,
       );
     });
 
-    const results = await Promise.allSettled(tasks);
-    const flattenedResults: SourceSearchResult[][] = results.map((r) =>
-      r.status === "fulfilled" ? r.value : [],
-    );
+    const results = await this.pool(tasks, this.MAX_CONCURRENT_REQUESTS);
+    const flattenedResults: SourceSearchResult[][] = results;
 
     const finalResults = this.filterRestrictedContent(
       this.interleave(flattenedResults, limit, coloredOnly),
@@ -551,6 +582,7 @@ export class DiscoveryService {
     coloredOnly: boolean = false,
     page: number = 1,
     mediaDomain?: MediaDomain,
+    signal?: AbortSignal,
   ): Promise<SourceSearchResult[]> {
     const providers = this.getProvidersByMediaDomain(mediaDomain);
     const stats = { total: 0, failed: 0, providers: [] as string[] };
@@ -569,18 +601,21 @@ export class DiscoveryService {
     const tasks = [...providers]
       .filter((p) => p.capabilities.tagSearch)
       .sort(() => Math.random() - 0.5)
-      .map(async (p) => {
+      .map((p) => async () => {
         const { booruAuth } = useSettingsStore.getState();
         try {
           const actualPage = page + (offsets[p.id] || 0);
+
           const result = await this.withTimeout(
             p.searchByTags!(tags, {
               page: actualPage,
-              limit: Math.min(limit, 50),
+              limit: Math.max(limit * 2, 100), // Fetch more for tags to ensure enough unique matches after interleaving/filtering
               auth: booruAuth[p.id],
+              signal,
             }),
             this.DEFAULT_TIMEOUT,
             [],
+            signal,
           );
           const combined = result;
 
@@ -602,24 +637,9 @@ export class DiscoveryService {
         }
       });
 
-    const results = await Promise.all(tasks);
+    const results = await this.pool(tasks, this.MAX_CONCURRENT_REQUESTS);
 
-    // Import toast dynamically to avoid circular dependencies
-    import("../components/Toast")
-      .then(({ toast }) => {
-        if (stats.total > 0) {
-          toast.info(
-            `Found ${stats.total} matching series from: ${stats.providers.join(", ")}`,
-          );
-        } else if (stats.failed > 0) {
-          toast.error(
-            `${stats.failed} providers failed to respond to tag search.`,
-          );
-        } else {
-          toast.info(`No matches found for tags across active providers.`);
-        }
-      })
-      .catch(() => {});
+
 
     const normalizedQueryTags = tags
       .map((tag) =>
@@ -634,35 +654,26 @@ export class DiscoveryService {
       .filter(Boolean);
 
     const finalResults = this.filterRestrictedContent(
-      this.interleave(results, limit, coloredOnly),
+      this.interleave(results, limit * results.length, coloredOnly),
       coloredOnly,
-    )
-      .filter((item) => this.matchesMediaDomain(item, mediaDomain))
-      .filter((item) => {
-        if (normalizedQueryTags.length === 0) return true;
+    ).filter((item) => this.matchesMediaDomain(item, mediaDomain));
 
-        const itemTags = [
-          ...(item.tags || []),
-          ...(item.generalTags || []),
-          ...(item.characterTags || []),
-          ...(item.copyrightTags || []),
-          ...(item.artistTags || []),
-          ...(item.metaTags || []),
-        ]
-          .map((tag) =>
-            tag
-              .trim()
-              .toLowerCase()
-              .replace(/\s+/g, "_")
-              .replace(/[^\w\-:@~.()]/g, "")
-              .replace(/_+/g, "_")
-              .replace(/^_+|_+$/g, ""),
-          )
-          .filter(Boolean);
-
-        const tagSet = new Set(itemTags);
-        return normalizedQueryTags.every((tag) => tagSet.has(tag));
-      });
+    // Import toast dynamically to avoid circular dependencies
+    import("../components/Toast")
+      .then(({ toast }) => {
+        if (finalResults.length > 0) {
+          toast.info(
+            `Found ${finalResults.length} matching items from: ${stats.providers.join(", ")}`,
+          );
+        } else if (stats.failed > 0) {
+          toast.error(
+            `${stats.failed} providers failed to respond to tag search.`,
+          );
+        } else if (tags.length > 0) {
+          toast.info(`No matches found for tags across active providers.`);
+        }
+      })
+      .catch(() => {});
 
     if (finalResults.length === 0 && tags.length === 1) {
       console.info(
@@ -716,16 +727,7 @@ export class DiscoveryService {
 
     let filtered = ContentFilter.filterResults(categorized);
 
-    // 1. Adult Content Filter
-    if (!showAdultContent) {
-      filtered = filtered.filter(
-        (item) =>
-          item.contentType !== "doujin" &&
-          !item.source?.toLowerCase().includes("nhentai"),
-      );
-    }
-
-    // 2. Full Color Filter — delegates to ContentFilter's unified tag normalization
+    // 1. Full Color Filter — delegates to ContentFilter's unified tag normalization
     if (coloredOnly) {
       filtered = ContentFilter.filterColoredContent(filtered);
     }
@@ -768,7 +770,7 @@ export class DiscoveryService {
     coloredOnly: boolean = false,
   ): SourceSearchResult[] {
     const interleaved: SourceSearchResult[] = [];
-    const seenTitles = new Set<string>();
+    const seenIds = new Set<string>();
 
     const normalizeTitle = (t: string) =>
       t.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -788,10 +790,7 @@ export class DiscoveryService {
     }
 
     const sourceCounts: Record<string, number> = {};
-    const sourceLimit = Math.max(
-      1,
-      Math.ceil(limit / Math.max(1, Object.keys(groupedBySource).length)) + 1,
-    );
+    const sourceLimit = limit; // Allow any source to fill the entire limit if others are empty/failed
     let lastSource = "";
 
     while (interleaved.length < limit) {
@@ -828,9 +827,9 @@ export class DiscoveryService {
         );
         const fallback = availableSources[0];
         const item = groupedBySource[fallback].shift()!;
-        const normTitle = normalizeTitle(item.title);
-        if (!seenTitles.has(normTitle)) {
-          seenTitles.add(normTitle);
+        const dedupeKey = item.id;
+        if (!seenIds.has(dedupeKey)) {
+          seenIds.add(dedupeKey);
           interleaved.push(item);
           sourceCounts[fallback] = (sourceCounts[fallback] || 0) + 1;
         }
@@ -849,11 +848,12 @@ export class DiscoveryService {
       }
 
       const item = groupedBySource[selectedSource].shift()!;
-      const normTitle = normalizeTitle(item.title);
-      if (!seenTitles.has(normTitle)) {
-        seenTitles.add(normTitle);
+      const dedupeKey = item.id;
+      if (!seenIds.has(dedupeKey)) {
+        seenIds.add(dedupeKey);
         interleaved.push(item);
-        sourceCounts[selectedSource] = (sourceCounts[selectedSource] || 0) + 1;
+        sourceCounts[selectedSource] =
+          (sourceCounts[selectedSource] || 0) + 1;
         lastSource = selectedSource;
       }
     }
@@ -865,19 +865,58 @@ export class DiscoveryService {
     promise: Promise<T>,
     ms: number,
     defaultValue: T,
+    signal?: AbortSignal,
   ): Promise<T> {
+    if (signal?.aborted) return defaultValue;
+
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
     const timeoutPromise = new Promise<T>((resolve) => {
       timeoutId = setTimeout(() => resolve(defaultValue), ms);
     });
 
-    return Promise.race([
-      promise.then((val) => {
-        clearTimeout(timeoutId);
-        return val;
-      }),
-      timeoutPromise,
-    ]);
+    const abortPromise = new Promise<T>((resolve) => {
+      if (signal) {
+        signal.addEventListener("abort", () => resolve(defaultValue), {
+          once: true,
+        });
+      }
+    });
+
+    try {
+      // Race against actual work, timeout, and explicit abort signal
+      return await Promise.race([promise, timeoutPromise, abortPromise]);
+    } catch (e) {
+      return defaultValue;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }
+
+  private static async pool<T>(
+    tasks: (() => Promise<T>)[],
+    limit: number,
+  ): Promise<T[]> {
+    const results: T[] = new Array(tasks.length);
+    let index = 0;
+
+    const workers = Array.from(
+      { length: Math.min(limit, tasks.length) },
+      async () => {
+        while (index < tasks.length) {
+          const i = index++;
+          try {
+            results[i] = await tasks[i]();
+          } catch (e) {
+            console.error("[DiscoveryService] Pool task failed:", e);
+            results[i] = [] as any;
+          }
+        }
+      },
+    );
+
+    await Promise.all(workers);
+    return results;
   }
 
   private static getCache(
@@ -894,7 +933,7 @@ export class DiscoveryService {
   }
 
   /**
-   * Preload thumbnails for better performance
+   * Preload thumbnails for better performance — capped to priorityCount only
    */
   static preloadThumbnails(
     results: SourceSearchResult[],
@@ -909,7 +948,7 @@ export class DiscoveryService {
       img.loading = "lazy";
     };
 
-    // Preload high-priority thumbnails first
+    // Preload high-priority thumbnails only — browser lazy-loading handles the rest
     const getThumbnailSrc = (item: SourceSearchResult) =>
       item.previewUrl ||
       item.coverUrl ||
@@ -926,19 +965,6 @@ export class DiscoveryService {
         preloadImage(thumbnail);
       }
     });
-
-    // Preload remaining thumbnails with delay to avoid overwhelming
-    if (results.length > priorityCount) {
-      setTimeout(() => {
-        const remaining = results.slice(priorityCount);
-        remaining.forEach((item) => {
-          const thumbnail = getThumbnailSrc(item);
-          if (thumbnail) {
-            preloadImage(thumbnail);
-          }
-        });
-      }, 100);
-    }
   }
 
   private static async setCache(
@@ -947,6 +973,16 @@ export class DiscoveryService {
     persist: boolean = true,
   ) {
     this.cache.set(key, { data, timestamp: Date.now() });
+
+    // Evict oldest entries if cache exceeds size cap
+    if (this.cache.size > this.MAX_CACHE_ENTRIES) {
+      const excess = this.cache.size - this.MAX_CACHE_ENTRIES;
+      const keys = this.cache.keys();
+      for (let i = 0; i < excess; i++) {
+        const oldest = keys.next().value;
+        if (oldest) this.cache.delete(oldest);
+      }
+    }
 
     if (persist) {
       try {

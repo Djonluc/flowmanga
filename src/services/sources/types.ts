@@ -81,10 +81,10 @@ export interface SourceProvider {
   // ─── Content Fetching ───
 
   /** Fetch images/pages from a chapter, album, or gallery page */
-  fetchContent(url: string): Promise<SourceContent>;
+  fetchContent(url: string, signal?: AbortSignal): Promise<SourceContent>;
 
   /** Fetch series/album metadata and chapter listing (optional) */
-  fetchSeries?(url: string): Promise<SourceSeries>;
+  fetchSeries?(url: string, signal?: AbortSignal): Promise<SourceSeries>;
 
   /** Get chapter feed for a known series by its source-specific ID */
   fetchChapterFeed?(seriesId: string): Promise<SourceChapter[]>;
@@ -127,6 +127,7 @@ export interface SourceSearchOptions {
     apiKey?: string;
     userId?: string;
   };
+  signal?: AbortSignal;
 }
 
 // ─── Capability Flags ───────────────────────────────────────────────
@@ -144,6 +145,8 @@ export interface SourceCapabilities {
   pagination: boolean;
   /** Provider requires or supports authentication */
   authentication: boolean;
+  /** Link to user settings for retrieving API keys */
+  authUrl?: string;
 }
 
 // ─── Reader Mode ────────────────────────────────────────────────────

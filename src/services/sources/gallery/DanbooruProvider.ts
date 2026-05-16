@@ -36,6 +36,7 @@ export class DanbooruProvider implements SourceProvider {
     chapterFeed: false,
     pagination: true,
     authentication: true,
+    authUrl: "https://danbooru.donmai.us/profile",
   };
 
   private readonly baseUrl = "https://danbooru.donmai.us";
