@@ -26,6 +26,7 @@ import type {
   SourceCapabilities,
   ContentType,
   MediaType,
+  MediaDomain,
   ReaderMode,
 } from "../types";
 
@@ -42,8 +43,8 @@ export class NhentaiProvider implements SourceProvider {
   readonly name = "NHentai";
   readonly domains = ["nhentai.net"];
   readonly contentType: ContentType = "doujin";
+  readonly mediaDomain: MediaDomain = "manga";
   readonly mediaTypes: MediaType[] = ["image"];
-  readonly category: ProviderCategory = "doujin";
   readonly defaultPersistence = "ask" as const;
   readonly readerModes: ReaderMode[] = ["vertical", "gallery"];
 
@@ -192,9 +193,9 @@ export class NhentaiProvider implements SourceProvider {
 
   async search(
     query: string,
-    page: number = 1,
-    _limit?: number,
+    options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
+    const page = options.page || 1;
     const searchUrl = `https://nhentai.net/search?q=${encodeURIComponent(query)}&page=${page}`;
 
     try {
@@ -272,12 +273,11 @@ export class NhentaiProvider implements SourceProvider {
 
   async searchByTags(
     tags: string[],
-    page: number = 1,
-    _limit?: number,
+    options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
     // nhentai tag search is just a regular search with tags as query terms
     const query = tags.join(" ");
-    return this.search(query, page);
+    return this.search(query, options);
   }
 
   async fetchPopular(

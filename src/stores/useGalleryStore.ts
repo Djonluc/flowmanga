@@ -227,7 +227,7 @@ interface GalleryState {
   fetchPopular: (page?: number) => Promise<void>;
   fetchLatest: (page?: number) => Promise<void>;
   fetchRandomVisions: () => Promise<void>;
-  generatePicksForYou: () => Promise<void>;
+  generatePicksForYou: (page?: number) => Promise<void>;
   fetchRecommendedAesthetics: () => Promise<void>;
   fetchRecentPopular: () => Promise<void>;
   fetchLikedDiscovery: () => Promise<void>;
@@ -274,6 +274,7 @@ interface GalleryState {
   startSlideshowFromContext: (
     images: (GalleryImage | SourceSearchResult)[],
     startIndex?: number,
+    contextId?: string
   ) => void;
   stopSlideshow: () => void;
   nextSlide: () => void;
@@ -415,6 +416,11 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         liked: !!r.liked,
         folderId: r.folderId,
         zerochanId: r.zerochanId,
+        generalTags: r.generalTags ? JSON.parse(r.generalTags) : [],
+        characterTags: r.characterTags ? JSON.parse(r.characterTags) : [],
+        copyrightTags: r.copyrightTags ? JSON.parse(r.copyrightTags) : [],
+        artistTags: r.artistTags ? JSON.parse(r.artistTags) : [],
+        metaTags: r.metaTags ? JSON.parse(r.metaTags) : [],
       }));
       set({ savedImages });
 
@@ -618,7 +624,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     }
   },
 
-  generatePicksForYou: async () => {
+  generatePicksForYou: async (page = 1) => {
     if (get().isLoadingPicks) return;
     set({ isLoadingPicks: true });
     try {
@@ -649,7 +655,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
           seeds.join(" "),
           64,
           contentFilter,
-          1,
+          page,
           "image",
         );
       }
@@ -675,16 +681,43 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         (res) => !savedIds.has(res.id) && !historyIds.has(res.id),
       );
 
-      set({
-        picksForYou: dedupeResults(filtered, [
-          get().latestImages,
-          get().popularImages,
-          get().randomVisions,
-          get().recommendedAesthetics,
-          get().recentPopular,
-          get().likedDiscovery,
-          get().continueExploring,
-        ]),
+      const unique = dedupeResults(filtered, [
+        get().latestImages,
+        get().popularImages,
+        get().randomVisions,
+        get().recommendedAesthetics,
+        get().recentPopular,
+        get().likedDiscovery,
+        get().continueExploring,
+        ...(page === 1 ? [] : [get().picksForYou])
+      ]);
+
+      set((state) => {
+        const nextPicks = page === 1 ? unique : [...state.picksForYou, ...unique];
+        
+        if (state.isSlideshowPlaying && state.activeSlideshowId === "picks") {
+          const galleryImages: GalleryImage[] = unique.map((img) => {
+            if ("imageUrl" in img) return img as GalleryImage;
+            const res = img as any;
+            return {
+              id: res.id,
+              imageUrl: res.imageUrl || res.coverUrl || "",
+              previewUrl: res.previewUrl || res.coverUrl || "",
+              tags: res.tags || [],
+              source: res.source || "zerochan",
+              rating: "safe",
+              savedAt: new Date().toISOString(),
+              liked: false,
+            } as GalleryImage;
+          });
+          
+          return {
+            picksForYou: nextPicks,
+            slideshowImages: [...state.slideshowImages, ...galleryImages],
+          };
+        }
+
+        return { picksForYou: nextPicks };
       });
     } catch (e) {
       console.error("[GalleryStore] Failed to refresh picks:", e);
@@ -911,12 +944,14 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         1,
         "image",
       );
-      set({
-        searchSuggestions: suggestions
-          .map((item) => item.tags?.[0] || item.title || query)
-          .filter(Boolean)
-          .slice(0, 10),
-      });
+      const rawSuggestions = suggestions
+        .map((item) => item.tags?.[0] || item.title || query)
+        .filter(Boolean);
+      
+      const uniqueSuggestions = [...new Set(rawSuggestions.map(s => s.toLowerCase().trim()))]
+        .slice(0, 10);
+
+      set({ searchSuggestions: uniqueSuggestions });
     } catch (e) {
       console.error("[GalleryStore] Autocomplete failed:", e);
     }
@@ -981,9 +1016,18 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         (image as any).zerochanId || (image as any)._zerochanId;
 
       await db.execute(
-        `INSERT OR IGNORE INTO GalleryImages (id, imageUrl, previewUrl, tags, source, rating, zerochanId) 
-         VALUES (?, ?, ?, ?, ?, 'safe', ?)`,
-        [id, imageUrl, previewUrl, tags, source, zerochanId],
+        `INSERT OR IGNORE INTO GalleryImages (
+          id, imageUrl, previewUrl, tags, source, rating, zerochanId,
+          generalTags, characterTags, copyrightTags, artistTags, metaTags
+        ) VALUES (?, ?, ?, ?, ?, 'safe', ?, ?, ?, ?, ?, ?)`,
+        [
+          id, imageUrl, previewUrl, tags, source, zerochanId,
+          JSON.stringify(image.generalTags || []),
+          JSON.stringify(image.characterTags || []),
+          JSON.stringify(image.copyrightTags || []),
+          JSON.stringify(image.artistTags || []),
+          JSON.stringify(image.metaTags || [])
+        ],
       );
 
       get().trackInteraction(tags.split(","));
@@ -1155,7 +1199,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     });
   },
 
-  startSlideshowFromContext: (images, startIndex = 0) => {
+  startSlideshowFromContext: (images, startIndex = 0, contextId = "dynamic") => {
     const galleryImages: GalleryImage[] = images.map((img) => {
       if ("imageUrl" in img) return img as GalleryImage;
       const res = img as any;
@@ -1171,7 +1215,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       } as GalleryImage;
     });
     set({
-      activeSlideshowId: "dynamic",
+      activeSlideshowId: contextId,
       slideshowImages: galleryImages,
       slideshowIndex: startIndex,
       isSlideshowPlaying: true,
@@ -1195,20 +1239,58 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       isSlideshowPlaying: false,
     });
   },
-  nextSlide: () =>
+  nextSlide: () => {
+    let shouldFetchPicks = false;
+    let shouldFetchSearch = false;
+    let newSlideshowImages: GalleryImage[] | null = null;
+    let nextIdx = 0;
+
     set((state) => {
-      let nextIdx = state.slideshowIndex + 1;
+      nextIdx = state.slideshowIndex + 1;
+      let newImages = state.slideshowImages;
+
       if (state.slideshowRandom) {
-        nextIdx = Math.floor(Math.random() * state.slideshowImages.length);
-      } else if (nextIdx >= state.slideshowImages.length) {
-        nextIdx = state.slideshowRepeat ? 0 : state.slideshowImages.length - 1;
+        nextIdx = Math.floor(Math.random() * newImages.length);
+      } else if (nextIdx >= newImages.length) {
+        nextIdx = state.slideshowRepeat ? 0 : newImages.length - 1;
         if (!state.slideshowRepeat && state.isSlideshowPlaying) {
           // Auto-stop if reached end and no repeat
-          return { isSlideshowPlaying: false, slideshowIndex: state.slideshowImages.length - 1 };
+          return { isSlideshowPlaying: false, slideshowIndex: newImages.length - 1 };
         }
       }
-      return { slideshowIndex: nextIdx };
-    }),
+
+      // Memory Management: Keep sliding window
+      if (newImages.length > 200 && nextIdx > 150) {
+        newImages = newImages.slice(100);
+        nextIdx -= 100;
+        newSlideshowImages = newImages;
+      }
+
+      // Pre-fetch pagination
+      if (!state.slideshowRandom && newImages.length - nextIdx <= 5) {
+        if (state.activeSlideshowId === "search" && !state.isSearching) {
+          shouldFetchSearch = true;
+        } else if (state.activeSlideshowId === "picks" && !state.isLoadingPicks) {
+          shouldFetchPicks = true;
+        }
+      }
+
+      return { 
+        slideshowIndex: nextIdx,
+        ...(newSlideshowImages ? { slideshowImages: newSlideshowImages } : {})
+      };
+    });
+
+    if (shouldFetchSearch) {
+      const state = get();
+      state.searchByTags(state.searchQuery, state.currentSearchPage + 1);
+    }
+    if (shouldFetchPicks) {
+      const state = get();
+      const nextPage = Math.floor(state.picksForYou.length / 48) + 1;
+      state.generatePicksForYou(nextPage);
+    }
+  },
   prevSlide: () =>
     set((state) => {
       let prevIdx = state.slideshowIndex - 1;
@@ -1241,7 +1323,14 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     // 1. Process User-Defined Smart Collections (Highest Priority)
     const manualSmart: SmartCollection[] = userSmartCollections.map(usc => {
       const matchingImages = savedImages.filter(img => {
-        const imgTags = (img.tags || []).map(t => t.toLowerCase().trim());
+        const imgTags = [
+          ...(img.tags || []),
+          ...(img.generalTags || []),
+          ...(img.characterTags || []),
+          ...(img.artistTags || []),
+          ...(img.copyrightTags || []),
+          ...(img.metaTags || []),
+        ].map(t => t.toLowerCase().trim());
         // Match ALL tags in the collection (AND-style)
         return usc.tags.every(tag => imgTags.includes(tag.toLowerCase().trim()));
       });
@@ -1259,14 +1348,24 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     const tagCounts: Record<string, { count: number; images: GalleryImage[] }> = {};
     
     savedImages.forEach(img => {
-      img.tags.forEach(tag => {
+      const allTags = [
+        ...(img.tags || []),
+        ...(img.generalTags || []),
+        ...(img.characterTags || []),
+        ...(img.artistTags || []),
+        ...(img.copyrightTags || []),
+        ...(img.metaTags || []),
+      ];
+      allTags.forEach(tag => {
         const normalized = tag.toLowerCase().trim();
         if (normalized.length < 3) return;
         if (!tagCounts[normalized]) {
           tagCounts[normalized] = { count: 0, images: [] };
         }
-        tagCounts[normalized].count++;
-        tagCounts[normalized].images.push(img);
+        if (!tagCounts[normalized].images.some(i => i.id === img.id)) {
+          tagCounts[normalized].count++;
+          tagCounts[normalized].images.push(img);
+        }
       });
     });
 
@@ -1354,12 +1453,44 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         const id = crypto.randomUUID();
         const name = selected.split(/[\\/]/).pop() || "Local Folder";
         
+        // Add to LocalFolders tracker
         await db.execute(
           "INSERT INTO LocalFolders (id, path, name) VALUES (?, ?, ?)",
           [id, selected, name]
         );
-        await get().loadLocalFolders();
-        toast.success(`Added ${name}`);
+
+        // Also create a GalleryFolder so it's fully integrated
+        await db.execute(
+          "INSERT INTO GalleryFolders (id, name, description) VALUES (?, ?, ?)",
+          [id, name, `Local: ${selected}`]
+        );
+
+        toast.success(`Scanning ${name}...`);
+
+        try {
+          const { readDir } = await import("@tauri-apps/plugin-fs");
+          const { convertFileSrc } = await import("@tauri-apps/api/core");
+          
+          const entries = await readDir(selected);
+          const imageEntries = entries.filter(e => e.isFile && /\.(jpg|jpeg|png|webp|gif|avif)$/i.test(e.name));
+          
+          for (const entry of imageEntries) {
+            const imgId = crypto.randomUUID();
+            const fullPath = `${selected}/${entry.name}`;
+            const fileSrc = convertFileSrc(fullPath);
+            
+            await db.execute(
+              "INSERT INTO GalleryImages (id, imageUrl, previewUrl, tags, source, rating, liked, folderId, savedAt) VALUES (?, ?, ?, ?, ?, ?, 0, ?, CURRENT_TIMESTAMP)",
+              [imgId, fileSrc, fileSrc, "local", "local", "safe", id]
+            );
+          }
+          toast.success(`Imported ${imageEntries.length} images from ${name}`);
+        } catch (scanErr) {
+          console.error("[GalleryStore] Folder scan failed:", scanErr);
+          toast.error("Failed to read folder contents");
+        }
+
+        await get().loadFromDb();
       }
     } catch (e) {
       console.error("[GalleryStore] addLocalFolder failed:", e);
@@ -1369,7 +1500,10 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   removeLocalFolder: async (id) => {
     const db = getDb();
     await db.execute("DELETE FROM LocalFolders WHERE id = ?", [id]);
-    await get().loadLocalFolders();
+    // Also remove the associated gallery folder and its images
+    await db.execute("DELETE FROM GalleryImages WHERE folderId = ?", [id]);
+    await db.execute("DELETE FROM GalleryFolders WHERE id = ?", [id]);
+    await get().loadFromDb();
   },
 
   loadLocalFolders: async () => {

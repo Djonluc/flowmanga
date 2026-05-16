@@ -30,6 +30,7 @@ import { ZerochanProvider } from "./gallery/ZerochanProvider";
 import { DanbooruProvider } from "./gallery/DanbooruProvider";
 import { KonachanProvider } from "./gallery/KonachanProvider";
 import { YandereProvider } from "./gallery/YandereProvider";
+import { GelbooruProvider } from "./gallery/GelbooruProvider";
 
 // Register Phase 1
 sourceRegistry.register(new MangaDexProvider());
@@ -53,6 +54,12 @@ sourceRegistry.register(new ZerochanProvider());
 sourceRegistry.register(new DanbooruProvider());
 sourceRegistry.register(new KonachanProvider());
 sourceRegistry.register(new YandereProvider());
+sourceRegistry.register(new GelbooruProvider());
 
 export { sourceRegistry };
-export type { SourceProvider, ContentType, MediaType } from "./types";
+export type {
+  SourceProvider,
+  ContentType,
+  MediaType,
+  MediaDomain,
+} from "./types";

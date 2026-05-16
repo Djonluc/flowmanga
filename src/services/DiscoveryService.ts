@@ -10,9 +10,11 @@
 
 import { sourceRegistry } from "./sources/registry";
 import type {
+  ContentType,
   SourceProvider,
   SourceSearchResult,
-  ProviderCategory,
+  SourceSearchOptions,
+  MediaDomain,
 } from "./sources/types";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import { ContentFilter } from "./ContentFilter";
@@ -97,6 +99,7 @@ export class ReliabilityTracker {
 
 export class DiscoveryService {
   private static cache = new Map<string, CacheEntry>();
+  private static searchOffsets = new Map<string, Record<string, number>>();
   private static CACHE_TTL = 1000 * 60 * 60 * 2; // 2 hours
   private static SEARCH_CACHE_TTL = 1000 * 60 * 30; // 30 minutes for search results
   private static DEFAULT_TIMEOUT = 15000; // 15 seconds
@@ -118,17 +121,18 @@ export class DiscoveryService {
   static async getLatest(
     limit: number = 20,
     coloredOnly: boolean = false,
-    category?: ProviderCategory,
+    mediaDomain?: MediaDomain,
   ): Promise<SourceSearchResult[]> {
-    const cacheKey = `latest_${limit}_${coloredOnly}_${category ?? "all"}`;
+    const cacheKey = `latest_${limit}_${coloredOnly}_${mediaDomain ?? "all"}`;
 
     const memCached = this.getCache(cacheKey);
     if (memCached) return memCached;
 
     try {
+      type DbCacheRow = { results: string; updatedAt: string };
       const { getDb } = await import("./db");
       const db = getDb();
-      const dbResult = await db.select<any[]>(
+      const dbResult = await db.select<DbCacheRow[]>(
         "SELECT results, updatedAt FROM DiscoveryCache WHERE id = ?",
         [cacheKey],
       );
@@ -144,7 +148,7 @@ export class DiscoveryService {
             "latest",
             limit,
             coloredOnly,
-            category,
+            mediaDomain,
           );
         }
 
@@ -159,7 +163,7 @@ export class DiscoveryService {
       "latest",
       limit,
       coloredOnly,
-      category,
+      mediaDomain,
     );
   }
 
@@ -169,17 +173,18 @@ export class DiscoveryService {
   static async getTrending(
     limit: number = 20,
     coloredOnly: boolean = false,
-    category?: ProviderCategory,
+    mediaDomain?: MediaDomain,
   ): Promise<SourceSearchResult[]> {
-    const cacheKey = `trending_${limit}_${coloredOnly}_${category ?? "all"}`;
+    const cacheKey = `trending_${limit}_${coloredOnly}_${mediaDomain ?? "all"}`;
 
     const memCached = this.getCache(cacheKey);
     if (memCached) return memCached;
 
     try {
+      type DbCacheRow = { results: string; updatedAt: string };
       const { getDb } = await import("./db");
       const db = getDb();
-      const dbResult = await db.select<any[]>(
+      const dbResult = await db.select<DbCacheRow[]>(
         "SELECT results, updatedAt FROM DiscoveryCache WHERE id = ?",
         [cacheKey],
       );
@@ -195,7 +200,7 @@ export class DiscoveryService {
             "trending",
             limit,
             coloredOnly,
-            category,
+            mediaDomain,
           );
         }
 
@@ -210,7 +215,7 @@ export class DiscoveryService {
       "trending",
       limit,
       coloredOnly,
-      category,
+      mediaDomain,
     );
   }
 
@@ -219,19 +224,105 @@ export class DiscoveryService {
     type: "trending" | "latest",
     limit: number,
     coloredOnly: boolean,
-    category?: ProviderCategory,
+    mediaDomain?: MediaDomain,
   ): Promise<SourceSearchResult[]> {
     // Local Provider Scraping
-    const providers = this.getProvidersByCategory(category).filter((p) =>
-      type === "trending" ? !!p.fetchPopular : !!p.fetchLatest,
+    type DiscoveryFallbackProvider = {
+      fetchPopular?: (
+        page: number,
+        limit: number,
+        coloredOnly: boolean,
+      ) => Promise<SourceSearchResult[]>;
+      fetchLatest?: (
+        page: number,
+        limit: number,
+        coloredOnly: boolean,
+      ) => Promise<SourceSearchResult[]>;
+      search?: (
+        query: string,
+        options: SourceSearchOptions,
+      ) => Promise<SourceSearchResult[]>;
+    };
+
+    const providers = this.getProvidersByMediaDomain(mediaDomain).filter(
+      (p) => {
+        const providerAny = p as DiscoveryFallbackProvider;
+
+        return type === "trending"
+          ? !!p.getTrending ||
+              !!providerAny.fetchPopular ||
+              !!providerAny.fetchLatest ||
+              !!p.search
+          : !!p.getLatest ||
+              !!providerAny.fetchLatest ||
+              !!providerAny.fetchPopular ||
+              !!p.search;
+      },
     );
+    const { booruAuth } = useSettingsStore.getState();
     const tasks = providers.map((p) => {
-      const method = type === "trending" ? p.fetchPopular! : p.fetchLatest!;
-      return this.withTimeout(
-        method.call(p, 1, limit, coloredOnly),
-        this.DEFAULT_TIMEOUT,
-        [],
-      );
+      const method = type === "trending" ? p.getTrending : p.getLatest;
+      if (method) {
+        return this.withTimeout(
+          method.call(p, {
+            page: 1,
+            limit,
+            auth: booruAuth[p.id],
+          }),
+          this.DEFAULT_TIMEOUT,
+          [],
+        );
+      }
+
+      const anyProvider = p as {
+        fetchPopular?: (
+          page: number,
+          limit: number,
+          coloredOnly: boolean,
+        ) => Promise<SourceSearchResult[]>;
+        fetchLatest?: (
+          page: number,
+          limit: number,
+          coloredOnly: boolean,
+        ) => Promise<SourceSearchResult[]>;
+        search?: (
+          query: string,
+          options: SourceSearchOptions,
+        ) => Promise<SourceSearchResult[]>;
+      };
+
+      if (
+        type === "trending" &&
+        typeof anyProvider.fetchPopular === "function"
+      ) {
+        return this.withTimeout(
+          anyProvider.fetchPopular(1, limit, coloredOnly),
+          this.DEFAULT_TIMEOUT,
+          [],
+        );
+      }
+
+      if (typeof anyProvider.fetchLatest === "function") {
+        return this.withTimeout(
+          anyProvider.fetchLatest(1, limit, coloredOnly),
+          this.DEFAULT_TIMEOUT,
+          [],
+        );
+      }
+
+      if (p.search) {
+        return this.withTimeout(
+          p.search("a", {
+            page: 1,
+            limit,
+            auth: booruAuth[p.id],
+          }),
+          this.DEFAULT_TIMEOUT,
+          [],
+        );
+      }
+
+      return Promise.resolve([] as SourceSearchResult[]);
     });
 
     const results = await Promise.allSettled(tasks);
@@ -250,25 +341,122 @@ export class DiscoveryService {
   static async getRandom(
     limit: number = 20,
     coloredOnly: boolean = false,
-    category?: ProviderCategory,
+    mediaDomain?: MediaDomain,
   ): Promise<SourceSearchResult[]> {
-    const providers = this.getProvidersByCategory(category).filter(
-      (p) => !!p.fetchPopular || !!p.fetchLatest,
+    const providers = this.getProvidersByMediaDomain(mediaDomain).filter(
+      (p) => {
+        const providerAny = p as {
+          getRandom?: (
+            page?: number,
+            limit?: number,
+          ) => Promise<SourceSearchResult[]>;
+          fetchRandom?: (
+            page?: number,
+            limit?: number,
+          ) => Promise<SourceSearchResult[]>;
+          fetchLatest?: (
+            page: number,
+            limit: number,
+            coloredOnly: boolean,
+          ) => Promise<SourceSearchResult[]>;
+          fetchPopular?: (
+            page: number,
+            limit: number,
+            coloredOnly: boolean,
+          ) => Promise<SourceSearchResult[]>;
+          search?: (
+            query: string,
+            options: SourceSearchOptions,
+          ) => Promise<SourceSearchResult[]>;
+        };
+
+        return (
+          !!p.getTrending ||
+          !!p.getLatest ||
+          !!p.getRandom ||
+          !!providerAny.fetchRandom ||
+          !!providerAny.fetchLatest ||
+          !!providerAny.fetchPopular ||
+          !!p.search
+        );
+      },
     );
     if (providers.length === 0) return [];
 
+    const { booruAuth } = useSettingsStore.getState();
     const tasks = providers.map((p) => {
       const page = Math.floor(Math.random() * 5) + 1;
-      const methods = [];
-      if (p.fetchPopular) methods.push(p.fetchPopular.bind(p));
-      if (p.fetchLatest) methods.push(p.fetchLatest.bind(p));
+      const methods: Array<() => Promise<SourceSearchResult[]>> = [];
+      if (p.getRandom) {
+        methods.push(() => p.getRandom!());
+      }
+      if (p.getTrending) {
+        methods.push(() =>
+          p.getTrending!({
+            page,
+            limit,
+            auth: booruAuth[p.id],
+          }),
+        );
+      }
+      if (p.getLatest) {
+        methods.push(() =>
+          p.getLatest!({
+            page,
+            limit,
+            auth: booruAuth[p.id],
+          }),
+        );
+      }
+
+      type RandomFallbackProvider = {
+        fetchRandom?: (
+          page?: number,
+          limit?: number,
+        ) => Promise<SourceSearchResult[]>;
+        fetchLatest?: (
+          page: number,
+          limit: number,
+          coloredOnly: boolean,
+        ) => Promise<SourceSearchResult[]>;
+        fetchPopular?: (
+          page: number,
+          limit: number,
+          coloredOnly: boolean,
+        ) => Promise<SourceSearchResult[]>;
+        search?: (
+          query: string,
+          options: SourceSearchOptions,
+        ) => Promise<SourceSearchResult[]>;
+      };
+
+      const providerAny = p as RandomFallbackProvider;
+      if (typeof providerAny.fetchRandom === "function") {
+        methods.push(() => providerAny.fetchRandom!(page, limit));
+      }
+      if (typeof providerAny.fetchLatest === "function") {
+        methods.push(() => providerAny.fetchLatest!(page, limit, coloredOnly));
+      }
+      if (typeof providerAny.fetchPopular === "function") {
+        methods.push(() => providerAny.fetchPopular!(page, limit, coloredOnly));
+      }
+      if (p.search) {
+        const search = p.search;
+        methods.push(() =>
+          search("a", {
+            page,
+            limit,
+            auth: booruAuth[p.id],
+          }),
+        );
+      }
+
+      if (methods.length === 0) {
+        return Promise.resolve([] as SourceSearchResult[]);
+      }
 
       const randomMethod = methods[Math.floor(Math.random() * methods.length)];
-      return this.withTimeout(
-        randomMethod(page, limit, coloredOnly),
-        this.DEFAULT_TIMEOUT,
-        [],
-      );
+      return this.withTimeout(randomMethod(), this.DEFAULT_TIMEOUT, []);
     });
 
     const results = await Promise.allSettled(tasks);
@@ -285,7 +473,7 @@ export class DiscoveryService {
     });
 
     return this.filterRestrictedContent(unique, coloredOnly)
-      .filter((item) => this.matchesCategory(item, category))
+      .filter((item) => this.matchesMediaDomain(item, mediaDomain))
       .sort(() => Math.random() - 0.5)
       .slice(0, limit);
   }
@@ -298,19 +486,38 @@ export class DiscoveryService {
     limit: number = 48,
     coloredOnly: boolean = false,
     page: number = 1,
-    category?: ProviderCategory,
+    mediaDomain?: MediaDomain,
   ): Promise<SourceSearchResult[]> {
-    const cacheKey = `search_${query}_${limit}_${coloredOnly}_${page}_${category ?? "all"}`;
+    const cacheKey = `search_${query}_${limit}_${coloredOnly}_${page}_${mediaDomain ?? "all"}`;
 
     // Check memory cache with shorter TTL for search results
     const memCached = this.getCache(cacheKey, this.SEARCH_CACHE_TTL);
     if (memCached) return memCached;
 
-    const providers = this.getProvidersByCategory(category);
-    const tasks = providers.map((p) => {
+    const { booruAuth } = useSettingsStore.getState();
+    const providers = this.getProvidersByMediaDomain(mediaDomain);
+    
+    // Manage search entropy offsets
+    const queryKey = `global_${query}_${mediaDomain ?? "all"}`;
+    if (page === 1) {
+      const offsets: Record<string, number> = {};
+      providers.forEach(p => {
+        // Random offset 0-3 pages for broader discovery
+        offsets[p.id] = Math.floor(Math.random() * 4);
+      });
+      this.searchOffsets.set(queryKey, offsets);
+    }
+    const offsets = this.searchOffsets.get(queryKey) || {};
+
+    const tasks = [...providers].sort(() => Math.random() - 0.5).map((p) => {
       if (!p.search) return Promise.resolve([]);
+      const actualPage = page + (offsets[p.id] || 0);
       return this.withTimeout(
-        p.search(query, page, Math.min(limit * 2, 100)), // Fetch more per provider for better aggregation
+        p.search(query, {
+          page: actualPage,
+          limit: Math.min(limit * 2, 100),
+          auth: booruAuth[p.id],
+        }), // Fetch more per provider for better aggregation
         this.DEFAULT_TIMEOUT,
         [],
       );
@@ -324,10 +531,10 @@ export class DiscoveryService {
     const finalResults = this.filterRestrictedContent(
       this.interleave(flattenedResults, limit, coloredOnly),
       coloredOnly,
-    ).filter((item) => this.matchesCategory(item, category));
+    ).filter((item) => this.matchesMediaDomain(item, mediaDomain));
 
     // Cache search results with shorter TTL
-    this.setCache(cacheKey, finalResults, false, this.SEARCH_CACHE_TTL);
+    this.setCache(cacheKey, finalResults, false);
 
     // Preload thumbnails for better performance
     this.preloadThumbnails(finalResults);
@@ -343,38 +550,57 @@ export class DiscoveryService {
     limit: number = 48,
     coloredOnly: boolean = false,
     page: number = 1,
-    category?: ProviderCategory,
+    mediaDomain?: MediaDomain,
   ): Promise<SourceSearchResult[]> {
-    const providers = this.getProvidersByCategory(category);
-    let stats = { total: 0, failed: 0, providers: [] as string[] };
+    const providers = this.getProvidersByMediaDomain(mediaDomain);
+    const stats = { total: 0, failed: 0, providers: [] as string[] };
 
-    const tasks = providers.map(async (p) => {
-      if (!p.searchByTags) return [];
-      try {
-        const result = await this.withTimeout(
-          p.searchByTags(tags, page, Math.min(limit, 50)),
-          this.DEFAULT_TIMEOUT,
-          [],
-        );
-        const combined = result;
+    const queryKey = `tags_${tags.join(",")}_${mediaDomain ?? "all"}`;
+    if (page === 1) {
+      const offsets: Record<string, number> = {};
+      providers.forEach(p => {
+        // Random offset 0-4 pages for broader discovery
+        offsets[p.id] = Math.floor(Math.random() * 5);
+      });
+      this.searchOffsets.set(queryKey, offsets);
+    }
+    const offsets = this.searchOffsets.get(queryKey) || {};
 
-        console.log(
-          `[DiscoveryService] Provider '${p.name}' returned ${combined.length} results for tags: ${tags.join(", ")}`,
-        );
-        if (combined.length > 0) {
-          stats.providers.push(`${p.name} (${combined.length})`);
-          stats.total += combined.length;
+    const tasks = [...providers]
+      .filter((p) => p.capabilities.tagSearch)
+      .sort(() => Math.random() - 0.5)
+      .map(async (p) => {
+        const { booruAuth } = useSettingsStore.getState();
+        try {
+          const actualPage = page + (offsets[p.id] || 0);
+          const result = await this.withTimeout(
+            p.searchByTags!(tags, {
+              page: actualPage,
+              limit: Math.min(limit, 50),
+              auth: booruAuth[p.id],
+            }),
+            this.DEFAULT_TIMEOUT,
+            [],
+          );
+          const combined = result;
+
+          console.log(
+            `[DiscoveryService] Provider '${p.name}' returned ${combined.length} results for tags: ${tags.join(", ")}`,
+          );
+          if (combined.length > 0) {
+            stats.providers.push(`${p.name} (${combined.length})`);
+            stats.total += combined.length;
+          }
+          return combined;
+        } catch (e) {
+          console.warn(
+            `[DiscoveryService] Provider '${p.name}' failed tag search:`,
+            e,
+          );
+          stats.failed++;
+          return [];
         }
-        return combined;
-      } catch (e) {
-        console.warn(
-          `[DiscoveryService] Provider '${p.name}' failed tag search:`,
-          e,
-        );
-        stats.failed++;
-        return [];
-      }
-    });
+      });
 
     const results = await Promise.all(tasks);
 
@@ -395,10 +621,57 @@ export class DiscoveryService {
       })
       .catch(() => {});
 
-    return this.filterRestrictedContent(
+    const normalizedQueryTags = tags
+      .map((tag) =>
+        tag
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, "_")
+          .replace(/[^\w\-:@~.()]/g, "")
+          .replace(/_+/g, "_")
+          .replace(/^_+|_+$/g, ""),
+      )
+      .filter(Boolean);
+
+    const finalResults = this.filterRestrictedContent(
       this.interleave(results, limit, coloredOnly),
       coloredOnly,
-    ).filter((item) => this.matchesCategory(item, category));
+    )
+      .filter((item) => this.matchesMediaDomain(item, mediaDomain))
+      .filter((item) => {
+        if (normalizedQueryTags.length === 0) return true;
+
+        const itemTags = [
+          ...(item.tags || []),
+          ...(item.generalTags || []),
+          ...(item.characterTags || []),
+          ...(item.copyrightTags || []),
+          ...(item.artistTags || []),
+          ...(item.metaTags || []),
+        ]
+          .map((tag) =>
+            tag
+              .trim()
+              .toLowerCase()
+              .replace(/\s+/g, "_")
+              .replace(/[^\w\-:@~.()]/g, "")
+              .replace(/_+/g, "_")
+              .replace(/^_+|_+$/g, ""),
+          )
+          .filter(Boolean);
+
+        const tagSet = new Set(itemTags);
+        return normalizedQueryTags.every((tag) => tagSet.has(tag));
+      });
+
+    if (finalResults.length === 0 && tags.length === 1) {
+      console.info(
+        `[DiscoveryService] Tag search returned no results for '${tags[0]}'; falling back to global search.`,
+      );
+      return this.searchGlobal(tags[0], limit, coloredOnly, page, mediaDomain);
+    }
+
+    return finalResults;
   }
 
   // ─── Utilities ────────────────────────────────────────────────────
@@ -413,14 +686,13 @@ export class DiscoveryService {
     );
 
     // 0. Auto-Categorize items based on source/title if missing
-    let categorized = validItems.map((item) => {
+    const categorized: SourceSearchResult[] = validItems.map((item) => {
       if (item.contentType) return item;
 
       const source = item.source?.toLowerCase() || "";
-      const title = item.title?.toLowerCase() || "";
       const tags = (item.tags || []).map((t) => t.toLowerCase());
 
-      let type: "manga" | "manhwa" | "manhua" | "comic" | "doujin" = "manga";
+      let type: ContentType = "manga";
 
       if (
         source.includes("manhwa") ||
@@ -439,7 +711,7 @@ export class DiscoveryService {
       else if (source.includes("nhentai") || tags.includes("doujinshi"))
         type = "doujin";
 
-      return { ...item, contentType: type };
+      return { ...item, contentType: type } as SourceSearchResult;
     });
 
     let filtered = ContentFilter.filterResults(categorized);
@@ -461,22 +733,32 @@ export class DiscoveryService {
     return filtered;
   }
 
-  private static matchesCategory(
+  private static matchesMediaDomain(
     item: SourceSearchResult,
-    category?: ProviderCategory,
+    mediaDomain?: MediaDomain,
   ): boolean {
-    if (!category) return true;
-    if (category === "image")
-      return item.contentType === "gallery" || item.contentType === "album";
-    if (category === "doujin") return item.contentType === "doujin";
-    return item.contentType === "manga" || item.contentType === "comic";
+    if (!mediaDomain) return true;
+    if (mediaDomain === "image")
+      return (
+        item.mediaDomain === "image" ||
+        item.contentType === "gallery" ||
+        item.contentType === "album"
+      );
+    return (
+      item.mediaDomain === "manga" ||
+      item.contentType === "manga" ||
+      item.contentType === "comic" ||
+      item.contentType === "manhwa" ||
+      item.contentType === "manhua" ||
+      item.contentType === "doujin"
+    );
   }
 
-  private static getProvidersByCategory(
-    category?: ProviderCategory,
+  private static getProvidersByMediaDomain(
+    mediaDomain?: MediaDomain,
   ): SourceProvider[] {
-    return category
-      ? sourceRegistry.listByCategory(category)
+    return mediaDomain
+      ? sourceRegistry.listByMediaDomain(mediaDomain)
       : sourceRegistry.list();
   }
 
@@ -584,7 +866,7 @@ export class DiscoveryService {
     ms: number,
     defaultValue: T,
   ): Promise<T> {
-    let timeoutId: any;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<T>((resolve) => {
       timeoutId = setTimeout(() => resolve(defaultValue), ms);
     });
@@ -628,10 +910,20 @@ export class DiscoveryService {
     };
 
     // Preload high-priority thumbnails first
+    const getThumbnailSrc = (item: SourceSearchResult) =>
+      item.previewUrl ||
+      item.coverUrl ||
+      item.imageUrl ||
+      item.fullResUrl ||
+      item.sample_url ||
+      item.file_url ||
+      "";
+
     const highPriority = results.slice(0, priorityCount);
     highPriority.forEach((item) => {
-      if (item.thumbnail) {
-        preloadImage(item.thumbnail);
+      const thumbnail = getThumbnailSrc(item);
+      if (thumbnail) {
+        preloadImage(thumbnail);
       }
     });
 
@@ -640,8 +932,9 @@ export class DiscoveryService {
       setTimeout(() => {
         const remaining = results.slice(priorityCount);
         remaining.forEach((item) => {
-          if (item.thumbnail) {
-            preloadImage(item.thumbnail);
+          const thumbnail = getThumbnailSrc(item);
+          if (thumbnail) {
+            preloadImage(thumbnail);
           }
         });
       }, 100);

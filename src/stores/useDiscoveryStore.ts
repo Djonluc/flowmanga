@@ -23,6 +23,8 @@ interface DiscoveryState {
 
   // UI State
   query: string;
+  currentSearchPage: number;
+  hasMoreSearchResults: boolean;
   isSearching: boolean;
   isLoadingTrending: boolean;
   isLoadingLatest: boolean;
@@ -31,7 +33,8 @@ interface DiscoveryState {
   error: string | null;
 
   // Actions
-  search: (query: string) => Promise<void>;
+  search: (query: string, page?: number) => Promise<void>;
+  loadMoreSearchResults: () => Promise<void>;
   fetchTrending: (force?: boolean) => Promise<void>;
   fetchLatest: (force?: boolean) => Promise<void>;
   fetchRandom: (force?: boolean) => Promise<void>;
@@ -47,6 +50,8 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
   latest: [],
   random: [],
   query: "",
+  currentSearchPage: 1,
+  hasMoreSearchResults: true,
   isSearching: false,
   isLoadingTrending: false,
   isLoadingLatest: false,
@@ -58,29 +63,46 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
 
   setActiveType: (activeType) => set({ activeType }),
 
-  clearResults: () => set({ results: [], query: "", error: null }),
+  clearResults: () =>
+    set({
+      results: [],
+      query: "",
+      currentSearchPage: 1,
+      hasMoreSearchResults: true,
+      error: null,
+    }),
 
-  search: async (query) => {
+  search: async (query, page = 1) => {
     if (!query.trim()) return;
     set({ isSearching: true, error: null });
     try {
       const { coloredOnly } = useSettingsStore.getState();
-      const category =
+      const mediaDomain =
         get().activeType === "gallery"
           ? "image"
-          : get().activeType === "doujin"
-            ? "doujin"
-            : get().activeType === "all"
-              ? undefined
-              : "manga";
+          : get().activeType === "all"
+            ? undefined
+            : "manga";
       const results = await DiscoveryService.searchGlobal(
         query,
         48, // Increased limit for better results
         coloredOnly,
-        1,
-        category,
+        page,
+        mediaDomain,
       );
-      set({ results, isSearching: false });
+
+      set((state) => {
+        const nextResults =
+          page === 1 ? results : [...state.results, ...results];
+
+        return {
+          results: nextResults,
+          isSearching: false,
+          query,
+          currentSearchPage: page,
+          hasMoreSearchResults: results.length >= 48,
+        };
+      });
     } catch (err) {
       console.error("[DiscoveryStore] Search failed:", err);
       set({
@@ -88,6 +110,19 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
         isSearching: false,
       });
     }
+  },
+
+  loadMoreSearchResults: async () => {
+    const state = get();
+    if (
+      state.isSearching ||
+      !state.hasMoreSearchResults ||
+      !state.query.trim()
+    ) {
+      return;
+    }
+
+    await get().search(state.query, state.currentSearchPage + 1);
   },
 
   fetchTrending: async (force = false) => {
@@ -116,11 +151,7 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
       const category =
         get().activeType === "gallery"
           ? "image"
-          : get().activeType === "doujin"
-            ? "doujin"
-            : get().activeType === "all"
-              ? undefined
-              : "manga";
+          : "manga";
       const trending = await DiscoveryService.getTrending(
         24,
         coloredOnly,
@@ -159,11 +190,7 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
       const category =
         get().activeType === "gallery"
           ? "image"
-          : get().activeType === "doujin"
-            ? "doujin"
-            : get().activeType === "all"
-              ? undefined
-              : "manga";
+          : "manga";
       const latest = await DiscoveryService.getLatest(
         24,
         coloredOnly,
@@ -185,11 +212,7 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
       const category =
         get().activeType === "gallery"
           ? "image"
-          : get().activeType === "doujin"
-            ? "doujin"
-            : get().activeType === "all"
-              ? undefined
-              : "manga";
+          : "manga";
       const random = await DiscoveryService.getRandom(
         24,
         coloredOnly,

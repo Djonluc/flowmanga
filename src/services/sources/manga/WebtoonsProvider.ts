@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from "@tauri-apps/api/core";
 import type {
   SourceProvider,
   SourceContent,
@@ -8,35 +8,35 @@ import type {
   ContentType,
   MediaType,
   ReaderMode,
-} from '../types';
+} from "../types";
 
-const ORIGIN = 'https://www.webtoons.com';
+const ORIGIN = "https://www.webtoons.com";
 
 function webtoonsHost(hostname: string): boolean {
-  const h = hostname.replace(/^www\./, '').toLowerCase();
+  const h = hostname.replace(/^www\./, "").toLowerCase();
   return (
-    h === 'webtoons.com' ||
-    h === 'global.webtoons.com' ||
-    h === 'm.webtoons.com'
+    h === "webtoons.com" ||
+    h === "global.webtoons.com" ||
+    h === "m.webtoons.com"
   );
 }
 
 function documentHeaders(referer?: string): Record<string, string> {
   const h: Record<string, string> = {
-    'User-Agent':
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
     Accept:
-      'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Cache-Control': 'max-age=0',
-    'Upgrade-Insecure-Requests': '1',
+      "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Cache-Control": "max-age=0",
+    "Upgrade-Insecure-Requests": "1",
   };
   if (referer) h.Referer = referer;
   return h;
 }
 
 async function fetchHtml(url: string, referer?: string): Promise<string> {
-  return invoke<string>('fetch_html', {
+  return invoke<string>("fetch_html", {
     url,
     headers: documentHeaders(referer),
   });
@@ -48,28 +48,28 @@ function sleep(ms: number): Promise<void> {
 
 function absUrl(href: string): string {
   const t = href.trim();
-  if (t.startsWith('http://') || t.startsWith('https://')) return t;
-  if (t.startsWith('//')) return `https:${t}`;
+  if (t.startsWith("http://") || t.startsWith("https://")) return t;
+  if (t.startsWith("//")) return `https:${t}`;
   return new URL(t, ORIGIN).href;
 }
 
 function listBaseWithTrailingAmp(seriesUrl: string): string {
-  let base = seriesUrl.split('&page=')[0];
-  if (!base.includes('?')) base += '?';
-  if (!base.endsWith('?') && !base.endsWith('&')) base += '&';
+  let base = seriesUrl.split("&page=")[0];
+  if (!base.includes("?")) base += "?";
+  if (!base.endsWith("?") && !base.endsWith("&")) base += "&";
   return base;
 }
 
 function normalizeImageUrl(u: string): string {
   const t = u.trim();
   if (!t) return t;
-  if (t.startsWith('//')) return `https:${t}`;
+  if (t.startsWith("//")) return `https:${t}`;
   return t;
 }
 
 function episodeNumberFromChapterUrl(u: string): string | null {
   try {
-    const sp = new URL(u).searchParams.get('episode_no');
+    const sp = new URL(u).searchParams.get("episode_no");
     if (sp) return sp;
   } catch {
     /* ignore */
@@ -82,13 +82,13 @@ function episodeNumberFromChapterUrl(u: string): string | null {
 }
 
 function parseLastListPage(html: string): number | null {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const paginate = doc.querySelector('div.paginate');
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const paginate = doc.querySelector("div.paginate");
   if (!paginate) return null;
-  const onSpans = paginate.querySelectorAll('span.on');
+  const onSpans = paginate.querySelectorAll("span.on");
   const nums: number[] = [];
   onSpans.forEach((span) => {
-    const n = parseInt(span.textContent?.trim() || '', 10);
+    const n = parseInt(span.textContent?.trim() || "", 10);
     if (!Number.isNaN(n)) nums.push(n);
   });
   if (nums.length === 0) return null;
@@ -96,60 +96,73 @@ function parseLastListPage(html: string): number | null {
 }
 
 function parseSeriesTitle(html: string): string {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const h1 = doc.querySelector('h1.subj');
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const h1 = doc.querySelector("h1.subj");
   if (h1?.textContent?.trim()) return h1.textContent.trim();
-  const og = doc.querySelector('meta[property="og:title"]')?.getAttribute('content');
+  const og = doc
+    .querySelector('meta[property="og:title"]')
+    ?.getAttribute("content");
   if (og?.trim()) return og.trim();
-  return 'Webtoon';
+  return "Webtoon";
 }
 
 function parseDescription(html: string): string {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const og = doc.querySelector('meta[property="og:description"]')?.getAttribute('content');
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const og = doc
+    .querySelector('meta[property="og:description"]')
+    ?.getAttribute("content");
   if (og?.trim()) return og.trim();
-  const summary = doc.querySelector('.summary, .detail_body')?.textContent;
-  return (summary || '').replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const summary = doc.querySelector(".summary, .detail_body")?.textContent;
+  return (summary || "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** Genres / thematic labels from the series list page (used as library tags). */
 function parseGenreTags(html: string): string[] {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const doc = new DOMParser().parseFromString(html, "text/html");
   const out: string[] = [];
   const seen = new Set<string>();
   const add = (raw: string | null | undefined) => {
-    const t = (raw || '').replace(/\s+/g, ' ').trim();
+    const t = (raw || "").replace(/\s+/g, " ").trim();
     if (!t || t.length > 48) return;
     if (seen.has(t)) return;
     seen.add(t);
     out.push(t);
   };
-  doc.querySelectorAll('div.detail_genre a, .detail_genre a, a[href*="genreNo="]').forEach((a) =>
-    add(a.textContent),
-  );
-  doc.querySelectorAll('.genre, h2.genre, span.genre').forEach((el) => add(el.textContent));
+  doc
+    .querySelectorAll(
+      'div.detail_genre a, .detail_genre a, a[href*="genreNo="]',
+    )
+    .forEach((a) => add(a.textContent));
+  doc
+    .querySelectorAll(".genre, h2.genre, span.genre")
+    .forEach((el) => add(el.textContent));
   return out;
 }
 
 function parseCoverUrl(html: string): string {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const og = doc.querySelector('meta[property="og:image"]')?.getAttribute('content');
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const og = doc
+    .querySelector('meta[property="og:image"]')
+    ?.getAttribute("content");
   if (og?.trim()) return absUrl(og.trim());
-  const link = doc.querySelector('link[rel="image_src"]')?.getAttribute('href');
+  const link = doc.querySelector('link[rel="image_src"]')?.getAttribute("href");
   if (link?.trim()) return absUrl(link.trim());
-  return '';
+  return "";
 }
 
 function parseChapterRows(html: string): { url: string; title: string }[] {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const list = doc.querySelector('ul#_listUl');
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const list = doc.querySelector("ul#_listUl");
   if (!list) return [];
   const out: { url: string; title: string }[] = [];
-  list.querySelectorAll('li').forEach((li) => {
-    const a = li.querySelector('a[href]') as HTMLAnchorElement | null;
-    const subj = li.querySelector('span.subj');
+  list.querySelectorAll("li").forEach((li) => {
+    const a = li.querySelector("a[href]") as HTMLAnchorElement | null;
+    const subj = li.querySelector("span.subj");
     if (!a || !subj?.textContent?.trim()) return;
-    let href = a.getAttribute('href') || '';
+    let href = a.getAttribute("href") || "";
     if (!href) return;
     out.push({
       url: absUrl(href),
@@ -161,21 +174,21 @@ function parseChapterRows(html: string): { url: string; title: string }[] {
 
 function extractImageUrlsFromChapterHtml(html: string): string[] {
   const urls: string[] = [];
-  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const doc = new DOMParser().parseFromString(html, "text/html");
 
-  const imageList = doc.querySelector('div#_imageList');
+  const imageList = doc.querySelector("div#_imageList");
   if (imageList) {
-    imageList.querySelectorAll('img._images').forEach((img) => {
-      const dataUrl = img.getAttribute('data-url');
+    imageList.querySelectorAll("img._images").forEach((img) => {
+      const dataUrl = img.getAttribute("data-url");
       if (dataUrl) urls.push(normalizeImageUrl(dataUrl));
     });
   }
 
   if (urls.length === 0) {
-    const scripts = doc.querySelectorAll('script');
+    const scripts = doc.querySelectorAll("script");
     for (const script of scripts) {
-      const text = script.textContent || '';
-      if (!text.includes('imageData')) continue;
+      const text = script.textContent || "";
+      if (!text.includes("imageData")) continue;
       const m = text.match(/var\s+imageData\s*=\s*(\[[\s\S]*?\]);/);
       if (!m) continue;
       try {
@@ -191,14 +204,19 @@ function extractImageUrlsFromChapterHtml(html: string): string[] {
   }
 
   if (urls.length === 0) {
-    const viewer = doc.querySelector('div#_viewerBox');
+    const viewer = doc.querySelector("div#_viewerBox");
     if (viewer) {
-      viewer.querySelectorAll('img').forEach((img) => {
+      viewer.querySelectorAll("img").forEach((img) => {
         const src =
-          img.getAttribute('data-url') || img.getAttribute('data-src') || img.getAttribute('src');
+          img.getAttribute("data-url") ||
+          img.getAttribute("data-src") ||
+          img.getAttribute("src");
         if (!src) return;
         const lower = src.toLowerCase();
-        if (['advertisement', 'blank', 'loading'].some((x) => lower.includes(x))) return;
+        if (
+          ["advertisement", "blank", "loading"].some((x) => lower.includes(x))
+        )
+          return;
         urls.push(normalizeImageUrl(src));
       });
     }
@@ -216,8 +234,9 @@ export function isWebtoonsSeriesListUrl(url: string): boolean {
   try {
     const u = new URL(url);
     if (!webtoonsHost(u.hostname)) return false;
-    if (u.pathname.includes('/list')) return true;
-    if (u.searchParams.has('title_no') && !u.pathname.includes('/viewer')) return true;
+    if (u.pathname.includes("/list")) return true;
+    if (u.searchParams.has("title_no") && !u.pathname.includes("/viewer"))
+      return true;
     return false;
   } catch {
     return false;
@@ -225,13 +244,14 @@ export function isWebtoonsSeriesListUrl(url: string): boolean {
 }
 
 export class WebtoonsProvider implements SourceProvider {
-  readonly id = 'webtoons';
-  readonly name = 'LINE Webtoon';
-  readonly domains = ['webtoons.com', 'global.webtoons.com', 'm.webtoons.com'];
-  readonly contentType: ContentType = 'manga';
-  readonly mediaTypes: MediaType[] = ['image'];
-  readonly defaultPersistence = 'library' as const;
-  readonly readerModes: ReaderMode[] = ['vertical'];
+  readonly id = "webtoons";
+  readonly name = "LINE Webtoon";
+  readonly domains = ["webtoons.com", "global.webtoons.com", "m.webtoons.com"];
+  readonly contentType: ContentType = "manga";
+  readonly mediaDomain: MediaDomain = "manga";
+  readonly mediaTypes: MediaType[] = ["image"];
+  readonly defaultPersistence = "library" as const;
+  readonly readerModes: ReaderMode[] = ["vertical"];
 
   readonly capabilities: SourceCapabilities = {
     search: false,
@@ -246,14 +266,15 @@ export class WebtoonsProvider implements SourceProvider {
     try {
       return webtoonsHost(new URL(url).hostname);
     } catch {
-      return url.includes('webtoons.com');
+      return url.includes("webtoons.com");
     }
   }
 
   async fetchContent(url: string): Promise<SourceContent> {
     const html = await fetchHtml(url, url);
     const raw = extractImageUrlsFromChapterHtml(html);
-    if (raw.length === 0) throw new Error('No images found for this Webtoon episode');
+    if (raw.length === 0)
+      throw new Error("No images found for this Webtoon episode");
 
     return {
       images: raw.map((u, i) => ({ url: u, pageNumber: i + 1 })),
@@ -263,7 +284,7 @@ export class WebtoonsProvider implements SourceProvider {
 
   async fetchSeries(seriesUrl: string): Promise<SourceSeries> {
     const base = listBaseWithTrailingAmp(seriesUrl);
-    const canonical = seriesUrl.split('&page=')[0];
+    const canonical = seriesUrl.split("&page=")[0];
 
     let lastPage = 1;
     try {
@@ -277,7 +298,7 @@ export class WebtoonsProvider implements SourceProvider {
 
     const seen = new Set<string>();
     const chaptersRaw: { url: string; title: string }[] = [];
-    let firstPageHtml = '';
+    let firstPageHtml = "";
 
     for (let page = 1; page <= lastPage; page++) {
       const html = await fetchHtml(
@@ -294,7 +315,8 @@ export class WebtoonsProvider implements SourceProvider {
       if (page < lastPage) await sleep(600);
     }
 
-    if (chaptersRaw.length === 0) throw new Error('No chapters found for this Webtoon series');
+    if (chaptersRaw.length === 0)
+      throw new Error("No chapters found for this Webtoon series");
 
     chaptersRaw.reverse();
 
@@ -305,7 +327,7 @@ export class WebtoonsProvider implements SourceProvider {
         number: ep ?? String(idx + 1),
         url: ch.url,
         title: ch.title,
-        source: 'www.webtoons.com',
+        source: "www.webtoons.com",
       };
     });
 
@@ -319,7 +341,7 @@ export class WebtoonsProvider implements SourceProvider {
       description,
       coverUrl,
       seriesUrl: canonical,
-      source: 'www.webtoons.com',
+      source: "www.webtoons.com",
       tags: tags.length > 0 ? tags : undefined,
       chapters,
     };

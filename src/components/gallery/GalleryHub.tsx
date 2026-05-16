@@ -1,29 +1,38 @@
 /**
  * GalleryHub
- * 
+ *
  * Top-level shell for the Gallery Ecosystem.
  * Renders a tabbed navigation with a glassmorphism pill-style bar
  * and mounts the appropriate sub-view per active tab.
  */
 
-import React, { useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Flame, Compass, Sparkles, FolderOpen, Film, Search, Tag, Image as ImageIcon } from 'lucide-react';
-import { useGalleryStore, type GalleryTab } from '../../stores/useGalleryStore';
-import { DiscoverFeed } from './DiscoverFeed';
-import { PicksForYou } from './PicksForYou';
-import { SavedCollections } from './SavedCollections';
-import { SlideshowManager } from './SlideshowManager';
-import { TagSearch } from './TagSearch';
-import { FollowingTags } from './FollowingTags';
+import React, { useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Flame,
+  Compass,
+  Sparkles,
+  FolderOpen,
+  Film,
+  Search,
+  Tag,
+  Image as ImageIcon,
+} from "lucide-react";
+import { useGalleryStore, type GalleryTab } from "../../stores/useGalleryStore";
+import { DiscoverFeed } from "./DiscoverFeed";
+import { PicksForYou } from "./PicksForYou";
+import { SavedCollections } from "./SavedCollections";
+import { SlideshowManager } from "./SlideshowManager";
+import { TagSearch } from "./TagSearch";
+import { FollowingTags } from "./FollowingTags";
 
 const TABS: { id: GalleryTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'discover', label: 'Discover', icon: <Compass size={16} /> },
-  { id: 'picks', label: 'For You', icon: <Sparkles size={16} /> },
-  { id: 'collections', label: 'Collections', icon: <FolderOpen size={16} /> },
-  { id: 'slideshows', label: 'Slideshows', icon: <Film size={16} /> },
-  { id: 'following', label: 'Following', icon: <Tag size={16} /> },
-  { id: 'search', label: 'Search', icon: <Search size={16} /> },
+  { id: "discover", label: "Discover", icon: <Compass size={16} /> },
+  { id: "picks", label: "For You", icon: <Sparkles size={16} /> },
+  { id: "collections", label: "Collections", icon: <FolderOpen size={16} /> },
+  { id: "slideshows", label: "Slideshows", icon: <Film size={16} /> },
+  { id: "following", label: "Following", icon: <Tag size={16} /> },
+  { id: "search", label: "Search", icon: <Search size={16} /> },
 ];
 
 export const GalleryHub: React.FC = () => {
@@ -32,20 +41,27 @@ export const GalleryHub: React.FC = () => {
   useEffect(() => {
     loadFromDb();
     // Safety redirect if activeTab is decommissioned
-    if (activeTab === ('wallpapers' as any)) {
-      setActiveTab('discover');
+    if (activeTab === ("wallpapers" as any)) {
+      setActiveTab("discover");
     }
   }, [activeTab]);
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'discover': return <DiscoverFeed />;
-      case 'picks': return <PicksForYou />;
-      case 'collections': return <SavedCollections />;
-      case 'slideshows': return <SlideshowManager />;
-      case 'following': return <FollowingTags />;
-      case 'search': return <TagSearch />;
-      default: return <DiscoverFeed />;
+      case "discover":
+        return <DiscoverFeed />;
+      case "picks":
+        return <PicksForYou />;
+      case "collections":
+        return <SavedCollections />;
+      case "slideshows":
+        return <SlideshowManager />;
+      case "following":
+        return <FollowingTags />;
+      case "search":
+        return <TagSearch />;
+      default:
+        return <DiscoverFeed />;
     }
   };
 
@@ -53,8 +69,8 @@ export const GalleryHub: React.FC = () => {
     <div className="h-full flex flex-col overflow-hidden">
       {/* Tab Bar */}
       <div className="shrink-0 px-6 pt-6 pb-2">
-        <div className="flex items-center gap-1 p-1.5 bg-white/[0.03] border border-white/[0.06] rounded-2xl w-fit backdrop-blur-xl">
-          {TABS.map(tab => {
+        <div className="flex items-center gap-1 p-1.5 border border-white/6 bg-white/3 rounded-2xl w-fit backdrop-blur-xl">
+          {TABS.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <button
@@ -62,15 +78,15 @@ export const GalleryHub: React.FC = () => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
                   isActive
-                    ? 'text-white'
-                    : 'text-foreground-dim hover:text-foreground hover:bg-white/[0.03]'
+                    ? "text-white"
+                    : "text-foreground-dim hover:text-foreground hover:bg-white/3"
                 }`}
               >
                 {isActive && (
                   <motion.div
                     layoutId="gallery-tab-active"
                     className="absolute inset-0 bg-purple-600/80 rounded-xl shadow-lg shadow-purple-500/20"
-                    transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }}
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
                   />
                 )}
                 <span className="relative z-10 flex items-center gap-2">
@@ -91,7 +107,7 @@ export const GalleryHub: React.FC = () => {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
           >
             {renderTab()}
           </motion.div>

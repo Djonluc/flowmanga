@@ -75,7 +75,9 @@ export const SlideshowPlayer: React.FC = () => {
   const [touchDelta, setTouchDelta] = useState(0);
   const [renderedUrl, setRenderedUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [showOverlay, setShowOverlay] = useState<"play" | "pause" | "shuffle" | "repeat" | "random" | null>(null);
+  const [showOverlay, setShowOverlay] = useState<
+    "play" | "pause" | "shuffle" | "repeat" | "random" | null
+  >(null);
   const [showQueue, setShowQueue] = useState(false);
   const [showMetadata, setShowMetadata] = useState(true);
   const controlTimer = useRef<any>(null);
@@ -87,9 +89,11 @@ export const SlideshowPlayer: React.FC = () => {
   const currentImage = slideshowImages[slideshowIndex];
   const { preloadHighResImage } = useMediaLoader();
 
-
   const transitionType = slideshowTransition;
-  const effectiveInterval = Math.max(1000, activeShow?.interval || slideshowInterval);
+  const effectiveInterval = Math.max(
+    1000,
+    activeShow?.interval || slideshowInterval,
+  );
 
   const fallbackUrls = useCallback((image: any) => {
     if (!image) return [];
@@ -160,38 +164,30 @@ export const SlideshowPlayer: React.FC = () => {
       }
       return;
     }
-    
+
     if (autoTimer.current) clearInterval(autoTimer.current);
-    
+
     autoTimer.current = setInterval(() => {
       const state = useGalleryStore.getState();
       if (!state.isSlideshowPlaying) {
         if (autoTimer.current) clearInterval(autoTimer.current);
         return;
       }
-      
+
       nextSlide();
     }, effectiveInterval);
-    
+
     return () => {
       if (autoTimer.current) clearInterval(autoTimer.current);
     };
-  }, [isSlideshowPlaying, isPaused, effectiveInterval, currentImage, nextSlide]);
+  }, [
+    isSlideshowPlaying,
+    isPaused,
+    effectiveInterval,
+    currentImage,
+    nextSlide,
+  ]);
 
-  // Auto-pagination trigger for search-based slideshows
-  useEffect(() => {
-    if (
-      isSlideshowPlaying && 
-      activeSlideshowId === "dynamic" && 
-      searchQuery &&
-      slideshowIndex >= slideshowImages.length - 3 &&
-      slideshowImages.length > 0 &&
-      !isSearching
-    ) {
-      // Trigger next page load
-      searchByTags(searchQuery, currentSearchPage + 1);
-    }
-  }, [isSlideshowPlaying, activeSlideshowId, slideshowIndex, slideshowImages.length, searchQuery, currentSearchPage, searchByTags, isSearching]);
 
   const refreshControls = useCallback(() => {
     setSlideshowHudVisible(true);
@@ -364,7 +360,6 @@ export const SlideshowPlayer: React.FC = () => {
     refreshControls();
   };
 
-
   const transitionVariants = useMemo(() => {
     if (transitionType === "slide") {
       return {
@@ -427,7 +422,7 @@ export const SlideshowPlayer: React.FC = () => {
       <div className="absolute inset-0 flex items-center justify-center p-6">
         <AnimatePresence mode="wait">
           <motion.div
-            key={`${currentImage.id}-${slideshowIndex}`}
+            key={currentImage.id}
             className="relative max-w-[90vw] max-h-[90vh] w-full h-full flex items-center justify-center"
             initial={transitionVariants.initial}
             animate={transitionVariants.animate}
@@ -444,7 +439,9 @@ export const SlideshowPlayer: React.FC = () => {
               alt={currentTitle}
               decoding="async"
               className={`max-w-full max-h-full object-contain rounded-3xl transition-all duration-700 ${
-                isLoading ? "scale-95 opacity-50 blur-sm" : "scale-100 opacity-100 blur-0"
+                isLoading
+                  ? "scale-95 opacity-50 blur-sm"
+                  : "scale-100 opacity-100 blur-0"
               } shadow-[0_0_120px_rgba(126,34,206,0.35)]`}
             />
 
@@ -470,11 +467,32 @@ export const SlideshowPlayer: React.FC = () => {
                       </div>
                     )}
                     {showOverlay === "play" && (
-                      <div className="w-0 h-0 border-t-[15px] border-t-transparent border-l-[25px] border-l-white border-b-[15px] border-b-transparent ml-2" />
+                      <div className="w-0 h-0 border-t-15 border-t-transparent border-l-25 border-l-white border-b-15 border-b-transparent ml-2" />
                     )}
-                    {showOverlay === "shuffle" && <Shuffle size={40} className={slideshowShuffle ? "text-purple-400" : "text-white"} />}
-                    {showOverlay === "repeat" && <Repeat size={40} className={slideshowRepeat ? "text-purple-400" : "text-white"} />}
-                    {showOverlay === "random" && <Dices size={40} className={slideshowRandom ? "text-purple-400" : "text-white"} />}
+                    {showOverlay === "shuffle" && (
+                      <Shuffle
+                        size={40}
+                        className={
+                          slideshowShuffle ? "text-purple-400" : "text-white"
+                        }
+                      />
+                    )}
+                    {showOverlay === "repeat" && (
+                      <Repeat
+                        size={40}
+                        className={
+                          slideshowRepeat ? "text-purple-400" : "text-white"
+                        }
+                      />
+                    )}
+                    {showOverlay === "random" && (
+                      <Dices
+                        size={40}
+                        className={
+                          slideshowRandom ? "text-purple-400" : "text-white"
+                        }
+                      />
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -496,14 +514,18 @@ export const SlideshowPlayer: React.FC = () => {
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-white/60">
                   <div className="space-y-1">
                     <p className="text-[10px] uppercase tracking-[0.24em] text-purple-300/80 flex items-center gap-2">
-                      <Globe size={10} /> {sourceLabel} · {slideshowIndex + 1} / {slideshowImages.length}
+                      <Globe size={10} /> {sourceLabel} · {slideshowIndex + 1} /{" "}
+                      {slideshowImages.length}
                     </p>
                     <h2 className="text-sm sm:text-base font-black text-white truncate max-w-md">
                       {currentTitle}
                     </h2>
                     <div className="flex flex-wrap gap-1 mt-2">
                       {currentImage.tags?.slice(0, 5).map((tag) => (
-                        <span key={tag} className="text-[8px] uppercase tracking-widest bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
+                        <span
+                          key={tag}
+                          className="text-[8px] uppercase tracking-widest bg-white/5 px-1.5 py-0.5 rounded border border-white/5"
+                        >
                           {tag}
                         </span>
                       ))}
@@ -514,7 +536,8 @@ export const SlideshowPlayer: React.FC = () => {
                       <Sparkles size={12} /> {isPaused ? "Paused" : "Playing"}
                     </span>
                     <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[10px] uppercase tracking-[0.24em] text-white/70">
-                      <Monitor size={12} /> {(effectiveInterval / 1000).toFixed(1)}s
+                      <Monitor size={12} />{" "}
+                      {(effectiveInterval / 1000).toFixed(1)}s
                     </span>
                   </div>
                 </div>
@@ -566,7 +589,7 @@ export const SlideshowPlayer: React.FC = () => {
                   >
                     <Dices size={18} />
                   </button>
-                  <div className="w-[1px] h-6 bg-white/10 mx-1" />
+                  <div className="w-px h-6 bg-white/10 mx-1" />
                   <button
                     onClick={() => setShowQueue(!showQueue)}
                     className={`p-3 rounded-xl transition ${showQueue ? "bg-purple-500 text-white" : "bg-white/5 text-white/40 hover:text-white"}`}
@@ -589,7 +612,9 @@ export const SlideshowPlayer: React.FC = () => {
                   <motion.div
                     className="h-full bg-purple-500"
                     initial={false}
-                    animate={{ width: `${((slideshowIndex + 1) / slideshowImages.length) * 100}%` }}
+                    animate={{
+                      width: `${((slideshowIndex + 1) / slideshowImages.length) * 100}%`,
+                    }}
                   />
                 </div>
                 <div className="flex items-center gap-4">
@@ -619,28 +644,45 @@ export const SlideshowPlayer: React.FC = () => {
             initial={{ opacity: 0, x: 300 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 300 }}
-            className="absolute top-0 right-0 bottom-0 w-80 bg-black/80 backdrop-blur-3xl border-l border-white/10 z-[60] p-6 flex flex-col"
+            className="absolute top-0 right-0 bottom-0 w-80 bg-black/80 backdrop-blur-3xl border-l border-white/10 z-60 p-6 flex flex-col"
           >
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white/40">Upcoming Vision</h3>
-              <button onClick={() => setShowQueue(false)} className="text-white/40 hover:text-white"><X size={16} /></button>
+              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white/40">
+                Upcoming Vision
+              </h3>
+              <button
+                onClick={() => setShowQueue(false)}
+                className="text-white/40 hover:text-white"
+              >
+                <X size={16} />
+              </button>
             </div>
             <div className="flex-1 overflow-y-auto no-scrollbar space-y-4">
-              {slideshowImages.slice(slideshowIndex + 1, slideshowIndex + 11).map((img, i) => (
-                <div 
-                  key={`${img.id}-${i}`} 
-                  className="flex gap-4 items-center group cursor-pointer" 
-                  onClick={() => setSlideshowIndex(slideshowIndex + 1 + i)}
-                >
-                  <div className="w-20 h-20 rounded-xl overflow-hidden bg-white/5 shrink-0 border border-white/5">
-                    <img src={img.previewUrl || img.imageUrl} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition" alt="" />
+              {slideshowImages
+                .slice(slideshowIndex + 1, slideshowIndex + 11)
+                .map((img, i) => (
+                  <div
+                    key={`${img.id}-${i}`}
+                    className="flex gap-4 items-center group cursor-pointer"
+                    onClick={() => setSlideshowIndex(slideshowIndex + 1 + i)}
+                  >
+                    <div className="w-20 h-20 rounded-xl overflow-hidden bg-white/5 shrink-0 border border-white/5">
+                      <img
+                        src={img.previewUrl || img.imageUrl}
+                        className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition"
+                        alt=""
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black text-white truncate">
+                        {img.tags?.[0] || "Untitled"}
+                      </p>
+                      <p className="text-[8px] uppercase tracking-widest text-white/20 mt-1">
+                        {img.source}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-black text-white truncate">{img.tags?.[0] || "Untitled"}</p>
-                    <p className="text-[8px] uppercase tracking-widest text-white/20 mt-1">{img.source}</p>
-                  </div>
-                </div>
-              ))}
+                ))}
             </div>
           </motion.div>
         )}
@@ -661,7 +703,9 @@ export const SlideshowPlayer: React.FC = () => {
         <button
           onClick={() => setSlideshowHudVisible(!slideshowHudVisible)}
           className={`rounded-2xl bg-white/5 p-3 text-white/70 hover:bg-white/10 transition ${
-            slideshowHudVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+            slideshowHudVisible
+              ? "opacity-100"
+              : "opacity-0 pointer-events-none"
           }`}
           title={slideshowHudVisible ? "Hide HUD" : "Show HUD"}
         >
@@ -670,13 +714,14 @@ export const SlideshowPlayer: React.FC = () => {
         <button
           onClick={stopSlideshow}
           className={`rounded-2xl bg-white/5 p-3 text-white/70 hover:bg-white/10 transition ${
-            slideshowHudVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+            slideshowHudVisible
+              ? "opacity-100"
+              : "opacity-0 pointer-events-none"
           }`}
         >
           <X size={20} />
         </button>
       </div>
     </motion.div>
-
   );
 };

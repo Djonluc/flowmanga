@@ -7,7 +7,7 @@ import {
 import type {
   ContentType,
   MediaType,
-  ProviderCategory,
+  MediaDomain,
   ReaderMode,
   SourceCapabilities,
   SourceProvider,
@@ -24,7 +24,7 @@ export class DanbooruProvider implements SourceProvider {
   readonly name = "Danbooru";
   readonly domains = ["danbooru.donmai.us", "cdn.donmai.us"];
   readonly contentType: ContentType = "gallery";
-  readonly category: ProviderCategory = "image";
+  readonly mediaDomain: MediaDomain = "image";
   readonly mediaTypes: MediaType[] = ["image"];
   readonly defaultPersistence = "discovery" as const;
   readonly readerModes: ReaderMode[] = ["gallery", "slideshow", "single"];
@@ -35,7 +35,7 @@ export class DanbooruProvider implements SourceProvider {
     seriesBrowse: false,
     chapterFeed: false,
     pagination: true,
-    authentication: false,
+    authentication: true,
   };
 
   private readonly baseUrl = "https://danbooru.donmai.us";
@@ -117,12 +117,16 @@ export class DanbooruProvider implements SourceProvider {
     const page = options.page || 1;
     const maxTags = options.contentFilter === "sfw" ? 1 : 2;
     const tagArray = query.split(" ").filter(Boolean).slice(0, maxTags);
-    const tags = buildBooruTags(tagArray.join(" "), options.contentFilter || "all");
+    const tags = buildBooruTags(
+      tagArray.join(" "),
+      options.contentFilter || "all",
+    );
 
     const data = await booruGet(this.baseUrl, "/posts.json", {
       tags,
       page,
       limit: options.limit || 20,
+      auth: options.auth,
     });
 
     return mapBooruPosts(data, "danbooru", this.baseUrl);

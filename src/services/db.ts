@@ -245,6 +245,26 @@ export const initDatabase = async () => {
   } catch (e) {}
 
   try {
+    await db.execute("ALTER TABLE GalleryImages ADD COLUMN generalTags TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE GalleryImages ADD COLUMN characterTags TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE GalleryImages ADD COLUMN copyrightTags TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE GalleryImages ADD COLUMN artistTags TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE GalleryImages ADD COLUMN metaTags TEXT");
+  } catch (e) {}
+
+  try {
     await db.execute(`
       CREATE TABLE IF NOT EXISTS GallerySettings (
         key TEXT PRIMARY KEY,
@@ -256,8 +276,6 @@ export const initDatabase = async () => {
   // console.log('[DB] Database initialized successfully');
   return db;
 };
-
-
 
 export const getDb = () => {
   if (!db)

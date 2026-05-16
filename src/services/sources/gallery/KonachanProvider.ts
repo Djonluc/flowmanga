@@ -7,7 +7,7 @@ import {
 import type {
   ContentType,
   MediaType,
-  ProviderCategory,
+  MediaDomain,
   ReaderMode,
   SourceCapabilities,
   SourceProvider,
@@ -20,7 +20,7 @@ export class KonachanProvider implements SourceProvider {
   readonly name = "Konachan";
   readonly domains = ["konachan.com", "konachan.net"];
   readonly contentType: ContentType = "gallery";
-  readonly category: ProviderCategory = "image";
+  readonly mediaDomain: MediaDomain = "image";
   readonly mediaTypes: MediaType[] = ["image"];
   readonly defaultPersistence = "discovery" as const;
   readonly readerModes: ReaderMode[] = ["gallery", "slideshow", "single"];
@@ -31,7 +31,7 @@ export class KonachanProvider implements SourceProvider {
     seriesBrowse: false,
     chapterFeed: false,
     pagination: true,
-    authentication: false,
+    authentication: true,
   };
 
   private readonly baseUrl = "https://konachan.com";
@@ -111,6 +111,7 @@ export class KonachanProvider implements SourceProvider {
       tags,
       page,
       limit: safeLimit,
+      auth: options.auth,
     });
     return mapBooruPosts(data, "konachan", this.baseUrl);
   }
@@ -192,12 +193,12 @@ export class KonachanProvider implements SourceProvider {
     const data = await booruGet(this.baseUrl, "/tag/related.json", {
       tags: tag,
     });
-    if (data && typeof data === 'object') {
+    if (data && typeof data === "object") {
       // Moebooru /tag/related.json returns something like: {"tag1": [...], "tag2": [...]} or just an array
       // It depends on the format, but usually it's an object with the tag name as key or an array of objects
       const tagList = Array.isArray(data) ? data : Object.values(data)[0] || [];
       if (Array.isArray(tagList)) {
-         return tagList.map((t: any) => t[0] || t.name).filter(Boolean);
+        return tagList.map((t: any) => t[0] || t.name).filter(Boolean);
       }
     }
     return [];

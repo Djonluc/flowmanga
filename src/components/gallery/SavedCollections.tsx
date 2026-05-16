@@ -138,6 +138,11 @@ export const SavedCollections: React.FC = () => {
                 saved={true}
                 onView={() => openViewer(img, likedImages, idx)}
                 onLike={() => unlikeImage(img.id)}
+                onDelete={() => {
+                  if (confirm("Remove image from library entirely?")) {
+                    useGalleryStore.getState().unsaveImage(img.id);
+                  }
+                }}
               />
             ))}
           </div>
@@ -354,6 +359,15 @@ export const SavedCollections: React.FC = () => {
                   liked={img.liked}
                   saved={true}
                   onView={() => openViewer(img, selectedSmartCollection.images, idx)}
+                  onDelete={() => {
+                    if (confirm("Remove image from library entirely?")) {
+                      useGalleryStore.getState().unsaveImage(img.id);
+                      // Update local state to reflect deletion
+                      setSelectedSmartCollection(prev => 
+                        prev ? { ...prev, images: prev.images.filter(i => i.id !== img.id) } : null
+                      );
+                    }
+                  }}
                 />
               ))}
             </div>
@@ -429,6 +443,11 @@ export const SavedCollections: React.FC = () => {
                 onLike={() =>
                   img.liked ? unlikeImage(img.id) : likeImage(img.id)
                 }
+                onDelete={() => {
+                  if (confirm("Remove image from library entirely?")) {
+                    useGalleryStore.getState().unsaveImage(img.id);
+                  }
+                }}
               />
             ))}
           </div>

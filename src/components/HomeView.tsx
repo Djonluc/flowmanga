@@ -104,14 +104,19 @@ export const HomeView = () => {
       ).slice(0, 5); // Use top 5 tags
 
       const [trendRaw, personRaw] = await Promise.all([
-        DiscoveryService.getRandom(60, coloredOnly), // Increased for better variety
+        DiscoveryService.getRandom(60, coloredOnly, "manga"), // Home banner should surface manga content only
         favoriteTags.length > 0
           ? ScraperService.getRecommendationsByTags(
               favoriteTags,
               48, // Increased for better recommendations
               coloredOnly,
+              "manga"
             )
-          : ScraperService.getPersonalizedRecommendations(48, coloredOnly), // Increased for better recommendations
+          : ScraperService.getPersonalizedRecommendations(
+              48, 
+              coloredOnly, 
+              "manga"
+            ), // Increased for better recommendations
       ]);
 
       // Filter out existing manga and shuffle for variety

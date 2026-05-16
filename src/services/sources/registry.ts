@@ -6,7 +6,7 @@
  * generic/headless scraping strategies.
  */
 
-import type { SourceProvider, ContentType, ProviderCategory } from "./types";
+import type { SourceProvider, ContentType, MediaDomain } from "./types";
 
 class SourceRegistry {
   private providers: Map<string, SourceProvider> = new Map();
@@ -64,16 +64,16 @@ class SourceRegistry {
     return this.list().filter((p) => p.contentType === type);
   }
 
-  listByCategory(category: ProviderCategory): SourceProvider[] {
+  listByMediaDomain(mediaDomain: MediaDomain): SourceProvider[] {
     return this.list().filter(
       (provider) =>
-        provider.category === category ||
-        this.inferCategory(provider) === category,
+        provider.mediaDomain === mediaDomain ||
+        this.inferMediaDomain(provider) === mediaDomain,
     );
   }
 
-  private inferCategory(provider: SourceProvider): ProviderCategory {
-    if (provider.category) return provider.category;
+  private inferMediaDomain(provider: SourceProvider): MediaDomain {
+    if (provider.mediaDomain) return provider.mediaDomain;
     if (provider.contentType === "gallery" || provider.contentType === "album")
       return "image";
     if (provider.contentType === "doujin") return "doujin";

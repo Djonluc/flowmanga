@@ -8,6 +8,7 @@ import type {
   SourceCapabilities,
   ContentType,
   MediaType,
+  MediaDomain,
   ReaderMode,
 } from "../types";
 
@@ -16,6 +17,7 @@ export class MangaReadProvider implements SourceProvider {
   readonly name = "MangaRead (Under Construction)";
   readonly domains = ["mangaread.org"];
   readonly contentType: ContentType = "manga";
+  readonly mediaDomain: MediaDomain = "manga";
   readonly mediaTypes: MediaType[] = ["image"];
   readonly defaultPersistence = "library" as const;
   readonly readerModes: ReaderMode[] = ["vertical", "single"];
@@ -161,16 +163,14 @@ export class MangaReadProvider implements SourceProvider {
 
   async search(
     _query: string,
-    _page: number = 1,
-    _limit: number = 20,
+    _options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
     return [];
   }
 
   async searchByTags(
     _tags: string[],
-    _page: number = 1,
-    _limit: number = 20,
+    _options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
     return [];
   }

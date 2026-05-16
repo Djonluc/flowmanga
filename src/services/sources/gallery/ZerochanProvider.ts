@@ -7,7 +7,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import type {
-  ProviderCategory,
+  MediaDomain,
   SourceProvider,
   SourceContent,
   SourceSearchResult,
@@ -120,7 +120,7 @@ export class ZerochanProvider implements SourceProvider {
   readonly name = "Zerochan";
   readonly domains = ["zerochan.net", "static.zerochan.net"];
   readonly contentType: ContentType = "gallery";
-  readonly category: ProviderCategory = "image";
+  readonly mediaDomain: MediaDomain = "image";
   readonly mediaTypes: MediaType[] = ["image"];
   readonly defaultPersistence = "discovery" as const;
   readonly readerModes: ReaderMode[] = ["gallery", "slideshow", "single"];
@@ -194,7 +194,7 @@ export class ZerochanProvider implements SourceProvider {
 
   async search(
     query: string,
-    options: SourceSearchOptions,
+    options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
     const page = options.page || 1;
     const limit = options.limit || 24;
@@ -221,10 +221,15 @@ export class ZerochanProvider implements SourceProvider {
       const data = await zerochanGet(`/${tag}`, { p: page, l: safeLimit });
       const items = data.items || (Array.isArray(data) ? data : []);
       if (items.length > 0) return this.mapItems(items, query);
-      
+
       // If no items in tag path, try global search
-      const globalData = await zerochanGet("/", { q: tag, p: page, l: safeLimit });
-      const globalItems = globalData.items || (Array.isArray(globalData) ? globalData : []);
+      const globalData = await zerochanGet("/", {
+        q: tag,
+        p: page,
+        l: safeLimit,
+      });
+      const globalItems =
+        globalData.items || (Array.isArray(globalData) ? globalData : []);
       return this.mapItems(globalItems, query);
     } catch (e) {
       // Fallback to global search if tag-specific failed
@@ -244,12 +249,23 @@ export class ZerochanProvider implements SourceProvider {
 
   async searchByTags(
     tags: string[],
-    page: number = 1,
-    limit: number = 24,
+    pageOrOptions?: number | SourceSearchOptions,
+    limit?: number,
   ): Promise<SourceSearchResult[]> {
     if (tags.length === 0) return [];
+
+    let options: SourceSearchOptions = {};
+    if (typeof pageOrOptions === "number") {
+      options.page = pageOrOptions;
+      options.limit = limit;
+    } else if (pageOrOptions) {
+      options = pageOrOptions;
+    }
+
+    const page = options.page || 1;
+    const currentLimit = options.limit || 24;
     const tagPath = tags.map((t) => encodeURIComponent(t)).join(",");
-    const safeLimit = Math.min(limit, 250);
+    const safeLimit = Math.min(currentLimit, 250);
 
     try {
       const data = await zerochanGet(`/${tagPath}`, { p: page, l: safeLimit });

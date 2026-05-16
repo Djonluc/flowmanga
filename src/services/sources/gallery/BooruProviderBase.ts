@@ -1,6 +1,30 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { SourceSearchResult } from "../types";
 
+type BooruAuth = {
+  apiKey?: string;
+  userId?: string;
+};
+
+type BooruRequestParams = Record<
+  string,
+  string | number | boolean | null | undefined
+> & { auth?: BooruAuth };
+
+type BooruApiPost = Record<string, unknown>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function asNumber(value: unknown): number | undefined {
+  return typeof value === "number" ? value : undefined;
+}
+
 const BOORU_USER_AGENT =
   "FlowManga/2.2.0 (djonstnix; https://github.com/djonstnix/flowmanga)";
 
@@ -13,7 +37,11 @@ function buildApiUrl(baseUrl: string, endpoint: string): URL {
     url.pathname.endsWith("/index.php") ||
     url.searchParams.get("page") === "dapi";
 
-  if (!url.pathname.endsWith(".json") && !endpoint.includes("?")) {
+  if (
+    !url.pathname.toLowerCase().endsWith(".json") &&
+    !endpoint.includes("?") &&
+    !url.pathname.toLowerCase().includes("index.php")
+  ) {
     const normalizedPath = url.pathname.endsWith("/")
       ? url.pathname.slice(0, -1)
       : url.pathname;
@@ -30,22 +58,30 @@ function buildApiUrl(baseUrl: string, endpoint: string): URL {
 export async function booruGet(
   baseUrl: string,
   endpoint: string,
-  params: Record<string, any> = {},
-) {
+  params: BooruRequestParams = {},
+): Promise<unknown> {
   const url = buildApiUrl(baseUrl, endpoint);
   const isDapi =
     url.pathname.endsWith("/index.php") ||
     url.searchParams.get("page") === "dapi";
 
-  Object.entries(params).forEach(([key, value]) => {
+  const { auth, ...rest } = params;
+  Object.entries(rest).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
-      const paramKey = key === "page" && isDapi ? "pid" : key;
+      // Only map 'page' to 'pid' for DAPI if it's a numeric index, not the 'dapi' module identifier
+      const paramKey =
+        key === "page" && isDapi && value !== "dapi" ? "pid" : key;
       url.searchParams.set(paramKey, String(value));
     }
   });
 
+  if (auth?.apiKey && auth?.userId) {
+    url.searchParams.set("api_key", auth.apiKey);
+    url.searchParams.set("user_id", auth.userId);
+  }
+
   try {
-    const response: any = await invoke("fetch_json", {
+    const response = await invoke<unknown>("fetch_json", {
       url: url.toString(),
       method: "GET",
       headers: {
@@ -54,7 +90,7 @@ export async function booruGet(
       },
     });
 
-    return response || [];
+    return response ?? [];
   } catch (error) {
     console.error(
       `[BooruProviderBase] API Error for ${url.toString()}:`,
@@ -75,7 +111,7 @@ export function normalizeBooruTag(tag: string) {
   return tag
     .trim()
     .replace(/\s+/g, "_")
-    .replace(/[^\w\-:@~]/g, "")
+    .replace(/[^\w\-:@~.()]/g, "")
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "")
     .toLowerCase();
@@ -92,59 +128,131 @@ export function buildBooruTagsFromArray(
   return [...normalizedTags, ratingTag].filter(Boolean).join(" ").trim();
 }
 
+function ensureAbsoluteUrl(url: string, baseUrl: string): string {
+  if (!url) return "";
+  if (url.startsWith("http")) return url;
+  if (url.startsWith("//")) return `https:${url}`;
+  if (url.startsWith("/")) {
+    const base = new URL(baseUrl);
+    return `${base.protocol}//${base.host}${url}`;
+  }
+  return url;
+}
+
 function normalizeBooruPost(
-  post: any,
+  post: BooruApiPost,
   source: string,
   baseUrl: string,
 ): SourceSearchResult {
-  const fullUrl =
-    post.file_url ||
-    post.large_file_url ||
-    post.jpeg_url ||
-    post.source_url ||
-    post.preview_url ||
-    "";
-  const previewUrl =
-    post.preview_url || post.sample_url || post.jpeg_url || fullUrl;
-  const imageUrl =
-    post.sample_url || post.large_file_url || post.jpeg_url || post.file_url || fullUrl;
-  const fullResUrl =
-    post.file_url || post.large_file_url || post.jpeg_url || fullUrl;
-  const tags =
+  const fullUrl = ensureAbsoluteUrl(
+    asString(post.file_url) ||
+      asString(post.large_file_url) ||
+      asString(post.jpeg_url) ||
+      asString(post.source_url) ||
+      asString(post.preview_url) ||
+      "",
+    baseUrl,
+  );
+  const previewUrl = ensureAbsoluteUrl(
+    asString(post.preview_url) ||
+      asString(post.sample_url) ||
+      asString(post.jpeg_url) ||
+      fullUrl,
+    baseUrl,
+  );
+  const imageUrl = ensureAbsoluteUrl(
+    asString(post.sample_url) ||
+      asString(post.large_file_url) ||
+      asString(post.jpeg_url) ||
+      asString(post.file_url) ||
+      fullUrl,
+    baseUrl,
+  );
+  const fullResUrl = ensureAbsoluteUrl(
+    asString(post.file_url) ||
+      asString(post.large_file_url) ||
+      asString(post.jpeg_url) ||
+      fullUrl,
+    baseUrl,
+  );
+
+  const dedupeTags = (tagList: string[]) => [
+    ...new Set(
+      tagList
+        .map((t) => t?.toLowerCase().trim())
+        .filter(Boolean)
+        .map((t) => normalizeBooruTag(t)),
+    ),
+  ];
+
+  const rawTags =
     typeof post.tag_string === "string"
-      ? post.tag_string.split(" ").filter(Boolean)
+      ? post.tag_string.split(" ")
       : typeof post.tags === "string"
-        ? post.tags.split(" ").filter(Boolean)
+        ? post.tags.split(" ")
         : Array.isArray(post.tags)
-          ? post.tags
+          ? post.tags.filter((tag): tag is string => typeof tag === "string")
           : [];
 
-  const generalTags = typeof post.tag_string_general === "string" 
-    ? post.tag_string_general.split(" ").filter(Boolean) 
-    : [];
-  const characterTags = typeof post.tag_string_character === "string"
-    ? post.tag_string_character.split(" ").filter(Boolean)
-    : [];
-  const copyrightTags = typeof post.tag_string_copyright === "string"
-    ? post.tag_string_copyright.split(" ").filter(Boolean)
-    : [];
-  const artistTags = typeof post.tag_string_artist === "string"
-    ? post.tag_string_artist.split(" ").filter(Boolean)
-    : [];
-  const metaTags = typeof post.tag_string_meta === "string"
-    ? post.tag_string_meta.split(" ").filter(Boolean)
-    : [];
+  const tags = dedupeTags(rawTags);
+
+  const generalTags = dedupeTags(
+    typeof post.tag_string_general === "string"
+      ? post.tag_string_general.split(" ")
+      : [],
+  );
+
+  const characterTags = dedupeTags(
+    typeof post.tag_string_character === "string"
+      ? post.tag_string_character.split(" ")
+      : typeof post.character_string === "string"
+        ? post.character_string.split(" ")
+        : [],
+  );
+
+  const copyrightTags = dedupeTags(
+    typeof post.tag_string_copyright === "string"
+      ? post.tag_string_copyright.split(" ")
+      : typeof post.copyright_string === "string"
+        ? post.copyright_string.split(" ")
+        : [],
+  );
+
+  const artistTags = dedupeTags(
+    typeof post.tag_string_artist === "string"
+      ? post.tag_string_artist.split(" ")
+      : typeof post.artist_string === "string"
+        ? post.artist_string.split(" ")
+        : [],
+  );
+
+  const metaTags = dedupeTags(
+    typeof post.tag_string_meta === "string"
+      ? post.tag_string_meta.split(" ")
+      : [],
+  );
+
+  const postId =
+    typeof post.id === "string"
+      ? post.id
+      : typeof post.id === "number"
+        ? String(post.id)
+        : "unknown";
 
   return {
-    id: `${source}-${post.id}`,
+    id: `${source}-${postId}`,
     title:
-      post.tag_string?.split(" ").slice(0, 3).join(" ") || `Image ${post.id}`,
+      asString(post.tag_string).split(" ").slice(0, 3).join(" ") ||
+      `Image ${postId}`,
     coverUrl: previewUrl,
     previewUrl,
     imageUrl,
     fullResUrl,
-    width: post.width,
-    height: post.height,
+    preview_url: previewUrl,
+    sample_url: imageUrl,
+    file_url: fullResUrl,
+    width: asNumber(post.width),
+    height: asNumber(post.height),
     tags,
     generalTags,
     characterTags,
@@ -152,29 +260,34 @@ function normalizeBooruPost(
     artistTags,
     metaTags,
     source,
+    provider: source,
     contentType: "gallery",
-    url: `${baseUrl}/posts/${post.id}`,
-    rating: normalizeRating(post.rating),
-    popularity: Number(post.score || post.fav_count || 0),
-    createdAt: post.created_at,
+    mediaDomain: "image",
+    url: `${baseUrl}/posts/${postId}`,
+    rating: normalizeRating(asString(post.rating)),
+    popularity: Number(asString(post.score) || asString(post.fav_count) || "0"),
+    createdAt: asString(post.created_at),
   };
 }
 
 export function mapBooruPosts(
-  data: any,
+  data: unknown,
   source: string,
   baseUrl: string,
 ): SourceSearchResult[] {
   const items = Array.isArray(data) ? data : [data];
   return items
     .filter(
-      (item) =>
-        item &&
-        item.id &&
-        (item.file_url ||
-          item.large_file_url ||
-          item.jpeg_url ||
-          item.preview_url),
+      (item): item is BooruApiPost =>
+        isRecord(item) &&
+        item.id !== undefined &&
+        asString(item.status) !== "deleted" &&
+        Boolean(
+          asString(item.file_url) ||
+          asString(item.large_file_url) ||
+          asString(item.jpeg_url) ||
+          asString(item.preview_url),
+        ),
     )
     .map((item) => normalizeBooruPost(item, source, baseUrl));
 }
@@ -183,7 +296,10 @@ export function buildBooruTags(
   query: string,
   contentFilter: "sfw" | "all" = "all",
 ) {
-  const trimmed = query?.trim() || "";
+  const normalizedTokens = (query || "")
+    .split(/\s+/)
+    .map((tag) => normalizeBooruTag(tag))
+    .filter(Boolean);
   const ratingTag = contentFilter === "sfw" ? "rating:s" : "";
-  return [trimmed, ratingTag].filter(Boolean).join(" ").trim();
+  return [...normalizedTokens, ratingTag].join(" ").trim();
 }

@@ -4,7 +4,7 @@ import { bridgeContent, bridgeSeries } from "./sources/bridge";
 import { isWebtoonsSeriesListUrl } from "./sources/manga/WebtoonsProvider";
 import { DiscoveryService } from "./DiscoveryService";
 import { ContentFilter } from "./ContentFilter";
-
+import type { MediaDomain } from "./sources/types";
 export interface ScrapedImage {
   url: string;
   pageNumber: number;
@@ -1292,15 +1292,18 @@ export class ScraperService {
     }
   }
 
-  static async search(
+  static async searchGlobal(
     query: string,
     limit: number = 20,
     coloredOnly: boolean = false,
+    mediaDomain?: MediaDomain,
   ): Promise<any[]> {
     const results = await DiscoveryService.searchGlobal(
       query,
       limit,
       coloredOnly,
+      1,
+      mediaDomain,
     );
     return ContentFilter.filterResults(results);
   }
@@ -1309,11 +1312,14 @@ export class ScraperService {
     tags: string[],
     limit: number = 20,
     coloredOnly: boolean = false,
+    mediaDomain?: MediaDomain,
   ): Promise<any[]> {
     const results = await DiscoveryService.searchGlobalByTags(
       tags,
       limit,
       coloredOnly,
+      1,
+      mediaDomain,
     );
     return ContentFilter.filterResults(results);
   }
@@ -1322,11 +1328,14 @@ export class ScraperService {
     tags: string[],
     limit: number = 48,
     coloredOnly: boolean = false,
+    mediaDomain?: MediaDomain,
   ): Promise<any[]> {
     const results = await DiscoveryService.searchGlobalByTags(
       tags,
       limit,
       coloredOnly,
+      1,
+      mediaDomain,
     );
     return ContentFilter.filterResults(results);
   }
@@ -1334,24 +1343,27 @@ export class ScraperService {
   static async getPersonalizedRecommendations(
     limit: number = 48,
     coloredOnly: boolean = false,
+    mediaDomain?: MediaDomain,
   ): Promise<any[]> {
-    const results = await DiscoveryService.getTrending(limit, coloredOnly);
+    const results = await DiscoveryService.getTrending(limit, coloredOnly, mediaDomain);
     return ContentFilter.filterResults(results);
   }
 
   static async getRecentlyUpdated(
     limit: number = 48,
     coloredOnly: boolean = false,
+    mediaDomain?: MediaDomain,
   ): Promise<any[]> {
-    const results = await DiscoveryService.getLatest(limit, coloredOnly);
+    const results = await DiscoveryService.getLatest(limit, coloredOnly, mediaDomain);
     return ContentFilter.filterResults(results);
   }
 
   static async getTrending(
     limit: number = 48,
     _coloredOnly: boolean = false,
+    mediaDomain?: MediaDomain,
   ): Promise<any[]> {
-    const trending = await DiscoveryService.getTrending(limit, _coloredOnly);
+    const trending = await DiscoveryService.getTrending(limit, _coloredOnly, mediaDomain);
     return ContentFilter.filterResults(trending);
   }
 

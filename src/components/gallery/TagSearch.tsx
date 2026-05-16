@@ -4,7 +4,7 @@
  * Tag-based search with multi-tag support and result grid.
  */
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Loader2, X, Tag } from "lucide-react";
 
@@ -91,41 +91,42 @@ export const TagSearch: React.FC = () => {
     startSlideshowFromContext,
   } = useGalleryStore();
 
-  const [activeTags, setActiveTags] = useState<string[]>([]);
   const [inputValue, setInputValue] = useState("");
+  const parseTagTokens = useCallback((value: string) => {
+    return value
+      .split(/[ ,+]+/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+  }, []);
+
+  const activeTags = useMemo(() => {
+    if (!searchQuery) return [];
+    return parseTagTokens(searchQuery);
+  }, [searchQuery, parseTagTokens]);
   const observerTarget = React.useRef<HTMLDivElement>(null);
   const savedIds = new Set(savedImages.map((i) => i.id));
 
-  // Sync with global search query (e.g. from tag clicks in viewer)
-  useEffect(() => {
-    if (searchQuery) {
-      const tags = searchQuery
-        .split(/[,+]/)
-        .map((t) => t.trim())
-        .filter(Boolean);
-      if (JSON.stringify(tags) !== JSON.stringify(activeTags)) {
-        setActiveTags(tags);
-      }
-    }
-  }, [searchQuery]);
+  const addTags = useCallback(
+    (value: string | string[]) => {
+      const tokens = Array.isArray(value) ? value : parseTagTokens(value);
+      if (tokens.length === 0) return;
 
-  const addTag = useCallback(
-    (tag: string) => {
-      const trimmed = tag.trim();
-      if (trimmed && !activeTags.includes(trimmed)) {
-        const next = [...activeTags, trimmed];
-        setActiveTags(next);
+      const next = [...activeTags];
+      for (const token of tokens) {
+        if (!next.includes(token)) next.push(token);
+      }
+
+      if (next.length > 0) {
         setInputValue("");
         searchByTags(next.join(" "));
       }
     },
-    [activeTags, searchByTags],
+    [activeTags, parseTagTokens, searchByTags],
   );
 
   const removeTag = useCallback(
     (tag: string) => {
       const next = activeTags.filter((t) => t !== tag);
-      setActiveTags(next);
       if (next.length > 0) searchByTags(next.join(" "));
     },
     [activeTags, searchByTags],
@@ -133,7 +134,7 @@ export const TagSearch: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputValue.trim()) addTag(inputValue);
+    if (inputValue.trim()) addTags(inputValue);
     else if (activeTags.length > 0) searchByTags(activeTags.join(" "), 1);
   };
 
@@ -143,11 +144,15 @@ export const TagSearch: React.FC = () => {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !isSearching && searchResults.length > 0) {
-          searchByTags(activeTags.join(","), currentSearchPage + 1);
+        if (
+          entries[0].isIntersecting &&
+          !isSearching &&
+          searchResults.length > 0
+        ) {
+          searchByTags(activeTags.join(" "), currentSearchPage + 1);
         }
       },
-      { threshold: 0.1, rootMargin: "200px" }
+      { threshold: 0.1, rootMargin: "1200px" },
     );
 
     if (observerTarget.current) {
@@ -155,7 +160,13 @@ export const TagSearch: React.FC = () => {
     }
 
     return () => observer.disconnect();
-  }, [isSearching, searchResults.length, activeTags, currentSearchPage, searchByTags]);
+  }, [
+    isSearching,
+    searchResults.length,
+    activeTags,
+    currentSearchPage,
+    searchByTags,
+  ]);
 
   return (
     <div className="space-y-8">
@@ -175,7 +186,7 @@ export const TagSearch: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="relative">
-          <div className="flex items-center gap-2 bg-white/[0.03] border border-white/[0.06] rounded-2xl px-4 py-2 focus-within:border-purple-500/30 transition-colors">
+          <div className="flex items-center gap-2 bg-white/3 border border-white/6 rounded-2xl px-4 py-2 focus-within:border-purple-500/30 transition-colors">
             {activeTags.map((tag) => (
               <span
                 key={tag}
@@ -200,7 +211,7 @@ export const TagSearch: React.FC = () => {
               onKeyDown={(e) => {
                 if (e.key === "," || e.key === "Enter") {
                   e.preventDefault();
-                  if (inputValue.trim()) addTag(inputValue);
+                  if (inputValue.trim()) addTags(inputValue);
                 }
                 if (
                   e.key === "Backspace" &&
@@ -211,10 +222,10 @@ export const TagSearch: React.FC = () => {
               }}
               placeholder={
                 activeTags.length > 0
-                  ? "Add another tag..."
-                  : "Type a tag and press Enter..."
+                  ? "Add another tag (comma or space separated)..."
+                  : "Type tags separated by comma or space..."
               }
-              className="flex-1 bg-transparent border-none outline-none text-foreground placeholder:text-foreground-dim/40 text-sm font-medium min-w-[120px]"
+              className="flex-1 bg-transparent border-none outline-none text-foreground placeholder:text-foreground-dim/40 text-sm font-medium min-w-30"
             />
             {isSearching && (
               <Loader2
@@ -235,7 +246,7 @@ export const TagSearch: React.FC = () => {
                   {searchSuggestions.map((suggestion) => (
                     <button
                       key={suggestion}
-                      onClick={() => addTag(suggestion)}
+                      onClick={() => addTags(suggestion)}
                       className="w-full text-left px-4 py-2.5 rounded-xl hover:bg-white/5 text-foreground/80 hover:text-white text-[11px] font-bold uppercase tracking-widest transition-all flex items-center gap-2"
                     >
                       <Tag size={12} className="text-purple-500" />
@@ -253,13 +264,12 @@ export const TagSearch: React.FC = () => {
             <button
               key={tag}
               onClick={() => {
-                setActiveTags([tag]);
-                searchByTags(tag);
+                addTags(tag);
               }}
               className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 ${
                 activeTags.includes(tag)
                   ? "bg-purple-500/20 text-purple-400 border border-purple-500/20"
-                  : "bg-white/[0.03] text-foreground-dim hover:bg-white/[0.06] border border-white/[0.04]"
+                  : "bg-white/3 text-foreground-dim hover:bg-white/6 border border-white/4"
               }`}
             >
               {tag}
@@ -276,7 +286,7 @@ export const TagSearch: React.FC = () => {
                 {searchResults.length} Results
               </p>
               <button
-                onClick={() => startSlideshowFromContext(searchResults)}
+                onClick={() => startSlideshowFromContext(searchResults, 0, "search")}
                 className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-purple-500/10 text-purple-400 text-[10px] font-black uppercase tracking-widest hover:bg-purple-500/20 transition-all active:scale-95 border border-purple-500/10"
               >
                 <span className="relative flex h-2 w-2">
@@ -305,23 +315,24 @@ export const TagSearch: React.FC = () => {
                 title={item.title}
                 tags={item.tags}
                 saved={savedIds.has(item.id)}
-                onView={() =>
-                  openViewer(item as any, searchResults as any[], index)
-                }
-                onPlay={() =>
-                  startSlideshowFromContext(searchResults as any[], index)
-                }
+                onView={() => openViewer(item, searchResults, index)}
+                onPlay={() => startSlideshowFromContext(searchResults, index, "search")}
                 onSave={() => saveImage(item)}
               />
             ))}
           </div>
 
           {/* Infinite Scroll Target */}
-          <div ref={observerTarget} className="h-20 flex items-center justify-center">
+          <div
+            ref={observerTarget}
+            className="h-20 flex items-center justify-center"
+          >
             {isSearching && (
               <div className="flex items-center gap-3 text-purple-400/60 animate-pulse">
                 <Loader2 size={16} className="animate-spin" />
-                <span className="text-[10px] font-black uppercase tracking-[0.2em]">Resolving More Visions</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em]">
+                  Resolving More Visions
+                </span>
               </div>
             )}
           </div>
@@ -329,7 +340,7 @@ export const TagSearch: React.FC = () => {
       )}
 
       {!isSearching && searchResults.length === 0 && activeTags.length > 0 && (
-        <div className="py-16 border-2 border-dashed border-white/5 rounded-[32px] flex flex-col items-center justify-center text-center gap-4 bg-white/[0.01]">
+        <div className="py-16 border-2 border-dashed border-white/5 rounded-4xl flex flex-col items-center justify-center text-center gap-4 bg-white/1">
           <Search size={32} className="text-foreground-dim/20" />
           <p className="text-foreground-dim text-xs font-bold uppercase tracking-widest opacity-40">
             No results found

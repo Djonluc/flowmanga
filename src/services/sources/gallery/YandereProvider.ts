@@ -7,7 +7,7 @@ import {
 import type {
   ContentType,
   MediaType,
-  ProviderCategory,
+  MediaDomain,
   ReaderMode,
   SourceCapabilities,
   SourceProvider,
@@ -20,7 +20,7 @@ export class YandereProvider implements SourceProvider {
   readonly name = "Yande.re";
   readonly domains = ["yande.re"];
   readonly contentType: ContentType = "gallery";
-  readonly category: ProviderCategory = "image";
+  readonly mediaDomain: MediaDomain = "image";
   readonly mediaTypes: MediaType[] = ["image"];
   readonly defaultPersistence = "discovery" as const;
   readonly isEnabled = false;
@@ -32,7 +32,7 @@ export class YandereProvider implements SourceProvider {
     seriesBrowse: false,
     chapterFeed: false,
     pagination: true,
-    authentication: false,
+    authentication: true,
   };
 
   private readonly baseUrl = "https://yande.re";
@@ -112,6 +112,7 @@ export class YandereProvider implements SourceProvider {
       tags,
       page,
       limit: safeLimit,
+      auth: options.auth,
     });
     return mapBooruPosts(data, "yandere", this.baseUrl);
   }
@@ -193,10 +194,10 @@ export class YandereProvider implements SourceProvider {
     const data = await booruGet(this.baseUrl, "/tag/related.json", {
       tags: tag,
     });
-    if (data && typeof data === 'object') {
+    if (data && typeof data === "object") {
       const tagList = Array.isArray(data) ? data : Object.values(data)[0] || [];
       if (Array.isArray(tagList)) {
-         return tagList.map((t: any) => t[0] || t.name).filter(Boolean);
+        return tagList.map((t: any) => t[0] || t.name).filter(Boolean);
       }
     }
     return [];

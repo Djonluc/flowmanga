@@ -13,13 +13,25 @@
  * This drives reader mode selection, Library integration behavior,
  * and persistence rules.
  */
-export type ContentType = "manga" | "comic" | "doujin" | "gallery" | "album";
+export type ContentType =
+  | "manga"
+  | "manhwa"
+  | "manhua"
+  | "comic"
+  | "doujin"
+  | "gallery"
+  | "album";
 
 /**
  * Supported media formats across all sources.
  */
 export type MediaType = "image" | "gif" | "video" | "animated";
-export type ProviderCategory = "image" | "manga" | "doujin";
+
+/**
+ * Media domain classification for strict separation of feeds, searches, libraries, and caches.
+ * Ensures image content never appears in manga feeds and vice versa.
+ */
+export type MediaDomain = "image" | "manga";
 
 // ─── Provider Interface ─────────────────────────────────────────────
 
@@ -47,7 +59,7 @@ export interface SourceProvider {
   readonly mediaTypes: MediaType[];
 
   /** Provider classification used for strict discovery gating */
-  readonly category?: ProviderCategory;
+  readonly mediaDomain: MediaDomain;
 
   /** Feature capability flags */
   readonly capabilities: SourceCapabilities;
@@ -82,15 +94,13 @@ export interface SourceProvider {
   /** Search for content by text query */
   search?(
     query: string,
-    page?: number,
-    limit?: number,
+    options?: SourceSearchOptions,
   ): Promise<SourceSearchResult[]>;
 
   /** Search by tags (for booru-style sources) */
   searchByTags?(
     tags: string[],
-    page?: number,
-    limit?: number,
+    options?: SourceSearchOptions,
   ): Promise<SourceSearchResult[]>;
 
   /** Fetch trending/popular content (for discovery) */
@@ -113,6 +123,10 @@ export interface SourceSearchOptions {
   page?: number;
   limit?: number;
   contentFilter?: "sfw" | "all";
+  auth?: {
+    apiKey?: string;
+    userId?: string;
+  };
 }
 
 // ─── Capability Flags ───────────────────────────────────────────────
@@ -192,6 +206,9 @@ export interface SourceSearchResult {
   previewUrl?: string;
   imageUrl?: string;
   fullResUrl?: string;
+  preview_url?: string;
+  sample_url?: string;
+  file_url?: string;
   width?: number;
   height?: number;
   tags?: string[];
@@ -205,7 +222,9 @@ export interface SourceSearchResult {
   createdAt?: string;
   description?: string;
   source: string;
+  provider: string;
   contentType: ContentType;
+  mediaDomain?: MediaDomain;
   url: string;
   dominantColor?: string;
 }

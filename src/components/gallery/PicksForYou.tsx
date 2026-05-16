@@ -6,7 +6,7 @@
  * Falls back to curated aesthetics on cold start.
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Loader2, Sparkles, RefreshCw } from 'lucide-react';
 import { useGalleryStore } from '../../stores/useGalleryStore';
 import { GalleryImageCard } from './GalleryImageCard';
@@ -17,9 +17,32 @@ export const PicksForYou: React.FC = () => {
     favoriteTags, savedImages, saveImage, openViewer
   } = useGalleryStore();
 
+  const [page, setPage] = useState(1);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
   useEffect(() => {
-    if (picksForYou.length === 0) generatePicksForYou();
+    if (picksForYou.length === 0) generatePicksForYou(1);
   }, []);
+
+  const loadMore = useCallback(() => {
+    if (isLoadingPicks) return;
+    const nextPage = page + 1;
+    setPage(nextPage);
+    generatePicksForYou(nextPage);
+  }, [page, isLoadingPicks, generatePicksForYou]);
+
+  const bottomRef = useCallback((node: HTMLDivElement) => {
+    if (isLoadingPicks) return;
+    if (observerRef.current) observerRef.current.disconnect();
+    
+    observerRef.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) {
+        loadMore();
+      }
+    }, { rootMargin: '1200px' });
+    
+    if (node) observerRef.current.observe(node);
+  }, [isLoadingPicks, loadMore]);
 
   const savedIds = new Set(savedImages.map(i => i.id));
   const hasHistory = favoriteTags.length > 0 || savedImages.some(i => i.liked);
@@ -44,7 +67,7 @@ export const PicksForYou: React.FC = () => {
         <div className="flex items-center gap-3">
           {picksForYou.length > 0 && (
             <button
-              onClick={() => useGalleryStore.getState().startSlideshowFromContext(picksForYou)}
+              onClick={() => useGalleryStore.getState().startSlideshowFromContext(picksForYou, 0, "picks")}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 text-[10px] font-black uppercase tracking-widest transition-all border border-purple-500/20"
             >
               <span className="relative flex h-2 w-2">
@@ -55,11 +78,14 @@ export const PicksForYou: React.FC = () => {
             </button>
           )}
           <button
-            onClick={() => generatePicksForYou()}
+            onClick={() => {
+              setPage(1);
+              generatePicksForYou(1);
+            }}
             disabled={isLoadingPicks}
             className="px-5 py-2 rounded-xl bg-white/5 border border-white/5 hover:bg-purple-500/10 hover:border-purple-500/20 text-foreground-dim hover:text-purple-400 text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
           >
-            {isLoadingPicks ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+            {isLoadingPicks && page === 1 ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
           </button>
         </div>
       </div>
@@ -93,20 +119,29 @@ export const PicksForYou: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {picksForYou.map((item, index) => (
-            <GalleryImageCard
-              key={item.id}
-              id={item.id}
-              imageUrl={item.coverUrl || ''}
-              previewUrl={item.coverUrl}
-              title={item.title}
-              tags={item.tags}
-              saved={savedIds.has(item.id)}
-              onView={() => openViewer(item as any, picksForYou as any[], index)}
-              onSave={() => saveImage(item)}
-            />
-          ))}
+        <div className="space-y-8">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {picksForYou.map((item, index) => (
+              <GalleryImageCard
+                key={`${item.id}-${index}`}
+                id={item.id}
+                imageUrl={item.coverUrl || ''}
+                previewUrl={item.coverUrl}
+                title={item.title}
+                tags={item.tags}
+                saved={savedIds.has(item.id)}
+                onView={() => openViewer(item as any, picksForYou as any[], index)}
+                onPlay={() => useGalleryStore.getState().startSlideshowFromContext(picksForYou, index, "picks")}
+                onSave={() => saveImage(item)}
+              />
+            ))}
+          </div>
+          
+          <div ref={bottomRef} className="h-10 flex items-center justify-center">
+            {isLoadingPicks && page > 1 && (
+              <Loader2 size={24} className="text-purple-500 animate-spin" />
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -16,6 +16,7 @@ import type {
   SourceCapabilities,
   ContentType,
   MediaType,
+  MediaDomain,
   ReaderMode,
 } from "../types";
 
@@ -24,6 +25,7 @@ export class MangaDexProvider implements SourceProvider {
   readonly name = "MangaDex";
   readonly domains = ["mangadex.org"];
   readonly contentType: ContentType = "manga";
+  readonly mediaDomain: MediaDomain = "manga";
   readonly mediaTypes: MediaType[] = ["image"];
   readonly defaultPersistence = "library" as const;
   readonly readerModes: ReaderMode[] = ["vertical", "single", "dual"];
@@ -45,10 +47,16 @@ export class MangaDexProvider implements SourceProvider {
   matchesUrl(url: string): boolean {
     try {
       const hostname = new URL(url).hostname.replace("www.", "");
-      return this.domains.some((d) => hostname.toLowerCase().includes(d.toLowerCase()));
+      return this.domains.some((d) =>
+        hostname.toLowerCase().includes(d.toLowerCase()),
+      );
     } catch {
       // Handle raw UUIDs or partial paths
-      return /^[a-f0-9-]{36}$/i.test(url) || url.toLowerCase().includes('mangadex.org/title/') || url.toLowerCase().includes('mangadex.org/chapter/');
+      return (
+        /^[a-f0-9-]{36}$/i.test(url) ||
+        url.toLowerCase().includes("mangadex.org/title/") ||
+        url.toLowerCase().includes("mangadex.org/chapter/")
+      );
     }
   }
 
@@ -188,7 +196,7 @@ export class MangaDexProvider implements SourceProvider {
       metadata: {
         mangaId: mId, // CRITICAL: preserve UUID for store logic
         author: details.author,
-      }
+      },
     };
   }
 
@@ -231,9 +239,9 @@ export class MangaDexProvider implements SourceProvider {
 
   async search(
     query: string,
-    _page?: number,
-    limit: number = 20,
+    options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
+    const limit = options.limit || 20;
     const res = await fetch(
       `https://api.mangadex.org/manga?title=${encodeURIComponent(query)}&limit=${limit}&includes[]=cover_art&availableTranslatedLanguage[]=en`,
     );
@@ -244,9 +252,9 @@ export class MangaDexProvider implements SourceProvider {
 
   async searchByTags(
     tags: string[],
-    _page?: number,
-    limit: number = 20,
+    options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
+    const limit = options.limit || 20;
     const tagMap = await this.getMangaDexTags();
     const tagIds = tags.map((t) => tagMap[t.toLowerCase()]).filter(Boolean);
     if (tagIds.length === 0) return [];

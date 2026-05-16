@@ -17,6 +17,11 @@ export type AmbientMode =
   | "adaptive-vibrant";
 export type SidebarMode = "expanded" | "collapsed" | "hover";
 
+export interface BooruAuth {
+  apiKey?: string;
+  userId?: string;
+}
+
 interface SettingsState {
   theme: Theme;
   readingMode: ReadingMode;
@@ -155,6 +160,9 @@ interface SettingsState {
   coloredOnly: boolean;
   toggleColoredOnly: () => void;
   setColoredOnly: (val: boolean) => void;
+
+  booruAuth: Record<string, BooruAuth>;
+  setBooruAuth: (providerId: string, auth: BooruAuth) => void;
 }
 
 const BUILTIN_SOUNDS = [
@@ -354,12 +362,31 @@ export const useSettingsStore = create<SettingsState>()(
       // Content Filtering
       showAdultContent: false,
       setShowAdultContent: (show) => set({ showAdultContent: show }),
-      excludedTags: [],
+      excludedTags: [
+        'bestiality',
+        'scat',
+        'zoophilia',
+        'coprophagia',
+        'coprophilia',
+        'watersports',
+        'golden shower',
+        'feces',
+        'urine',
+      ],
       setExcludedTags: (tags) => set({ excludedTags: tags }),
       
       coloredOnly: true,
       toggleColoredOnly: () => set((state) => ({ coloredOnly: !state.coloredOnly })),
       setColoredOnly: (val) => set({ coloredOnly: val }),
+
+      booruAuth: {},
+      setBooruAuth: (providerId, auth) => 
+        set((state) => ({
+          booruAuth: {
+            ...state.booruAuth,
+            [providerId]: auth
+          }
+        })),
     }),
     {
       name: "flowmanga-settings",

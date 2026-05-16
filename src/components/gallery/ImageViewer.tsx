@@ -22,6 +22,7 @@ import {
   MousePointer2,
   Monitor,
   Settings,
+  Trash2,
 } from "lucide-react";
 
 import { useGalleryStore } from "../../stores/useGalleryStore";
@@ -916,6 +917,21 @@ export const ImageViewer: React.FC = () => {
                           ? "Downloading..."
                           : "Download High-Res"}
                       </button>
+
+                      {isSaved && (
+                        <button
+                          onClick={() => {
+                            if (confirm("Remove image from library entirely?")) {
+                              useGalleryStore.getState().unsaveImage(image.id);
+                              closeViewer();
+                            }
+                          }}
+                          className="w-full py-4 rounded-2xl bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 flex items-center justify-center gap-3 font-black uppercase tracking-widest text-[10px] transition-all"
+                        >
+                          <Trash2 size={16} />
+                          Remove from Library
+                        </button>
+                      )}
 
                       {/* Download Location Settings */}
                       <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-3">
