@@ -1,7 +1,7 @@
 {
   "name": "flowmamga",
   "private": true,
-  "version": "2.2.2",
+  "version": "2.2.3",
   "scripts": {
     "start": "npm run tauri dev",
     "dev": "npm run tauri dev",
