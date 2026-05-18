@@ -68,7 +68,7 @@ export const useReaderStore = create<ReaderState>()(
       autoScroll: false,
       scrollSpeed: 40,
       zoomLevel: 100,
-      imageFit: "width",
+      imageFit: "contain",
       isBoosted: false,
 
       slideshowActive: false,
@@ -83,7 +83,7 @@ export const useReaderStore = create<ReaderState>()(
 
       setMode: (mode) => {
         useSettingsStore.getState().setReadingMode(mode as any);
-        const defaultFit = mode === "vertical" ? "width" : "contain";
+        const defaultFit = "contain";
         set({
           mode,
           autoScroll: false,
@@ -141,9 +141,7 @@ export const useReaderStore = create<ReaderState>()(
             mode: config.mode,
             scrollSpeed: config.speed,
             zoomLevel: config.zoom,
-            imageFit:
-              config.imageFit ||
-              (config.mode === "vertical" ? "width" : "contain"),
+            imageFit: config.imageFit || "contain",
             autoScroll: false,
           });
         }

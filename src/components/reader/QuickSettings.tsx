@@ -51,24 +51,7 @@ export const QuickSettings = () => {
     setGapSize,
   } = useSettingsStore();
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        isOpen &&
-        menuRef.current &&
-        !menuRef.current.contains(event.target as Node)
-      ) {
-        setIsOpen(false);
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isOpen]);
+  // Overlay handles click-outside natively to prevent bleed-through
 
   const handleSpeedChange = (delta: number) => {
     setScrollSpeed(Math.max(10, Math.min(500, scrollSpeed + delta)));
@@ -87,11 +70,15 @@ export const QuickSettings = () => {
     >
       <AnimatePresence>
         {isOpen && (
+          <div className="fixed inset-0 z-[50]" onClick={() => setIsOpen(false)} onPointerDown={(e) => { e.stopPropagation(); setIsOpen(false); }} onWheel={(e) => e.stopPropagation()}>
           <motion.div
             initial={{ opacity: 0, x: 100, scale: 0.9, filter: "blur(20px)" }}
             animate={{ opacity: 1, x: 0, scale: 1, filter: "blur(0px)" }}
             exit={{ opacity: 0, x: 100, scale: 0.9, filter: "blur(20px)" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
             className="absolute bottom-20 right-0 w-[340px] bg-black/40 backdrop-blur-[64px] border border-white/10 rounded-[40px] shadow-[0_32px_128px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col"
           >
             {/* Header */}
@@ -516,6 +503,7 @@ export const QuickSettings = () => {
               </button>
             </div>
           </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

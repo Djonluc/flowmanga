@@ -27,7 +27,12 @@ export const useDownloadStore = create<DownloadState>()(
 
             addJob: (jobData) => {
                 const existing = get().queue.find(j => j.id === jobData.id);
-                if (existing) return;
+                if (existing) {
+                    if (existing.status === 'downloading' || existing.status === 'queued') {
+                        return; // Ignore if already actively downloading or queued
+                    }
+                    get().removeJob(existing.id); // Remove old completed/failed job to allow retry/redownload
+                }
 
                 const newJob: DownloadJob = {
                     ...jobData,

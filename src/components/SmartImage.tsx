@@ -250,7 +250,7 @@ export const SmartImage = ({ src, alt, className, style, onLoad, eager = false }
 
     if (!needsCanvas) {
         return (
-            <div className={clsx("relative w-full flex justify-center items-center", !isLoaded && "min-h-[800px] md:min-h-[1200px]")}>
+            <div className={clsx("relative w-full h-full flex justify-center items-center", !isLoaded && "min-h-[800px] md:min-h-[1200px]")}>
                 {!isLoaded && isVisible && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050505] animate-pulse z-0">
                         <div className="w-12 h-12 border-4 border-white/5 border-t-indigo-500 rounded-full animate-spin shadow-[0_0_15px_rgba(99,102,241,0.5)]" />

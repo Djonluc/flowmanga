@@ -25,20 +25,14 @@ export const VerticalReader = () => {
   const actualSpeed = isBoosted ? scrollSpeed * 4 : scrollSpeed;
 
   const getPageStyle = (): React.CSSProperties => {
-    const baseStyle: React.CSSProperties = {
-      paddingTop: `${gapSize / 2}px`,
-      paddingBottom: `${gapSize / 2}px`,
-    };
-
     if (imageFit === "width" || imageFit === "stretch") {
       return {
-        ...baseStyle,
         width: "100%",
         display: "flex",
         justifyContent: "center",
       };
     }
-    return { ...baseStyle, display: "flex", justifyContent: "center" };
+    return { display: "flex", justifyContent: "center" };
   };
 
   // V2 AUTO-SCROLL ENGINE - Optimized for frame stability
@@ -216,7 +210,7 @@ export const VerticalReader = () => {
     <div
       ref={readerRef}
       className="reader-scroll w-full h-full overflow-y-auto overflow-x-hidden flex flex-col items-center bg-transparent select-none no-scrollbar will-change-scroll"
-      style={{ scrollBehavior: "auto" }}
+      style={{ scrollBehavior: "auto", gap: `${gapSize}px` }}
     >
       {images.map((imagePath, index) => (
         <LazyReaderPage
@@ -295,10 +289,12 @@ const LazyReaderPage = ({
         return "w-full h-full object-fill";
       case "height":
         return "h-screen w-auto object-contain";
+      case "contain":
+        return "w-full h-auto object-contain";
       case "original":
-        return "w-auto h-auto";
-      default:
         return "max-w-full h-auto object-contain";
+      default:
+        return "w-full h-auto object-contain";
     }
   };
 
@@ -311,7 +307,9 @@ const LazyReaderPage = ({
           "manga-page transition-all duration-700 ease-out",
           imageFit === "width" || imageFit === "stretch"
             ? "w-full"
-            : "max-w-7xl px-4",
+            : imageFit === "contain"
+            ? "w-full max-w-5xl"
+            : "max-w-5xl",
           !aspectRatio && !isVisible && "min-h-[600px]", 
         )}
         style={{
@@ -324,6 +322,7 @@ const LazyReaderPage = ({
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
+            className="w-full h-full flex flex-col items-center justify-center"
           >
             <SmartImage
               src={

@@ -4,17 +4,15 @@ import { Bell, X, Download, AlertTriangle, Sparkles, CheckCircle2 } from 'lucide
 import clsx from 'clsx';
 import { useState } from 'react';
 
-// Mock notifications for now, since there isn't a dedicated NotificationStore yet.
-// In a real implementation, these would come from useNotificationStore.
-const MOCK_NOTIFICATIONS = [
-    { id: 1, type: 'success', title: 'Download Complete', message: 'Solo Leveling Chapter 110 has finished downloading.', time: '2m ago', read: false },
-    { id: 2, type: 'discovery', title: 'New Recommendations', message: 'We found 5 new series based on your recent reading.', time: '1h ago', read: false },
-    { id: 3, type: 'warning', title: 'Scraper Alert', message: 'MangaDex is currently experiencing high latency.', time: '3h ago', read: true },
+// Default system notifications for first-time setup
+const DEFAULT_NOTIFICATIONS = [
+    { id: 1, type: 'success', title: 'Welcome to FlowManga', message: 'Your reading environment has been initialized and is ready for exploration.', time: 'Just now', read: false },
+    { id: 2, type: 'discovery', title: 'Discovery Engine Online', message: 'The recommendation engine is active. Your feeds will naturally evolve as you read.', time: 'Just now', read: false },
 ];
 
 export const NotificationCenter = () => {
     const { isNotificationCenterOpen, closeNotificationCenter } = useModalStore();
-    const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+    const [notifications, setNotifications] = useState(DEFAULT_NOTIFICATIONS);
 
     if (!isNotificationCenterOpen) return null;
 
