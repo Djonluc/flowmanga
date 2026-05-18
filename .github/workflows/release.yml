@@ -3,7 +3,7 @@ name: "Publish Release"
 on:
   push:
     tags:
-      - "2.2.1" # Trigger on tags like v1.0.0
+      - "v*" # Trigger on tags like v1.0.0
 
 jobs:
   publish-tauri:
