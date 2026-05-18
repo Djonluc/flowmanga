@@ -9,11 +9,12 @@ interface SmartImageProps {
     className?: string;
     style?: CSSProperties;
     onLoad?: () => void;
+    eager?: boolean;
 }
 
-export const SmartImage = ({ src, alt, className, style, onLoad }: SmartImageProps) => {
+export const SmartImage = ({ src, alt, className, style, onLoad, eager = false }: SmartImageProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [isVisible, setIsVisible] = useState(false);
+    const [isVisible, setIsVisible] = useState(eager);
     const [isLoaded, setIsLoaded] = useState(false);
     const { brightness, contrast, saturation, autoCrop } = useSettingsStore(); 
 
@@ -153,6 +154,11 @@ export const SmartImage = ({ src, alt, className, style, onLoad }: SmartImagePro
     const [imgElement, setImgElement] = useState<HTMLImageElement | null>(null);
 
     useEffect(() => {
+        if (eager) {
+            setIsVisible(true);
+            return;
+        }
+
         const observer = new IntersectionObserver((entries) => {
             if (entries[0].isIntersecting) {
                 setIsVisible(true);
@@ -187,7 +193,7 @@ export const SmartImage = ({ src, alt, className, style, onLoad }: SmartImagePro
             observer.disconnect();
             if (cleanupTimeoutRef.current) clearTimeout(cleanupTimeoutRef.current);
         };
-    }, [src, needsCanvas]);
+    }, [src, needsCanvas, eager]);
 
     const [hasError, setHasError] = useState(false);
 

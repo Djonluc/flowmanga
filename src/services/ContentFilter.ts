@@ -15,6 +15,12 @@ export class ContentFilter {
 
     const titleLower = (item.title || "").toLowerCase();
     const source = (item.source || "").toLowerCase();
+    const rating = (item.rating || "").toLowerCase();
+
+    // 0. Provider Rating Metadata
+    if (rating === "explicit" || rating === "questionable" || rating === "e" || rating === "q") {
+      return true;
+    }
 
     // 1. Adult Content Filter
     const isAdultSite =
@@ -37,24 +43,45 @@ export class ContentFilter {
       ...(item.metaTags || []),
     ].map((tag) => tag.toLowerCase().trim());
 
-    const hasAdultTag = allItemTags.some((t) =>
-      [
-        "hentai",
-        "smut",
-        "erotica",
-        "adult",
-        "porn",
-        "doujinshi",
-        "18+",
-        "nsfw",
-        "yuri",
-        "yaoi",
-        "bara",
-        "shounen ai",
-        "shoujo ai",
-        "boys love",
-        "girls love",
-      ].includes(t),
+    const hasAdultTag = allItemTags.some(
+      (t) =>
+        [
+          "hentai",
+          "smut",
+          "erotica",
+          "erotic",
+          "adult",
+          "porn",
+          "pornography",
+          "doujinshi",
+          //"18+",
+          "nsfw",
+          "explicit",
+          "nudity",
+          "nude",
+          "fetish",
+          "sexualized",
+          "cross-gender",
+          "cross-dressing",
+          "crossdressing",
+          "gender swap",
+          "genderswap",
+          "gender transformation",
+          "roleplay",
+          "bdsm",
+          "intercourse",
+          "genitals",
+          "yuri",
+          "yaoi",
+          "bara",
+          "shounen ai",
+          "shoujo ai",
+          "boys love",
+          "girls love",
+        ].includes(t) ||
+        t.includes("fetish") ||
+        t.includes("explicit sexual") ||
+        t.includes("erotic"),
     );
 
     const adultKeywords = [

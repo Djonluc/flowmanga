@@ -179,7 +179,7 @@ export const useSettingsStore = create<SettingsState>()(
       theme: "dark",
       readingMode: "vertical",
       readingDirection: "ltr",
-      gapSize: 20,
+      gapSize: 0,
       slideshowInterval: 3000,
       slideshowTransition: "fade",
       fitMode: "width",

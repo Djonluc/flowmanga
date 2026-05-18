@@ -226,11 +226,22 @@ export class MangaDexProvider implements SourceProvider {
       if (offset >= feed.total) break;
     }
 
-    return allChapters.map((ch: any) => ({
+    const uniqueChapters: any[] = [];
+    const seenNumbers = new Set<string>();
+    
+    for (const ch of allChapters) {
+      const num = ch.attributes?.chapter || "0";
+      if (!seenNumbers.has(num)) {
+        seenNumbers.add(num);
+        uniqueChapters.push(ch);
+      }
+    }
+
+    return uniqueChapters.map((ch: any) => ({
       id: ch.id,
-      number: ch.attributes.chapter || "0",
+      number: ch.attributes?.chapter || "0",
       url: `https://mangadex.org/chapter/${ch.id}`,
-      title: ch.attributes.title || undefined,
+      title: ch.attributes?.title || undefined,
       source: "mangadex.org",
     }));
   }

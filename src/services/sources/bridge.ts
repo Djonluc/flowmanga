@@ -39,13 +39,22 @@ export function bridgeContent(content: SourceContent, provider: SourceProvider):
  * Convert a provider's SourceSeries into the legacy ScrapeResult format.
  */
 export function bridgeSeries(series: SourceSeries, _provider: SourceProvider): ScrapeResult {
-  const chapters: SeriesScrapedChapter[] = series.chapters.map(ch => ({
-    id: ch.id,
-    number: ch.number,
-    url: ch.url,
-    title: ch.title,
-    source: ch.source || _provider.id,
-  }));
+  const uniqueChapters: SeriesScrapedChapter[] = [];
+  const seenNumbers = new Set<string>();
+
+  for (const ch of series.chapters) {
+    const num = ch.number || "0";
+    if (!seenNumbers.has(num)) {
+      seenNumbers.add(num);
+      uniqueChapters.push({
+        id: ch.id,
+        number: ch.number,
+        url: ch.url,
+        title: ch.title,
+        source: ch.source || _provider.id,
+      });
+    }
+  }
 
   const legacySeries: SeriesScrapeResult = {
     title: series.title,
@@ -54,7 +63,7 @@ export function bridgeSeries(series: SourceSeries, _provider: SourceProvider): S
     seriesUrl: series.seriesUrl,
     source: series.source,
     tags: series.tags,
-    chapters,
+    chapters: uniqueChapters,
   };
 
   const bridgedResult: ScrapeResult = { series: legacySeries };

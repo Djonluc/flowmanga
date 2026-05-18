@@ -285,7 +285,10 @@ export const SourcesSettings = () => {
                     </div>
                     
                     <button
-                        onClick={() => setShowAdultContent(!showAdultContent)}
+                        onClick={async () => {
+                            const { useGalleryStore } = await import('../../stores/useGalleryStore');
+                            useGalleryStore.getState().setContentFilter(!showAdultContent ? "all" : "sfw");
+                        }}
                         className={clsx(
                             "relative w-16 h-8 rounded-full transition-colors duration-500 flex items-center",
                             showAdultContent ? "bg-rose-500" : "bg-white/10"

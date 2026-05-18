@@ -136,6 +136,18 @@ export class UpdateManager {
                 return 0;
             }
 
+            // 4. Deduplicate missingChapters by number
+            const uniqueMissing = [];
+            const seenMissing = new Set();
+            for (const ch of missingChapters) {
+                const num = ch.attributes?.chapter || ch.number || '0';
+                if (!seenMissing.has(num)) {
+                    seenMissing.add(num);
+                    uniqueMissing.push(ch);
+                }
+            }
+            missingChapters = uniqueMissing;
+
             // console.log(`[UpdateManager] Found ${missingChapters.length} new chapters to download for ${series.title}`);
 
             // Load metadata for the job
@@ -183,21 +195,33 @@ export class UpdateManager {
             } catch (e) {}
 
             const mangaId = series.mangaId || 'local';
+
+            // DEDUPLICATE CHAPTERS HERE BY NUMBER to prevent duplicate downloads
+            const uniqueChapters = [];
+            const seenNumbers = new Set();
+            for (const ch of chapters) {
+                const num = ch.attributes?.chapter || ch.number || '0';
+                if (!seenNumbers.has(num)) {
+                    seenNumbers.add(num);
+                    uniqueChapters.push(ch);
+                }
+            }
+
             const downloadJob: any = {
                 id: `${mangaId}-targeted-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-                title: `Manual Download: ${series.title} (${chapters.length} ch)`,
+                title: `Manual Download: ${series.title} (${uniqueChapters.length} ch)`,
                 coverUrl: series.cover || undefined,
-                totalChapters: chapters.length,
+                totalChapters: uniqueChapters.length,
                 metadata: {
                     ...jobMetadata,
                     lastChecked: new Date().toISOString(),
                 },
-                chapterList: chapters, 
+                chapterList: uniqueChapters, 
                 path: series.path
             };
 
             useDownloadStore.getState().addJob(downloadJob);
-            return chapters.length;
+            return uniqueChapters.length;
         } catch (error) {
             console.error(`[UpdateManager] Failed to queue targeted download for ${series.title}:`, error);
             return -1;

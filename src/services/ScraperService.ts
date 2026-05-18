@@ -431,10 +431,21 @@ export class ScraperService {
       if (offset >= feed.total) break;
     }
 
+    const uniqueChapters: any[] = [];
+    const seenNumbers = new Set<string>();
+    
+    for (const ch of allChapters) {
+      const num = ch.attributes?.chapter || "0";
+      if (!seenNumbers.has(num)) {
+        seenNumbers.add(num);
+        uniqueChapters.push(ch);
+      }
+    }
+
     // console.log(
-    //   `[Scraper] Fetched ${allChapters.length} chapters total (Ascending)`,
+    //   `[Scraper] Fetched ${uniqueChapters.length} unique chapters total (Ascending)`,
     // );
-    return allChapters;
+    return uniqueChapters;
   }
 
   private static async scrapeMangaDex(inputUrl: string): Promise<ScrapeResult> {

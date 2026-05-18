@@ -385,18 +385,14 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   },
   setContentFilter: async (filter: "sfw" | "all") => {
     try {
-      const db = getDb();
-      await db.execute(
-        "INSERT OR REPLACE INTO GallerySettings (key, value) VALUES (?, ?)",
-        ["contentFilter", filter],
-      );
+      useSettingsStore.getState().setShowAdultContent(filter === "all");
       set({ contentFilter: filter });
-      // Clear caches so stale content from previous filter mode is not served
+      
       await DiscoveryService.clearAllCache();
-      get().cancelDiscovery(); // Stop any in-flight discovery
+      get().cancelDiscovery(); 
       await get().fetchAllDiscovery();
     } catch (e) {
-      console.error("[GalleryStore] Failed to save contentFilter:", e);
+      console.error("[GalleryStore] Failed to set contentFilter:", e);
     }
   },
 
@@ -565,7 +561,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       const results = await DiscoveryService.searchGlobal(
         "masterpiece highres",
         48,
-        get().contentFilter,
+        useSettingsStore.getState().showAdultContent ? "all" : "sfw",
         fetchPage,
         "image",
         _discoveryAbortController.signal,
@@ -595,7 +591,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     try {
       const results = await DiscoveryService.getLatest(
         48,
-        get().contentFilter,
+        useSettingsStore.getState().showAdultContent ? "all" : "sfw",
         "image",
         _discoveryAbortController.signal,
       );
@@ -624,7 +620,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
       const results = await DiscoveryService.getRandom(
         64,
-        get().contentFilter,
+        useSettingsStore.getState().showAdultContent ? "all" : "sfw",
         "image",
         _discoveryAbortController.signal,
       );
@@ -649,7 +645,8 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     set({ isLoadingPicks: true });
     if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
     try {
-      const { viewHistory, favoriteTags, savedImages, contentFilter } = get();
+      const { viewHistory, favoriteTags, savedImages } = get();
+      const contentFilter = useSettingsStore.getState().showAdultContent ? "all" : "sfw";
       const hasHistory =
         viewHistory.length > 0 ||
         favoriteTags.length > 0 ||
@@ -762,7 +759,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       const results = await DiscoveryService.searchGlobal(
         randomAesthetic,
         48,
-        get().contentFilter,
+        useSettingsStore.getState().showAdultContent ? "all" : "sfw",
         1,
         "image",
         _discoveryAbortController.signal,
@@ -803,7 +800,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     try {
       const results = await DiscoveryService.getTrending(
         48,
-        get().contentFilter,
+        useSettingsStore.getState().showAdultContent ? "all" : "sfw",
         "image",
         _discoveryAbortController.signal,
       );
@@ -845,7 +842,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       const results = await DiscoveryService.searchGlobalByTags(
         seeds,
         48,
-        get().contentFilter,
+        useSettingsStore.getState().showAdultContent ? "all" : "sfw",
         "image",
         _discoveryAbortController.signal,
       );
@@ -886,7 +883,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       const results = await DiscoveryService.searchGlobal(
         lastTag,
         48,
-        get().contentFilter,
+        useSettingsStore.getState().showAdultContent ? "all" : "sfw",
         1,
         "image",
         _discoveryAbortController.signal,
@@ -1001,7 +998,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         const suggestions = await DiscoveryService.searchGlobal(
           query,
           24,
-          get().contentFilter,
+          useSettingsStore.getState().showAdultContent ? "all" : "sfw",
           1,
           "image",
           _suggestionAbortController.signal,

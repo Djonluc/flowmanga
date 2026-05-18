@@ -271,14 +271,16 @@ const LazyReaderPage = ({
   pageStyle,
 }: LazyPageProps) => {
   const [isVisible, setIsVisible] = React.useState(false);
+  const [aspectRatio, setAspectRatio] = React.useState<number | null>(null);
   const pageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Sliding window: keep pages up to 4000px above, preload pages up to 8000px below
     const observer = new IntersectionObserver(
       ([entry]) => {
         setIsVisible(entry.isIntersecting);
       },
-      { rootMargin: "1000px" }, // Preload images 1000px before they enter viewport
+      { rootMargin: "4000px 0px 8000px 0px" },
     );
 
     if (pageRef.current) observer.observe(pageRef.current);
@@ -310,9 +312,12 @@ const LazyReaderPage = ({
           imageFit === "width" || imageFit === "stretch"
             ? "w-full"
             : "max-w-7xl px-4",
-          !isVisible && "min-h-[400px]", // Placeholder height to prevent scroll jump
+          !aspectRatio && !isVisible && "min-h-[600px]", 
         )}
-        style={pageStyle}
+        style={{
+          ...pageStyle,
+          aspectRatio: aspectRatio ? `${aspectRatio}` : undefined,
+        }}
       >
         {isVisible && (
           <motion.div
@@ -333,6 +338,15 @@ const LazyReaderPage = ({
                 transform:
                   zoomLevel !== 100 ? `scale(${zoomLevel / 100})` : undefined,
               }}
+              onLoad={() => {
+                // Ensure scroll height doesn't jump when unmounted later
+                const srcStr = imagePath.startsWith("http") ? imagePath : convertFileSrc(imagePath);
+                const img = document.getElementById(`img-${srcStr}`) as HTMLImageElement;
+                if (img && img.naturalWidth && img.naturalHeight) {
+                  setAspectRatio(img.naturalWidth / img.naturalHeight);
+                }
+              }}
+              eager={true}
             />
           </motion.div>
         )}
