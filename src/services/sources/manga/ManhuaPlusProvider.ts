@@ -5,6 +5,7 @@ import type {
   SourceSeries,
   SourceChapter,
   SourceSearchResult,
+  SourceSearchOptions,
   SourceCapabilities,
   ContentType,
   MediaType,
@@ -347,6 +348,63 @@ export class ManhuaPlusProvider implements SourceProvider {
     } catch (e) {
       console.warn("[ManhuaPlus] fetchLatest failed:", e);
       return [];
+    }
+  }
+
+  async getTrending(
+    options: SourceSearchOptions = {},
+  ): Promise<SourceSearchResult[]> {
+    try {
+      const url = "https://manhuaplus.org/home";
+      console.log(`[ManhuaPlus] Fetching trending recommendations from ${url}`);
+      const html = await invoke<string>("fetch_html", { url, headers: null });
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const results: SourceSearchResult[] = [];
+
+      // Parse Trending/Recommended list
+      const figures = doc.querySelectorAll("#recommend figure.sac");
+      figures.forEach((fig) => {
+        const a = fig.querySelector("figcaption a, a.clamp") as HTMLAnchorElement | null;
+        const img = fig.querySelector("img.lazy, img") as HTMLImageElement | null;
+        if (a) {
+          const href = a.getAttribute("href");
+          if (href && href.includes("/manga/")) {
+            let coverUrl = img
+              ? img.getAttribute("data-src") ||
+                img.getAttribute("src") ||
+                undefined
+              : undefined;
+            if (coverUrl && coverUrl.startsWith("//")) coverUrl = "https:" + coverUrl;
+            if (coverUrl && coverUrl.startsWith("/")) coverUrl = "https://manhuaplus.org" + coverUrl;
+
+            if (coverUrl && coverUrl.includes("loading.gif")) {
+              coverUrl = undefined;
+            }
+
+            results.push({
+              id: href,
+              title: a.textContent?.trim() || "Manhua",
+              source: "manhuaplus.org",
+              contentType: "manga",
+              url: href,
+              coverUrl,
+              tags: ["Trending", "Full Color", "Manhua"],
+            });
+          }
+        }
+      });
+
+      if (results.length > 0) {
+        console.log(`[ManhuaPlus] Successfully extracted ${results.length} recommended manhua from home page!`);
+        return results.slice(0, options.limit || 20);
+      }
+
+      console.warn("[ManhuaPlus] No recommended items parsed from #recommend, falling back to page/1/?m_orderby=views");
+      return this.fetchPopular(options.page || 1, options.limit || 20);
+    } catch (e) {
+      console.warn("[ManhuaPlus] Failed to fetch trending recommendations:", e);
+      return this.fetchPopular(options.page || 1, options.limit || 20);
     }
   }
 }
