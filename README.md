@@ -168,6 +168,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Issues and PRs are welcome.
 [![YouTube](https://img.shields.io/badge/YouTube-@Djonluc-FF0000?style=flat-square&logo=youtube)](https://www.youtube.com/@Djonluc)
 [![Email](https://img.shields.io/badge/Email-djonstnix@gmail.com-5B8CFF?style=flat-square&logo=gmail)](mailto:djonstnix@gmail.com)
 
-**Version:** 2.2.0 (see `package.json` and `src-tauri/tauri.conf.json`) · **Status:** active development
+**Version:** 2.2.1 (see `package.json` and `src-tauri/tauri.conf.json`) · **Status:** active development
 
 </div>
