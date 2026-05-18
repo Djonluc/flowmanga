@@ -14,7 +14,7 @@ import type {
 
 export class MangaReadProvider implements SourceProvider {
   readonly id = "mangaread";
-  readonly name = "MangaRead (Under Construction)";
+  readonly name = "MangaRead";
   readonly domains = ["mangaread.org"];
   readonly contentType: ContentType = "manga";
   readonly mediaDomain: MediaDomain = "manga";

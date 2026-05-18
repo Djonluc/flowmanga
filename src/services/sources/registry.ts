@@ -12,7 +12,17 @@ class SourceRegistry {
   private providers: Map<string, SourceProvider> = new Map();
 
   private isEnabled(provider: SourceProvider): boolean {
-    return provider.isEnabled !== false;
+    // Check provider-level flag first
+    if (provider.isEnabled === false) return false;
+    // Check user settings for manga-domain source toggles
+    if (provider.mediaDomain === "manga") {
+      try {
+        const { useSettingsStore } = require("../../stores/useSettingsStore");
+        const disabled = useSettingsStore.getState().disabledMangaSources || [];
+        if (disabled.includes(provider.id)) return false;
+      } catch (_) {}
+    }
+    return true;
   }
 
   /**
@@ -55,6 +65,23 @@ class SourceRegistry {
     return Array.from(this.providers.values()).filter((provider) =>
       this.isEnabled(provider),
     );
+  }
+
+  /**
+   * List ALL registered providers (including disabled ones).
+   * Used by the Sources Settings UI to show toggles.
+   */
+  listAll(): SourceProvider[] {
+    return Array.from(this.providers.values());
+  }
+
+  /**
+   * Check if a specific provider is currently enabled.
+   */
+  isProviderEnabled(id: string): boolean {
+    const provider = this.providers.get(id);
+    if (!provider) return false;
+    return this.isEnabled(provider);
   }
 
   /**

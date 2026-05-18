@@ -36,58 +36,192 @@ export class ManhuaPlusProvider implements SourceProvider {
   }
 
   async fetchContent(url: string): Promise<SourceContent> {
-    let images: string[] = [];
-    let attempts = 0;
-    while (attempts < 3) {
-      // Alternate between list style and normal
-      const targetUrl =
-        attempts === 0
-          ? url.includes("?")
-            ? `${url}&style=list`
-            : `${url}?style=list`
-          : url;
+    try {
+      console.log(`[ManhuaPlus] Fetching static HTML for chapter: ${url}`);
+      const html = await invoke<string>("fetch_html", { url, headers: null });
 
-      images = await invoke<string[]>("scrape_images_headless", {
-        url: targetUrl,
-        options: {
-          scrollIterations: 20,
-          waitAfterScroll: 2000,
-          selectors: [
-            ".reading-content img",
-            ".chapter-content img",
-            "img[data-src]",
-          ],
+      const chapterIdMatch =
+        html.match(/const\s+CHAPTER_ID\s*=\s*(\d+)/i) ||
+        html.match(/CHAPTER_ID\s*:\s*(\d+)/i) ||
+        html.match(/\/ajax\/image\/list\/chap\/(\d+)/i);
+      if (!chapterIdMatch) {
+        throw new Error("Could not find CHAPTER_ID in static HTML");
+      }
+
+      // Try to extract coverUrl from the chapter HTML meta tags
+      let coverUrl = "";
+      try {
+        const ogImageMatch = html.match(/<meta\s+property="og:image"\s+content="([^"]+)"/i) || 
+                             html.match(/<meta\s+name="twitter:image:src"\s+content="([^"]+)"/i);
+        if (ogImageMatch && ogImageMatch[1]) {
+          coverUrl = ogImageMatch[1];
+        }
+      } catch (e) {}
+
+      const chapterId = chapterIdMatch[1];
+      console.log(`[ManhuaPlus] Found CHAPTER_ID: ${chapterId}. Fetching AJAX images...`);
+
+      const res = await invoke<any>("fetch_json", {
+        url: `https://manhuaplus.org/ajax/image/list/chap/${chapterId}`,
+        method: "POST",
+        body: null,
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         },
       });
-      if (images.length > 0) break;
-      attempts++;
-      if (attempts < 3) await new Promise((r) => setTimeout(r, 3000));
+
+      if (!res || !res.status || !res.html) {
+        throw new Error("AJAX endpoint returned invalid/empty response");
+      }
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(res.html, "text/html");
+      const separators = Array.from(doc.querySelectorAll(".separator"));
+
+      // Sort separators by data-index ascending (ManhuaPlus page order)
+      separators.sort((a, b) => {
+        const idxA = parseInt(a.getAttribute("data-index") || "0");
+        const idxB = parseInt(b.getAttribute("data-index") || "0");
+        return idxA - idxB;
+      });
+
+      const images: string[] = [];
+      separators.forEach((sep) => {
+        const a = sep.querySelector(".readImg");
+        const href = a?.getAttribute("href");
+        if (href && href !== "#") {
+          images.push(href);
+        } else {
+          // Fallback to img src or data-src
+          const img = sep.querySelector("img");
+          const src = img?.getAttribute("src") || img?.getAttribute("data-src");
+          if (src && !src.includes("loading.gif")) {
+            images.push(src);
+          }
+        }
+      });
+
+      if (images.length === 0) {
+        throw new Error("No images parsed from AJAX HTML");
+      }
+
+      console.log(`[ManhuaPlus] Successfully extracted ${images.length} sorted images!`);
+      return {
+        images: images.map((u, i) => ({ url: u, pageNumber: i + 1 })),
+        metadata: { sourceUrl: url, coverUrl },
+      };
+    } catch (err) {
+      console.warn(`[ManhuaPlus] AJAX fetch failed, falling back to legacy headless:`, err);
+
+      let images: string[] = [];
+      let attempts = 0;
+      while (attempts < 2) {
+        const targetUrl =
+          attempts === 0
+            ? url.includes("?")
+              ? `${url}&style=list`
+              : `${url}?style=list`
+            : url;
+
+        images = await invoke<string[]>("scrape_images_headless", {
+          url: targetUrl,
+          options: {
+            scrollIterations: 20,
+            waitAfterScroll: 2000,
+            selectors: [
+              ".reading-content img",
+              ".chapter-content img",
+              "img[data-src]",
+            ],
+          },
+        }).catch(() => []);
+        if (images.length > 0) break;
+        attempts++;
+      }
+
+      if (images.length === 0) {
+        throw new Error(`Failed to scrape chapter: ${(err as any).toString()}`);
+      }
+
+      return {
+        images: images.map((u, i) => ({ url: u, pageNumber: i + 1 })),
+        metadata: { sourceUrl: url },
+      };
     }
-
-    if (images.length === 0) throw new Error("No images found for chapter");
-
-    return {
-      images: images.map((u, i) => ({ url: u, pageNumber: i + 1 })),
-      metadata: { sourceUrl: url },
-    };
   }
 
   async fetchSeries(url: string): Promise<SourceSeries> {
-    const res = await invoke<any>("scrape_series_headless", { url });
-    const links: string[] = res.chapter_links || res.chapterLinks || [];
+    // ManhuaPlus serves chapter listings in static HTML — no headless browser needed
+    const html = await invoke<string>("fetch_html", { url, headers: null });
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+
+    // Extract title
+    const titleEl = doc.querySelector(".manga-info h1, .manga-detail h1, h1");
+    const title = titleEl?.textContent?.trim() || "Untitled";
+
+    // Extract description
+    const descEl = doc.querySelector(".manga-info .summary, .manga-summary, .description, .manga-excerpt");
+    const description = descEl?.textContent?.trim() || "";
+
+    // Extract cover image
+    let coverUrl = "";
+    const coverImg = doc.querySelector(
+      ".manga-info img, .manga-detail img, .summary_image img, .thumb img, .cover img, main figure img, figure a img",
+    ) as HTMLImageElement | null;
+
+    if (coverImg) {
+      coverUrl = coverImg.getAttribute("data-src") || coverImg.getAttribute("src") || "";
+    }
+
+    if (coverUrl && coverUrl.startsWith("/")) {
+      coverUrl = `https://manhuaplus.org${coverUrl}`;
+    }
+
+    // Extract tags/genres
+    const tags: string[] = [];
+    doc.querySelectorAll('a[href*="/genres/"], a[rel="tag"]').forEach((tagEl) => {
+      if (tagEl.textContent) {
+        const text = tagEl.textContent.trim();
+        if (text && !tags.includes(text)) {
+          tags.push(text);
+        }
+      }
+    });
+
+    // Extract chapter links — ManhuaPlus uses /manga/{slug}/chapter-{N} pattern
+    const chapterLinks: { url: string; title: string; number: string }[] = [];
+    const seen = new Set<string>();
+
+    doc.querySelectorAll('a[href*="/chapter-"]').forEach((a) => {
+      const href = a.getAttribute("href");
+      if (!href || !href.includes("manhuaplus.org/manga/")) return;
+      if (seen.has(href)) return;
+      seen.add(href);
+
+      const chTitle = a.textContent?.trim() || "";
+      const numMatch = href.match(/chapter-(\d+(\.\d+)?)/);
+      const num = numMatch ? numMatch[1] : "0";
+
+      chapterLinks.push({ url: href, title: chTitle, number: num });
+    });
+
+    // Sort by chapter number ascending
+    chapterLinks.sort((a, b) => parseFloat(a.number) - parseFloat(b.number));
+
     return {
-      title: (res.title || "")
-        .replace(/[\r\n\t]+/g, " ")
-        .replace(/\s+/g, " ")
-        .trim(),
-      description: (res.description || "").trim(),
-      coverUrl: res.cover_url || res.coverUrl || "",
+      title,
+      description,
+      coverUrl,
       seriesUrl: url,
       source: "manhuaplus.org",
-      chapters: links.map((link: string, i: number) => ({
-        id: link,
-        number: (links.length - i).toString(),
-        url: link,
+      tags,
+      chapters: chapterLinks.map((ch) => ({
+        id: ch.url,
+        number: ch.number,
+        url: ch.url,
+        title: ch.title,
         source: "manhuaplus.org",
       })),
     };
@@ -96,6 +230,82 @@ export class ManhuaPlusProvider implements SourceProvider {
   async fetchChapterFeed(seriesUrl: string): Promise<SourceChapter[]> {
     const series = await this.fetchSeries(seriesUrl);
     return series.chapters;
+  }
+
+  private parseMadaraList(
+    html: string,
+    limit: number,
+    defaultSource: string,
+  ): SourceSearchResult[] {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+
+    const results: SourceSearchResult[] = [];
+    const items = doc.querySelectorAll(
+      ".page-item-detail, .manga-item, .c-tabs-item__content",
+    );
+
+    if (items.length > 0) {
+      items.forEach((item) => {
+        const a = item.querySelector(
+          "h3 a, .post-title a",
+        ) as HTMLAnchorElement;
+        const img = item.querySelector("img") as HTMLImageElement;
+        if (a && a.getAttribute("href")) {
+          const href = a.getAttribute("href")!;
+          let coverUrl = img
+            ? img.getAttribute("data-src") ||
+              img.getAttribute("src") ||
+              undefined
+            : undefined;
+          if (coverUrl && coverUrl.startsWith("//"))
+            coverUrl = "https:" + coverUrl;
+          if (coverUrl && coverUrl.startsWith("/"))
+            coverUrl = "https://manhuaplus.org" + coverUrl;
+          results.push({
+            id: href,
+            title: a.textContent?.trim() || "Manhua",
+            source: defaultSource,
+            contentType: "manga",
+            url: href,
+            coverUrl,
+            tags: ["Full Color", "Manhua"],
+          });
+        }
+      });
+    } else {
+      doc
+        .querySelectorAll(".item-thumb a, .manga-poster a, .series-box a")
+        .forEach((a) => {
+          const href = a.getAttribute("href");
+          if (href && (href.includes("/manga/") || href.includes("/comic/"))) {
+            const img = a.querySelector("img");
+            const titleStr =
+              a.getAttribute("title") || img?.getAttribute("alt") || "Manhua";
+            let coverUrl = img
+              ? img.getAttribute("data-src") ||
+                img.getAttribute("src") ||
+                undefined
+              : undefined;
+            if (coverUrl && coverUrl.startsWith("//"))
+              coverUrl = "https:" + coverUrl;
+            if (coverUrl && coverUrl.startsWith("/"))
+              coverUrl = "https://manhuaplus.org" + coverUrl;
+            results.push({
+              id: href,
+              title: titleStr.trim(),
+              source: defaultSource,
+              contentType: "manga",
+              url: href,
+              coverUrl,
+              tags: ["Full Color", "Manhua"],
+            });
+          }
+        });
+    }
+
+    const unique = Array.from(new Map(results.map((r) => [r.id, r])).values());
+    return unique.slice(0, limit);
   }
 
   async search(
@@ -113,16 +323,30 @@ export class ManhuaPlusProvider implements SourceProvider {
   }
 
   async fetchPopular(
-    _page: number = 1,
-    _limit: number = 20,
+    page: number = 1,
+    limit: number = 20,
   ): Promise<SourceSearchResult[]> {
-    return [];
+    try {
+      const url = `https://manhuaplus.org/manga/page/${page}/?m_orderby=views`;
+      const html = await invoke<string>("fetch_html", { url, headers: null });
+      return this.parseMadaraList(html, limit, "manhuaplus.org");
+    } catch (e) {
+      console.warn("[ManhuaPlus] fetchPopular failed:", e);
+      return [];
+    }
   }
 
   async fetchLatest(
-    _page: number = 1,
-    _limit: number = 20,
+    page: number = 1,
+    limit: number = 20,
   ): Promise<SourceSearchResult[]> {
-    return [];
+    try {
+      const url = `https://manhuaplus.org/manga/page/${page}/?m_orderby=latest`;
+      const html = await invoke<string>("fetch_html", { url, headers: null });
+      return this.parseMadaraList(html, limit, "manhuaplus.org");
+    } catch (e) {
+      console.warn("[ManhuaPlus] fetchLatest failed:", e);
+      return [];
+    }
   }
 }

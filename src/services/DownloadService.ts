@@ -46,15 +46,27 @@ export class DownloadService {
 
         try {
             // 3. Cover Logic
-            if (metadata.coverUrl && !metadata.coverFile && !mergedMeta.coverFile) {
+            let coverUrl = metadata.coverUrl;
+            if (coverUrl && coverUrl.startsWith('/')) {
                 try {
-                    const coverPath = `${mangaRoot}/cover.jpg`;
+                    const origin = new URL(metadata.sourceUrl).origin;
+                    coverUrl = origin + coverUrl;
+                    metadata.coverUrl = coverUrl;
+                } catch (e) {}
+            }
+
+            const { exists } = await import('@tauri-apps/plugin-fs');
+            const coverPath = `${mangaRoot}/cover.jpg`;
+            const coverExists = await exists(coverPath).catch(() => false);
+
+            if (coverUrl && (!coverExists || !mergedMeta.coverFile)) {
+                try {
                     const coverReferer =
                         metadata.sourceUrl && typeof metadata.sourceUrl === 'string'
                             ? metadata.sourceUrl
                             : null;
                     await invoke('download_image', {
-                        url: metadata.coverUrl,
+                        url: coverUrl,
                         filePath: coverPath,
                         headers:
                             metadata.source !== 'mangadex' && coverReferer

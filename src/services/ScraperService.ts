@@ -103,15 +103,30 @@ export class ScraperService {
     const provider = sourceRegistry.resolve(targetUrl);
     if (provider) {
       try {
-        const isSeriesPage =
-          isWebtoonsSeriesListUrl(targetUrl) ||
-          targetUrl.includes("/title/") ||
-          targetUrl.includes("/titles/") ||
-          targetUrl.includes("/series/") ||
-          targetUrl.includes("/manga/") ||
-          targetUrl.includes("/comic/");
+        const isChapterPage =
+          targetUrl.includes("/chapter-") ||
+          targetUrl.includes("-chapter-") ||
+          targetUrl.includes("/chapter/") ||
+          targetUrl.includes("/viewer?") ||
+          targetUrl.includes("/reader/") ||
+          targetUrl.includes("chapter=") ||
+          /\/ch-\d+/i.test(targetUrl);
 
-        if (isSeriesPage && provider.fetchSeries) {
+        const isSeriesPage =
+          !isChapterPage &&
+          (isWebtoonsSeriesListUrl(targetUrl) ||
+            targetUrl.includes("/title/") ||
+            targetUrl.includes("/titles/") ||
+            targetUrl.includes("/series/") ||
+            targetUrl.includes("/manga/") ||
+            targetUrl.includes("/comic/") ||
+            targetUrl.includes("chapters.html") ||
+            targetUrl.includes("comic="));
+
+        // If not a chapter page and provider supports series listing, try fetchSeries.
+        // This handles single-series sites (e.g. BlueLock) where the homepage IS the series page,
+        // even if the URL doesn't match standard patterns like /manga/ or /series/.
+        if (!isChapterPage && provider.fetchSeries) {
           const series = await provider.fetchSeries(targetUrl);
           return bridgeSeries(series, provider);
         }
@@ -433,7 +448,7 @@ export class ScraperService {
 
     const uniqueChapters: any[] = [];
     const seenNumbers = new Set<string>();
-    
+
     for (const ch of allChapters) {
       const num = ch.attributes?.chapter || "0";
       if (!seenNumbers.has(num)) {
@@ -1356,7 +1371,11 @@ export class ScraperService {
     coloredOnly: boolean = false,
     mediaDomain?: MediaDomain,
   ): Promise<any[]> {
-    const results = await DiscoveryService.getTrending(limit, coloredOnly, mediaDomain);
+    const results = await DiscoveryService.getTrending(
+      limit,
+      coloredOnly,
+      mediaDomain,
+    );
     return ContentFilter.filterResults(results);
   }
 
@@ -1365,7 +1384,11 @@ export class ScraperService {
     coloredOnly: boolean = false,
     mediaDomain?: MediaDomain,
   ): Promise<any[]> {
-    const results = await DiscoveryService.getLatest(limit, coloredOnly, mediaDomain);
+    const results = await DiscoveryService.getLatest(
+      limit,
+      coloredOnly,
+      mediaDomain,
+    );
     return ContentFilter.filterResults(results);
   }
 
@@ -1374,7 +1397,11 @@ export class ScraperService {
     _coloredOnly: boolean = false,
     mediaDomain?: MediaDomain,
   ): Promise<any[]> {
-    const trending = await DiscoveryService.getTrending(limit, _coloredOnly, mediaDomain);
+    const trending = await DiscoveryService.getTrending(
+      limit,
+      _coloredOnly,
+      mediaDomain,
+    );
     return ContentFilter.filterResults(trending);
   }
 

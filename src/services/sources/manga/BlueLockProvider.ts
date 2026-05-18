@@ -36,48 +36,111 @@ export class BlueLockProvider implements SourceProvider {
   }
 
   async fetchContent(url: string): Promise<SourceContent> {
-    const html = await invoke<string>("fetch_html", { url, headers: null });
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
-    const images: string[] = [];
-    doc
-      .querySelectorAll(".entry-content img, .entry-inner img")
-      .forEach((img) => {
-        const src = img.getAttribute("src");
-        if (src && !images.includes(src)) images.push(src);
-      });
+    // Heal old/legacy chapter URLs that now dead-redirect to the homepage
+    let targetUrl = url;
+    const oldChapMatch = url.match(/chapter-(\d+(?:-\d+)?)/);
+    if (oldChapMatch && !url.includes("/manga/blue-lock-chapter-")) {
+      const chNum = oldChapMatch[1];
+      targetUrl = `https://w45.blue-lock-manga.com/manga/blue-lock-chapter-${chNum}/`;
+    }
+
+    const html = await invoke<string>("fetch_html", { url: targetUrl, headers: null });
+
+    // BlueLock uses lazy-loading with data-src for real image URLs
+    const dataSrcMatches = [
+      ...html.matchAll(/data-src=["']([^"']+)["']/gi),
+    ];
+    const images = dataSrcMatches
+      .map((m) => m[1])
+      .filter(
+        (u) =>
+          !u.includes("svg+xml") &&
+          !u.includes("logo") &&
+          !u.includes("favicon") &&
+          !u.includes("gravatar") &&
+          (u.includes(".jpg") || u.includes(".png") || u.includes(".webp")),
+      );
+
+    // Deduplicate
+    const uniqueImages = [...new Set(images)];
+
     return {
-      images: images.map((u, i) => ({ url: u, pageNumber: i + 1 })),
+      images: uniqueImages.map((u, i) => ({ url: u, pageNumber: i + 1 })),
       metadata: { sourceUrl: url },
     };
   }
 
   async fetchSeries(url: string): Promise<SourceSeries> {
     const html = await invoke<string>("fetch_html", { url, headers: null });
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
 
+    // Extract title
+    const titleMatch = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+    const title = titleMatch ? titleMatch[1].trim() : "Blue Lock";
+
+    // Extract cover image
+    let coverUrl = "";
+    const coverMatch =
+      html.match(
+        /<img[^>]*data-src=["']([^"']+)["'][^>]*alt=["'][^"']*blue\s*lock[^"']*["']/i,
+      ) ||
+      html.match(
+        /<img[^>]*src=["']([^"']+)["'][^>]*alt=["'][^"']*blue\s*lock[^"']*["']/i,
+      );
+    if (coverMatch) {
+      coverUrl = coverMatch[1];
+    }
+
+    // Extract chapter links — BlueLock uses /manga/blue-lock-chapter-{N}/ pattern
+    const chapterMatches = [
+      ...html.matchAll(
+        /href=["']([^"']*\/manga\/blue-lock-chapter-[^"']*)["']/gi,
+      ),
+    ];
+
+    const seen = new Set<string>();
     const chapters: SourceChapter[] = [];
-    doc.querySelectorAll('a[href*="/chapter-"]').forEach((a) => {
-      const href = a.getAttribute("href");
-      if (href) {
-        chapters.push({
-          id: href,
-          number: href.match(/chapter-(\d+)/)?.[1] || "0",
-          url: href,
-          title: a.textContent?.trim() || "Chapter",
-          source: "blue-lock-manga.com",
-        });
-      }
-    });
+
+    for (const match of chapterMatches) {
+      const href = match[1];
+      if (seen.has(href)) continue;
+      seen.add(href);
+
+      // Extract chapter number — handle patterns like chapter-346-3 (sub-chapters)
+      const numMatch = href.match(/chapter-(\d+(?:-\d+)?)/);
+      const rawNum = numMatch ? numMatch[1] : "0";
+      // Normalize sub-chapter: "346-3" → "346.3"
+      const chNum = rawNum.replace("-", ".");
+
+      // Try to extract title text from the anchor
+      const titleRegex = new RegExp(
+        `href=["']${href.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["'][^>]*>([^<]*)`,
+        "i",
+      );
+      const titleParsed = html.match(titleRegex);
+      const chTitle = titleParsed
+        ? titleParsed[1].trim() || `Chapter ${chNum}`
+        : `Chapter ${chNum}`;
+
+      chapters.push({
+        id: href,
+        number: chNum,
+        url: href,
+        title: chTitle,
+        source: "blue-lock-manga.com",
+      });
+    }
+
+    // Sort descending (latest first)
+    chapters.sort((a, b) => parseFloat(b.number) - parseFloat(a.number));
 
     return {
-      title: "Blue Lock",
-      description: "Blue Lock Official Manga",
-      coverUrl: "",
+      title,
+      description:
+        "After a disastrous defeat at the 2018 World Cup, Japan's team struggles to regroup. But what's missing? An absolute Ace Striker. The Football Union is hell-bent on creating a striker who hungers for goals and thirsts for victory.",
+      coverUrl,
       seriesUrl: url,
       source: "blue-lock-manga.com",
-      chapters: chapters.reverse(),
+      chapters,
     };
   }
 

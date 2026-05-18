@@ -176,16 +176,30 @@ export class ManhwaReadProvider implements SourceProvider {
   }
 
   async fetchPopular(
-    _page: number = 1,
-    _limit: number = 20,
+    page: number = 1,
+    limit: number = 20,
   ): Promise<SourceSearchResult[]> {
-    return [];
+    try {
+      const url = `https://manhwaread.com/manga/page/${page}/?m_orderby=views`;
+      const html = await invoke<string>("fetch_html", { url, headers: null });
+      return this.parseMadaraList(html, limit, "manhwaread.com");
+    } catch (e) {
+      console.warn("[ManhwaRead] fetchPopular failed:", e);
+      return [];
+    }
   }
 
   async fetchLatest(
-    _page: number = 1,
-    _limit: number = 20,
+    page: number = 1,
+    limit: number = 20,
   ): Promise<SourceSearchResult[]> {
-    return [];
+    try {
+      const url = `https://manhwaread.com/manga/page/${page}/?m_orderby=latest`;
+      const html = await invoke<string>("fetch_html", { url, headers: null });
+      return this.parseMadaraList(html, limit, "manhwaread.com");
+    } catch (e) {
+      console.warn("[ManhwaRead] fetchLatest failed:", e);
+      return [];
+    }
   }
 }

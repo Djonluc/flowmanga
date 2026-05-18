@@ -42,11 +42,7 @@ sourceRegistry.register(new LuaComicProvider());
 sourceRegistry.register(new BlueLockProvider());
 sourceRegistry.register(new DBMProvider());
 sourceRegistry.register(new NhentaiProvider());
-
-const mangaread = new MangaReadProvider();
-(mangaread as any).isEnabled = false;
-sourceRegistry.register(mangaread);
-
+sourceRegistry.register(new MangaReadProvider());
 sourceRegistry.register(new ManhuaPlusProvider());
 
 // Phase 3: Gallery Sources

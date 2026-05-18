@@ -351,7 +351,8 @@ export class DiscoveryService {
             signal,
           );
         }
-      } catch {
+      } catch (e) {
+        console.warn(`[DiscoveryService] Provider '${p.name}' failed during ${type}:`, e);
         return [];
       }
 
@@ -359,6 +360,11 @@ export class DiscoveryService {
     });
 
     const results = await this.pool(tasks, this.MAX_CONCURRENT_REQUESTS);
+
+    // Provider contribution visibility
+    const contributions = providers.map((p, i) => `${p.name}: ${(results[i] || []).length}`).join(", ");
+    console.log(`[DiscoveryService] ${type} provider contributions: ${contributions}`);
+
     const interleaved = this.interleave(results, limit, coloredOnly);
     this.setCache(cacheKey, interleaved);
     return interleaved;

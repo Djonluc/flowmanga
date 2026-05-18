@@ -163,6 +163,11 @@ interface SettingsState {
 
   booruAuth: Record<string, BooruAuth>;
   setBooruAuth: (providerId: string, auth: BooruAuth) => void;
+
+  // Manga Source Toggles
+  disabledMangaSources: string[];
+  toggleMangaSource: (sourceId: string) => void;
+  isMangaSourceEnabled: (sourceId: string) => boolean;
 }
 
 const BUILTIN_SOUNDS = [
@@ -393,6 +398,28 @@ export const useSettingsStore = create<SettingsState>()(
             [providerId]: auth
           }
         })),
+
+      // Manga Source Toggles — LuaComic disabled by default (currently broken)
+      disabledMangaSources: ['luacomic'],
+      toggleMangaSource: (sourceId) =>
+        set((state) => {
+          const disabled = [...state.disabledMangaSources];
+          const idx = disabled.indexOf(sourceId);
+          if (idx >= 0) {
+            disabled.splice(idx, 1);
+          } else {
+            disabled.push(sourceId);
+          }
+          // Clear discovery cache when sources change
+          import("../services/DiscoveryService").then(({ DiscoveryService }) => {
+            DiscoveryService.clearAllCache();
+          });
+          return { disabledMangaSources: disabled };
+        }),
+      isMangaSourceEnabled: (sourceId) => {
+        const state = useSettingsStore.getState();
+        return !state.disabledMangaSources.includes(sourceId);
+      },
     }),
     {
       name: "flowmanga-settings",

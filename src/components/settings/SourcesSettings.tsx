@@ -1,4 +1,4 @@
-import { Globe, ExternalLink, ShieldCheck, Zap, AlertTriangle, Search, Sparkles, Activity, Clock } from 'lucide-react';
+import { Globe, ExternalLink, ShieldCheck, Zap, AlertTriangle, Search, Sparkles, Activity, Clock, Power } from 'lucide-react';
 import clsx from 'clsx';
 import { useState } from 'react';
 import { useSettingsStore } from '../../stores/useSettingsStore';
@@ -13,11 +13,18 @@ export const SourcesSettings = () => {
         coloredOnly, 
         toggleColoredOnly,
         booruAuth,
-        setBooruAuth
+        setBooruAuth,
+        disabledMangaSources,
+        toggleMangaSource,
     } = useSettingsStore();
     const [tagInput, setTagInput] = useState(excludedTags?.join(', ') || '');
     
-    const providers = sourceRegistry.list();
+    // Get all providers (including disabled) for the toggle UI
+    const allProviders = sourceRegistry.listAll();
+    const mangaProviders = allProviders.filter(p => p.mediaDomain === 'manga');
+    const galleryProviders = allProviders.filter(p => p.mediaDomain === 'image');
+    // For capabilities/auth display, show only enabled
+    const enabledProviders = sourceRegistry.list();
 
     const handleOpenSite = async (url: string) => {
         const { open } = await import('@tauri-apps/plugin-shell');
@@ -47,7 +54,7 @@ export const SourcesSettings = () => {
     };
 
     const getStatusText = (status: string, providerEnabled: boolean = true) => {
-        if (!providerEnabled) return 'Sealed';
+        if (!providerEnabled) return 'Disabled';
         if (!status) return 'In Hiding';
         
         switch (status.toLowerCase()) {
@@ -61,29 +68,35 @@ export const SourcesSettings = () => {
         }
     };
 
+    const isMangaEnabled = (id: string) => !disabledMangaSources.includes(id);
+
     return (
         <div className="space-y-8 pb-12">
+            {/* Manga Sources with Toggles */}
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                     <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
                     <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
-                        Active Roster (Sources)
+                        Manga Sources
                     </h4>
                 </div>
+                <span className="text-foreground-dim text-[10px] font-bold uppercase tracking-widest">
+                    {mangaProviders.filter(p => isMangaEnabled(p.id)).length} / {mangaProviders.length} Active
+                </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {providers.map((source) => {
-                    const isSealed = source.isEnabled === false;
-                    const status = isSealed ? 'sealed' : 'operational';
+                {mangaProviders.map((source) => {
+                    const isEnabled = isMangaEnabled(source.id);
+                    const status = isEnabled ? 'operational' : 'sealed';
 
                     return (
                         <div 
                             key={source.id}
                             className={clsx(
                                 "group p-6 rounded-[32px] border transition-all duration-500 flex flex-col gap-6",
-                                isSealed 
-                                    ? "bg-black/40 border-rose-900/20 grayscale opacity-60" 
+                                !isEnabled 
+                                    ? "bg-black/40 border-rose-900/20 opacity-60" 
                                     : "bg-white/5 border-white/5 hover:border-blue-500/20"
                             )}
                         >
@@ -91,7 +104,7 @@ export const SourcesSettings = () => {
                                 <div className="flex items-center gap-4">
                                     <div className={clsx(
                                         "w-14 h-14 rounded-2xl flex items-center justify-center uppercase font-black text-xs transition-all duration-500",
-                                        isSealed 
+                                        !isEnabled 
                                             ? "bg-rose-500/10 text-rose-500/40" 
                                             : "bg-white/5 text-foreground/40 group-hover:bg-blue-500/10 group-hover:text-blue-500"
                                     )}>
@@ -100,27 +113,41 @@ export const SourcesSettings = () => {
                                     <div className="flex flex-col">
                                         <span className="text-foreground text-base font-bold tracking-tight">
                                             {source.name}
-                                            {isSealed && <span className="ml-2 text-[8px] text-rose-500 uppercase tracking-widest font-black">Sealed</span>}
                                         </span>
                                         <div className="flex items-center gap-2 mt-1">
                                             <div className={clsx("w-1.5 h-1.5 rounded-full", getStatusColor(status))} />
-                                            <span className={clsx("text-[8px] font-black uppercase tracking-widest", status === 'unknown' ? 'text-foreground-dim' : getStatusColor(status).replace('bg-', 'text-'))}>
-                                                {getStatusText(status, source.isEnabled !== false)}
+                                            <span className={clsx("text-[8px] font-black uppercase tracking-widest", getStatusColor(status).replace('bg-', 'text-'))}>
+                                                {getStatusText(status, isEnabled)}
                                             </span>
                                         </div>
                                     </div>
                                 </div>
-                                {!isSealed && (
-                                    <button 
-                                        onClick={() => handleOpenSite(`https://${source.domains[0]}`)}
-                                        className="p-3 bg-white/5 hover:bg-white/10 text-foreground/40 hover:text-foreground rounded-xl transition-all active:scale-90"
+                                <div className="flex items-center gap-2">
+                                    {isEnabled && (
+                                        <button 
+                                            onClick={() => handleOpenSite(`https://${source.domains[0]}`)}
+                                            className="p-3 bg-white/5 hover:bg-white/10 text-foreground/40 hover:text-foreground rounded-xl transition-all active:scale-90"
+                                        >
+                                            <ExternalLink size={16} />
+                                        </button>
+                                    )}
+                                    {/* Toggle Switch */}
+                                    <button
+                                        onClick={() => toggleMangaSource(source.id)}
+                                        className={clsx(
+                                            "relative w-14 h-7 rounded-full transition-colors duration-500 flex items-center",
+                                            isEnabled ? "bg-emerald-500" : "bg-white/10"
+                                        )}
                                     >
-                                        <ExternalLink size={16} />
+                                        <div className={clsx(
+                                            "w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-500 mx-1",
+                                            isEnabled ? "translate-x-7" : "translate-x-0"
+                                        )} />
                                     </button>
-                                )}
+                                </div>
                             </div>
 
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-wrap">
                                 {source.capabilities.search && (
                                     <div className="p-2 rounded-lg bg-white/5 text-foreground/40 flex items-center gap-2" title="Search Enabled">
                                         <Search size={12} />
@@ -141,11 +168,11 @@ export const SourcesSettings = () => {
                                 )}
                                 <div className={clsx(
                                     "p-2 rounded-lg flex items-center gap-2",
-                                    isSealed || status === 'error' || status === 'shutdown' ? "bg-rose-500/10 text-rose-500/60" : "bg-emerald-500/10 text-emerald-500/60"
-                                )} title={isSealed ? "Source Sealed" : (status === 'error' || status === 'shutdown' ? "Source Maintenance" : "Download Ready")}>
-                                    <ShieldCheck size={12} />
+                                    !isEnabled ? "bg-rose-500/10 text-rose-500/60" : "bg-emerald-500/10 text-emerald-500/60"
+                                )} title={!isEnabled ? "Source Disabled" : "Source Active"}>
+                                    <Power size={12} />
                                     <span className="text-[8px] font-black uppercase">
-                                        {isSealed ? 'Banished' : (status === 'error' || status === 'shutdown' ? 'Retraining' : 'On Duty')}
+                                        {!isEnabled ? 'Off' : 'On Duty'}
                                     </span>
                                 </div>
                             </div>
@@ -154,6 +181,94 @@ export const SourcesSettings = () => {
                 })}
             </div>
 
+            {/* Collection Sources (Gallery / Image — READ ONLY, no toggles) */}
+            {galleryProviders.length > 0 && (
+                <>
+                    <div className="flex items-center gap-3 mt-8 mb-6">
+                        <div className="w-1.5 h-6 bg-purple-600 rounded-full" />
+                        <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
+                            Collection Sources
+                        </h4>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {galleryProviders.map((source) => {
+                            const isSealed = source.isEnabled === false;
+                            const status = isSealed ? 'sealed' : 'operational';
+
+                            return (
+                                <div 
+                                    key={source.id}
+                                    className={clsx(
+                                        "group p-6 rounded-[32px] border transition-all duration-500 flex flex-col gap-6",
+                                        isSealed 
+                                            ? "bg-black/40 border-rose-900/20 grayscale opacity-60" 
+                                            : "bg-white/5 border-white/5 hover:border-purple-500/20"
+                                    )}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-4">
+                                            <div className={clsx(
+                                                "w-14 h-14 rounded-2xl flex items-center justify-center uppercase font-black text-xs transition-all duration-500",
+                                                isSealed 
+                                                    ? "bg-rose-500/10 text-rose-500/40" 
+                                                    : "bg-white/5 text-foreground/40 group-hover:bg-purple-500/10 group-hover:text-purple-500"
+                                            )}>
+                                                {source.id.slice(0, 2)}
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-foreground text-base font-bold tracking-tight">
+                                                    {source.name}
+                                                    {isSealed && <span className="ml-2 text-[8px] text-rose-500 uppercase tracking-widest font-black">Sealed</span>}
+                                                </span>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <div className={clsx("w-1.5 h-1.5 rounded-full", getStatusColor(status))} />
+                                                    <span className={clsx("text-[8px] font-black uppercase tracking-widest", getStatusColor(status).replace('bg-', 'text-'))}>
+                                                        {getStatusText(status, source.isEnabled !== false)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {!isSealed && (
+                                            <button 
+                                                onClick={() => handleOpenSite(`https://${source.domains[0]}`)}
+                                                className="p-3 bg-white/5 hover:bg-white/10 text-foreground/40 hover:text-foreground rounded-xl transition-all active:scale-90"
+                                            >
+                                                <ExternalLink size={16} />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                        {source.capabilities.search && (
+                                            <div className="p-2 rounded-lg bg-white/5 text-foreground/40 flex items-center gap-2" title="Search Enabled">
+                                                <Search size={12} />
+                                                <span className="text-[8px] font-black uppercase">Search</span>
+                                            </div>
+                                        )}
+                                        {source.capabilities.tagSearch && (
+                                            <div className="p-2 rounded-lg bg-white/5 text-foreground/40 flex items-center gap-2" title="Tag Search">
+                                                <Sparkles size={12} />
+                                                <span className="text-[8px] font-black uppercase">Tags</span>
+                                            </div>
+                                        )}
+                                        <div className={clsx(
+                                            "p-2 rounded-lg flex items-center gap-2",
+                                            isSealed ? "bg-rose-500/10 text-rose-500/60" : "bg-emerald-500/10 text-emerald-500/60"
+                                        )} title={isSealed ? "Source Sealed" : "Download Ready"}>
+                                            <ShieldCheck size={12} />
+                                            <span className="text-[8px] font-black uppercase">
+                                                {isSealed ? 'Sealed' : 'On Duty'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </>
+            )}
+
             <div className="p-8 rounded-[40px] bg-blue-600/5 border border-blue-500/10 flex items-center gap-6">
                 <div className="w-16 h-16 rounded-3xl bg-blue-600/20 flex items-center justify-center text-blue-500">
                     <Zap size={32} />
@@ -161,7 +276,7 @@ export const SourcesSettings = () => {
                 <div className="flex-1">
                     <h5 className="text-foreground font-black uppercase tracking-widest text-xs mb-1 italic">Unified Aggregation Engine</h5>
                     <p className="text-foreground-dim text-xs font-medium leading-relaxed">
-                    Metadata and discovery are powered by the MangaDex API and registered source providers. Sources are validated at registration time to ensure stability.
+                    Disabled manga sources will not appear in homepage recommendations, discovery, or featured content. They can still be used for direct URL imports.
                     </p>
                 </div>
             </div>
@@ -175,7 +290,7 @@ export const SourcesSettings = () => {
                     </h4>
                 </div>
 
-                {providers.filter(p => p.capabilities.authentication).map(p => (
+                {allProviders.filter(p => p.capabilities.authentication).map(p => (
                     <div key={`auth-${p.id}`} className="group bg-white/5 p-6 rounded-[32px] border border-white/5 flex flex-col gap-6 hover:border-amber-500/20 transition-all duration-500">
                         <div className="flex items-center gap-5">
                             <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500">

@@ -745,6 +745,33 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
           .filter((t) => t)
           .join(",");
 
+        // Normalize coverUrl to prevent relative paths issues
+        let coverUrl = details.coverUrl;
+        if (coverUrl && coverUrl.startsWith("/")) {
+          try {
+            const origin = new URL(targetUrl || series.seriesUrl!).origin;
+            coverUrl = origin + coverUrl;
+          } catch (e) {}
+        }
+
+        // Dynamically download cover.jpg to disk if not exists or if cover URL is fetched
+        let localCoverPath = series.cover;
+        if (coverUrl && coverUrl.startsWith("http")) {
+          try {
+            const { join } = await import("@tauri-apps/api/path");
+            const coverPath = await join(series.path, "cover.jpg");
+            const referer = targetUrl || series.seriesUrl || null;
+            await invoke("download_image", {
+              url: coverUrl,
+              filePath: coverPath,
+              headers: sourceName !== "mangadex" && referer ? { Referer: referer } : null,
+            });
+            localCoverPath = coverPath;
+          } catch (e) {
+            console.warn("[LibraryStore] Failed to download refreshed cover:", e);
+          }
+        }
+
         await db.execute(
           "UPDATE Series SET title = ?, description = ?, author = ?, tags = ?, coverPath = ?, mangaId = ?, seriesUrl = ? WHERE id = ?",
           [
@@ -752,7 +779,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
             details.description,
             details.author || series.author || "",
             tags,
-            details.coverUrl || series.cover,
+            localCoverPath,
             targetMangaId,
             targetUrl,
             seriesId,
@@ -771,6 +798,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
             mangaId: targetMangaId,
             sourceUrl: targetUrl,
             source: sourceName,
+            coverFile: "cover.jpg",
             version: 3.0,
           };
           await writeTextFile(metaPath, JSON.stringify(newMeta, null, 2));
