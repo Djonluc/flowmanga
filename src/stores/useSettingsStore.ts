@@ -313,7 +313,11 @@ export const useSettingsStore = create<SettingsState>()(
       isSafetyCheckModalOpen: false,
       safetyCheckTitle: "",
       onSafetyCheckResolved: undefined,
-      setSafetyCheckModal: (open, title = "", callback = undefined) =>
+      setSafetyCheckModal: (
+        open,
+        title = "",
+        callback?: (action: "update" | "redownload") => void,
+      ) =>
         set({
           isSafetyCheckModalOpen: open,
           safetyCheckTitle: title,
