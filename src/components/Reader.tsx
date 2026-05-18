@@ -160,6 +160,11 @@ export const Reader = () => {
   return (
     <div
       onDoubleClick={toggleFullScreenAction}
+      onClick={() => {
+        if (!showControls) {
+          setShowControls(true);
+        }
+      }}
       className="fixed inset-0 z-50 w-screen h-screen bg-transparent overflow-hidden select-none flex flex-col items-center justify-center"
     >
       {/* Adaptive UI color extraction logic is handled in <AdaptiveUI /> component below */}
@@ -194,14 +199,6 @@ export const Reader = () => {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Center Tap to Toggle UI */}
-      {!showControls && mode === "vertical" && (
-        <div
-          className="absolute inset-0 z-30 pointer-events-auto cursor-pointer"
-          onClick={() => setShowControls(true)}
-        />
-      )}
 
       <div className="w-full h-full flex items-center justify-center relative z-10">
         {renderReader()}
