@@ -273,6 +273,11 @@ export const initDatabase = async () => {
     `);
   } catch (e) {}
 
+  // Invalidate old discovery caches on startup to prevent type mismatch crashes with new mapped schemas
+  try {
+    await db.execute("DELETE FROM DiscoveryCache");
+  } catch (e) {}
+
   // console.log('[DB] Database initialized successfully');
   return db;
 };
