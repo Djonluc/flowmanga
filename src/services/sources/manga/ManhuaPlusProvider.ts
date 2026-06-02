@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { fetchMadaraChaptersAjax } from "../utils";
 import type {
   SourceProvider,
   SourceContent,
@@ -96,7 +97,7 @@ export class ManhuaPlusProvider implements SourceProvider {
         } else {
           // Fallback to img src or data-src
           const img = sep.querySelector("img");
-          const src = img?.getAttribute("src") || img?.getAttribute("data-src");
+          const src = img?.getAttribute("data-lazy-src") || img?.getAttribute("src") || img?.getAttribute("data-src");
           if (src && !src.includes("loading.gif")) {
             images.push(src);
           }
@@ -134,6 +135,8 @@ export class ManhuaPlusProvider implements SourceProvider {
               ".reading-content img",
               ".chapter-content img",
               "img[data-src]",
+              "img[data-lazy-src]",
+              "img[id^='image-']",
             ],
           },
         }).catch(() => []);
@@ -153,20 +156,16 @@ export class ManhuaPlusProvider implements SourceProvider {
   }
 
   async fetchSeries(url: string): Promise<SourceSeries> {
-    // ManhuaPlus serves chapter listings in static HTML — no headless browser needed
     const html = await invoke<string>("fetch_html", { url, headers: null });
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
 
-    // Extract title
     const titleEl = doc.querySelector(".manga-info h1, .manga-detail h1, h1");
     const title = titleEl?.textContent?.trim() || "Untitled";
 
-    // Extract description
     const descEl = doc.querySelector(".manga-info .summary, .manga-summary, .description, .manga-excerpt");
     const description = descEl?.textContent?.trim() || "";
 
-    // Extract cover image
     let coverUrl = "";
     const coverImg = doc.querySelector(
       ".manga-info img, .manga-detail img, .summary_image img, .thumb img, .cover img, main figure img, figure a img",
@@ -180,7 +179,6 @@ export class ManhuaPlusProvider implements SourceProvider {
       coverUrl = `https://manhuaplus.org${coverUrl}`;
     }
 
-    // Extract tags/genres
     const tags: string[] = [];
     doc.querySelectorAll('a[href*="/genres/"], a[rel="tag"]').forEach((tagEl) => {
       if (tagEl.textContent) {
@@ -191,8 +189,7 @@ export class ManhuaPlusProvider implements SourceProvider {
       }
     });
 
-    // Extract chapter links — ManhuaPlus uses /manga/{slug}/chapter-{N} pattern
-    const chapterLinks: { url: string; title: string; number: string }[] = [];
+    let chapterLinks: SourceChapter[] = [];
     const seen = new Set<string>();
 
     doc.querySelectorAll('a[href*="/chapter-"]').forEach((a) => {
@@ -205,10 +202,22 @@ export class ManhuaPlusProvider implements SourceProvider {
       const numMatch = href.match(/chapter-(\d+(\.\d+)?)/);
       const num = numMatch ? numMatch[1] : "0";
 
-      chapterLinks.push({ url: href, title: chTitle, number: num });
+      chapterLinks.push({ id: href, url: href, title: chTitle, number: num, source: "manhuaplus.org" });
     });
 
-    // Sort by chapter number ascending
+    if (chapterLinks.length === 0) {
+      // Try Madara AJAX chapter fallback just in case ManhuaPlus changes layout
+      const mangaIdInput = doc.querySelector(".rating-post-id, #manga-chapters-holder");
+      let mangaId = mangaIdInput?.getAttribute("value") || mangaIdInput?.getAttribute("data-id") || "";
+      if (!mangaId) {
+        const idMatch = html.match(/"manga_id"\s*:\s*"(\d+)"/i) || html.match(/manga_id\s*=\s*(\d+)/i);
+        if (idMatch) mangaId = idMatch[1];
+      }
+      if (mangaId) {
+        chapterLinks = await fetchMadaraChaptersAjax("https://manhuaplus.org", mangaId, url, "manhuaplus.org");
+      }
+    }
+
     chapterLinks.sort((a, b) => parseFloat(a.number) - parseFloat(b.number));
 
     return {
@@ -218,13 +227,7 @@ export class ManhuaPlusProvider implements SourceProvider {
       seriesUrl: url,
       source: "manhuaplus.org",
       tags,
-      chapters: chapterLinks.map((ch) => ({
-        id: ch.url,
-        number: ch.number,
-        url: ch.url,
-        title: ch.title,
-        source: "manhuaplus.org",
-      })),
+      chapters: chapterLinks,
     };
   }
 

@@ -10,11 +10,12 @@ import type {
   MediaType,
   MediaDomain,
   ReaderMode,
+  SourceSearchOptions,
 } from "../types";
 
 export class LuaComicProvider implements SourceProvider {
   readonly id = "luacomic";
-  readonly name = "LuaComic (Under Construction)";
+  readonly name = "LuaComic";
   readonly domains = ["luacomic.org"];
   readonly contentType: ContentType = "manga";
   readonly mediaDomain: MediaDomain = "manga";
@@ -59,21 +60,30 @@ export class LuaComicProvider implements SourceProvider {
 
   async fetchContent(url: string): Promise<SourceContent> {
     try {
-      const headers = { "Referer": "https://luacomic.org/" };
+      const headers = { Referer: "https://luacomic.org/" };
       const htmlText = await invoke<string>("fetch_html", { url, headers });
 
       // Match escaped or unescaped JSON array
-      const regexEscaped = /\\?"chapter_data\\?":\s*\{\s*\\?"images\\?":\s*\[\s*([\s\S]*?)\s*\]\s*\}/;
+      const regexEscaped =
+        /\\?"chapter_data\\?":\s*\{\s*\\?"images\\?":\s*\[\s*([\s\S]*?)\s*\]\s*\}/;
       const match = htmlText.match(regexEscaped);
 
       if (match && match[1]) {
         const arrayContent = match[1];
-        const urls = arrayContent.split(",")
-          .map(s => s.trim().replace(/^\\?["']|\\?["']$/g, "").replace(/\\/g, ""))
+        const urls = arrayContent
+          .split(",")
+          .map((s) =>
+            s
+              .trim()
+              .replace(/^\\?["']|\\?["']$/g, "")
+              .replace(/\\/g, ""),
+          )
           .filter(Boolean);
         if (urls.length > 0) {
-          const cleanUrls = urls.map(u => this.getCleanCoverUrl(u));
-          console.log(`[LuaComic] Parsed ${cleanUrls.length} pages from HTML JSON block`);
+          const cleanUrls = urls.map((u) => this.getCleanCoverUrl(u));
+          console.log(
+            `[LuaComic] Parsed ${cleanUrls.length} pages from HTML JSON block`,
+          );
           return {
             images: cleanUrls.map((u, i) => ({ url: u, pageNumber: i + 1 })),
             metadata: { sourceUrl: url },
@@ -85,14 +95,20 @@ export class LuaComicProvider implements SourceProvider {
       const parser = new DOMParser();
       const doc = parser.parseFromString(htmlText, "text/html");
       const preloadUrls: string[] = [];
-      doc.querySelectorAll("link[rel='preload'][as='image']").forEach(el => {
+      doc.querySelectorAll("link[rel='preload'][as='image']").forEach((el) => {
         const href = el.getAttribute("href");
-        if (href && (href.includes("/uploads/series/") || href.includes("media.luacomic.org"))) {
+        if (
+          href &&
+          (href.includes("/uploads/series/") ||
+            href.includes("media.luacomic.org"))
+        ) {
           preloadUrls.push(this.getCleanCoverUrl(href));
         }
       });
       if (preloadUrls.length > 0) {
-        console.log(`[LuaComic] Parsed ${preloadUrls.length} pages from preload tags`);
+        console.log(
+          `[LuaComic] Parsed ${preloadUrls.length} pages from preload tags`,
+        );
         return {
           images: preloadUrls.map((u, i) => ({ url: u, pageNumber: i + 1 })),
           metadata: { sourceUrl: url },
@@ -101,16 +117,20 @@ export class LuaComicProvider implements SourceProvider {
 
       // DOM image fallback
       const imgUrls: string[] = [];
-      doc.querySelectorAll("div.flex.flex-col.justify-center.items-center img").forEach(el => {
-        const src = el.getAttribute("src") || "";
-        const dataSrc = el.getAttribute("data-src") || "";
-        const finalUrl = (src.startsWith("data:") || !src) ? dataSrc : src;
-        if (finalUrl) {
-          imgUrls.push(this.getCleanCoverUrl(finalUrl));
-        }
-      });
+      doc
+        .querySelectorAll("div.flex.flex-col.justify-center.items-center img")
+        .forEach((el) => {
+          const src = el.getAttribute("src") || "";
+          const dataSrc = el.getAttribute("data-src") || "";
+          const finalUrl = src.startsWith("data:") || !src ? dataSrc : src;
+          if (finalUrl) {
+            imgUrls.push(this.getCleanCoverUrl(finalUrl));
+          }
+        });
       if (imgUrls.length > 0) {
-        console.log(`[LuaComic] Parsed ${imgUrls.length} pages from DOM images`);
+        console.log(
+          `[LuaComic] Parsed ${imgUrls.length} pages from DOM images`,
+        );
         return {
           images: imgUrls.map((u, i) => ({ url: u, pageNumber: i + 1 })),
           metadata: { sourceUrl: url },
@@ -119,9 +139,12 @@ export class LuaComicProvider implements SourceProvider {
 
       throw new Error("No images found in parsed HTML");
     } catch (apiError) {
-      console.warn(`[LuaComic] Lightweight fetchContent failed, falling back to headless:`, apiError);
+      console.warn(
+        `[LuaComic] Lightweight fetchContent failed, falling back to headless:`,
+        apiError,
+      );
       const images = await invoke<string[]>("scrape_images_headless", { url });
-      const cleanImages = images.map(u => this.getCleanCoverUrl(u));
+      const cleanImages = images.map((u) => this.getCleanCoverUrl(u));
       return {
         images: cleanImages.map((u, i) => ({ url: u, pageNumber: i + 1 })),
         metadata: { sourceUrl: url },
@@ -134,23 +157,35 @@ export class LuaComicProvider implements SourceProvider {
       const slug = url.split("/series/").pop()?.split("?")[0] || "";
       if (!slug) throw new Error("Could not parse series slug from URL");
 
-      const headers = { "Referer": "https://luacomic.org/" };
+      const headers = { Referer: "https://luacomic.org/" };
       const htmlText = await invoke<string>("fetch_html", { url, headers });
       const parser = new DOMParser();
       const doc = parser.parseFromString(htmlText, "text/html");
 
-      const title = doc.querySelector("h1.text-foreground")?.textContent?.trim();
+      const title = doc
+        .querySelector("h1.text-foreground")
+        ?.textContent?.trim();
       if (!title) throw new Error("Could not extract series title from page");
 
-      const rawCover = doc.querySelector("div.rounded.overflow-hidden img")?.getAttribute("src") || "";
+      const rawCover =
+        doc
+          .querySelector("div.rounded.overflow-hidden img")
+          ?.getAttribute("src") || "";
       const coverUrl = this.getCleanCoverUrl(rawCover);
-      const description = doc.querySelector("meta[name='description']")?.getAttribute("content") || "";
+      const description =
+        doc
+          .querySelector("meta[name='description']")
+          ?.getAttribute("content") || "";
 
       const chaptersUrl = `https://api.luacomic.org/chapter/all/${slug}`;
-      const chText = await invoke<string>("fetch_html", { url: chaptersUrl, headers });
+      const chText = await invoke<string>("fetch_html", {
+        url: chaptersUrl,
+        headers,
+      });
       const chData = JSON.parse(chText) as any[];
 
-      if (!Array.isArray(chData)) throw new Error("Invalid chapter list response");
+      if (!Array.isArray(chData))
+        throw new Error("Invalid chapter list response");
 
       const chapters = chData.map((ch: any, i: number) => {
         const chapterUrl = `https://luacomic.org/series/${slug}/${ch.chapter_slug}`;
@@ -162,7 +197,9 @@ export class LuaComicProvider implements SourceProvider {
         };
       });
 
-      console.log(`[LuaComic] Lightweight series fetch succeeded, found ${chapters.length} chapters`);
+      console.log(
+        `[LuaComic] Lightweight series fetch succeeded, found ${chapters.length} chapters`,
+      );
       return {
         title,
         description,
@@ -172,7 +209,10 @@ export class LuaComicProvider implements SourceProvider {
         chapters,
       };
     } catch (apiError) {
-      console.warn(`[LuaComic] Lightweight fetchSeries failed, falling back to headless:`, apiError);
+      console.warn(
+        `[LuaComic] Lightweight fetchSeries failed, falling back to headless:`,
+        apiError,
+      );
       console.log(`[LuaComic] Fetching series: ${url}`);
       const res = await invoke<any>("scrape_series_headless", { url });
 
@@ -278,8 +318,8 @@ export class LuaComicProvider implements SourceProvider {
     try {
       const url = `https://api.luacomic.org/query?${new URLSearchParams(params).toString()}`;
       const headers = {
-        "Referer": "https://luacomic.org/",
-        "Origin": "https://luacomic.org/",
+        Referer: "https://luacomic.org/",
+        Origin: "https://luacomic.org/",
       };
       const resText = await invoke<string>("fetch_html", { url, headers });
       const data = JSON.parse(resText);
