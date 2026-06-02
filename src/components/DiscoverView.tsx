@@ -15,6 +15,7 @@ import { useSettingsStore } from "../stores/useSettingsStore";
 import { MangaCard } from "./library/MangaCard";
 import { toast } from "./Toast";
 import { ContextMenu } from "./shared/ContextMenu";
+import { ContentFilter } from "../services/ContentFilter";
 import clsx from "clsx";
 
 export const DiscoverView = () => {
@@ -123,8 +124,11 @@ export const DiscoverView = () => {
 
   const getFilteredItems = (items: DiscoveryItem[]) => {
     if (!Array.isArray(items)) return [];
-    if (activeType === "all") return items.filter(Boolean);
-    return items.filter((item) => {
+    
+    const safeItems = ContentFilter.filterResults(items as any) as DiscoveryItem[];
+    
+    if (activeType === "all") return safeItems;
+    return safeItems.filter((item) => {
       if (!item) return false;
       const src = item.source?.toLowerCase() || "";
       const tags = (item.tags || [])

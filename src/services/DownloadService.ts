@@ -116,17 +116,21 @@ export class DownloadService {
                 // Phase B: Assign Indices Sequentially (Ensures data integrity)
                 const downloadTasks: any[] = [];
                 for (const res of chapterResults) {
-                    if ('skipped' in res || 'error' in res || !('images' in res) || !res.images || res.images.length === 0) {
+                    if ('skipped' in res || 'error' in res || (!(res.images?.length > 0) && !(res.text?.length > 0))) {
                         if ('skipped' in res) totalDownloaded++;
                         continue;
                     }
 
+                    const isText = !!(res.text && res.text.length > 0);
+                    const itemsCount = isText ? 1 : (res.images?.length || 0);
+                    
                     const startIndex = globalIndex;
-                    globalIndex += res.images.length;
+                    globalIndex += itemsCount;
                     const endIndex = globalIndex - 1;
 
                     downloadTasks.push({
                         ...res,
+                        isText,
                         startIndex,
                         endIndex
                     });
@@ -141,20 +145,28 @@ export class DownloadService {
                         }
 
                         try {
-                            const thumbFile = await this.downloadChapterPages(
-                                task.images, 
-                                task.chNum, 
-                                mangaRoot, 
-                                job.id, 
-                                store, 
-                                metadata,
-                                task.chapter?.chUrl ||
-                                    task.chapter?.url ||
-                                    (typeof task.chapter?.sourceId === 'string' &&
-                                    task.chapter.sourceId.startsWith('http')
-                                        ? task.chapter.sourceId
-                                        : undefined),
-                            );
+                            let thumbFile: string | null = null;
+                            if (task.isText) {
+                                const chPadded = parseFloat(task.chNum).toString().split('.')[0].padStart(3, '0');
+                                const textFileName = `ch${chPadded}_text.json`;
+                                await writeTextFile(`${mangaRoot}/${textFileName}`, JSON.stringify(task.text));
+                                thumbFile = textFileName; // Use JSON as reference point for library/reading
+                            } else {
+                                thumbFile = await this.downloadChapterPages(
+                                    task.images, 
+                                    task.chNum, 
+                                    mangaRoot, 
+                                    job.id, 
+                                    store, 
+                                    metadata,
+                                    task.chapter?.chUrl ||
+                                        task.chapter?.url ||
+                                        (typeof task.chapter?.sourceId === 'string' &&
+                                        task.chapter.sourceId.startsWith('http')
+                                            ? task.chapter.sourceId
+                                            : undefined),
+                                );
+                            }
 
                             const newChapterMeta = {
                                 number: task.chNum,
@@ -237,6 +249,9 @@ export class DownloadService {
                 if (res.images && res.images.length > 0) {
                     return { images: res.images };
                 }
+                if (res.text && res.text.length > 0) {
+                    return { text: res.text };
+                }
 
                 // Fallback: For single-album providers (e.g. hentaicomicsfree),
                 // scrapeChapter routes to fetchSeries (no /chapter- in URL), returning
@@ -255,12 +270,15 @@ export class DownloadService {
                                 })),
                             };
                         }
+                        if (content.text && content.text.length > 0) {
+                            return { text: content.text };
+                        }
                     }
                 } catch (_providerErr) {
                     // Provider direct fetch failed, continue to throw
                 }
 
-                throw new Error("No images found for chapter");
+                throw new Error("No images or text found for chapter");
             } catch (err) {
                 lastError = err;
                 if (attempt < 3) {

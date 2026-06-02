@@ -18,7 +18,7 @@ import { DiscoverView } from './components/DiscoverView';
 import { VideoLibrary } from './components/video/VideoLibrary';
 import { HistoryView } from './components/HistoryView';
 import { AmbientBackground } from './components/AmbientBackground';
-import { AmbientSoundPlayer } from './components/AmbientSoundPlayer';
+import { OfflineAudioEngine } from './components/OfflineAudioEngine';
 import { useVideoStore } from './stores/useVideoStore';
 import { LocationModal } from './components/modals/LocationModal';
 import { SafetyCheckModal } from './components/modals/SafetyCheckModal';
@@ -166,7 +166,7 @@ function App() {
   return (
     <>
         <AmbientBackground />
-        <AmbientSoundPlayer />
+        <OfflineAudioEngine />
         <MainContent />
     </>
   );

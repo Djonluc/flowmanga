@@ -1074,6 +1074,39 @@ pub struct SeriesScrapeResult {
 }
 
 #[command]
+async fn fetch_html_headless(url: String) -> Result<String, String> {
+    println!("[Rust] Fetching HTML headless for: {}", url);
+    tauri::async_runtime::spawn_blocking(move || {
+        let browser = Browser::new(LaunchOptions {
+            headless: true,
+            args: vec![
+                std::ffi::OsStr::new("--no-sandbox"),
+                std::ffi::OsStr::new("--disable-setuid-sandbox"),
+                std::ffi::OsStr::new("--disable-blink-features=AutomationControlled"),
+                std::ffi::OsStr::new("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"),
+            ],
+            ..Default::default()
+        }).map_err(|e| format!("Failed to launch browser: {}", e))?;
+
+        let tab = browser.new_tab().map_err(|e| format!("Failed to create tab: {}", e))?;
+        tab.navigate_to(&url).map_err(|e| format!("Nav failed: {}", e))?;
+        let _ = tab.wait_until_navigated();
+        
+        // Wait for potential Cloudflare challenge to pass
+        std::thread::sleep(std::time::Duration::from_millis(8000));
+        
+        let html_obj = tab.evaluate("document.documentElement.outerHTML", true)
+            .map_err(|e| format!("Eval failed: {}", e))?;
+            
+        let html = html_obj.value
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .unwrap_or_default();
+            
+        Ok(html)
+    }).await.map_err(|e| e.to_string())?
+}
+
+#[command]
 async fn scrape_series_headless(url: String) -> Result<SeriesScrapeResult, String> {
     println!("[Rust] Starting headless series scrape for: {}", url);
 
@@ -1180,18 +1213,19 @@ async fn scrape_series_headless(url: String) -> Result<SeriesScrapeResult, Strin
                             const cls = a.className || '';
                             
                             if (
-                                href.includes('/chapter-') ||
-                                href.includes('/read/') ||
-                                href.includes('/viewer/') ||
-                                href.includes('/ch-') ||
-                                /chapter\s*\d+/i.test(text) ||
-                                /ch\.\s*\d+/i.test(text) ||
-                                /cap[íi]tulo\s*\d+/i.test(text) ||
-                                /vol\.\s*\d+/i.test(text) ||
-                                cls.includes('chapter') ||
-                                id.includes('chapter') ||
-                                id.includes('cl-')
-                            ) {
+                                 href.includes('/chapter-') ||
+                                 href.includes('/read/') ||
+                                 href.includes('/viewer/') ||
+                                 href.includes('/ch-') ||
+                                 /chapter\s*\d+/i.test(text) ||
+                                 /ch\.\s*\d+/i.test(text) ||
+                                 /cap[íi]tulo\s*\d+/i.test(text) ||
+                                 /vol\.\s*\d+/i.test(text) ||
+                                 cls.includes('chapter') ||
+                                 id.includes('chapter') ||
+                                 id.includes('cl-') ||
+                                 (href.includes('webnovel.com/book/') && !href.endsWith('/catalog') && href.split('/').filter(Boolean).length > 4)
+                             ) {
                                 if (href.length > 5) linkSet.add(href);
                             }
                         });
@@ -1453,38 +1487,142 @@ async fn generate_chapter_thumbnail(
     Ok(normalize_path(&dest_path))
 }
 
+#[command]
+fn get_cwd() -> Result<String, String> {
+    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+    let mut current = Some(cwd.as_path());
+    while let Some(path) = current {
+        if path.join("package.json").exists() {
+            return Ok(path.to_string_lossy().to_string());
+        }
+        current = path.parent();
+    }
+    Ok(cwd.to_string_lossy().to_string())
+}
+
 #[derive(Serialize)]
 pub struct AmbientSound {
     name: String,
     path: String,
+    playlist: String,
 }
 
-#[command]
-async fn list_ambient_sounds(app: AppHandle) -> Result<Vec<AmbientSound>, String> {
-    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let audio_dir = data_dir.join("audio").join("ambient");
+fn get_local_audio_root(cwd: &Path) -> std::path::PathBuf {
+    let mut current = Some(cwd);
+    while let Some(path) = current {
+        if path.join("package.json").exists() {
+            return path.join("assets").join("audio");
+        }
+        current = path.parent();
+    }
+    cwd.join("assets").join("audio")
+}
 
-    if !audio_dir.exists() {
-        fs::create_dir_all(&audio_dir).map_err(|e| e.to_string())?;
+/// Scan `assets/audio/` (relative to cwd) for offline music tracks.
+/// Each sub-folder becomes a named playlist (e.g. lofi, rain, fantasy).
+/// Supported formats: mp3, ogg, wav
+#[command]
+async fn list_ambient_sounds(app: AppHandle, custom_folders: Vec<String>) -> Result<Vec<AmbientSound>, String> {
+    let mut audio_roots = Vec::new();
+
+    // 1. Check Tauri resource directory (for bundled/packaged assets)
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let resource_audio = resource_dir.join("assets").join("audio");
+        if resource_audio.exists() {
+            audio_roots.push(resource_audio);
+        }
     }
 
-    let mut sounds = Vec::new();
-    let supported = ["mp3", "ogg", "wav", "m4a"];
+    // 2. Check current working directory (for development or custom local folders)
+    if let Ok(cwd) = std::env::current_dir() {
+        let local_audio = get_local_audio_root(&cwd);
+        if local_audio.exists() && !audio_roots.contains(&local_audio) {
+            audio_roots.push(local_audio);
+        }
+    }
 
-    for entry in fs::read_dir(audio_dir).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
-        if path.is_file() {
-            if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-                if supported.contains(&ext.to_lowercase().as_str()) {
-                    sounds.push(AmbientSound {
-                        name: path
-                            .file_stem()
-                            .unwrap_or_default()
-                            .to_string_lossy()
-                            .to_string(),
-                        path: normalize_path(&path),
-                    });
+    // If no directories exist, create the local lofi directory as a fallback
+    if audio_roots.is_empty() {
+        if let Ok(cwd) = std::env::current_dir() {
+            let audio_root = get_local_audio_root(&cwd);
+            fs::create_dir_all(&audio_root).map_err(|e| e.to_string())?;
+            fs::create_dir_all(audio_root.join("lofi")).map_err(|e| e.to_string())?;
+            audio_roots.push(audio_root);
+        }
+    }
+
+    // 3. Add custom folders requested by frontend
+    for folder in custom_folders {
+        let path = Path::new(&folder).to_path_buf();
+        if path.exists() && path.is_dir() && !audio_roots.contains(&path) {
+            audio_roots.push(path);
+        }
+    }
+
+    let supported = ["mp3", "ogg", "wav"];
+    let mut sounds = Vec::new();
+
+    for audio_root in audio_roots {
+        // We'll use the root directory name as the default playlist name for files directly inside it
+        let root_playlist_name = audio_root
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+
+        if let Ok(entries) = fs::read_dir(&audio_root) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                
+                if path.is_dir() {
+                    // It's a sub-folder (playlist)
+                    let playlist_name = path
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string();
+
+                    if let Ok(file_entries) = fs::read_dir(&path) {
+                        for file_entry in file_entries.flatten() {
+                            let file_path = file_entry.path();
+                            if file_path.is_file() {
+                                if let Some(ext) = file_path.extension().and_then(|s| s.to_str()) {
+                                    if supported.contains(&ext.to_lowercase().as_str()) {
+                                        let path_str = normalize_path(&file_path);
+                                        if !sounds.iter().any(|s: &AmbientSound| s.path == path_str) {
+                                            sounds.push(AmbientSound {
+                                                name: file_path
+                                                    .file_stem()
+                                                    .unwrap_or_default()
+                                                    .to_string_lossy()
+                                                    .to_string(),
+                                                path: path_str,
+                                                playlist: playlist_name.clone(),
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if path.is_file() {
+                    // It's a file directly inside the root folder
+                    if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+                        if supported.contains(&ext.to_lowercase().as_str()) {
+                            let path_str = normalize_path(&path);
+                            if !sounds.iter().any(|s: &AmbientSound| s.path == path_str) {
+                                sounds.push(AmbientSound {
+                                    name: path
+                                        .file_stem()
+                                        .unwrap_or_default()
+                                        .to_string_lossy()
+                                        .to_string(),
+                                    path: path_str,
+                                    playlist: root_playlist_name.clone(),
+                                });
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1493,22 +1631,24 @@ async fn list_ambient_sounds(app: AppHandle) -> Result<Vec<AmbientSound>, String
     Ok(sounds)
 }
 
+/// Copy an audio file into the lofi playlist folder so it is auto-discovered.
 #[command]
-async fn import_ambient_sound(app: AppHandle, path: String) -> Result<AmbientSound, String> {
+async fn import_ambient_sound(_app: AppHandle, path: String) -> Result<AmbientSound, String> {
     let src_path = Path::new(&path);
     if !src_path.exists() {
         return Err("Source file does not exist".to_string());
     }
 
-    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let audio_dir = data_dir.join("audio").join("ambient");
+    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+    let audio_root = get_local_audio_root(&cwd);
+    let lofi_dir = audio_root.join("lofi");
 
-    if !audio_dir.exists() {
-        fs::create_dir_all(&audio_dir).map_err(|e| e.to_string())?;
+    if !lofi_dir.exists() {
+        fs::create_dir_all(&lofi_dir).map_err(|e| e.to_string())?;
     }
 
     let dest_filename = src_path.file_name().ok_or("Invalid filename")?;
-    let dest_path = audio_dir.join(dest_filename);
+    let dest_path = lofi_dir.join(dest_filename);
 
     fs::copy(src_path, &dest_path).map_err(|e| format!("Failed to copy file: {}", e))?;
 
@@ -1519,6 +1659,7 @@ async fn import_ambient_sound(app: AppHandle, path: String) -> Result<AmbientSou
             .to_string_lossy()
             .to_string(),
         path: normalize_path(&dest_path),
+        playlist: "lofi".to_string(),
     })
 }
 
@@ -1625,6 +1766,7 @@ pub fn run() {
             scan_chapters,
             download_image,
             fetch_html,
+            fetch_html_headless,
             fetch_json,
             scrape_images_headless,
             scrape_series_headless,
@@ -1636,7 +1778,8 @@ pub fn run() {
             import_ambient_sound,
             validate_chapter_contents,
             wipe_manga_contents,
-            fetch_binary
+            fetch_binary,
+            get_cwd
         ])
         .setup(|app| {
             use tauri_plugin_cli::CliExt;

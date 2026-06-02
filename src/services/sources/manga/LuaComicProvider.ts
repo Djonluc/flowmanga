@@ -60,10 +60,14 @@ export class LuaComicProvider implements SourceProvider {
 
   async fetchContent(url: string): Promise<SourceContent> {
     try {
-      const headers = { Referer: "https://luacomic.org/" };
+      const headers = {
+        Referer: "https://luacomic.org/",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      };
       const htmlText = await invoke<string>("fetch_html", { url, headers });
 
-      // Match escaped or unescaped JSON array
+      // 1. Match standard chapter_data JSON
       const regexEscaped =
         /\\?"chapter_data\\?":\s*\{\s*\\?"images\\?":\s*\[\s*([\s\S]*?)\s*\]\s*\}/;
       const match = htmlText.match(regexEscaped);
@@ -89,6 +93,24 @@ export class LuaComicProvider implements SourceProvider {
             metadata: { sourceUrl: url },
           };
         }
+      }
+
+      // 2. Match React Flight data arrays (Next.js 13+)
+      const flightRegex =
+        /(https:\/\/(media\.)?luacomic\.org\/file\/[^\/]+\/uploads\/series\/[^\"]+\.(webp|png|jpg|jpeg))/gi;
+      const flightMatches = htmlText.match(flightRegex);
+      if (flightMatches && flightMatches.length > 0) {
+        // Remove duplicates and clean
+        const uniqueUrls = Array.from(new Set(flightMatches)).map((u) =>
+          this.getCleanCoverUrl(u),
+        );
+        console.log(
+          `[LuaComic] Parsed ${uniqueUrls.length} pages from Flight payload`,
+        );
+        return {
+          images: uniqueUrls.map((u, i) => ({ url: u, pageNumber: i + 1 })),
+          metadata: { sourceUrl: url },
+        };
       }
 
       // DOM preload fallback

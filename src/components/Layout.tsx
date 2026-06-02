@@ -16,7 +16,6 @@ import { DownloadIndicator } from './DownloadIndicator';
 import { AutomationManager } from './AutomationManager';
 import { SettingsModal } from './settings/SettingsModal';
 import { QuickViewModal } from './settings/QuickViewModal';
-import { AmbientSoundPlayer } from './AmbientSoundPlayer';
 
 // V3 Modals
 import { ImportModal } from './ImportModal';

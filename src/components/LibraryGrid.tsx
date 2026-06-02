@@ -29,6 +29,7 @@ import { CollectionsView } from "./library/CollectionsView";
 import { toast } from "./Toast";
 import { MangaDetails } from "./library/MangaDetails";
 import { ScraperService } from "../services/ScraperService";
+import { ContentFilter } from "../services/ContentFilter";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
 import type { Series } from "../stores/useLibraryStore";
@@ -184,7 +185,9 @@ export const LibraryGrid = () => {
         filterTags.length === 0 ||
         filterTags.every((tag) => s.tags && s.tags.includes(tag));
       const matchesSource = !filterSource || s.source === filterSource;
-      return matchesSearch && matchesTags && matchesSource;
+      const isAdult = ContentFilter.isAdult(s);
+      
+      return matchesSearch && matchesTags && matchesSource && !isAdult;
     });
   };
 

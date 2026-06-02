@@ -72,7 +72,7 @@ export const HomeView = () => {
     item: any;
   } | null>(null);
 
-  const { coloredOnly } = useSettingsStore();
+  const { coloredOnly, showAdultContent } = useSettingsStore();
 
   useEffect(() => {
     if (!isInitializing) {
@@ -86,7 +86,7 @@ export const HomeView = () => {
     if (!isInitializing) {
       fetchExternalData();
     }
-  }, [isInitializing, coloredOnly]);
+  }, [isInitializing, coloredOnly, showAdultContent]);
 
   const fetchExternalData = async () => {
     try {

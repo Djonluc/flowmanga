@@ -20,18 +20,19 @@ export type ContentType =
   | "comic"
   | "doujin"
   | "gallery"
-  | "album";
+  | "album"
+  | "novel";
 
 /**
  * Supported media formats across all sources.
  */
-export type MediaType = "image" | "gif" | "video" | "animated";
+export type MediaType = "image" | "gif" | "video" | "animated" | "text" | "html";
 
 /**
  * Media domain classification for strict separation of feeds, searches, libraries, and caches.
  * Ensures image content never appears in manga feeds and vice versa.
  */
-export type MediaDomain = "image" | "manga";
+export type MediaDomain = "image" | "manga" | "text";
 
 // ─── Provider Interface ─────────────────────────────────────────────
 
@@ -156,12 +157,14 @@ export type ReaderMode =
   | "single"
   | "dual"
   | "gallery"
-  | "slideshow";
+  | "slideshow"
+  | "text_reader";
 
 // ─── Content Types ──────────────────────────────────────────────────
 
 export interface SourceContent {
-  images: SourceImage[];
+  images?: SourceImage[];
+  text?: string[]; // Array of text paragraphs
   metadata?: SourceMetadata;
 }
 

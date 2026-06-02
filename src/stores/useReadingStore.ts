@@ -23,6 +23,7 @@ interface ReadingState {
   metadata: any | null;
 
   images: string[];
+  text: string[];
   isLoading: boolean;
   seriesId: string | null;
   currentFolderPath: string | null;
@@ -53,6 +54,7 @@ export const useReadingStore = create<ReadingState>((set, get) => ({
   chapters: [],
   currentChapterPages: [],
   images: [],
+  text: [],
   isLoading: false,
   seriesId: null,
   currentFolderPath: null,
@@ -83,6 +85,7 @@ export const useReadingStore = create<ReadingState>((set, get) => ({
       chapters: finalSequence,
       currentChapterPages: [],
       images: [],
+      text: [],
       currentPageIndex: startPageIndex || 0,
       currentFolderPath: path,
       isFlatMode: false,
@@ -172,10 +175,10 @@ export const useReadingStore = create<ReadingState>((set, get) => ({
     }
   },
 
-  setPageIndex: (index) => {
+  setPageIndex: async (index) => {
     const state = get();
     const safeIndex = Math.max(0, Math.min(index, state.images.length - 1));
-    set({ currentPageIndex: safeIndex });
+    set({ currentPageIndex: safeIndex, text: [] });
 
     // Auto-detect chapter in flat mode
     if (state.isFlatMode && state.metadata?.chapters) {
@@ -185,6 +188,18 @@ export const useReadingStore = create<ReadingState>((set, get) => ({
       if (chIndex !== -1 && chIndex !== state.currentChapterIndex) {
         set({ currentChapterIndex: chIndex });
       }
+    }
+
+    // Load text if current image is a JSON file (novel flat mode)
+    const currentImg = state.images[safeIndex];
+    if (currentImg && currentImg.endsWith('.json') && !currentImg.endsWith('metadata.json')) {
+       try {
+          const { invoke } = await import("@tauri-apps/api/core");
+          const textContent = await invoke<string>("read_file_string", { path: currentImg });
+          set({ text: JSON.parse(textContent) });
+       } catch (e) {
+          console.error("Failed to parse novel text json", e);
+       }
     }
 
     // Save Progress
@@ -252,6 +267,7 @@ export const useReadingStore = create<ReadingState>((set, get) => ({
       chapters: [],
       currentChapterPages: [],
       images: [],
+      text: [],
       isLoading: false,
       seriesId: null,
       currentChapterIndex: 0,

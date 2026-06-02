@@ -14,11 +14,15 @@ import type { ScrapeResult, ScrapedImage, SeriesScrapeResult, SeriesScrapedChapt
  * Convert a provider's SourceContent into the legacy ScrapeResult format.
  */
 export function bridgeContent(content: SourceContent, provider: SourceProvider): ScrapeResult {
-  const images: ScrapedImage[] = content.images.map(img => ({
-    url: img.url,
-    pageNumber: img.pageNumber,
-    encryptionKey: img.encryptionKey,
-  }));
+  const images: ScrapedImage[] | undefined = content.images
+    ? content.images.map(img => ({
+        url: img.url,
+        pageNumber: img.pageNumber,
+        encryptionKey: img.encryptionKey,
+      }))
+    : undefined;
+
+  const text = content.text;
 
   const metadata = content.metadata
     ? {
@@ -32,7 +36,7 @@ export function bridgeContent(content: SourceContent, provider: SourceProvider):
       }
     : undefined;
 
-  return { images, metadata };
+  return { images, text, metadata };
 }
 
 /**

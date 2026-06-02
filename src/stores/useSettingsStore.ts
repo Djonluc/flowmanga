@@ -91,7 +91,6 @@ interface SettingsState {
   isAutoScrolling: boolean;
   accentColor: string;
   isInitializing: boolean;
-  selectedAmbientSound: string;
 
   setBrightness: (val: number) => void;
   setContrast: (val: number) => void;
@@ -101,7 +100,6 @@ interface SettingsState {
   toggleAutoScrolling: () => void;
   setAccentColor: (color: string) => void;
   setInitializing: (init: boolean) => void;
-  setSelectedAmbientSound: (sound: string) => void;
 
   // Ambient Background
   ambientMode: AmbientMode;
@@ -170,13 +168,6 @@ interface SettingsState {
   isMangaSourceEnabled: (sourceId: string) => boolean;
 }
 
-const BUILTIN_SOUNDS = [
-  { name: 'Lo-fi Beats', path: 'https://stream.zeno.fm/0r0xa792kwzuv' },
-  { name: 'Rainfall', path: 'https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg' },
-  { name: 'Quiet Cafe', path: 'https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg' },
-  { name: 'Celestial Wind', path: 'https://actions.google.com/sounds/v1/weather/wind_blowing.ogg' },
-  { name: 'Deep Space', path: 'https://actions.google.com/sounds/v1/science_fiction/space_station_ambience.ogg' },
-];
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
@@ -276,8 +267,6 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => ({ isAutoScrolling: !state.isAutoScrolling })),
       setAccentColor: (color) => set({ accentColor: color }),
       setInitializing: (init) => set({ isInitializing: init }),
-      selectedAmbientSound: BUILTIN_SOUNDS[0].path, // Default to first builtin instead of 'none' or 'lofi'
-      setSelectedAmbientSound: (sound) => set({ selectedAmbientSound: sound }),
 
       // Ambient Defaults
       ambientMode: "blurred-page",
@@ -324,41 +313,9 @@ export const useSettingsStore = create<SettingsState>()(
           onSafetyCheckResolved: callback,
         }),
 
-      availableSounds: BUILTIN_SOUNDS,
-      loadAvailableSounds: async () => {
-        try {
-          const { invoke } = await import("@tauri-apps/api/core");
-          const customSounds = await invoke<any[]>("list_ambient_sounds");
-          
-          set((state) => {
-              const all = [...BUILTIN_SOUNDS];
-              customSounds.forEach(cs => {
-                  if (!all.find(a => a.path === cs.path)) all.push(cs);
-              });
-              return { availableSounds: all };
-          });
-        } catch (err) {
-          console.error("[Settings] Failed to load ambient sounds:", err);
-        }
-      },
-      importSound: async (path: string) => {
-        try {
-          const { invoke } = await import("@tauri-apps/api/core");
-          await invoke("import_ambient_sound", { path });
-          // Refresh the list
-          const customSounds = await invoke<any[]>("list_ambient_sounds");
-          set((state) => {
-              const all = [...BUILTIN_SOUNDS];
-              customSounds.forEach(cs => {
-                  if (!all.find(a => a.path === cs.path)) all.push(cs);
-              });
-              return { availableSounds: all };
-          });
-        } catch (err) {
-          console.error("[Settings] Failed to import ambient sound:", err);
-          throw err;
-        }
-      },
+      availableSounds: [],
+      loadAvailableSounds: async () => {},
+      importSound: async (_path: string) => {},
 
       // Download Concurrency Defaults
       maxConcurrentJobs: 2,

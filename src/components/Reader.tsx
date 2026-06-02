@@ -11,6 +11,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { VerticalReader } from "./readers/VerticalReader";
 import { SinglePageReader } from "./readers/SinglePageReader";
 import { SlideshowReader } from "./readers/SlideshowReader";
+import { NovelReader } from "./readers/NovelReader";
 
 import { ReaderTopBar } from "./reader/ReaderTopBar";
 import { ReaderBottomBar } from "./reader/ReaderBottomBar";
@@ -152,6 +153,8 @@ export const Reader = () => {
         return <SinglePageReader />;
       case "slideshow":
         return <SlideshowReader />;
+      case "text_reader":
+        return <NovelReader />;
       default:
         return <VerticalReader />;
     }

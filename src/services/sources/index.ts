@@ -26,6 +26,9 @@ import { MangaReadProvider } from "./manga/MangaReadProvider";
 import { ManhuaPlusProvider } from "./manga/ManhuaPlusProvider";
 import { WebtoonsProvider } from "./manga/WebtoonsProvider";
 
+// Phase 4: Novel Sources
+import { WebNovelProvider } from "./novel/WebNovelProvider";
+
 // Phase 3: Gallery / Image Board Sources
 import { ZerochanProvider } from "./gallery/ZerochanProvider";
 import { DanbooruProvider } from "./gallery/DanbooruProvider";
@@ -53,6 +56,9 @@ sourceRegistry.register(new DanbooruProvider());
 sourceRegistry.register(new KonachanProvider());
 sourceRegistry.register(new YandereProvider());
 sourceRegistry.register(new GelbooruProvider());
+
+// Phase 4: Novel Sources
+sourceRegistry.register(new WebNovelProvider());
 
 export { sourceRegistry };
 export type {

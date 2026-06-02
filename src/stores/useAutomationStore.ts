@@ -46,6 +46,10 @@ export const useAutomationStore = create<AutomationState>()(
                     const checkableSeries = series.filter(s => s.seriesUrl || s.mangaId);
                     
                     for (const s of checkableSeries) {
+                        if (!get().isEnabled) {
+                            console.log('[Automation] Update check aborted because automation was disabled.');
+                            break;
+                        }
                         try {
                             // Check logic
                             const hasUpdate = await AutomationService.checkSeriesForUpdates(s);

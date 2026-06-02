@@ -66,6 +66,34 @@ export class ManhwaReadProvider implements SourceProvider {
   async fetchSeries(url: string): Promise<SourceSeries> {
     const res = await invoke<any>("scrape_series_headless", { url });
     const links: string[] = res.chapter_links || res.chapterLinks || [];
+    
+    let tags: string[] = [];
+    try {
+      const htmlText = await invoke<string>("fetch_html", { url, headers: null });
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlText, "text/html");
+
+      // Parse genres
+      doc.querySelectorAll("a[href^='/genre/']").forEach(a => {
+        const text = a.textContent?.trim();
+        if (text && !tags.includes(text)) tags.push(text);
+      });
+
+      // Parse tags
+      doc.querySelectorAll("a[href^='/tag/']").forEach(a => {
+        const spans = a.querySelectorAll("span");
+        if (spans.length >= 2) {
+            const text = spans[1].textContent?.trim();
+            if (text && !tags.includes(text)) tags.push(text);
+        } else {
+            const text = a.textContent?.trim();
+            if (text && !tags.includes(text)) tags.push(text);
+        }
+      });
+    } catch(e) {
+      console.warn("[ManhwaRead] Failed to fetch tags for series", e);
+    }
+
     return {
       title: (res.title || "")
         .replace(/[\r\n\t]+/g, " ")
@@ -75,6 +103,7 @@ export class ManhwaReadProvider implements SourceProvider {
       coverUrl: res.cover_url || res.coverUrl || "",
       seriesUrl: url,
       source: "manhwaread.com",
+      tags,
       chapters: links.map((link: string, i: number) => ({
         id: link,
         number: (links.length - i).toString(),
@@ -99,17 +128,25 @@ export class ManhwaReadProvider implements SourceProvider {
 
     const results: SourceSearchResult[] = [];
     const items = doc.querySelectorAll(
-      ".page-item-detail, .manga-item, .c-tabs-item__content",
+      ".page-item-detail, .manga-item, .c-tabs-item__content, .manga-poster, .series-box, .item-thumb",
     );
 
     if (items.length > 0) {
       items.forEach((item) => {
         const a = item.querySelector(
-          "h3 a, .post-title a",
+          "h3 a, .post-title a, a[title]",
         ) as HTMLAnchorElement;
+        
+        // If we didn't find 'a' inside the item, maybe the item itself is an anchor (like .manga-poster a)
+        const targetA = a || (item.tagName.toLowerCase() === 'a' ? item as HTMLAnchorElement : null) || item.querySelector("a");
         const img = item.querySelector("img") as HTMLImageElement;
-        if (a && a.getAttribute("href")) {
-          const href = a.getAttribute("href")!;
+        
+        if (targetA && targetA.getAttribute("href")) {
+          const href = targetA.getAttribute("href")!;
+          if (!href.includes("/manga/") && !href.includes("/comic/")) return;
+          
+          const titleStr = targetA.getAttribute("title") || targetA.textContent?.trim() || img?.getAttribute("alt") || "Manhwa";
+          
           let coverUrl = img
             ? img.getAttribute("data-src") ||
               img.getAttribute("src") ||
@@ -117,44 +154,24 @@ export class ManhwaReadProvider implements SourceProvider {
             : undefined;
           if (coverUrl && coverUrl.startsWith("//"))
             coverUrl = "https:" + coverUrl;
+
+          const itemTags = ["Full Color", "Manhwa"];
+          item.querySelectorAll("a[href*='/genre/'], a[href*='/tag/']").forEach(tagEl => {
+            const t = tagEl.textContent?.trim();
+            if (t && !itemTags.includes(t)) itemTags.push(t);
+          });
+
           results.push({
             id: href,
-            title: a.textContent?.trim() || "Manhwa",
+            title: titleStr.trim(),
             source: defaultSource,
             contentType: "manga",
             url: href,
             coverUrl,
-            tags: ["Full Color", "Manhwa"],
+            tags: itemTags,
           });
         }
       });
-    } else {
-      doc
-        .querySelectorAll(".item-thumb a, .manga-poster a, .series-box a")
-        .forEach((a) => {
-          const href = a.getAttribute("href");
-          if (href && (href.includes("/manga/") || href.includes("/comic/"))) {
-            const img = a.querySelector("img");
-            const titleStr =
-              a.getAttribute("title") || img?.getAttribute("alt") || "Manhwa";
-            let coverUrl = img
-              ? img.getAttribute("data-src") ||
-                img.getAttribute("src") ||
-                undefined
-              : undefined;
-            if (coverUrl && coverUrl.startsWith("//"))
-              coverUrl = "https:" + coverUrl;
-            results.push({
-              id: href,
-              title: titleStr.trim(),
-              source: defaultSource,
-              contentType: "manga",
-              url: href,
-              coverUrl,
-              tags: ["Full Color", "Manhwa"],
-            });
-          }
-        });
     }
 
     const unique = Array.from(new Map(results.map((r) => [r.id, r])).values());

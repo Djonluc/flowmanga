@@ -68,6 +68,7 @@ export interface SeriesScrapeResult {
 
 export interface ScrapeResult {
   images?: ScrapedImage[];
+  text?: string[];
   series?: SeriesScrapeResult;
   metadata?: {
     title?: string;

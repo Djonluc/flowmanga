@@ -55,6 +55,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useDownloadStore } from "../../stores/useDownloadStore";
 import { useModalStore } from "../../stores/useModalStore";
 import { useDiscoveryStore } from "../../stores/useDiscoveryStore";
+import { useChapterCacheStore } from "../../stores/useChapterCacheStore";
 import { UpdateManager } from "../../services/UpdateManager";
 import { toast } from "../Toast";
 import { TagManagerModal } from "./TagManagerModal";
@@ -89,7 +90,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [accentColor, setAccentColor] = useState<string>("#6366f1");
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
-  const [activeTab, setActiveTab] = useState<"all" | "downloaded">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "downloaded" | "missing">("all");
   const [remoteChapters, setRemoteChapters] = useState<any[]>([]);
   const [isLoadingRemote, setIsLoadingRemote] = useState(false);
   const [synopsisExpanded, setSynopsisExpanded] = useState(false);
@@ -159,6 +160,8 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
 
     if (activeTab === "downloaded") {
       base = base.filter((item) => !(item as any).isMissing);
+    } else if (activeTab === "missing") {
+      base = base.filter((item) => (item as any).isMissing);
     }
 
     if (searchQuery.trim()) {
@@ -185,7 +188,20 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
       setHeroBackground(coverSrc);
     }
 
-    const fetchRemote = async () => {
+    const fetchRemote = async (force = false) => {
+      if (!selectedSeries) return;
+
+      const { getCache, setCache } = useChapterCacheStore.getState();
+      
+      if (!force) {
+        const cached = getCache(selectedSeries.id);
+        if (cached) {
+          if (active) setRemoteChapters(cached);
+          if (active) setIsLoadingRemote(false);
+          return;
+        }
+      }
+
       setIsLoadingRemote(true);
       try {
         const seriesUrl = await UpdateManager.resolveSeriesUrl(
@@ -197,6 +213,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
           const result = await ScraperService.scrapeChapter(seriesUrl);
           if (active && result.series?.chapters) {
             setRemoteChapters(result.series.chapters);
+            setCache(selectedSeries.id, result.series.chapters);
           }
         }
       } catch (e) {
@@ -207,6 +224,12 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
     };
 
     void fetchRemote();
+
+    // Expose fetchRemote to be accessible outside useEffect if needed, but for now we just handle it via cache invalidation and a re-run flag
+    // Actually we can listen to a custom event or just clear the cache in the Synchronize button and trigger a re-render.
+    // To trigger a re-render, we can just clear the cache and call fetchRemote(true) if we lift it up, but it's inside useEffect.
+    // Let's bind it to a ref so we can call it from the Synchronize button.
+    (window as any)[`forceRefresh_${selectedSeries?.id}`] = () => fetchRemote(true);
 
     return () => {
       active = false;
@@ -238,11 +261,27 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
   };
 
   const handleContinueReading = () => {
-    if (latestWithProgress) {
-      handleReadChapter(
-        latestWithProgress,
-        latestWithProgress.progress?.currentPage,
-      );
+    let target = latestWithProgress;
+    let startPage = latestWithProgress?.progress?.currentPage || 0;
+
+    if (!target && sortedChapters.length > 0) {
+      // Find the first chapter we haven't finished
+      const ascendingChapters = [...sortedChapters].sort((a, b) => {
+        const numA = parseFloat(a.meta.chapter || "0");
+        const numB = parseFloat(b.meta.chapter || "0");
+        return numA - numB;
+      });
+
+      // Find first chapter that isn't at the last page
+      target = ascendingChapters.find(c => !c.progress || c.progress.currentPage < (Math.max(1, (c.progress.totalPages || 0) - 2)));
+
+      // If all are finished, just read the very first chapter again
+      if (!target) target = ascendingChapters[0];
+      startPage = target.progress?.currentPage || 0;
+    }
+
+    if (target) {
+      handleReadChapter(target, startPage);
     }
   };
 
@@ -695,6 +734,9 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                   setIsRefreshing(true);
                   try {
                     await refreshMangaMetadata(selectedSeries.id);
+                    useChapterCacheStore.getState().clearCache(selectedSeries.id);
+                    const forceRefreshFn = (window as any)[`forceRefresh_${selectedSeries.id}`];
+                    if (forceRefreshFn) await forceRefreshFn();
                     toast.success("Chronology Harmonized");
                   } finally {
                     setIsRefreshing(false);
@@ -857,9 +899,27 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                       label="Manifested"
                       onClick={() => setActiveTab("downloaded")}
                     />
+                    {missingFromRemote.length > 0 && (
+                      <TabButton
+                        active={activeTab === "missing"}
+                        label={`Missing (${missingFromRemote.length})`}
+                        onClick={() => setActiveTab("missing")}
+                      />
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
+                  {activeTab === "missing" && missingFromRemote.length > 0 && (
+                    <button
+                      onClick={() => {
+                        toast.success(`Summoning ${missingFromRemote.length} missing scrolls...`);
+                        UpdateManager.checkForUpdates(selectedSeries.id);
+                      }}
+                      className="hidden sm:flex px-4 py-2 bg-accent text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-accent-glow hover:scale-105 active:scale-95 transition-all mr-2"
+                    >
+                      Manifest All Missing
+                    </button>
+                  )}
                   <div className="flex items-center bg-surface-elevated rounded-xl p-1 border border-border-subtle mr-4">
                     <AnimatePresence>
                       {isSearching && (

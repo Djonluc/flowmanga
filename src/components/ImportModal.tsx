@@ -144,27 +144,43 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                       <p className="text-sm text-foreground-dim">Select your preferred source to expand your library</p>
                     </div>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <button
                         onClick={handleFolderClick}
-                        className="p-6 bg-surface hover:bg-surface-raised border border-white/5 hover:border-blue-500/50 rounded-2xl transition-all group text-left"
+                        className="p-10 bg-black/20 hover:bg-white/5 border border-white/5 hover:border-accent/50 rounded-[40px] transition-all duration-500 group text-left relative overflow-hidden backdrop-blur-3xl shadow-cinematic"
                       >
-                        <div className="p-3 bg-blue-500/10 rounded-xl group-hover:bg-blue-500/20 transition-colors w-fit mb-4">
-                          <FolderOpen size={28} className="text-blue-400" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity duration-700">
+                          <FolderOpen size={120} />
                         </div>
-                        <h3 className="font-bold text-foreground text-lg">Local Database</h3>
-                        <p className="text-sm text-foreground-dim leading-relaxed">Import directory or archives from your system</p>
+                        <div className="relative">
+                          <div className="w-20 h-20 bg-blue-500/10 rounded-3xl group-hover:scale-110 group-hover:-rotate-12 transition-all duration-500 flex items-center justify-center mb-8 shadow-lg border border-blue-500/20">
+                            <FolderOpen size={40} className="text-blue-400 drop-shadow-md" />
+                          </div>
+                          <h3 className="font-black italic uppercase tracking-widest text-foreground text-3xl mb-4 group-hover:text-blue-400 transition-colors">Local Archive</h3>
+                          <p className="text-sm font-bold text-foreground-dim leading-relaxed tracking-wide max-w-[85%]">
+                            Import existing directories or archives from your system directly into FlowManga.
+                          </p>
+                        </div>
                       </button>
 
                       <button
                         onClick={() => setMode('web')}
-                        className="p-6 bg-surface hover:bg-surface-raised border border-white/5 hover:border-purple-500/50 rounded-2xl transition-all group text-left"
+                        className="p-10 bg-black/20 hover:bg-white/5 border border-white/5 hover:border-purple-500/50 rounded-[40px] transition-all duration-500 group text-left relative overflow-hidden backdrop-blur-3xl shadow-cinematic"
                       >
-                        <div className="p-3 bg-purple-500/10 rounded-xl group-hover:bg-purple-500/20 transition-colors w-fit mb-4">
-                          <Globe size={28} className="text-purple-400" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity duration-700">
+                          <Globe size={120} />
                         </div>
-                        <h3 className="font-bold text-foreground text-lg">Online Link</h3>
-                        <p className="text-sm text-foreground-dim leading-relaxed">Scrape MangaDex & Official digital sources</p>
+                        <div className="relative">
+                          <div className="w-20 h-20 bg-purple-500/10 rounded-3xl group-hover:scale-110 group-hover:rotate-12 transition-all duration-500 flex items-center justify-center mb-8 shadow-lg border border-purple-500/20">
+                            <Globe size={40} className="text-purple-400 drop-shadow-md" />
+                          </div>
+                          <h3 className="font-black italic uppercase tracking-widest text-foreground text-3xl mb-4 group-hover:text-purple-400 transition-colors">Online Source</h3>
+                          <p className="text-sm font-bold text-foreground-dim leading-relaxed tracking-wide max-w-[85%]">
+                            Scrape MangaDex, WebNovel, or other supported digital sources using a direct URL.
+                          </p>
+                        </div>
                       </button>
                     </div>
                   </div>
