@@ -23,10 +23,56 @@ import {
   Monitor,
   Settings,
   Trash2,
+  ImageOff,
+  Loader2,
 } from "lucide-react";
 
 import { useGalleryStore } from "../../stores/useGalleryStore";
 import { useMediaLoader } from "../../hooks/useMediaLoader";
+
+const TagGroup: React.FC<{
+  title: string;
+  tags: string[];
+  color: "pink" | "green" | "blue" | "white";
+  onClick: (tag: string) => void;
+}> = ({ title, tags, color, onClick }) => {
+  const [showAll, setShowAll] = useState(false);
+  const displayTags = showAll ? tags : tags.slice(0, 12);
+
+  const colors = {
+    pink: "bg-pink-500/5 hover:bg-pink-500/20 text-pink-400 hover:text-pink-300 border-pink-500/10 text-pink-500/60",
+    green: "bg-green-500/5 hover:bg-green-500/20 text-green-400 hover:text-green-300 border-green-500/10 text-green-500/60",
+    blue: "bg-blue-500/5 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 border-blue-500/10 text-blue-500/60",
+    white: "bg-white/5 hover:bg-white/20 text-white/60 hover:text-white border-white/10 text-white/20",
+  };
+
+  return (
+    <div className="space-y-3">
+      <h4 className={`text-[9px] font-black uppercase tracking-[0.2em] ${colors[color].split(" ").pop()}`}>
+        {title}
+      </h4>
+      <div className="flex flex-wrap gap-2">
+        {displayTags.map((tag) => (
+          <button
+            key={tag}
+            onClick={() => onClick(tag)}
+            className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all border ${colors[color].replace(/ text-[a-z]+-500\/60$/, "")}`}
+          >
+            {tag}
+          </button>
+        ))}
+        {tags.length > 12 && (
+          <button
+            onClick={() => setShowAll(!showAll)}
+            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${colors[color].replace(/ text-[a-z]+-500\/60$/, "")}`}
+          >
+            {showAll ? "Show Less" : `+${tags.length - 12} More`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export const ImageViewer: React.FC = () => {
   const {
@@ -530,6 +576,8 @@ export const ImageViewer: React.FC = () => {
 
   const primaryUrl = localUrl || fallbackUrls[0] || previewUrl;
   const imageUrl = localUrl || primaryUrl || previewUrl || rawImageUrl;
+  const isVideo = primaryUrl?.match(/\.(mp4|webm|mov)$/i);
+  const isPreviewVideo = previewUrl?.match(/\.(mp4|webm|mov)$/i);
 
   useEffect(() => {
     if (isOpen && image) {
@@ -769,31 +817,28 @@ export const ImageViewer: React.FC = () => {
               }}
             >
               {/* Stable Image Container - CSS handles fit-to-screen */}
-              <div className="w-full h-full relative">
-                {/* Preview Layer (Always visible until high-res ready) */}
-                <motion.img
-                  ref={imageRef}
-                  src={previewUrl}
-                  alt={title}
-                  decoding="async"
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: "100%",
-                    width: "auto",
-                    height: "auto",
-                    transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
-                  }}
-                  className="object-contain select-none shadow-2xl absolute inset-0 m-auto will-change-transform"
-                  initial={false}
-                  animate={{ opacity: highResLoaded ? 0 : 1 }}
-                  transition={{ duration: 0.8 }}
-                  draggable={false}
-                />
-
-                {/* High-Res Layer */}
-                {primaryUrl !== previewUrl && !highResError && highResImage && (
+              <div className="w-full h-full relative flex items-center justify-center">
+                {/* 1. Preview Layer (Always visible, lowest z-index) */}
+                {isPreviewVideo ? (
+                  <motion.video
+                    src={previewUrl}
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "100%",
+                      width: "auto",
+                      height: "auto",
+                      transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
+                    }}
+                    className="object-contain select-none shadow-2xl absolute inset-0 m-auto will-change-transform z-0"
+                    initial={false}
+                    animate={{ opacity: 1 }}
+                    draggable={false}
+                    autoPlay loop muted playsInline
+                  />
+                ) : (
                   <motion.img
-                    src={localUrl || highResImage.src}
+                    ref={imageRef}
+                    src={previewUrl}
                     alt={title}
                     decoding="async"
                     style={{
@@ -803,47 +848,80 @@ export const ImageViewer: React.FC = () => {
                       height: "auto",
                       transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
                     }}
-                    className="object-contain select-none absolute inset-0 m-auto will-change-transform"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: highResLoaded ? 1 : 0 }}
-                    transition={{ duration: 0.8 }}
+                    className="object-contain select-none shadow-2xl absolute inset-0 m-auto will-change-transform z-0"
+                    initial={false}
+                    animate={{ opacity: 1 }}
                     draggable={false}
                   />
                 )}
 
-                {/* Fallback/Retry Layer if High-Res fails */}
+                {/* 2. High-Res Layer (Original size) */}
+                {primaryUrl !== previewUrl && (highResImage || isVideo) && (
+                  isVideo ? (
+                    <motion.video
+                      src={localUrl || primaryUrl}
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: "100%",
+                        width: "auto",
+                        height: "auto",
+                        transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
+                      }}
+                      className="object-contain select-none shadow-2xl absolute inset-0 m-auto will-change-transform z-20"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: highResLoaded ? 1 : 0 }}
+                      transition={{ duration: 0.5 }}
+                      draggable={false}
+                      autoPlay loop muted playsInline
+                      onLoadedData={() => setHighResLoaded(true)}
+                    />
+                  ) : (
+                    <motion.img
+                      src={localUrl || highResImage?.src}
+                      alt={title}
+                      decoding="async"
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: "100%",
+                        width: "auto",
+                        height: "auto",
+                        transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
+                      }}
+                      className="object-contain select-none shadow-2xl absolute inset-0 m-auto will-change-transform z-20"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: highResLoaded ? 1 : 0 }}
+                      transition={{ duration: 0.5 }}
+                      draggable={false}
+                    />
+                  )
+                )}
+
+                {/* Unobtrusive Fallback Toast */}
                 {highResError && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-30">
-                    <div className="flex flex-col items-center gap-6 p-8 rounded-3xl bg-black/60 border border-white/10 shadow-2xl max-w-sm text-center">
-                      <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center">
-                        <RotateCcw size={32} className="text-red-400" />
-                      </div>
-                      <div className="space-y-2">
-                        <h3 className="text-white font-black uppercase tracking-widest text-sm">Resolution Failed</h3>
-                        <p className="text-white/60 text-xs leading-relaxed">
-                          We couldn't secure the high-resolution vision from {formattedSource}. The optimized preview is still active.
-                        </p>
-                      </div>
-                      <button
-                        onClick={retryHighRes}
-                        className="px-8 py-3 rounded-xl bg-white text-black font-black uppercase tracking-widest text-[10px] hover:bg-neutral-200 transition-all active:scale-95"
-                      >
-                        Retry Resolution
-                      </button>
+                  <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30">
+                    <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-black/60 border border-red-500/20 backdrop-blur-md shadow-2xl">
+                      <ImageOff size={14} className="text-red-400" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-red-100">
+                        Original Resolution Unavailable
+                      </span>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* High-Res Loading Indicator */}
+              {/* Unobtrusive Loading Indicator */}
               {isHighResLoading && !highResError && !highResLoaded && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-4">
-                  <div className="w-12 h-12 rounded-full border-2 border-white/10 border-t-purple-500 animate-spin" />
-                  <p className="text-white/40 text-[10px] font-black uppercase tracking-widest bg-black/40 px-3 py-1 rounded-full backdrop-blur-md">
-                    Resolving Vision...
-                  </p>
+                <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+                  <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-black/40 border border-white/10 backdrop-blur-md shadow-2xl">
+                    <Loader2 size={12} className="text-purple-400 animate-spin" />
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/80">
+                      Loading Original...
+                    </span>
+                  </div>
                 </div>
               )}
+
+
 
               {/* Download Progress Toast */}
               {downloadProgress !== null && (
@@ -897,60 +975,15 @@ export const ImageViewer: React.FC = () => {
 
                     <div className="space-y-6">
                       {artistTags.length > 0 && (
-                        <div className="space-y-3">
-                          <h4 className="text-[9px] font-black uppercase tracking-[0.2em] text-pink-500/60">
-                            Artists
-                          </h4>
-                          <div className="flex flex-wrap gap-2">
-                            {artistTags.map((tag) => (
-                              <button
-                                key={tag}
-                                onClick={() => handleTagClick(tag, "artist")}
-                                className="px-3 py-1.5 rounded-xl bg-pink-500/5 hover:bg-pink-500/20 text-pink-400 hover:text-pink-300 text-[10px] font-bold uppercase tracking-wider transition-all border border-pink-500/10"
-                              >
-                                {tag}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
+                        <TagGroup title="Artists" tags={artistTags} color="pink" onClick={(t) => handleTagClick(t, "artist")} />
                       )}
 
                       {characterTags.length > 0 && (
-                        <div className="space-y-3">
-                          <h4 className="text-[9px] font-black uppercase tracking-[0.2em] text-green-500/60">
-                            Characters
-                          </h4>
-                          <div className="flex flex-wrap gap-2">
-                            {characterTags.map((tag) => (
-                              <button
-                                key={tag}
-                                onClick={() => handleTagClick(tag)}
-                                className="px-3 py-1.5 rounded-xl bg-green-500/5 hover:bg-green-500/20 text-green-400 hover:text-green-300 text-[10px] font-bold uppercase tracking-wider transition-all border border-green-500/10"
-                              >
-                                {tag}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
+                        <TagGroup title="Characters" tags={characterTags} color="green" onClick={handleTagClick} />
                       )}
 
                       {copyrightTags.length > 0 && (
-                        <div className="space-y-3">
-                          <h4 className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-500/60">
-                            Series / Copyright
-                          </h4>
-                          <div className="flex flex-wrap gap-2">
-                            {copyrightTags.map((tag) => (
-                              <button
-                                key={tag}
-                                onClick={() => handleTagClick(tag)}
-                                className="px-3 py-1.5 rounded-xl bg-blue-500/5 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 text-[10px] font-bold uppercase tracking-wider transition-all border border-blue-500/10"
-                              >
-                                {tag}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
+                        <TagGroup title="Series / Copyright" tags={copyrightTags} color="blue" onClick={handleTagClick} />
                       )}
 
                       {(generalTags.length > 0 || tags.length > 0) && (

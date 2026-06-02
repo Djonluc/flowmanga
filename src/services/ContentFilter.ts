@@ -203,6 +203,9 @@ export class ContentFilter {
         source.includes("flame") ||
         source.includes("reaper") ||
         source.includes("zerochan") ||
+        source.includes("manhuaplus") ||
+        source.includes("dbm") ||
+        source.includes("webtoons") ||
         item.contentType === "manhwa" ||
         item.contentType === "manhua" ||
         item.contentType === "gallery";

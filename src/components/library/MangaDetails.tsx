@@ -54,6 +54,7 @@ import { useReadingStore } from "../../stores/useReadingStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useDownloadStore } from "../../stores/useDownloadStore";
 import { useModalStore } from "../../stores/useModalStore";
+import { useDiscoveryStore } from "../../stores/useDiscoveryStore";
 import { UpdateManager } from "../../services/UpdateManager";
 import { toast } from "../Toast";
 import { TagManagerModal } from "./TagManagerModal";
@@ -242,14 +243,17 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
         latestWithProgress,
         latestWithProgress.progress?.currentPage,
       );
-    } else {
-      const first = [...sortedChapters].sort((a, b) => {
-        const numA = parseFloat(a.meta.chapter || "0");
-        const numB = parseFloat(b.meta.chapter || "0");
-        return numA - numB;
-      })[0];
-      if (first) handleReadChapter(first, 0);
     }
+  };
+
+  const handleTagClick = async (tag: string) => {
+    const discStore = useDiscoveryStore.getState();
+    discStore.setQuery(tag);
+    discStore.setActiveTab("search");
+    discStore.setActiveType("manga");
+    useSettingsStore.getState().setActiveView("discover");
+    toast.info(`Seeking other "${tag}" mangas globally...`);
+    await discStore.search(tag);
   };
 
   const currentChapterDisplay = latestWithProgress
@@ -555,9 +559,9 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                   <button
                     key={tag}
                     type="button"
-                    onClick={() => toggleFilterTag(tag)}
+                    onClick={() => handleTagClick(tag)}
                     className="px-4 py-2 bg-surface-elevated hover:bg-surface-raised rounded-xl text-[10px] font-black uppercase tracking-widest text-foreground-dim border border-border-subtle transition-all active:scale-95"
-                    title="Filter library by this tag"
+                    title="Seek other mangas globally by this tag"
                   >
                     {tag}
                   </button>

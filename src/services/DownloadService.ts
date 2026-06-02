@@ -237,6 +237,29 @@ export class DownloadService {
                 if (res.images && res.images.length > 0) {
                     return { images: res.images };
                 }
+
+                // Fallback: For single-album providers (e.g. hentaicomicsfree),
+                // scrapeChapter routes to fetchSeries (no /chapter- in URL), returning
+                // series metadata without images. Try fetchContent directly.
+                try {
+                    const { sourceRegistry } = await import('./sources');
+                    const provider = sourceRegistry.resolve(scrapeUrl);
+                    if (provider && provider.fetchContent) {
+                        const content = await provider.fetchContent(scrapeUrl);
+                        if (content.images && content.images.length > 0) {
+                            return {
+                                images: content.images.map((img: any) => ({
+                                    url: img.url,
+                                    pageNumber: img.pageNumber,
+                                    encryptionKey: img.encryptionKey,
+                                })),
+                            };
+                        }
+                    }
+                } catch (_providerErr) {
+                    // Provider direct fetch failed, continue to throw
+                }
+
                 throw new Error("No images found for chapter");
             } catch (err) {
                 lastError = err;

@@ -162,30 +162,54 @@ export class MangaReadProvider implements SourceProvider {
   }
 
   async search(
-    _query: string,
-    _options: SourceSearchOptions = {},
+    query: string,
+    options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
-    return [];
+    try {
+      const page = options.page || 1;
+      const limit = options.limit || 20;
+      const url = `https://mangaread.org/page/${page}/?s=${encodeURIComponent(query)}&post_type=wp-manga`;
+      const html = await invoke<string>("fetch_html", { url, headers: null });
+      return this.parseMadaraList(html, limit, "mangaread.org");
+    } catch (e) {
+      console.warn("[MangaRead] search failed:", e);
+      return [];
+    }
   }
 
   async searchByTags(
-    _tags: string[],
-    _options: SourceSearchOptions = {},
+    tags: string[],
+    options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
-    return [];
+    if (tags.length === 0) return [];
+    return this.search(tags[0], options);
   }
 
   async fetchPopular(
-    _page: number = 1,
-    _limit: number = 20,
+    page: number = 1,
+    limit: number = 20,
   ): Promise<SourceSearchResult[]> {
-    return [];
+    try {
+      const url = `https://mangaread.org/manga/page/${page}/?m_orderby=views`;
+      const html = await invoke<string>("fetch_html", { url, headers: null });
+      return this.parseMadaraList(html, limit, "mangaread.org");
+    } catch (e) {
+      console.warn("[MangaRead] fetchPopular failed:", e);
+      return [];
+    }
   }
 
   async fetchLatest(
-    _page: number = 1,
-    _limit: number = 20,
+    page: number = 1,
+    limit: number = 20,
   ): Promise<SourceSearchResult[]> {
-    return [];
+    try {
+      const url = `https://mangaread.org/manga/page/${page}/?m_orderby=latest`;
+      const html = await invoke<string>("fetch_html", { url, headers: null });
+      return this.parseMadaraList(html, limit, "mangaread.org");
+    } catch (e) {
+      console.warn("[MangaRead] fetchLatest failed:", e);
+      return [];
+    }
   }
 }

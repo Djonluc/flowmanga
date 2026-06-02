@@ -111,6 +111,8 @@ export const LibraryGrid = () => {
           const results = await ScraperService.getRecommendationsByTags(
             filterTags,
             12,
+            false,
+            "manga",
           );
           const filtered = results.filter((ext) => {
             const extTitle = (ext.title || "").toLowerCase();

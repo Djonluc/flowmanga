@@ -125,9 +125,11 @@ export class DiscoveryService {
     limit: number = 20,
     coloredOnly: boolean = false,
     mediaDomain?: MediaDomain,
+    page: number = 1,
+    activeType?: string,
     signal?: AbortSignal,
   ): Promise<SourceSearchResult[]> {
-    const cacheKey = `latest_${limit}_${coloredOnly}_${mediaDomain ?? "all"}`;
+    const cacheKey = `latest_${limit}_${coloredOnly}_${mediaDomain ?? "all"}_page_${page}_type_${activeType ?? "all"}`;
 
     const memCached = this.getCache(cacheKey);
     if (memCached) return memCached;
@@ -153,6 +155,8 @@ export class DiscoveryService {
             limit,
             coloredOnly,
             mediaDomain,
+            page,
+            activeType,
             signal,
           );
         }
@@ -169,6 +173,8 @@ export class DiscoveryService {
       limit,
       coloredOnly,
       mediaDomain,
+      page,
+      activeType,
       signal,
     );
   }
@@ -180,9 +186,11 @@ export class DiscoveryService {
     limit: number = 20,
     coloredOnly: boolean = false,
     mediaDomain?: MediaDomain,
+    page: number = 1,
+    activeType?: string,
     signal?: AbortSignal,
   ): Promise<SourceSearchResult[]> {
-    const cacheKey = `trending_${limit}_${coloredOnly}_${mediaDomain ?? "all"}`;
+    const cacheKey = `trending_${limit}_${coloredOnly}_${mediaDomain ?? "all"}_page_${page}_type_${activeType ?? "all"}`;
 
     const memCached = this.getCache(cacheKey);
     if (memCached) return memCached;
@@ -208,6 +216,8 @@ export class DiscoveryService {
             limit,
             coloredOnly,
             mediaDomain,
+            page,
+            activeType,
             signal,
           );
         }
@@ -224,6 +234,8 @@ export class DiscoveryService {
       limit,
       coloredOnly,
       mediaDomain,
+      page,
+      activeType,
       signal,
     );
   }
@@ -234,6 +246,8 @@ export class DiscoveryService {
     limit: number,
     coloredOnly: boolean,
     mediaDomain?: MediaDomain,
+    page: number = 1,
+    activeType?: string,
     signal?: AbortSignal,
   ): Promise<SourceSearchResult[]> {
     // Local Provider Scraping
@@ -254,7 +268,9 @@ export class DiscoveryService {
       ) => Promise<SourceSearchResult[]>;
     };
 
-    const providers = this.getProvidersByMediaDomain(mediaDomain).filter(
+    const allProviders = this.getProvidersByMediaDomain(mediaDomain);
+    const providersForType = this.getProvidersForType(activeType || "all", allProviders);
+    const providers = providersForType.filter(
       (p) => {
         const providerAny = p as DiscoveryFallbackProvider;
 
@@ -276,7 +292,7 @@ export class DiscoveryService {
         if (type === "latest" && p.getLatest) {
           return await this.withTimeout(
             p.getLatest({
-              page: 1,
+              page,
               limit,
               auth: booruAuth[p.id],
               signal,
@@ -289,7 +305,7 @@ export class DiscoveryService {
         if (type === "trending" && p.getTrending) {
           return await this.withTimeout(
             p.getTrending({
-              page: 1,
+              page,
               limit,
               auth: booruAuth[p.id],
               signal,
@@ -322,7 +338,7 @@ export class DiscoveryService {
           typeof anyProvider.fetchPopular === "function"
         ) {
           return await this.withTimeout(
-            anyProvider.fetchPopular(1, limit, coloredOnly),
+            anyProvider.fetchPopular(page, limit, coloredOnly),
             this.DEFAULT_TIMEOUT,
             [],
             signal,
@@ -331,7 +347,7 @@ export class DiscoveryService {
 
         if (typeof anyProvider.fetchLatest === "function") {
           return await this.withTimeout(
-            anyProvider.fetchLatest(1, limit, coloredOnly),
+            anyProvider.fetchLatest(page, limit, coloredOnly),
             this.DEFAULT_TIMEOUT,
             [],
             signal,
@@ -341,7 +357,7 @@ export class DiscoveryService {
         if (p.search) {
           return await this.withTimeout(
             p.search("a", {
-              page: 1,
+              page,
               limit,
               auth: booruAuth[p.id],
               signal,
@@ -377,9 +393,12 @@ export class DiscoveryService {
     limit: number = 20,
     coloredOnly: boolean = false,
     mediaDomain?: MediaDomain,
+    activeType?: string,
     signal?: AbortSignal,
   ): Promise<SourceSearchResult[]> {
-    const providers = this.getProvidersByMediaDomain(mediaDomain).filter(
+    const allProviders = this.getProvidersByMediaDomain(mediaDomain);
+    const providersForType = this.getProvidersForType(activeType || "all", allProviders);
+    const providers = providersForType.filter(
       (p) => {
         const providerAny = p as {
           getRandom?: (
@@ -479,9 +498,8 @@ export class DiscoveryService {
         methods.push(() => providerAny.fetchPopular!(page, limit, coloredOnly));
       }
       if (p.search) {
-        const search = p.search;
         methods.push(() =>
-          search("a", {
+          p.search!("a", {
             page,
             limit,
             auth: booruAuth[p.id],
@@ -564,6 +582,16 @@ export class DiscoveryService {
 
     const results = await this.pool(tasks, this.MAX_CONCURRENT_REQUESTS);
     const flattenedResults: SourceSearchResult[][] = results;
+    
+    // Log per-provider counts
+    console.log(`[Search Pipeline] Query: "${query}"`);
+    flattenedResults.forEach((res, i) => {
+      const p = providers[i];
+      console.log(`[Search Pipeline] Source ${p?.name || 'Unknown'} returned: ${res?.length || 0} results`);
+    });
+
+    const totalBeforeFilter = flattenedResults.reduce((acc, curr) => acc + (curr?.length || 0), 0);
+    console.log(`[Search Pipeline] Combined results: ${totalBeforeFilter}`);
 
     const finalResults = this.filterRestrictedContent(
       this.interleave(flattenedResults, limit, coloredOnly),
@@ -605,7 +633,7 @@ export class DiscoveryService {
     const offsets = this.searchOffsets.get(queryKey) || {};
 
     const tasks = [...providers]
-      .filter((p) => p.capabilities.tagSearch)
+      .filter((p) => p.capabilities.tagSearch || p.capabilities.search)
       .sort(() => Math.random() - 0.5)
       .map((p) => async () => {
         const { booruAuth } = useSettingsStore.getState();
@@ -613,12 +641,19 @@ export class DiscoveryService {
           const actualPage = page + (offsets[p.id] || 0);
 
           const result = await this.withTimeout(
-            p.searchByTags!(tags, {
-              page: actualPage,
-              limit: Math.max(limit * 2, 100), // Fetch more for tags to ensure enough unique matches after interleaving/filtering
-              auth: booruAuth[p.id],
-              signal,
-            }),
+            p.capabilities.tagSearch && p.searchByTags
+              ? p.searchByTags(tags, {
+                  page: actualPage,
+                  limit: Math.max(limit * 2, 100),
+                  auth: booruAuth[p.id],
+                  signal,
+                })
+              : p.search!(tags.join(" "), {
+                  page: actualPage,
+                  limit: Math.max(limit * 2, 100),
+                  auth: booruAuth[p.id],
+                  signal,
+                }),
             this.DEFAULT_TIMEOUT,
             [],
             signal,
@@ -659,10 +694,23 @@ export class DiscoveryService {
       )
       .filter(Boolean);
 
-    const finalResults = this.filterRestrictedContent(
-      this.interleave(results, limit * results.length, coloredOnly),
-      coloredOnly,
-    ).filter((item) => this.matchesMediaDomain(item, mediaDomain));
+    const totalBeforeFilter = results.reduce((acc, curr) => acc + (curr?.length || 0), 0);
+    console.log(`[Search Pipeline] Tag Search: [${tags.join(", ")}]`);
+    
+    providers.filter((p) => p.capabilities.tagSearch || p.capabilities.search).forEach((p, i) => {
+      console.log(`[Search Pipeline] Source ${p.name} returned: ${results[i]?.length || 0} results`);
+    });
+    
+    console.log(`[Search Pipeline] Combined results: ${totalBeforeFilter}`);
+
+    const interleaved = this.interleave(results, limit * results.length, coloredOnly);
+    console.log(`[Search Pipeline] After deduplication (interleave): ${interleaved.length}`);
+
+    const filtered = this.filterRestrictedContent(interleaved, coloredOnly);
+    console.log(`[Search Pipeline] After filtering (NSFW/Color): ${filtered.length}`);
+
+    const finalResults = filtered.filter((item) => this.matchesMediaDomain(item, mediaDomain));
+    console.log(`[Search Pipeline] Rendered results (domain filtered): ${finalResults.length}`);
 
     // Import toast dynamically to avoid circular dependencies
     import("../components/Toast")
@@ -681,9 +729,9 @@ export class DiscoveryService {
       })
       .catch(() => {});
 
-    if (finalResults.length === 0 && tags.length === 1) {
+    if (finalResults.length === 0 && tags.length > 0) {
       console.info(
-        `[DiscoveryService] Tag search returned no results for '${tags[0]}'; falling back to global search.`,
+        `[DiscoveryService] Tag search returned no results for tags [${tags.join(", ")}]; falling back to global search for '${tags[0]}'.`,
       );
       return this.searchGlobal(tags[0], limit, coloredOnly, page, mediaDomain);
     }
@@ -725,8 +773,21 @@ export class DiscoveryService {
         source.includes("webtoon")
       )
         type = "comic";
-      else if (source.includes("nhentai") || tags.includes("doujinshi"))
+      else if (
+        source.includes("nhentai") ||
+        source.includes("hentaicomicsfree") ||
+        tags.includes("doujinshi")
+      )
         type = "doujin";
+      else if (
+        source.includes("danbooru") ||
+        source.includes("gelbooru") ||
+        source.includes("yandere") ||
+        source.includes("konachan") ||
+        source.includes("zerochan") ||
+        source.includes("booru")
+      )
+        type = "gallery";
 
       return { ...item, contentType: type } as SourceSearchResult;
     });
@@ -762,6 +823,60 @@ export class DiscoveryService {
     );
   }
 
+  private static getProvidersForType(
+    activeType: string,
+    providers: SourceProvider[],
+  ): SourceProvider[] {
+    const type = activeType.toLowerCase();
+    if (type === "all") return providers;
+
+    return providers.filter((p) => {
+      const id = p.id.toLowerCase();
+      const contentType = p.contentType?.toLowerCase() || "";
+
+      if (type === "gallery") {
+        return contentType === "gallery" || contentType === "album" || id.includes("zerochan") || id.includes("booru") || id.includes("yandere") || id.includes("konachan") || id.includes("gelbooru") || id.includes("danbooru");
+      }
+      if (type === "doujin") {
+        return (
+          contentType === "doujin" ||
+          id.includes("nhentai") ||
+          id.includes("hentaicomicsfree")
+        );
+      }
+      if (type === "comic") {
+        return contentType === "comic" || id.includes("dbm") || id.includes("dragonball") || id.includes("blue-lock") || id.includes("bluelock");
+      }
+      if (type === "manhwa") {
+        return contentType === "manhwa" || id.includes("manhwaread") || id.includes("webtoons");
+      }
+      if (type === "manhua") {
+        return contentType === "manhua" || id.includes("manhuaplus") || id.includes("luacomic");
+      }
+      if (type === "manga") {
+        // Exclude others
+        const isOther =
+          contentType === "gallery" ||
+          contentType === "album" ||
+          contentType === "doujin" ||
+          contentType === "comic" ||
+          contentType === "manhwa" ||
+          contentType === "manhua" ||
+          id.includes("zerochan") ||
+          id.includes("nhentai") ||
+          id.includes("hentaicomicsfree") ||
+          id.includes("dbm") ||
+          id.includes("dragonball") ||
+          id.includes("manhwaread") ||
+          id.includes("webtoons") ||
+          id.includes("manhuaplus") ||
+          id.includes("luacomic");
+        return !isOther;
+      }
+      return true;
+    });
+  }
+
   private static getProvidersByMediaDomain(
     mediaDomain?: MediaDomain,
   ): SourceProvider[] {
@@ -777,6 +892,7 @@ export class DiscoveryService {
   ): SourceSearchResult[] {
     const interleaved: SourceSearchResult[] = [];
     const seenIds = new Set<string>();
+    const seenTitles = new Set<string>();
 
     const normalizeTitle = (t: string) =>
       t.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -787,6 +903,7 @@ export class DiscoveryService {
     );
 
     const pool = processedSources.flat().filter(Boolean);
+    console.log(`[Search Pipeline] Interleave pool size (after initial restricted content filter): ${pool.length}`);
 
     const groupedBySource: Record<string, SourceSearchResult[]> = {};
     for (const item of pool) {
@@ -834,8 +951,13 @@ export class DiscoveryService {
         const fallback = availableSources[0];
         const item = groupedBySource[fallback].shift()!;
         const dedupeKey = item.id;
-        if (!seenIds.has(dedupeKey)) {
+        const titleKey = normalizeTitle(item.title || "");
+        const isGallery = item.mediaDomain === "image" || item.contentType === "gallery" || item.contentType === "album" || item.contentType === "doujin";
+        const isDuplicateTitle = !isGallery && titleKey && seenTitles.has(titleKey);
+        
+        if (!seenIds.has(dedupeKey) && !isDuplicateTitle) {
           seenIds.add(dedupeKey);
+          if (titleKey && !isGallery) seenTitles.add(titleKey);
           interleaved.push(item);
           sourceCounts[fallback] = (sourceCounts[fallback] || 0) + 1;
         }
@@ -855,8 +977,13 @@ export class DiscoveryService {
 
       const item = groupedBySource[selectedSource].shift()!;
       const dedupeKey = item.id;
-      if (!seenIds.has(dedupeKey)) {
+      const titleKey = normalizeTitle(item.title || "");
+      const isGallery = item.mediaDomain === "image" || item.contentType === "gallery" || item.contentType === "album" || item.contentType === "doujin";
+      const isDuplicateTitle = !isGallery && titleKey && seenTitles.has(titleKey);
+
+      if (!seenIds.has(dedupeKey) && !isDuplicateTitle) {
         seenIds.add(dedupeKey);
+        if (titleKey && !isGallery) seenTitles.add(titleKey);
         interleaved.push(item);
         sourceCounts[selectedSource] =
           (sourceCounts[selectedSource] || 0) + 1;

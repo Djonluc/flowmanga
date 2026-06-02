@@ -179,6 +179,7 @@ interface GalleryState {
   searchQuery: string;
   searchResults: SourceSearchResult[];
   currentSearchPage: number;
+  hasMoreSearchResults: boolean;
   searchSuggestions: string[];
 
   // UI State
@@ -335,6 +336,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   searchQuery: "",
   searchResults: [],
   currentSearchPage: 1,
+  hasMoreSearchResults: true,
   searchSuggestions: [],
 
   activeTab: "discover",
@@ -913,7 +915,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
 
   searchByTags: async (query, page = 1) => {
     if (!query.trim()) {
-      set({ searchResults: [], searchQuery: "", currentSearchPage: 1 });
+      set({ searchResults: [], searchQuery: "", currentSearchPage: 1, hasMoreSearchResults: true });
       return;
     }
     
@@ -936,14 +938,16 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       );
 
       set((state) => {
-        const nextResults =
-          page === 1 ? results : [...state.searchResults, ...results];
+        const newItems = page === 1 ? results : dedupeResults(results, [state.searchResults]);
+        const hasMore = newItems.length > 0 || (page === 1 && results.length > 0);
+        const nextResults = page === 1 ? results : [...state.searchResults, ...newItems];
+        
         // Cap search results to prevent unbounded memory growth
-        const cappedResults = dedupeResults(nextResults).slice(-300);
+        const cappedResults = nextResults.slice(-300);
         
         // If we are playing a dynamic slideshow (from search), sync the images
         if (state.isSlideshowPlaying && state.activeSlideshowId === "dynamic") {
-          const galleryImages: GalleryImage[] = results.map((img) => {
+          const galleryImages: GalleryImage[] = newItems.map((img) => {
             if ("imageUrl" in img) return img as GalleryImage;
             const res = img as any;
             return {
@@ -962,6 +966,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
             searchResults: cappedResults,
             slideshowImages: [...state.slideshowImages, ...galleryImages],
             currentSearchPage: page,
+            hasMoreSearchResults: hasMore,
             searchQuery: query,
           };
         }
@@ -969,6 +974,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         return {
           searchResults: cappedResults,
           currentSearchPage: page,
+          hasMoreSearchResults: hasMore,
           searchQuery: query,
         };
       });

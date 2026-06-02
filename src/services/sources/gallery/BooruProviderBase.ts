@@ -304,9 +304,7 @@ export function mapBooruPosts(
           asString(item.large_file_url) ||
           asString(item.jpeg_url) ||
           asString(item.preview_url),
-        ) &&
-        // Filter out video files as they are not supported in the image viewer yet
-        !asString(item.file_url || "").match(/\.(mp4|webm|mov)$/i),
+        ),
     )
     .map((item) => normalizeBooruPost(item, source, baseUrl));
 }

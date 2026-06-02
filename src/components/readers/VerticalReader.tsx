@@ -75,7 +75,18 @@ export const VerticalReader = () => {
 
   // PAUSE ON USER INTERACTION
   useEffect(() => {
+    let lastStartTime = Date.now();
+    
+    // We only want to track when autoscroll becomes active
+    if (autoScroll) {
+      lastStartTime = Date.now();
+    }
+
     const stop = () => {
+      // 300ms cooldown to prevent the click that started autoscroll from immediately stopping it
+      if (Date.now() - lastStartTime < 300) {
+        return;
+      }
       if (useReaderStore.getState().autoScroll) {
         setAutoScroll(false);
       }
@@ -91,7 +102,7 @@ export const VerticalReader = () => {
       container?.removeEventListener("touchstart", stop);
       container?.removeEventListener("mousedown", stop);
     };
-  }, [setAutoScroll]);
+  }, [setAutoScroll, autoScroll]);
 
   // V2: Current page tracking with high-precision ratio map
   const pageRatios = useRef<Map<number, number>>(new Map());

@@ -23,8 +23,8 @@ export class ManhwaReadProvider implements SourceProvider {
   readonly readerModes: ReaderMode[] = ["vertical", "single"];
 
   readonly capabilities: SourceCapabilities = {
-    search: false,
-    tagSearch: false,
+    search: true,
+    tagSearch: true,
     seriesBrowse: false,
     chapterFeed: false,
     pagination: false,
@@ -162,17 +162,27 @@ export class ManhwaReadProvider implements SourceProvider {
   }
 
   async search(
-    _query: string,
-    _options: SourceSearchOptions = {},
+    query: string,
+    options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
-    return [];
+    try {
+      const page = options.page || 1;
+      const limit = options.limit || 20;
+      const url = `https://manhwaread.com/page/${page}/?s=${encodeURIComponent(query)}&post_type=wp-manga`;
+      const html = await invoke<string>("fetch_html", { url, headers: null });
+      return this.parseMadaraList(html, limit, "manhwaread.com");
+    } catch (e) {
+      console.warn("[ManhwaRead] search failed:", e);
+      return [];
+    }
   }
 
   async searchByTags(
-    _tags: string[],
-    _options: SourceSearchOptions = {},
+    tags: string[],
+    options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
-    return [];
+    if (tags.length === 0) return [];
+    return this.search(tags[0], options);
   }
 
   async fetchPopular(
@@ -180,7 +190,9 @@ export class ManhwaReadProvider implements SourceProvider {
     limit: number = 20,
   ): Promise<SourceSearchResult[]> {
     try {
-      const url = `https://manhwaread.com/manga/page/${page}/?m_orderby=views`;
+      const url = page === 1
+        ? `https://manhwaread.com/manhwa/?m_orderby=views`
+        : `https://manhwaread.com/manhwa/page/${page}/?m_orderby=views`;
       const html = await invoke<string>("fetch_html", { url, headers: null });
       return this.parseMadaraList(html, limit, "manhwaread.com");
     } catch (e) {
@@ -194,7 +206,9 @@ export class ManhwaReadProvider implements SourceProvider {
     limit: number = 20,
   ): Promise<SourceSearchResult[]> {
     try {
-      const url = `https://manhwaread.com/manga/page/${page}/?m_orderby=latest`;
+      const url = page === 1
+        ? `https://manhwaread.com/manhwa/?m_orderby=latest`
+        : `https://manhwaread.com/manhwa/page/${page}/?m_orderby=latest`;
       const html = await invoke<string>("fetch_html", { url, headers: null });
       return this.parseMadaraList(html, limit, "manhwaread.com");
     } catch (e) {

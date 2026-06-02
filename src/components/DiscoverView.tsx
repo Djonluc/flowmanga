@@ -46,6 +46,8 @@ export const DiscoverView = () => {
     setQuery,
     setActiveType,
     clearResults,
+    activeTab,
+    setActiveTab,
   } = useDiscoveryStore();
 
   type DiscoveryContentType =
@@ -58,9 +60,6 @@ export const DiscoverView = () => {
     | "gallery";
 
   const { openQuickView, openTagManager } = useModalStore();
-  const [activeTab, setActiveTab] = useState<
-    "featured" | "search" | "latest-grid" | "random-grid"
-  >("featured");
   const [activeMenu, setActiveMenu] = useState<{
     x: number;
     y: number;
@@ -139,20 +138,31 @@ export const DiscoverView = () => {
         return (
           contentType === "doujin" ||
           src.includes("nhentai") ||
+          src.includes("hentaicomicsfree") ||
           src.includes("rule34")
         );
 
       const isComic =
         contentType === "comic" ||
         src.includes("dragonball") ||
+        src.includes("dbm") ||
         src.includes("blue-lock") ||
+        src.includes("bluelock") ||
         tags.includes("comic");
       if (activeType === "comic") return isComic;
 
-      const isManhwa = src.includes("manhwaread") || tags.includes("manhwa");
+      const isManhwa =
+        contentType === "manhwa" ||
+        src.includes("manhwaread") ||
+        src.includes("webtoons") ||
+        tags.includes("manhwa");
       if (activeType === "manhwa") return isManhwa;
 
-      const isManhua = src.includes("luacomic") || tags.includes("manhua");
+      const isManhua =
+        contentType === "manhua" ||
+        src.includes("luacomic") ||
+        src.includes("manhuaplus") ||
+        tags.includes("manhua");
       if (activeType === "manhua") return isManhua;
 
       if (activeType === "manga")
@@ -236,7 +246,7 @@ export const DiscoverView = () => {
 
       {/* ─── Main Content Area ─── */}
       <div className="px-8 lg:px-12 py-8 pb-32">
-        <AnimatePresence mode="wait">
+        <AnimatePresence>
           {activeTab === "search" ? (
             <motion.div
               key="search-results"
@@ -268,7 +278,7 @@ export const DiscoverView = () => {
                 </button>
               </div>
 
-              {isSearching ? (
+              {isSearching && filteredResults.length === 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7 gap-6">
                   {Array.from({ length: 14 }).map((_, i) => (
                     <div
@@ -377,7 +387,7 @@ export const DiscoverView = () => {
                   </div>
                 </div>
 
-                {isLoadingRandom ? (
+                {isLoadingRandom && filteredRandom.length === 0 ? (
                   <div className="flex gap-6 overflow-hidden">
                     {Array.from({ length: 6 }).map((_, i) => (
                       <div
@@ -435,7 +445,7 @@ export const DiscoverView = () => {
                   </button>
                 </div>
 
-                {isLoadingLatest ? (
+                {isLoadingLatest && filteredLatest.length === 0 ? (
                   <div className="flex gap-6 overflow-hidden">
                     {Array.from({ length: 6 }).map((_, i) => (
                       <div
@@ -460,6 +470,14 @@ export const DiscoverView = () => {
                         />
                       </div>
                     ))}
+                    {isLoadingLatest && filteredLatest.length > 0 && (
+                      <div className="w-[260px] h-[390px] flex-shrink-0 flex flex-col items-center justify-center gap-3 bg-surface-elevated rounded-[32px] border border-border-subtle">
+                        <Loader2 size={24} className="animate-spin text-amber-500" />
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-dim">
+                          Fetching...
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </section>

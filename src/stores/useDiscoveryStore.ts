@@ -14,6 +14,25 @@ import type {
   ContentType,
 } from "../services/sources/types";
 
+const dedupeResults = (current: SourceSearchResult[], incoming: SourceSearchResult[]) => {
+  const seenIds = new Set(current.map(r => r.id));
+  const seenTitles = new Set(
+    current.map(r => r.title?.toLowerCase().replace(/[^a-z0-9]/g, "")).filter(Boolean)
+  );
+  
+  return [
+    ...current,
+    ...incoming.filter(r => {
+      if (seenIds.has(r.id)) return false;
+      const titleKey = r.title?.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (titleKey && seenTitles.has(titleKey)) return false;
+      seenIds.add(r.id);
+      if (titleKey) seenTitles.add(titleKey);
+      return true;
+    })
+  ];
+};
+
 interface DiscoveryState {
   // Results
   results: SourceSearchResult[];
@@ -23,6 +42,7 @@ interface DiscoveryState {
 
   // UI State
   query: string;
+  searchTags: string[];
   currentSearchPage: number;
   currentLatestPage: number;
   currentRandomPage: number;
@@ -32,12 +52,13 @@ interface DiscoveryState {
   isSearching: boolean;
   isLoadingTrending: boolean;
   isLoadingLatest: boolean;
-  isLoadingRandom: boolean;
   activeType: ContentType | "all";
   error: string | null;
+  activeTab: "featured" | "search" | "latest-grid" | "random-grid";
 
   // Actions
   search: (query: string, page?: number) => Promise<void>;
+  searchByTags: (tags: string[], page?: number) => Promise<void>;
   loadMoreSearchResults: () => Promise<void>;
   loadMoreLatest: () => Promise<void>;
   loadMoreRandom: () => Promise<void>;
@@ -47,6 +68,7 @@ interface DiscoveryState {
   forceRefresh: () => Promise<void>;
   setQuery: (query: string) => void;
   setActiveType: (type: ContentType | "all") => void;
+  setActiveTab: (tab: "featured" | "search" | "latest-grid" | "random-grid") => void;
   clearResults: () => void;
 }
 
@@ -56,6 +78,7 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
   latest: [],
   random: [],
   query: "",
+  searchTags: [],
   currentSearchPage: 1,
   currentLatestPage: 1,
   currentRandomPage: 1,
@@ -68,15 +91,29 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
   isLoadingRandom: false,
   activeType: "all",
   error: null,
+  activeTab: "featured",
 
   setQuery: (query) => set({ query }),
 
-  setActiveType: (activeType) => set({ activeType }),
+  setActiveType: (activeType) =>
+    set({
+      activeType,
+      trending: [],
+      latest: [],
+      random: [],
+      currentLatestPage: 1,
+      currentRandomPage: 1,
+      hasMoreLatest: true,
+      hasMoreRandom: true,
+    }),
+
+  setActiveTab: (activeTab) => set({ activeTab }),
 
   clearResults: () =>
     set({
       results: [],
       query: "",
+      searchTags: [],
       currentSearchPage: 1,
       currentLatestPage: 1,
       currentRandomPage: 1,
@@ -84,6 +121,7 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
       hasMoreLatest: true,
       hasMoreRandom: true,
       error: null,
+      activeTab: "featured",
     }),
 
   search: async (query, page = 1) => {
@@ -94,9 +132,7 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
       const mediaDomain =
         get().activeType === "gallery"
           ? "image"
-          : get().activeType === "all"
-            ? undefined
-            : "manga";
+          : "manga";
       const results = await DiscoveryService.searchGlobal(
         query,
         48, // Increased limit for better results
@@ -107,14 +143,15 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
 
       set((state) => {
         const nextResults =
-          page === 1 ? results : [...state.results, ...results];
+          page === 1 ? results : dedupeResults(state.results, results);
 
         return {
           results: nextResults,
           isSearching: false,
           query,
           currentSearchPage: page,
-          hasMoreSearchResults: results.length > 0 && page < 20, // Allow up to 20 pages if results are still coming in
+          hasMoreSearchResults:
+            (page === 1 ? nextResults.length > 0 : nextResults.length > state.results.length) && page < 20,
         };
       });
     } catch (err) {
@@ -126,17 +163,60 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
     }
   },
 
+  searchByTags: async (tags, page = 1) => {
+    if (!tags || tags.length === 0) return;
+    set({ isSearching: true, error: null, searchTags: tags });
+    try {
+      const { coloredOnly } = useSettingsStore.getState();
+      const mediaDomain =
+        get().activeType === "gallery"
+          ? "image"
+          : "manga";
+      const results = await DiscoveryService.searchGlobalByTags(
+        tags,
+        48,
+        coloredOnly,
+        page,
+        mediaDomain,
+      );
+
+      set((state) => {
+        const nextResults =
+          page === 1 ? results : dedupeResults(state.results, results);
+
+        return {
+          results: nextResults,
+          isSearching: false,
+          query: tags.join(" "),
+          currentSearchPage: page,
+          hasMoreSearchResults:
+            (page === 1 ? nextResults.length > 0 : nextResults.length > state.results.length) && page < 20,
+        };
+      });
+    } catch (err) {
+      console.error("[DiscoveryStore] Tag search failed:", err);
+      set({
+        error: "Tag search failed. Some sources may be unavailable.",
+        isSearching: false,
+      });
+    }
+  },
+
   loadMoreSearchResults: async () => {
     const state = get();
     if (
       state.isSearching ||
       !state.hasMoreSearchResults ||
-      !state.query.trim()
+      (!state.query.trim() && state.searchTags.length === 0)
     ) {
       return;
     }
 
-    await get().search(state.query, state.currentSearchPage + 1);
+    if (state.searchTags.length > 0) {
+      await get().searchByTags(state.searchTags, state.currentSearchPage + 1);
+    } else {
+      await get().search(state.query, state.currentSearchPage + 1);
+    }
   },
 
   loadMoreLatest: async () => {
@@ -182,6 +262,8 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
         24,
         coloredOnly,
         category,
+        1,
+        get().activeType,
       );
       set({ trending, isLoadingTrending: false });
     } catch (err) {
@@ -221,10 +303,11 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
         24,
         coloredOnly,
         category,
-        page
+        page,
+        get().activeType,
       );
       set((state) => ({ 
-        latest: page === 1 ? results : [...state.latest, ...results],
+        latest: page === 1 ? results : dedupeResults(state.latest, results),
         isLoadingLatest: false,
         currentLatestPage: page,
         hasMoreLatest: results.length > 0
@@ -248,10 +331,11 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
       const results = await DiscoveryService.getRandom(
         24,
         coloredOnly,
-        category
+        category,
+        get().activeType,
       );
       set((state) => ({ 
-        random: force ? [...state.random, ...results] : results,
+        random: force ? dedupeResults(state.random, results) : results,
         isLoadingRandom: false 
       }));
     } catch (err) {

@@ -33,9 +33,7 @@ export const TagManagerModal = ({ isOpen, onClose, seriesId, initialTags }: TagM
     const handleSave = async () => {
         if (seriesId === 'discovery') {
             const { useDiscoveryStore } = await import('../../stores/useDiscoveryStore');
-            const searchStr = tags.join(' ');
-            useDiscoveryStore.getState().setQuery(searchStr);
-            useDiscoveryStore.getState().search(searchStr);
+            useDiscoveryStore.getState().searchByTags(tags);
             onClose();
             return;
         }

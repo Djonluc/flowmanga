@@ -44,6 +44,7 @@ export const MangaCard = ({
       ? rawCover
       : convertFileSrc(rawCover)
     : "";
+  const isVideo = coverSrc.match(/\.(mp4|webm|mov)$/i);
   const progress =
     !isSeries && item.progress
       ? (item.progress.currentPage / (item.progress.totalPages || 1)) * 100
@@ -74,7 +75,11 @@ export const MangaCard = ({
         >
             <div className="w-14 h-20 rounded-xl bg-surface overflow-hidden flex-shrink-0 border border-border-subtle shadow-card relative">
                 {coverSrc && !hasImageError ? (
-                    <img src={coverSrc} className="w-full h-full object-cover opacity-85 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500" alt="" onError={() => setHasImageError(true)} />
+                    isVideo ? (
+                        <video src={coverSrc} className="w-full h-full object-cover opacity-85 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500" autoPlay loop muted playsInline onError={() => setHasImageError(true)} />
+                    ) : (
+                        <img src={coverSrc} className="w-full h-full object-cover opacity-85 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500" alt="" onError={() => setHasImageError(true)} />
+                    )
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-foreground-dim"><FolderOpen size={16} /></div>
                 )}
@@ -162,15 +167,27 @@ export const MangaCard = ({
           )}
         </AnimatePresence>
 
-        {/* Image */}
+        {/* Image / Video */}
         {coverSrc && !hasImageError ? (
-          <img
-            src={coverSrc}
-            alt={title}
-            className="w-full h-full object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110"
-            loading="lazy"
-            onError={() => setHasImageError(true)}
-          />
+          isVideo ? (
+            <video
+              src={coverSrc}
+              className="w-full h-full object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110"
+              autoPlay
+              loop
+              muted
+              playsInline
+              onError={() => setHasImageError(true)}
+            />
+          ) : (
+            <img
+              src={coverSrc}
+              alt={title}
+              className="w-full h-full object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110"
+              loading="lazy"
+              onError={() => setHasImageError(true)}
+            />
+          )
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center bg-surface-elevated text-foreground-dim font-medium p-4 text-center text-xs tracking-wide gap-2">
             <FolderOpen size={24} className="opacity-20" />

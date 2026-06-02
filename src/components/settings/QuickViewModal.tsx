@@ -26,7 +26,8 @@ export const QuickViewModal = () => {
             try {
                 const tags = (libraryItem?.tags || quickViewItem.tags || []).slice(0, 3);
                 if (tags.length > 0) {
-                    const results = await ScraperService.getRecommendationsByTags(tags, 8);
+                    const domain = (quickViewItem.mediaDomain === "image" || quickViewItem.contentType === "gallery" || quickViewItem.contentType === "album") ? "image" : "manga";
+                    const results = await ScraperService.getRecommendationsByTags(tags, 8, false, domain);
                     setRelatedItems((results || []).filter(r => r.id !== (quickViewItem.id || libraryItem?.mangaId || libraryItem?.id)));
                 }
             } catch (e) {
@@ -71,17 +72,22 @@ export const QuickViewModal = () => {
         }
     };
 
-    const handleTagClick = (tag: string) => {
-        useSettingsStore.getState().setActiveView('library');
-        const store = useLibraryStore.getState();
-        store.clearFilterTags();
-        store.toggleFilterTag(tag);
-        store.setSearchQuery('');
+    const handleTagClick = async (tag: string) => {
+        const { useDiscoveryStore } = await import('../../stores/useDiscoveryStore');
+        const { toast } = await import('../Toast');
+        const discStore = useDiscoveryStore.getState();
+        discStore.setQuery(tag);
+        discStore.setActiveTab('search');
+        discStore.setActiveType('manga');
+        useSettingsStore.getState().setActiveView('discover');
         closeQuickView();
+        toast.info(`Seeking other "${tag}" mangas globally...`);
+        await discStore.search(tag);
     };
 
     const rawCover = quickViewItem?.cover || quickViewItem?.coverUrl;
     const coverSrc = rawCover ? (rawCover.startsWith('http') ? rawCover : convertFileSrc(rawCover)) : undefined;
+    const isVideo = coverSrc?.match(/\.(mp4|webm|mov)$/i);
 
     const scrollRail = (direction: 'left' | 'right') => {
         if (railRef.current) {
@@ -118,20 +124,39 @@ export const QuickViewModal = () => {
                             {coverSrc && (
                                 <>
                                     {/* Blurred Backdrop */}
-                                    <img 
-                                        src={coverSrc}
-                                        className="absolute inset-0 w-full h-full object-cover opacity-30 blur-3xl scale-150 z-0"
-                                        alt=""
-                                    />
+                                    {isVideo ? (
+                                        <video 
+                                            src={coverSrc}
+                                            className="absolute inset-0 w-full h-full object-cover opacity-30 blur-3xl scale-150 z-0"
+                                            autoPlay loop muted playsInline
+                                        />
+                                    ) : (
+                                        <img 
+                                            src={coverSrc}
+                                            className="absolute inset-0 w-full h-full object-cover opacity-30 blur-3xl scale-150 z-0"
+                                            alt=""
+                                        />
+                                    )}
                                     {/* Sharp Foreground Image */}
-                                    <img 
-                                        src={coverSrc} 
-                                        className="w-full h-full object-contain p-4 transition-transform duration-700 group-hover:scale-110 relative z-10 drop-shadow-2xl" 
-                                        alt={quickViewItem?.title || ''} 
-                                        onError={(e) => {
-                                            e.currentTarget.style.display = 'none';
-                                        }}
-                                    />
+                                    {isVideo ? (
+                                        <video 
+                                            src={coverSrc} 
+                                            className="w-full h-full object-contain p-4 transition-transform duration-700 group-hover:scale-110 relative z-10 drop-shadow-2xl" 
+                                            autoPlay loop muted playsInline
+                                            onError={(e) => {
+                                                e.currentTarget.style.display = 'none';
+                                            }}
+                                        />
+                                    ) : (
+                                        <img 
+                                            src={coverSrc} 
+                                            className="w-full h-full object-contain p-4 transition-transform duration-700 group-hover:scale-110 relative z-10 drop-shadow-2xl" 
+                                            alt={quickViewItem?.title || ''} 
+                                            onError={(e) => {
+                                                e.currentTarget.style.display = 'none';
+                                            }}
+                                        />
+                                    )}
                                 </>
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent z-20" />

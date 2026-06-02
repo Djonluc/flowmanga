@@ -987,11 +987,13 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
           tags,
           limit,
           coloredOnly,
+          "manga",
         );
       } else {
         results = await ScraperService.getPersonalizedRecommendations(
           limit,
           coloredOnly,
+          "manga",
         );
       }
 

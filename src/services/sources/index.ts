@@ -21,6 +21,7 @@ import { LuaComicProvider } from "./manga/LuaComicProvider";
 import { BlueLockProvider } from "./manga/BlueLockProvider";
 import { DBMProvider } from "./manga/DBMProvider";
 import { NhentaiProvider } from "./doujin/NhentaiProvider";
+import { HentaiComicsFreeProvider } from "./doujin/HentaiComicsFreeProvider";
 import { MangaReadProvider } from "./manga/MangaReadProvider";
 import { ManhuaPlusProvider } from "./manga/ManhuaPlusProvider";
 import { WebtoonsProvider } from "./manga/WebtoonsProvider";
@@ -42,6 +43,7 @@ sourceRegistry.register(new LuaComicProvider());
 sourceRegistry.register(new BlueLockProvider());
 sourceRegistry.register(new DBMProvider());
 sourceRegistry.register(new NhentaiProvider());
+sourceRegistry.register(new HentaiComicsFreeProvider());
 sourceRegistry.register(new MangaReadProvider());
 sourceRegistry.register(new ManhuaPlusProvider());
 

@@ -24,8 +24,8 @@ export class ManhuaPlusProvider implements SourceProvider {
   readonly readerModes: ReaderMode[] = ["vertical", "single"];
 
   readonly capabilities: SourceCapabilities = {
-    search: false,
-    tagSearch: false,
+    search: true,
+    tagSearch: true,
     seriesBrowse: false,
     chapterFeed: false,
     pagination: false,
@@ -312,17 +312,27 @@ export class ManhuaPlusProvider implements SourceProvider {
   }
 
   async search(
-    _query: string,
-    _options: SourceSearchOptions = {},
+    query: string,
+    options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
-    return [];
+    try {
+      const page = options.page || 1;
+      const limit = options.limit || 20;
+      const url = `https://manhuaplus.org/page/${page}/?s=${encodeURIComponent(query)}&post_type=wp-manga`;
+      const html = await invoke<string>("fetch_html", { url, headers: null });
+      return this.parseMadaraList(html, limit, "manhuaplus.org");
+    } catch (e) {
+      console.warn("[ManhuaPlus] search failed:", e);
+      return [];
+    }
   }
 
   async searchByTags(
-    _tags: string[],
-    _options: SourceSearchOptions = {},
+    tags: string[],
+    options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
-    return [];
+    if (tags.length === 0) return [];
+    return this.search(tags[0], options);
   }
 
   async fetchPopular(

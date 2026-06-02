@@ -252,9 +252,11 @@ export class MangaDexProvider implements SourceProvider {
     query: string,
     options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
+    const page = options.page || 1;
     const limit = options.limit || 20;
+    const offset = (page - 1) * limit;
     const res = await fetch(
-      `https://api.mangadex.org/manga?title=${encodeURIComponent(query)}&limit=${limit}&includes[]=cover_art&availableTranslatedLanguage[]=en`,
+      `https://api.mangadex.org/manga?title=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}&includes[]=cover_art&availableTranslatedLanguage[]=en`,
     );
     if (!res.ok) throw new Error("MangaDex search failed");
     const json = await res.json();
@@ -265,14 +267,16 @@ export class MangaDexProvider implements SourceProvider {
     tags: string[],
     options: SourceSearchOptions = {},
   ): Promise<SourceSearchResult[]> {
+    const page = options.page || 1;
     const limit = options.limit || 20;
+    const offset = (page - 1) * limit;
     const tagMap = await this.getMangaDexTags();
     const tagIds = tags.map((t) => tagMap[t.toLowerCase()]).filter(Boolean);
     if (tagIds.length === 0) return [];
 
     const tagParams = tagIds.map((id) => `includedTags[]=${id}`).join("&");
     const res = await fetch(
-      `https://api.mangadex.org/manga?${tagParams}&limit=${limit}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive&availableTranslatedLanguage[]=en`,
+      `https://api.mangadex.org/manga?${tagParams}&limit=${limit}&offset=${offset}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive&availableTranslatedLanguage[]=en`,
     );
     if (!res.ok) return [];
     const json = await res.json();

@@ -4,9 +4,15 @@
  * Tag-based search with multi-tag support and result grid.
  */
 
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Loader2, X, Tag } from "lucide-react";
+import { Search, Loader2, X, Tag, ChevronDown, ChevronUp } from "lucide-react";
 
 import { useGalleryStore } from "../../stores/useGalleryStore";
 import { GalleryImageCard } from "./GalleryImageCard";
@@ -88,6 +94,7 @@ export const TagSearch: React.FC = () => {
     openViewer,
     favoriteTag,
     currentSearchPage,
+    hasMoreSearchResults,
     startSlideshowFromContext,
   } = useGalleryStore();
 
@@ -144,6 +151,32 @@ export const TagSearch: React.FC = () => {
     else if (activeTags.length > 0) searchByTags(activeTags.join(" "), 1);
   };
 
+  // Compact Scroll State
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [isCompact, setIsCompact] = useState(false);
+  const [forceExpand, setForceExpand] = useState(false);
+
+  useEffect(() => {
+    const scrollContainer = scrollRef.current?.closest(".overflow-y-auto");
+    if (!scrollContainer) return;
+
+    const handleScroll = () => {
+      const isScrolled = scrollContainer.scrollTop > 40;
+      setIsCompact(isScrolled);
+      if (!isScrolled) {
+        setForceExpand(false);
+      }
+    };
+
+    // Initial check
+    handleScroll();
+
+    scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
+    return () => scrollContainer.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const showCompact = isCompact && !forceExpand;
+
   // Infinite Scroll Observer
   useEffect(() => {
     if (isSearching || activeTags.length === 0) return;
@@ -153,6 +186,7 @@ export const TagSearch: React.FC = () => {
         if (
           entries[0].isIntersecting &&
           !isSearching &&
+          hasMoreSearchResults &&
           searchResults.length > 0
         ) {
           searchByTags(activeTags.join(" "), currentSearchPage + 1);
@@ -172,31 +206,52 @@ export const TagSearch: React.FC = () => {
     activeTags,
     currentSearchPage,
     searchByTags,
+    hasMoreSearchResults,
   ]);
 
   return (
-    <div className="space-y-8">
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-sky-500/10 flex items-center justify-center text-sky-500">
-            <Search size={20} />
-          </div>
-          <div>
-            <h3 className="text-xl font-black text-foreground uppercase tracking-tighter italic">
-              Tag Explorer
-            </h3>
-            <p className="text-foreground-dim text-[10px] font-black uppercase tracking-widest mt-0.5">
-              Combine tags for precision
-            </p>
-          </div>
-        </div>
+    <div className="space-y-8 relative">
+      <div
+        ref={scrollRef}
+        className="absolute -top-6 left-0 right-0 h-1 pointer-events-none"
+      />
+      <div
+        className={`space-y-4 sticky top-0 z-40 bg-black/80 backdrop-blur-3xl ${showCompact ? "pb-3 pt-3" : "pb-6 pt-6"} -mt-6 -mx-6 px-6 border-b border-white/5 shadow-2xl transition-all duration-300`}
+      >
+        <AnimatePresence initial={false}>
+          {!showCompact && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-2xl bg-sky-500/10 flex items-center justify-center text-sky-500">
+                  <Search size={20} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-foreground uppercase tracking-tighter italic">
+                    Tag Explorer
+                  </h3>
+                  <p className="text-foreground-dim text-[10px] font-black uppercase tracking-widest mt-0.5">
+                    Combine tags for precision
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        <form onSubmit={handleSubmit} className="relative">
-          <div className="flex items-center gap-2 bg-white/3 border border-white/6 rounded-2xl px-4 py-2 focus-within:border-purple-500/30 transition-colors">
+        <form
+          onSubmit={handleSubmit}
+          className="relative flex items-center gap-2"
+        >
+          <div className="flex-1 flex items-center gap-2 bg-white/3 border border-white/6 rounded-2xl px-4 py-2 focus-within:border-purple-500/30 transition-colors">
             {activeTags.map((tag) => (
               <span
                 key={tag}
-                className="flex items-center gap-1 px-3 py-1 rounded-lg bg-purple-500/20 text-purple-300 text-[10px] font-bold uppercase tracking-wider shrink-0"
+                className={`flex items-center gap-1 ${showCompact ? "px-2 py-0.5" : "px-3 py-1"} rounded-lg bg-purple-500/20 text-purple-300 text-[10px] font-bold uppercase tracking-wider shrink-0`}
               >
                 {tag}
                 <button
@@ -268,25 +323,49 @@ export const TagSearch: React.FC = () => {
               )}
             </AnimatePresence>
           </div>
+          {isCompact && (
+            <button
+              type="button"
+              onClick={() => setForceExpand(!forceExpand)}
+              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-foreground-dim hover:text-white transition-colors"
+            >
+              {forceExpand ? (
+                <ChevronUp size={16} />
+              ) : (
+                <ChevronDown size={16} />
+              )}
+            </button>
+          )}
         </form>
 
-        <div className="flex flex-wrap gap-2">
-          {POPULAR_TAGS.map((tag) => (
-            <button
-              key={tag}
-              onClick={() => {
-                addTags(tag);
-              }}
-              className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 ${
-                activeTags.includes(tag)
-                  ? "bg-purple-500/20 text-purple-400 border border-purple-500/20"
-                  : "bg-white/3 text-foreground-dim hover:bg-white/6 border border-white/4"
-              }`}
+        <AnimatePresence initial={false}>
+          {!showCompact && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
             >
-              {tag}
-            </button>
-          ))}
-        </div>
+              <div className="flex flex-wrap gap-2 pt-2">
+                {POPULAR_TAGS.map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => {
+                      addTags(tag);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 ${
+                      activeTags.includes(tag)
+                        ? "bg-purple-500/20 text-purple-400 border border-purple-500/20"
+                        : "bg-white/3 text-foreground-dim hover:bg-white/6 border border-white/4"
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {searchResults.length > 0 && (
@@ -297,7 +376,9 @@ export const TagSearch: React.FC = () => {
                 {searchResults.length} Results
               </p>
               <button
-                onClick={() => startSlideshowFromContext(searchResults, 0, "search")}
+                onClick={() =>
+                  startSlideshowFromContext(searchResults, 0, "search")
+                }
                 className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-purple-500/10 text-purple-400 text-[10px] font-black uppercase tracking-widest hover:bg-purple-500/20 transition-all active:scale-95 border border-purple-500/10"
               >
                 <span className="relative flex h-2 w-2">
@@ -327,7 +408,9 @@ export const TagSearch: React.FC = () => {
                 tags={item.tags}
                 saved={savedIds.has(item.id)}
                 onView={() => openViewer(item, searchResults, index)}
-                onPlay={() => startSlideshowFromContext(searchResults, index, "search")}
+                onPlay={() =>
+                  startSlideshowFromContext(searchResults, index, "search")
+                }
                 onSave={() => saveImage(item)}
               />
             ))}

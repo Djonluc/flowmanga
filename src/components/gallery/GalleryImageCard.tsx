@@ -45,6 +45,7 @@ export const GalleryImageCard: React.FC<GalleryImageCardProps> = ({
 
   const displayUrl = previewUrl || imageUrl;
   const displayTitle = title || tags[0] || 'Untitled';
+  const isVideo = displayUrl?.match(/\.(mp4|webm|mov)$/i);
 
   return (
     <motion.div
@@ -67,16 +68,30 @@ export const GalleryImageCard: React.FC<GalleryImageCardProps> = ({
         backgroundSize: '100% 2px, 3px 100%' 
       }} />
 
-      {/* Image */}
-      <img
-        src={displayUrl}
-        alt={displayTitle}
-        loading="lazy"
-        onLoad={() => setIsLoaded(true)}
-        className={`w-full h-full object-cover transition-all duration-700 ${
-          isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
-        } ${isHovered ? 'scale-110 blur-[1px]' : ''}`}
-      />
+      {/* Image / Video */}
+      {isVideo ? (
+        <video
+          src={displayUrl}
+          autoPlay
+          loop
+          muted
+          playsInline
+          onLoadedData={() => setIsLoaded(true)}
+          className={`w-full h-full object-cover transition-all duration-700 ${
+            isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
+          } ${isHovered ? 'scale-110 blur-[1px]' : ''}`}
+        />
+      ) : (
+        <img
+          src={displayUrl}
+          alt={displayTitle}
+          loading="lazy"
+          onLoad={() => setIsLoaded(true)}
+          className={`w-full h-full object-cover transition-all duration-700 ${
+            isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
+          } ${isHovered ? 'scale-110 blur-[1px]' : ''}`}
+        />
+      )}
 
       {/* Shimmer Placeholder */}
       {!isLoaded && (
