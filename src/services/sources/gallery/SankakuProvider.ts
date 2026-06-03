@@ -63,7 +63,7 @@ export class SankakuProvider implements SourceProvider {
     const data = await booruGet(this.baseUrl, `/v2/posts?`, {
       tags: `pool:${bookId}`,
       limit: 100,
-    }, typeof navigator !== "undefined" ? navigator.userAgent : undefined);
+    }, "okhttp/4.12.0");
 
     const items = Array.isArray(data) ? data : [];
     if (items.length === 0) throw new Error("No pages found in this book");
@@ -100,7 +100,7 @@ export class SankakuProvider implements SourceProvider {
         const data = await booruGet(this.baseUrl, `/v2/posts?`, {
             tags: `pool:${bookId}`,
             limit: 100,
-        }, typeof navigator !== "undefined" ? navigator.userAgent : undefined);
+        }, "okhttp/4.12.0");
 
         const items = Array.isArray(data) ? data : [];
         if (items.length === 0) return { images: [], metadata: { sourceUrl: url } };
@@ -201,7 +201,7 @@ export class SankakuProvider implements SourceProvider {
       params.auth = options.auth;
     }
 
-    const data: any = await booruGet(this.baseUrl, "/v2/posts/keyset?", params, typeof navigator !== "undefined" ? navigator.userAgent : undefined);
+    const data: any = await booruGet(this.baseUrl, "/v2/posts/keyset?", params, "okhttp/4.12.0");
 
     let items = [];
     if (data && Array.isArray(data.data)) {
@@ -289,7 +289,7 @@ export class SankakuProvider implements SourceProvider {
         const data: any = await booruGet(this.baseUrl, `/tags?`, {
           name: query,
           limit: 10,
-        }, typeof navigator !== "undefined" ? navigator.userAgent : undefined);
+        }, "okhttp/4.12.0");
 
         if (!Array.isArray(data)) return [];
         return data.map((t: any) => t.name).filter(Boolean);
