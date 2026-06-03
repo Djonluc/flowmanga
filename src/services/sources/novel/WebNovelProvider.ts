@@ -16,7 +16,7 @@ export class WebNovelProvider implements SourceProvider {
   readonly name = "WebNovel";
   readonly domains = ["webnovel.com"];
   readonly contentType: ContentType = "manga"; // Explicitly manga/comic only
-  readonly mediaDomain: MediaDomain = "image";
+  readonly mediaDomain: MediaDomain = "manga";
   readonly mediaTypes: MediaType[] = ["image"];
   readonly defaultPersistence = "library" as const;
   readonly readerModes: ReaderMode[] = ["paged", "continuous"];

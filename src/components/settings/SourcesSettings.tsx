@@ -14,8 +14,8 @@ export const SourcesSettings = () => {
         toggleColoredOnly,
         booruAuth,
         setBooruAuth,
-        disabledMangaSources,
-        toggleMangaSource,
+        disabledSources,
+        toggleSource,
     } = useSettingsStore();
     const [tagInput, setTagInput] = useState(excludedTags?.join(', ') || '');
     
@@ -68,7 +68,7 @@ export const SourcesSettings = () => {
         }
     };
 
-    const isMangaEnabled = (id: string) => !disabledMangaSources.includes(id);
+    const isSourceEnabled = (id: string) => !disabledSources.includes(id);
 
     return (
         <div className="space-y-8 pb-12">
@@ -81,13 +81,13 @@ export const SourcesSettings = () => {
                     </h4>
                 </div>
                 <span className="text-foreground-dim text-[10px] font-bold uppercase tracking-widest">
-                    {mangaProviders.filter(p => isMangaEnabled(p.id)).length} / {mangaProviders.length} Active
+                    {mangaProviders.filter(p => isSourceEnabled(p.id)).length} / {mangaProviders.length} Active
                 </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {mangaProviders.map((source) => {
-                    const isEnabled = isMangaEnabled(source.id);
+                    const isEnabled = isSourceEnabled(source.id);
                     const status = isEnabled ? 'operational' : 'sealed';
 
                     return (
@@ -133,7 +133,7 @@ export const SourcesSettings = () => {
                                     )}
                                     {/* Toggle Switch */}
                                     <button
-                                        onClick={() => toggleMangaSource(source.id)}
+                                        onClick={() => toggleSource(source.id)}
                                         className={clsx(
                                             "relative w-14 h-7 rounded-full transition-colors duration-500 flex items-center",
                                             isEnabled ? "bg-emerald-500" : "bg-white/10"
@@ -181,7 +181,7 @@ export const SourcesSettings = () => {
                 })}
             </div>
 
-            {/* Collection Sources (Gallery / Image — READ ONLY, no toggles) */}
+            {/* Collection Sources (Gallery / Image) */}
             {galleryProviders.length > 0 && (
                 <>
                     <div className="flex items-center gap-3 mt-8 mb-6">
@@ -193,7 +193,7 @@ export const SourcesSettings = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {galleryProviders.map((source) => {
-                            const isSealed = source.isEnabled === false;
+                            const isSealed = !isSourceEnabled(source.id) || source.isEnabled === false;
                             const status = isSealed ? 'sealed' : 'operational';
 
                             return (
@@ -229,14 +229,29 @@ export const SourcesSettings = () => {
                                                 </div>
                                             </div>
                                         </div>
-                                        {!isSealed && (
-                                            <button 
-                                                onClick={() => handleOpenSite(`https://${source.domains[0]}`)}
-                                                className="p-3 bg-white/5 hover:bg-white/10 text-foreground/40 hover:text-foreground rounded-xl transition-all active:scale-90"
+                                        <div className="flex items-center gap-2">
+                                            {!isSealed && (
+                                                <button 
+                                                    onClick={() => handleOpenSite(`https://${source.domains[0]}`)}
+                                                    className="p-3 bg-white/5 hover:bg-white/10 text-foreground/40 hover:text-foreground rounded-xl transition-all active:scale-90"
+                                                >
+                                                    <ExternalLink size={16} />
+                                                </button>
+                                            )}
+                                            {/* Toggle Switch */}
+                                            <button
+                                                onClick={() => toggleSource(source.id)}
+                                                className={clsx(
+                                                    "relative w-14 h-7 rounded-full transition-colors duration-500 flex items-center",
+                                                    !isSealed ? "bg-purple-500" : "bg-white/10"
+                                                )}
                                             >
-                                                <ExternalLink size={16} />
+                                                <div className={clsx(
+                                                    "w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-500 mx-1",
+                                                    !isSealed ? "translate-x-7" : "translate-x-0"
+                                                )} />
                                             </button>
-                                        )}
+                                        </div>
                                     </div>
 
                                     <div className="flex items-center gap-3">

@@ -202,7 +202,8 @@ export const SmartImage = ({ src, alt, className, style, onLoad, eager = false }
         
         const img = new Image();
         img.src = src;
-        img.crossOrigin = "anonymous"; 
+        img.crossOrigin = "anonymous";
+        img.referrerPolicy = "no-referrer";
 
         img.onload = () => {
             setIsLoaded(true);
@@ -261,6 +262,7 @@ export const SmartImage = ({ src, alt, className, style, onLoad, eager = false }
                     id={`img-${src}`}
                     src={isVisible ? src : undefined} 
                     alt={alt} 
+                    referrerPolicy="no-referrer"
                     className={clsx(className, "z-10", !isLoaded && "opacity-0")}
                     style={{ 
                         ...style, 

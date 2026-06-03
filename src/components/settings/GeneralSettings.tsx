@@ -2,7 +2,8 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import { useLibraryStore } from '../../stores/useLibraryStore';
 import { useDiscoveryStore } from '../../stores/useDiscoveryStore';
-import { Folder, Shield, Zap, Info, CheckCircle2, Loader2, RefreshCw, Monitor, Minus, Plus } from 'lucide-react';
+import { useGalleryStore } from '../../stores/useGalleryStore';
+import { Folder, Shield, Zap, Info, CheckCircle2, Loader2, RefreshCw, Monitor, Minus, Plus, FolderOpen, ScanSearch } from 'lucide-react';
 import { toast } from '../Toast';
 import { useState } from 'react';
 import clsx from 'clsx';
@@ -13,10 +14,14 @@ export const GeneralSettings = () => {
         libraryPath, 
         setLibraryPath, 
     } = useSettingsStore();
-    const { verifyLibraryIntegrity, scanLibrary } = useLibraryStore();
+    const { verifyLibraryIntegrity, scanLibrary, rebuildCollectionIndex } = useLibraryStore();
+    const { downloadPath, setDownloadPath } = useGalleryStore();
     const { forceRefresh } = useDiscoveryStore();
     const [isVerifying, setIsVerifying] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isRebuilding, setIsRebuilding] = useState(false);
+    const [isScanning, setIsScanning] = useState(false);
+    const defaultCollectionPath = 'Documents/FlowManga Collection';
 
     const handleBrowseLibrary = async () => {
         try {
@@ -69,6 +74,19 @@ export const GeneralSettings = () => {
         }
     };
 
+    const handleRebuildCollection = async () => {
+        setIsRebuilding(true);
+        toast.info("Rebuilding collection index...");
+        try {
+            await rebuildCollectionIndex();
+            // toast success handled in store
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsRebuilding(false);
+        }
+    };
+
     return (
         <div className="space-y-10 pb-12">
             {/* Archive Section */}
@@ -100,6 +118,95 @@ export const GeneralSettings = () => {
                         >
                             Change Location
                         </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Collection Folder Section */}
+            <div className="space-y-4 pt-4 border-t border-white/5">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="w-1.5 h-6 bg-purple-600 rounded-full" />
+                    <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
+                        Collection Folder
+                    </h4>
+                </div>
+                
+                <div className="group bg-white/5 p-6 rounded-[32px] border border-white/5 hover:border-purple-500/20 transition-all duration-500">
+                    <div className="flex items-center justify-between gap-6">
+                        <div className="flex items-center gap-5 overflow-hidden">
+                            <div className="w-14 h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform duration-500">
+                                <FolderOpen size={28} />
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                                <span className="text-purple-500 text-[10px] font-black uppercase tracking-widest mb-1">Collection Download Path</span>
+                                <span className="text-foreground text-base font-bold truncate opacity-80" title={downloadPath || defaultCollectionPath}>
+                                    {downloadPath || defaultCollectionPath}
+                                </span>
+                                <p className="text-foreground-muted text-[10px] font-medium mt-1">Where gallery images are saved when you click Download.</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button 
+                                onClick={async () => {
+                                    try {
+                                        const { open } = await import('@tauri-apps/plugin-shell');
+                                        const targetPath = downloadPath || (await import('@tauri-apps/api/path').then(async m => {
+                                            const docDir = await m.documentDir();
+                                            return await m.join(docDir, 'FlowManga Collection');
+                                        }));
+                                        await open(targetPath);
+                                    } catch (e) {
+                                        console.error(e);
+                                        toast.error('Failed to open folder');
+                                    }
+                                }}
+                                className="px-4 py-3 bg-white/5 hover:bg-white/10 text-foreground border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 whitespace-nowrap"
+                                title="Open collection folder in file explorer"
+                            >
+                                Open
+                            </button>
+                            <button 
+                                onClick={async () => {
+                                    try {
+                                        const selected = await openDialog({
+                                            directory: true,
+                                            multiple: false,
+                                            defaultPath: downloadPath || undefined
+                                        });
+                                        if (selected && typeof selected === 'string') {
+                                            setDownloadPath(selected);
+                                            toast.success('Collection folder updated');
+                                        }
+                                    } catch (e) {
+                                        console.error(e);
+                                        toast.error('Failed to update collection folder');
+                                    }
+                                }}
+                                className="px-4 py-3 bg-white/5 hover:bg-white/10 text-foreground border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 whitespace-nowrap"
+                            >
+                                Change
+                            </button>
+                            <button 
+                                onClick={async () => {
+                                    setIsScanning(true);
+                                    toast.info('Scanning collection folder...');
+                                    try {
+                                        await rebuildCollectionIndex();
+                                        toast.success('Collection folder re-scanned');
+                                    } catch (e) {
+                                        console.error(e);
+                                        toast.error('Scan failed');
+                                    } finally {
+                                        setIsScanning(false);
+                                    }
+                                }}
+                                disabled={isScanning}
+                                className="px-4 py-3 bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 border border-purple-500/10 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 whitespace-nowrap flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {isScanning ? <Loader2 size={14} className="animate-spin" /> : <ScanSearch size={14} />}
+                                Re-Scan
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -204,6 +311,31 @@ export const GeneralSettings = () => {
                         >
                             {isVerifying ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
                             {isVerifying ? 'Verifying...' : 'Start Check'}
+                        </button>
+                    </div>
+
+                    {/* Rebuild Collection Index */}
+                    <div className="group bg-white/5 p-6 rounded-[32px] border border-white/5 flex items-center justify-between hover:border-blue-500/20 transition-all duration-500">
+                        <div className="flex items-center gap-5">
+                            <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform duration-500">
+                                <Folder size={28} className={clsx(isRebuilding && "animate-spin")} />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-blue-500 text-[10px] font-black uppercase tracking-widest mb-1">Collections & Media</span>
+                                <span className="text-foreground text-base font-bold tracking-tight">Rebuild Collection Index</span>
+                                <p className="text-foreground-muted text-[10px] font-medium mt-1 max-w-[300px]">Deep scan library and collection paths to find missing downloads and regenerate metadata.</p>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={handleRebuildCollection}
+                            disabled={isRebuilding}
+                            className={clsx(
+                                "px-6 py-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border border-blue-500/10 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                                isRebuilding && "opacity-50 cursor-not-allowed"
+                            )}
+                        >
+                            {isRebuilding ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                            {isRebuilding ? 'Scanning...' : 'Re-Scan Folders'}
                         </button>
                     </div>
 

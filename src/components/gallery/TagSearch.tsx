@@ -12,7 +12,7 @@ import React, {
   useRef,
 } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Loader2, X, Tag, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, Loader2, X, Tag, ChevronDown, ChevronUp, Heart, Film } from "lucide-react";
 
 import { useGalleryStore } from "../../stores/useGalleryStore";
 import { GalleryImageCard } from "./GalleryImageCard";
@@ -93,6 +93,8 @@ export const TagSearch: React.FC = () => {
     saveImage,
     openViewer,
     favoriteTag,
+    unfavoriteTag,
+    favoriteTags,
     currentSearchPage,
     hasMoreSearchResults,
     startSlideshowFromContext,
@@ -243,11 +245,12 @@ export const TagSearch: React.FC = () => {
           )}
         </AnimatePresence>
 
-        <form
-          onSubmit={handleSubmit}
-          className="relative flex items-center gap-2"
-        >
-          <div className="flex-1 flex items-center gap-2 bg-white/3 border border-white/6 rounded-2xl px-4 py-2 focus-within:border-purple-500/30 transition-colors">
+        <div className="flex items-center gap-2">
+          <form
+            onSubmit={handleSubmit}
+            className="relative flex items-center gap-2 flex-1"
+          >
+            <div className="flex-1 flex items-center gap-2 bg-white/3 border border-white/6 rounded-2xl px-4 py-2 focus-within:border-purple-500/30 transition-colors">
             {activeTags.map((tag) => (
               <span
                 key={tag}
@@ -336,7 +339,31 @@ export const TagSearch: React.FC = () => {
               )}
             </button>
           )}
-        </form>
+          </form>
+          <button
+            type="button"
+            onClick={() => {
+              if (activeTags.includes("video")) {
+                removeTag("video");
+              } else {
+                addTags("video");
+              }
+            }}
+            className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${
+              activeTags.includes("video")
+                ? "bg-blue-500/20 border-blue-500/50 text-blue-400"
+                : "bg-white/5 border-white/10 text-foreground-dim hover:bg-white/10 hover:text-white"
+            }`}
+            title={activeTags.includes("video") ? "Remove Video Filter" : "Videos Only"}
+          >
+            <Film size={16} />
+            {!showCompact && (
+              <span className="text-[10px] font-black uppercase tracking-widest">
+                Videos
+              </span>
+            )}
+          </button>
+        </div>
 
         <AnimatePresence initial={false}>
           {!showCompact && (
@@ -346,22 +373,65 @@ export const TagSearch: React.FC = () => {
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden"
             >
-              <div className="flex flex-wrap gap-2 pt-2">
-                {POPULAR_TAGS.map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={() => {
-                      addTags(tag);
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 ${
-                      activeTags.includes(tag)
-                        ? "bg-purple-500/20 text-purple-400 border border-purple-500/20"
-                        : "bg-white/3 text-foreground-dim hover:bg-white/6 border border-white/4"
-                    }`}
-                  >
-                    {tag}
-                  </button>
-                ))}
+              <div className="flex flex-col gap-4 pt-2">
+                {/* User's Favorite Tags */}
+                {favoriteTags && favoriteTags.length > 0 && (
+                  <div>
+                    <span className="w-full text-[10px] font-black uppercase tracking-[0.2em] text-pink-400/60 mb-2 flex items-center gap-2">
+                       <Heart size={10} fill="currentColor" /> Your Tags
+                    </span>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {favoriteTags.map((tag) => (
+                        <div key={`fav-${tag}`} className="flex items-center rounded-xl overflow-hidden border border-pink-500/20 shadow-[0_0_10px_rgba(236,72,153,0.05)]">
+                           <button
+                             type="button"
+                             onClick={() => addTags(tag)}
+                             className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 ${
+                               activeTags.includes(tag)
+                                 ? "bg-pink-500/30 text-pink-300"
+                                 : "bg-pink-500/10 text-pink-400 hover:bg-pink-500/20"
+                             }`}
+                           >
+                             {tag}
+                           </button>
+                           <button 
+                             type="button"
+                             onClick={() => unfavoriteTag(tag)}
+                             className="bg-pink-500/10 hover:bg-red-500/20 text-pink-400/50 hover:text-red-400 px-2 py-1.5 h-full transition-colors flex items-center justify-center border-l border-pink-500/20"
+                             title="Remove from favorites"
+                           >
+                             <X size={10} />
+                           </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Popular Tags */}
+                <div>
+                  <span className="w-full text-[10px] font-black uppercase tracking-[0.2em] text-foreground-dim/40 mb-2 flex items-center gap-2">
+                     <Tag size={10} /> Popular Tags
+                  </span>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {POPULAR_TAGS.filter((tag) => !favoriteTags?.includes(tag)).map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => {
+                          addTags(tag);
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 ${
+                          activeTags.includes(tag)
+                            ? "bg-purple-500/20 text-purple-400 border border-purple-500/20"
+                            : "bg-white/3 text-foreground-dim hover:bg-white/6 border border-white/4"
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
@@ -391,9 +461,9 @@ export const TagSearch: React.FC = () => {
             {activeTags.length > 0 && (
               <button
                 onClick={() => activeTags.forEach((t) => favoriteTag(t))}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-purple-500/10 text-foreground-dim hover:text-purple-400 text-[10px] font-bold uppercase tracking-wider transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-pink-500/10 hover:bg-pink-500/20 text-pink-400/80 hover:text-pink-400 text-[10px] font-bold uppercase tracking-wider transition-all border border-pink-500/20 shadow-[0_0_10px_rgba(236,72,153,0.1)] active:scale-95"
               >
-                <Tag size={10} /> Save Tags
+                <Heart size={10} fill="currentColor" /> Favorite Active Tags
               </button>
             )}
           </div>

@@ -563,7 +563,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       const results = await DiscoveryService.searchGlobal(
         "masterpiece highres",
         48,
-        useSettingsStore.getState().showAdultContent ? "all" : "sfw",
+        false,
         fetchPage,
         "image",
         _discoveryAbortController.signal,
@@ -593,8 +593,10 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     try {
       const results = await DiscoveryService.getLatest(
         48,
-        useSettingsStore.getState().showAdultContent ? "all" : "sfw",
+        false,
         "image",
+        page,
+        "all",
         _discoveryAbortController.signal,
       );
       const unique = dedupeResults(results, [
@@ -622,8 +624,9 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
       const results = await DiscoveryService.getRandom(
         64,
-        useSettingsStore.getState().showAdultContent ? "all" : "sfw",
+        false,
         "image",
+        "all",
         _discoveryAbortController.signal,
       );
       const unique = dedupeResults(results, [
@@ -663,23 +666,52 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         results = await DiscoveryService.searchGlobal(
           aesthetics.join(" "),
           64,
-          contentFilter,
+          false,
           1,
           "image",
           _discoveryAbortController.signal,
         );
       } else {
-        const seeds = Array.from(
-          new Set([...viewHistory.slice(0, 3), ...favoriteTags.slice(0, 2)]),
+        const allSeeds = Array.from(
+          new Set([...viewHistory.slice(0, 5), ...favoriteTags]),
         );
-        results = await DiscoveryService.searchGlobal(
-          seeds.join(" "),
-          64,
-          contentFilter,
-          page,
-          "image",
-          _discoveryAbortController.signal,
-        );
+        // Pick up to 2 random tags to combine for precise matching
+        const selectedSeeds = allSeeds
+          .sort(() => 0.5 - Math.random())
+          .slice(0, 2);
+          
+        if (selectedSeeds.length > 0) {
+          results = await DiscoveryService.searchGlobal(
+            selectedSeeds.join(" "),
+            64,
+            false,
+            page,
+            "image",
+            _discoveryAbortController.signal,
+          );
+          
+          // If the combination of 2 random tags yielded no results (too niche), fallback to just the first tag
+          if (results.length === 0 && selectedSeeds.length > 1) {
+            results = await DiscoveryService.searchGlobal(
+              selectedSeeds[0],
+              64,
+              false,
+              page,
+              "image",
+              _discoveryAbortController.signal,
+            );
+          }
+        } else {
+          // Fallback if seeds ended up empty somehow
+          results = await DiscoveryService.searchGlobal(
+            CURATED_AESTHETICS[Math.floor(Math.random() * CURATED_AESTHETICS.length)],
+            64,
+            false,
+            page,
+            "image",
+            _discoveryAbortController.signal,
+          );
+        }
       }
 
       if (results.length === 0) {
@@ -690,7 +722,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         results = await DiscoveryService.searchGlobal(
           fallbackAesthetic,
           48,
-          contentFilter,
+          false,
           1,
           "image",
           _discoveryAbortController.signal,
@@ -761,7 +793,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       const results = await DiscoveryService.searchGlobal(
         randomAesthetic,
         48,
-        useSettingsStore.getState().showAdultContent ? "all" : "sfw",
+        false,
         1,
         "image",
         _discoveryAbortController.signal,
@@ -802,8 +834,10 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     try {
       const results = await DiscoveryService.getTrending(
         48,
-        useSettingsStore.getState().showAdultContent ? "all" : "sfw",
+        false,
         "image",
+        1,
+        "all",
         _discoveryAbortController.signal,
       );
       const savedIds = new Set(get().savedImages.map((i) => i.id));
@@ -844,7 +878,8 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       const results = await DiscoveryService.searchGlobalByTags(
         seeds,
         48,
-        useSettingsStore.getState().showAdultContent ? "all" : "sfw",
+        false,
+        1,
         "image",
         _discoveryAbortController.signal,
       );
@@ -885,7 +920,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       const results = await DiscoveryService.searchGlobal(
         lastTag,
         48,
-        useSettingsStore.getState().showAdultContent ? "all" : "sfw",
+        false,
         1,
         "image",
         _discoveryAbortController.signal,
@@ -931,7 +966,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       const results = await DiscoveryService.searchGlobalByTags(
         tags,
         48,
-        get().contentFilter === "sfw",
+        false,
         page,
         "image",
         _searchAbortController?.signal,
@@ -1004,7 +1039,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         const suggestions = await DiscoveryService.searchGlobal(
           query,
           24,
-          useSettingsStore.getState().showAdultContent ? "all" : "sfw",
+          false,
           1,
           "image",
           _suggestionAbortController.signal,

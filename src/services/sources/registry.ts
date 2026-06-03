@@ -7,6 +7,7 @@
  */
 
 import type { SourceProvider, ContentType, MediaDomain } from "./types";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 
 class SourceRegistry {
   private providers: Map<string, SourceProvider> = new Map();
@@ -14,14 +15,10 @@ class SourceRegistry {
   private isEnabled(provider: SourceProvider): boolean {
     // Check provider-level flag first
     if (provider.isEnabled === false) return false;
-    // Check user settings for manga-domain source toggles
-    if (provider.mediaDomain === "manga") {
-      try {
-        const { useSettingsStore } = require("../../stores/useSettingsStore");
-        const disabled = useSettingsStore.getState().disabledMangaSources || [];
-        if (disabled.includes(provider.id)) return false;
-      } catch (_) {}
-    }
+    // Check user settings for all source toggles
+    const disabled = useSettingsStore.getState().disabledSources || [];
+    if (disabled.includes(provider.id)) return false;
+    
     return true;
   }
 

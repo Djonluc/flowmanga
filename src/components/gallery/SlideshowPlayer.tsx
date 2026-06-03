@@ -415,6 +415,7 @@ export const SlideshowPlayer: React.FC = () => {
         <div className="absolute inset-0 overflow-hidden">
           <img
             src={currentImage.previewUrl || currentImage.imageUrl}
+            referrerPolicy="no-referrer"
             className="w-full h-full object-cover scale-125 blur-[120px] opacity-30"
             alt=""
           />
@@ -440,6 +441,7 @@ export const SlideshowPlayer: React.FC = () => {
                 renderedUrl || currentImage.imageUrl || currentImage.previewUrl
               }
               alt={currentTitle}
+              referrerPolicy="no-referrer"
               decoding="async"
               className={`max-w-full max-h-full object-contain rounded-3xl transition-all duration-700 ${
                 isLoading
@@ -672,6 +674,7 @@ export const SlideshowPlayer: React.FC = () => {
                     <div className="w-20 h-20 rounded-xl overflow-hidden bg-white/5 shrink-0 border border-white/5">
                       <img
                         src={img.previewUrl || img.imageUrl}
+                        referrerPolicy="no-referrer"
                         className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition"
                         alt=""
                       />

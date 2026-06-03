@@ -59,6 +59,7 @@ export async function booruGet(
   baseUrl: string,
   endpoint: string,
   params: BooruRequestParams = {},
+  customUserAgent?: string,
 ): Promise<unknown> {
   const url = buildApiUrl(baseUrl, endpoint);
   const isDapi =
@@ -100,7 +101,7 @@ export async function booruGet(
       method: "GET",
       headers: {
         Accept: "application/json",
-        "User-Agent": BOORU_USER_AGENT,
+        "User-Agent": customUserAgent || BOORU_USER_AGENT,
       },
     });
 
@@ -161,7 +162,7 @@ function normalizeBooruPost(
   source: string,
   baseUrl: string,
 ): SourceSearchResult {
-  const fullUrl = ensureAbsoluteUrl(
+  let fullUrl = ensureAbsoluteUrl(
     asString(post.file_url) ||
       asString(post.large_file_url) ||
       asString(post.jpeg_url) ||
@@ -170,14 +171,15 @@ function normalizeBooruPost(
       "",
     baseUrl,
   );
-  const previewUrl = ensureAbsoluteUrl(
-    asString(post.preview_url) ||
+  let previewUrl = ensureAbsoluteUrl(
+    asString(post.preview_file_url) ||
+      asString(post.preview_url) ||
       asString(post.sample_url) ||
       asString(post.jpeg_url) ||
       fullUrl,
     baseUrl,
   );
-  const imageUrl = ensureAbsoluteUrl(
+  let imageUrl = ensureAbsoluteUrl(
     asString(post.sample_url) ||
       asString(post.large_file_url) ||
       asString(post.jpeg_url) ||
@@ -185,13 +187,31 @@ function normalizeBooruPost(
       fullUrl,
     baseUrl,
   );
-  const fullResUrl = ensureAbsoluteUrl(
+  let fullResUrl = ensureAbsoluteUrl(
     asString(post.file_url) ||
       asString(post.large_file_url) ||
       asString(post.jpeg_url) ||
       fullUrl,
     baseUrl,
   );
+
+  // Danbooru new API format uses media_asset variants
+  if (isRecord(post.media_asset) && Array.isArray(post.media_asset.variants)) {
+    const variants = post.media_asset.variants as Array<Record<string, unknown>>;
+    const getVariant = (types: string[]) => {
+      const variant = variants.find(v => types.includes(asString(v.type)));
+      return variant ? ensureAbsoluteUrl(asString(variant.url), baseUrl) : null;
+    };
+    
+    const variantPreview = getVariant(['360x360', '180x180']);
+    if (variantPreview) previewUrl = variantPreview;
+    
+    const variantSample = getVariant(['sample', '720x720', 'original']);
+    if (variantSample) imageUrl = variantSample;
+    
+    const variantOriginal = getVariant(['original']);
+    if (variantOriginal) fullResUrl = variantOriginal;
+  }
 
   const dedupeTags = (tagList: string[]) => [
     ...new Set(
@@ -303,7 +323,8 @@ export function mapBooruPosts(
           asString(item.file_url) ||
           asString(item.large_file_url) ||
           asString(item.jpeg_url) ||
-          asString(item.preview_url),
+          asString(item.preview_url) ||
+          asString(item.preview_file_url),
         ),
     )
     .map((item) => normalizeBooruPost(item, source, baseUrl));

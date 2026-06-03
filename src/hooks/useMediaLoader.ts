@@ -1,7 +1,40 @@
 import { useRef, useCallback } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { ReliabilityTracker } from '../services/DiscoveryService';
 
 const MAX_CACHE_SIZE = 50;
+
+/** Domains that commonly block direct browser requests and need Rust proxy fallback */
+const PROXY_DOMAINS = ['sankakucomplex.com', 'sankakuapi.com'];
+
+function needsProxy(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname;
+    return PROXY_DOMAINS.some(d => hostname.includes(d));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fetch a media URL through the Rust backend (bypasses CORS/CDN restrictions)
+ * and return a blob: URL the browser can display natively.
+ */
+async function proxyViaTauri(url: string): Promise<string | null> {
+  try {
+    const { fetch } = await import('@tauri-apps/plugin-http');
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'User-Agent': 'okhttp/4.12.0' },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  } catch (e) {
+    console.warn('[useMediaLoader] Rust proxy fallback failed:', e);
+    return null;
+  }
+}
 
 export const useMediaLoader = () => {
   const highResCache = useRef<Map<string, HTMLImageElement>>(new Map());
@@ -36,8 +69,34 @@ export const useMediaLoader = () => {
 
         const attemptLoad = (index: number) => {
           if (index >= urls.length) {
-            ReliabilityTracker.report(sourceName, 'failure');
-            resolve(null);
+            // All browser-native loads failed — try Rust proxy as final fallback
+            const proxyUrl = urls.find(u => needsProxy(u)) || urls[0];
+            if (proxyUrl) {
+              proxyViaTauri(proxyUrl).then((blobUrl) => {
+                if (blobUrl && !hasResolved) {
+                  const proxyImg = new Image();
+                  proxyImg.onload = () => {
+                    hasResolved = true;
+                    highResCache.current.set(proxyUrl, proxyImg);
+                    evictOldest();
+                    ReliabilityTracker.report(sourceName, 'success');
+                    resolve(proxyImg);
+                  };
+                  proxyImg.onerror = () => {
+                    URL.revokeObjectURL(blobUrl);
+                    ReliabilityTracker.report(sourceName, 'failure');
+                    resolve(null);
+                  };
+                  proxyImg.src = blobUrl;
+                } else {
+                  ReliabilityTracker.report(sourceName, 'failure');
+                  resolve(null);
+                }
+              });
+            } else {
+              ReliabilityTracker.report(sourceName, 'failure');
+              resolve(null);
+            }
             return;
           }
 
@@ -75,7 +134,9 @@ export const useMediaLoader = () => {
 
           img.onerror = () => {
             cleanup();
-            setTimeout(() => attemptLoad(index + 1), 500); // Backoff
+            // Try next URL immediately. A 500ms backoff here causes 1.5s+ artificial delay
+            // for domains like Danbooru that block native requests and require the Rust proxy.
+            setTimeout(() => attemptLoad(index + 1), 0);
           };
 
           img.onabort = () => {
@@ -102,5 +163,5 @@ export const useMediaLoader = () => {
     [evictOldest]
   );
 
-  return { preloadHighResImage, highResCache: highResCache.current };
+  return { preloadHighResImage, proxyViaTauri, highResCache: highResCache.current };
 };

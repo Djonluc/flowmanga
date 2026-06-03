@@ -729,13 +729,6 @@ export class DiscoveryService {
       })
       .catch(() => {});
 
-    if (finalResults.length === 0 && tags.length > 0) {
-      console.info(
-        `[DiscoveryService] Tag search returned no results for tags [${tags.join(", ")}]; falling back to global search for '${tags[0]}'.`,
-      );
-      return this.searchGlobal(tags[0], limit, coloredOnly, page, mediaDomain);
-    }
-
     return finalResults;
   }
 

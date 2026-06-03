@@ -68,9 +68,15 @@ export const OfflineAudioEngine = () => {
         if (audio.src !== src) {
             audio.src = src;
             audio.load();
-            audio.play().catch(err => {
-                console.warn('[OfflineAudio] Autoplay blocked or failed:', err);
-            });
+            
+            const shouldPlay = useMusicStore.getState().isPlaying;
+            if (shouldPlay) {
+                audio.play().catch(err => {
+                    if (err.name !== 'AbortError') {
+                        console.warn('[OfflineAudio] Autoplay blocked or failed:', err);
+                    }
+                });
+            }
         }
     }, [currentTrackPath, isInitializing]);
 

@@ -81,7 +81,7 @@ fn migrate_to_standard(path: &Path) -> io::Result<()> {
         fs::create_dir(&chapters_dir)?;
     }
 
-    let img_extensions = ["jpg", "jpeg", "png", "webp"];
+    let img_extensions = ["jpg", "jpeg", "png", "webp", "mp4", "mkv", "webm", "avi", "gif"];
     let mut moved_images = false;
     let mut moved_folders = false;
 
@@ -188,6 +188,15 @@ fn migrate_to_standard(path: &Path) -> io::Result<()> {
         }
     }
 
+    if moved_images || moved_folders {
+        // Migration logging for transparency
+        let log_path = path.join("migration.log");
+        use std::io::Write;
+        if let Ok(mut log_file) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+            let _ = writeln!(log_file, "Migrated {:?} to Standard Structure. Moved images: {}, Moved folders: {}", path, moved_images, moved_folders);
+        }
+    }
+
     // 3. Generate Metadata if missing
     let meta_path = path.join("metadata.json");
     if !meta_path.exists() && (moved_images || moved_folders) {
@@ -221,7 +230,7 @@ async fn scan_manga_folder(path: String) -> Result<Vec<MangaMetadata>, String> {
     // Auto-migrate the ROOT if it looks like a manga itself?
     // Usually 'path' is the Library root. We scan subfolders.
 
-    let process_folder = |folder_path: &Path| -> Option<MangaMetadata> {
+    let process_folder = |folder_path: &Path, is_root: bool| -> Option<MangaMetadata> {
         let meta_path = folder_path.join("metadata.json");
         let chapters_dir = folder_path.join("chapters");
 
@@ -247,7 +256,8 @@ async fn scan_manga_folder(path: String) -> Result<Vec<MangaMetadata>, String> {
         if !is_standard_flat && !chapters_dir.exists() {
             // Check if it has images (Single) or subfolders (Messy)
             let mut has_content = false;
-            let img_extensions = ["jpg", "jpeg", "png", "webp"];
+            let mut has_loose_images = false;
+            let img_extensions = ["jpg", "jpeg", "png", "webp", "mp4", "mkv", "webm", "avi", "gif"];
             if let Ok(entries) = fs::read_dir(folder_path) {
                 for e in entries.flatten() {
                     let p = e.path();
@@ -262,6 +272,7 @@ async fn scan_manga_folder(path: String) -> Result<Vec<MangaMetadata>, String> {
                                     .eq_ignore_ascii_case("cover.jpg")
                                 {
                                     has_content = true;
+                                    has_loose_images = true;
                                 }
                             }
                         }
@@ -282,7 +293,11 @@ async fn scan_manga_folder(path: String) -> Result<Vec<MangaMetadata>, String> {
                 }
             }
             if has_content {
-                needs_migration = true;
+                if is_root && !has_loose_images {
+                    needs_migration = false; // Don't mistakenly migrate library root
+                } else {
+                    needs_migration = true;
+                }
             }
         }
 
@@ -396,7 +411,7 @@ async fn scan_manga_folder(path: String) -> Result<Vec<MangaMetadata>, String> {
     };
 
     // 1. Check Root (if it is a manga itself)
-    if let Some(m) = process_folder(root_path) {
+    if let Some(m) = process_folder(root_path, true) {
         manga.push(m);
     }
 
@@ -407,7 +422,7 @@ async fn scan_manga_folder(path: String) -> Result<Vec<MangaMetadata>, String> {
         .filter_map(|e| e.ok())
     {
         if entry.file_type().is_dir() && entry.path() != root_path {
-            if let Some(m) = process_folder(entry.path()) {
+            if let Some(m) = process_folder(entry.path(), false) {
                 manga.push(m);
             }
         }
@@ -436,7 +451,7 @@ async fn scan_chapters(path: String, series_id: String) -> Result<Vec<ChapterMet
     let mut chapters = Vec::new();
     let root = Path::new(&path);
     let chapters_dir = root.join("chapters");
-    let img_extensions = ["jpg", "jpeg", "png", "webp"];
+    let img_extensions = ["jpg", "jpeg", "png", "webp", "mp4", "mkv", "webm", "avi", "gif"];
 
     if chapters_dir.exists() {
         // Nested Mode: Each subfolder in chapters/ is a chapter (e.g., chapters/001/, chapters/002/)
@@ -597,7 +612,7 @@ async fn scan_chapters(path: String, series_id: String) -> Result<Vec<ChapterMet
 #[command]
 async fn read_folder(app: AppHandle, path: String) -> Result<Vec<String>, String> {
     let mut files = Vec::new();
-    let supported_extensions = ["jpg", "jpeg", "png", "webp", "gif"];
+    let supported_extensions = ["jpg", "jpeg", "png", "webp", "gif", "mp4", "mkv", "webm", "avi"];
     let archive_extensions = ["zip", "cbz"];
 
     let input_path = Path::new(&path);

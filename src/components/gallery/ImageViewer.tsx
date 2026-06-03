@@ -117,7 +117,7 @@ export const ImageViewer: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
 
-  const { preloadHighResImage } = useMediaLoader();
+  const { preloadHighResImage, proxyViaTauri } = useMediaLoader();
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -227,16 +227,33 @@ export const ImageViewer: React.FC = () => {
 
       setDownloadProgress(30);
 
+      const isSankaku = url.includes("sankakucomplex.com") || sourceUrl?.includes("sankakucomplex.com");
+      const isDanbooru = url.includes("donmai.us");
+      
+      const reqHeaders: Record<string, string> = {};
+      if (isSankaku || isDanbooru) {
+          reqHeaders["User-Agent"] = "okhttp/4.12.0";
+      } else {
+          reqHeaders["User-Agent"] = navigator.userAgent;
+          reqHeaders["Referer"] = sourceUrl || "https://flowmanga.app/";
+      }
+
       // Use Rust backend for robust download
       await invoke("download_image", {
         url,
         filePath: fullPath,
-        headers: {
-          Referer: sourceUrl || "https://flowmanga.app/",
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        },
+        headers: reqHeaders,
       });
+
+      // Save image to gallery database so it appears in Collections immediately
+      try {
+        const viewerImg = useGalleryStore.getState().viewerImage;
+        if (viewerImg) {
+          await useGalleryStore.getState().saveImage(viewerImg);
+        }
+      } catch (err) {
+        console.warn("[ImageViewer] Failed to save gallery entry after download", err);
+      }
 
       setDownloadProgress(100);
       setTimeout(() => setDownloadProgress(null), 2000);
@@ -576,8 +593,8 @@ export const ImageViewer: React.FC = () => {
 
   const primaryUrl = localUrl || fallbackUrls[0] || previewUrl;
   const imageUrl = localUrl || primaryUrl || previewUrl || rawImageUrl;
-  const isVideo = primaryUrl?.match(/\.(mp4|webm|mov)$/i);
-  const isPreviewVideo = previewUrl?.match(/\.(mp4|webm|mov)$/i);
+  const isVideo = Boolean(primaryUrl?.match(/\.(mp4|webm|mov)(\?.*)?$/i));
+  const isPreviewVideo = Boolean(previewUrl?.match(/\.(mp4|webm|mov)(\?.*)?$/i));
 
   useEffect(() => {
     if (isOpen && image) {
@@ -609,14 +626,14 @@ export const ImageViewer: React.FC = () => {
             baseDir = await join(docDir, "FlowManga Collection");
           }
 
-          const extensions = ["jpg", "png", "webp", "gif", "jpeg"];
+          const extensions = ["jpg", "png", "webp", "gif", "jpeg", "mp4", "webm", "mov"];
           for (const ext of extensions) {
             const filename = `flowmanga_vision_${image.id}.${ext}`;
             const fullPath = await join(baseDir, filename);
             if (await exists(fullPath)) {
               if (ignore) return;
               console.log("[ImageViewer] Using local version:", fullPath);
-              setLocalUrl(convertFileSrc(fullPath));
+              setLocalUrl(convertFileSrc(fullPath.replace(/\\/g, '/')));
               setIsHighResLoading(false);
               setHighResLoaded(true);
               measureImageZoom();
@@ -627,7 +644,27 @@ export const ImageViewer: React.FC = () => {
           console.error("[ImageViewer] Local check failed:", e);
         }
 
-        if (fallbackUrls.length > 0 && fallbackUrls[0] !== previewUrl) {
+        if (isVideo) {
+          // For Sankaku videos, proactively proxy through Rust since CDN blocks browser requests
+          const videoUrl = fallbackUrls[0] || primaryUrl;
+          const isSankakuVideo = videoUrl && (videoUrl.includes('sankakucomplex.com') || videoUrl.includes('sankakuapi.com'));
+          if (isSankakuVideo && !ignore) {
+            setIsHighResLoading(true);
+            proxyViaTauri(videoUrl).then((blobUrl) => {
+              if (ignore) return;
+              if (blobUrl) {
+                setLocalUrl(blobUrl);
+                setHighResLoaded(true);
+                setIsHighResLoading(false);
+              } else {
+                // Proxy failed, let the <video> element try directly as fallback
+                setIsHighResLoading(true);
+              }
+            });
+          } else {
+            if (!ignore) setIsHighResLoading(true);
+          }
+        } else if (fallbackUrls.length > 0 && fallbackUrls[0] !== previewUrl) {
           preloadHighResImage(fallbackUrls, source).then((loadedImage) => {
             if (ignore) return;
             if (loadedImage) {
@@ -665,6 +702,7 @@ export const ImageViewer: React.FC = () => {
     fallbackUrls,
     source,
     measureImageZoom,
+    isVideo,
   ]);
 
   const retryHighRes = useCallback(() => {
@@ -833,7 +871,8 @@ export const ImageViewer: React.FC = () => {
                     initial={false}
                     animate={{ opacity: 1 }}
                     draggable={false}
-                    autoPlay loop muted playsInline
+                    autoPlay loop controls playsInline
+                    referrerPolicy="no-referrer"
                   />
                 ) : (
                   <motion.img
@@ -872,8 +911,20 @@ export const ImageViewer: React.FC = () => {
                       animate={{ opacity: highResLoaded ? 1 : 0 }}
                       transition={{ duration: 0.5 }}
                       draggable={false}
-                      autoPlay loop muted playsInline
+                      autoPlay loop controls playsInline
+                      referrerPolicy="no-referrer"
                       onLoadedData={() => setHighResLoaded(true)}
+                      onError={() => {
+                        if (!localUrl && primaryUrl && (primaryUrl.includes('sankakucomplex.com') || primaryUrl.includes('sankakuapi.com'))) {
+                          proxyViaTauri(primaryUrl).then((blobUrl) => {
+                            if (blobUrl) setLocalUrl(blobUrl);
+                            else setHighResError(true);
+                          });
+                        } else if (!localUrl) {
+                          setHighResError(true);
+                          setIsHighResLoading(false);
+                        }
+                      }}
                     />
                   ) : (
                     <motion.img

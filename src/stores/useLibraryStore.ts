@@ -112,6 +112,7 @@ interface LibraryState {
   removeSeriesCover: (seriesId: string) => Promise<void>;
   registerDownloadedSeries: (metadata: any, chapters: any[]) => Promise<void>;
   scanLibrary: (path?: string) => Promise<void>;
+  rebuildCollectionIndex: () => Promise<void>;
   refreshMangaMetadata: (seriesId: string) => Promise<void>;
   refreshChapterThumbnails: (seriesId: string) => Promise<void>;
   bulkRefreshMetadata: () => Promise<void>;
@@ -623,6 +624,43 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       if (libraryPath) {
         await get().addMangaFolder(libraryPath);
       }
+    }
+  },
+
+  rebuildCollectionIndex: async () => {
+    set({ isLoading: true });
+    try {
+      // 1. Scan default Library Path
+      await get().scanLibrary();
+
+      // 2. Scan Gallery Download Path (Collections)
+      const { useGalleryStore } = await import("./useGalleryStore");
+      let downloadPath = useGalleryStore.getState().downloadPath;
+      
+      if (!downloadPath) {
+        const { documentDir, join } = await import("@tauri-apps/api/path");
+        const docDir = await documentDir();
+        downloadPath = await join(docDir, "FlowManga Collection");
+      }
+      
+      if (downloadPath) {
+        const { exists } = await import("@tauri-apps/plugin-fs");
+        if (await exists(downloadPath)) {
+            await get().addMangaFolder(downloadPath);
+        }
+      }
+
+      // 3. Clean up invalid/missing files
+      const count = await get().verifyLibraryIntegrity();
+      console.log(`[LibraryStore] Collection rebuild complete. Removed ${count} invalid entries.`);
+      const { toast } = await import("../components/Toast");
+      toast.success("Collection Index Rebuilt");
+    } catch (err) {
+      console.error("[LibraryStore] Failed to rebuild collection index:", err);
+      const { toast } = await import("../components/Toast");
+      toast.error("Failed to rebuild collection index");
+    } finally {
+      set({ isLoading: false });
     }
   },
 

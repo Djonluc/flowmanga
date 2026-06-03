@@ -162,10 +162,10 @@ interface SettingsState {
   booruAuth: Record<string, BooruAuth>;
   setBooruAuth: (providerId: string, auth: BooruAuth) => void;
 
-  // Manga Source Toggles
-  disabledMangaSources: string[];
-  toggleMangaSource: (sourceId: string) => void;
-  isMangaSourceEnabled: (sourceId: string) => boolean;
+  // Source Toggles
+  disabledSources: string[];
+  toggleSource: (sourceId: string) => void;
+  isSourceEnabled: (sourceId: string) => boolean;
 }
 
 
@@ -360,11 +360,11 @@ export const useSettingsStore = create<SettingsState>()(
           }
         })),
 
-      // Manga Source Toggles — LuaComic disabled by default (currently broken)
-      disabledMangaSources: ['luacomic'],
-      toggleMangaSource: (sourceId) =>
+      // Source Toggles — LuaComic disabled by default (currently broken)
+      disabledSources: ['luacomic'],
+      toggleSource: (sourceId) =>
         set((state) => {
-          const disabled = [...state.disabledMangaSources];
+          const disabled = [...state.disabledSources];
           const idx = disabled.indexOf(sourceId);
           if (idx >= 0) {
             disabled.splice(idx, 1);
@@ -375,11 +375,11 @@ export const useSettingsStore = create<SettingsState>()(
           import("../services/DiscoveryService").then(({ DiscoveryService }) => {
             DiscoveryService.clearAllCache();
           });
-          return { disabledMangaSources: disabled };
+          return { disabledSources: disabled };
         }),
-      isMangaSourceEnabled: (sourceId) => {
+      isSourceEnabled: (sourceId) => {
         const state = useSettingsStore.getState();
-        return !state.disabledMangaSources.includes(sourceId);
+        return !state.disabledSources.includes(sourceId);
       },
     }),
     {

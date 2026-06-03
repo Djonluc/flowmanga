@@ -35,6 +35,7 @@ import { DanbooruProvider } from "./gallery/DanbooruProvider";
 import { KonachanProvider } from "./gallery/KonachanProvider";
 import { YandereProvider } from "./gallery/YandereProvider";
 import { GelbooruProvider } from "./gallery/GelbooruProvider";
+import { SankakuProvider } from "./gallery/SankakuProvider";
 
 // Register Phase 1
 sourceRegistry.register(new MangaDexProvider());
@@ -56,6 +57,7 @@ sourceRegistry.register(new DanbooruProvider());
 sourceRegistry.register(new KonachanProvider());
 sourceRegistry.register(new YandereProvider());
 sourceRegistry.register(new GelbooruProvider());
+sourceRegistry.register(new SankakuProvider());
 
 // Phase 4: Novel Sources
 sourceRegistry.register(new WebNovelProvider());

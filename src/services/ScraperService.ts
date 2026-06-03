@@ -128,8 +128,12 @@ export class ScraperService {
         // This handles single-series sites (e.g. BlueLock) where the homepage IS the series page,
         // even if the URL doesn't match standard patterns like /manga/ or /series/.
         if (!isChapterPage && provider.fetchSeries) {
-          const series = await provider.fetchSeries(targetUrl);
-          return bridgeSeries(series, provider);
+          try {
+            const series = await provider.fetchSeries(targetUrl);
+            return bridgeSeries(series, provider);
+          } catch (seriesErr) {
+            // fetchSeries didn't handle this URL (e.g. single-post URL), fall through to fetchContent
+          }
         }
 
         const content = await provider.fetchContent(targetUrl);

@@ -20,6 +20,9 @@ const GALLERY_SOURCES = new Set([
   "konachan",
   "yandere",
   "gelbooru",
+  "sankaku",
+  "rule34",
+  "safebooru",
 ]);
 
 export const SavedCollections: React.FC = () => {
