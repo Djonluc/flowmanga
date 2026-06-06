@@ -231,7 +231,7 @@ export const ImageViewer: React.FC = () => {
       const isDanbooru = url.includes("donmai.us");
       
       const reqHeaders: Record<string, string> = {};
-      if (isSankaku || isDanbooru) {
+      if (isDanbooru) {
           reqHeaders["User-Agent"] = "okhttp/4.12.0";
       } else {
           reqHeaders["User-Agent"] = navigator.userAgent;

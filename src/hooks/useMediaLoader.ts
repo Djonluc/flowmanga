@@ -25,7 +25,6 @@ async function proxyViaTauri(url: string): Promise<string | null> {
     const { fetch } = await import('@tauri-apps/plugin-http');
     const response = await fetch(url, {
       method: 'GET',
-      headers: { 'User-Agent': 'okhttp/4.12.0' },
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const blob = await response.blob();

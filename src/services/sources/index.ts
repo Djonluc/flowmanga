@@ -24,6 +24,7 @@ import { NhentaiProvider } from "./doujin/NhentaiProvider";
 import { HentaiComicsFreeProvider } from "./doujin/HentaiComicsFreeProvider";
 import { MangaReadProvider } from "./manga/MangaReadProvider";
 import { ManhuaPlusProvider } from "./manga/ManhuaPlusProvider";
+import { ManhuaUSProvider } from "./manga/ManhuaUSProvider";
 import { WebtoonsProvider } from "./manga/WebtoonsProvider";
 
 // Phase 4: Novel Sources
@@ -50,6 +51,7 @@ sourceRegistry.register(new NhentaiProvider());
 sourceRegistry.register(new HentaiComicsFreeProvider());
 sourceRegistry.register(new MangaReadProvider());
 sourceRegistry.register(new ManhuaPlusProvider());
+sourceRegistry.register(new ManhuaUSProvider());
 
 // Phase 3: Gallery Sources
 sourceRegistry.register(new ZerochanProvider());

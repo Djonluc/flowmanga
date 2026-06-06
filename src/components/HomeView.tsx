@@ -27,6 +27,7 @@ import { Sparkles, Zap } from "lucide-react";
 import * as htmlToImage from "html-to-image";
 import { ScraperService } from "../services/ScraperService";
 import { DiscoveryService } from "../services/DiscoveryService";
+import { ContentFilter } from "../services/ContentFilter";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
@@ -145,9 +146,28 @@ export const HomeView = () => {
                 ORDER BY rp.lastReadAt DESC
             `);
 
+      // Helper to filter adult content from local queries
+      const filterAdultLocal = (items: any[]) => {
+        return items.filter(item => {
+          let parsedTags = [];
+          if (Array.isArray(item.tags)) {
+            parsedTags = item.tags;
+          } else if (typeof item.seriesTags === 'string') {
+            try { parsedTags = JSON.parse(item.seriesTags); } catch(e) { parsedTags = [item.seriesTags]; }
+          } else if (Array.isArray(item.seriesTags)) {
+            parsedTags = item.seriesTags;
+          }
+          return !ContentFilter.isAdult({
+            title: item.seriesTitle || item.title,
+            source: item.source || item.providerId,
+            tags: parsedTags
+          });
+        });
+      };
+
       // Group by series to remove duplicates, keeping only the most recently read chapter per series
       const uniqueSeries = new Set();
-      const groupedHistory = history
+      const groupedHistory = filterAdultLocal(history)
         .filter((item) => {
           if (uniqueSeries.has(item.seriesId)) return false;
           uniqueSeries.add(item.seriesId);
@@ -157,7 +177,7 @@ export const HomeView = () => {
 
       setContinueReading(groupedHistory);
 
-      const added = [...series]
+      const added = filterAdultLocal([...series])
         .sort(
           (a, b) =>
             new Date(b.createdAt || 0).getTime() -
@@ -166,7 +186,7 @@ export const HomeView = () => {
         .slice(0, 12);
       setRecentlyAdded(added);
 
-      const updated = [...series]
+      const updated = filterAdultLocal([...series])
         .sort(
           (a, b) =>
             new Date(b.updatedAt || 0).getTime() -
@@ -193,14 +213,27 @@ export const HomeView = () => {
       const { getDb } = await import("../services/db");
       const db = getDb();
       const recent = await db.select<any[]>(`
-                SELECT rp.*, s.title, s.coverPath as cover, s.id as seriesId, c.id as chapterId, c.filePath
+                SELECT rp.*, s.title, s.coverPath as cover, s.id as seriesId, c.id as chapterId, c.filePath, s.tags as seriesTags, s.source
                 FROM ReadingProgress rp
                 JOIN Series s ON rp.seriesId = s.id
                 JOIN Chapters c ON rp.chapterId = c.id
                 ORDER BY rp.lastReadAt DESC
-                LIMIT 8
+                LIMIT 20
             `);
-      setActivity(recent);
+      
+      const filteredRecent = recent.filter(item => {
+        let parsedTags = [];
+        if (typeof item.seriesTags === 'string') {
+          try { parsedTags = JSON.parse(item.seriesTags); } catch(e) { parsedTags = [item.seriesTags]; }
+        }
+        return !ContentFilter.isAdult({
+          title: item.title,
+          source: item.source,
+          tags: parsedTags
+        });
+      }).slice(0, 8);
+
+      setActivity(filteredRecent);
     } catch (e) {
       console.error("Home: Failed to load activity", e);
     }

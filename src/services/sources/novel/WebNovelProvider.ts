@@ -9,6 +9,7 @@ import type {
   MediaType,
   MediaDomain,
   ReaderMode,
+  SourceSearchResult,
 } from "../types";
 
 export class WebNovelProvider implements SourceProvider {
@@ -22,7 +23,7 @@ export class WebNovelProvider implements SourceProvider {
   readonly readerModes: ReaderMode[] = ["paged", "continuous"];
 
   readonly capabilities: SourceCapabilities = {
-    search: false,
+    search: true,
     tagSearch: false,
     seriesBrowse: true,
     chapterFeed: false,
@@ -61,7 +62,15 @@ export class WebNovelProvider implements SourceProvider {
     // 1. Fetch catalog HTML
     let catalogHtml = "";
     try {
-      catalogHtml = await invoke<string>("fetch_html", { url: catalogUrl, headers: { "User-Agent": "Mozilla/5.0" } });
+      catalogHtml = await invoke<string>("fetch_html", { 
+        url: catalogUrl, 
+        headers: { 
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.5",
+          "Referer": "https://www.webnovel.com/"
+        } 
+      });
     } catch (e) {
       console.warn("[WebNovel] Failed to fetch catalog HTML via fetch_html, trying headless", e);
       try {
@@ -74,7 +83,15 @@ export class WebNovelProvider implements SourceProvider {
     // 2. Fetch main page for metadata
     let mainHtml = "";
     try {
-        mainHtml = await invoke<string>("fetch_html", { url, headers: { "User-Agent": "Mozilla/5.0" } });
+        mainHtml = await invoke<string>("fetch_html", { 
+          url, 
+          headers: { 
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Referer": "https://www.webnovel.com/"
+          } 
+        });
     } catch (e) {
         console.warn("[WebNovel] Failed to fetch main HTML, trying headless", e);
         try {
@@ -183,7 +200,15 @@ export class WebNovelProvider implements SourceProvider {
 
     let htmlText = "";
     try {
-        htmlText = await invoke<string>("fetch_html", { url, headers: { "User-Agent": "Mozilla/5.0" } });
+        htmlText = await invoke<string>("fetch_html", { 
+          url, 
+          headers: { 
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Referer": "https://www.webnovel.com/"
+          } 
+        });
     } catch (e) {
         console.warn("[WebNovel] fetch_html failed, falling back to headless", e);
     }
@@ -224,5 +249,93 @@ export class WebNovelProvider implements SourceProvider {
             }
         }
     };
+  }
+
+  async getTrending(): Promise<SourceSearchResult[]> {
+    return this.fetchDiscovery("https://www.webnovel.com/ranking/comic/all_time/comic_power_rank");
+  }
+
+  async getLatest(): Promise<SourceSearchResult[]> {
+    return this.fetchDiscovery("https://www.webnovel.com/stories/comic");
+  }
+
+  async search(query: string): Promise<SourceSearchResult[]> {
+    return this.fetchDiscovery("https://www.webnovel.com/search?keywords=" + encodeURIComponent(query) + "&type=2");
+  }
+
+  private async fetchDiscovery(url: string): Promise<SourceSearchResult[]> {
+      let htmlText = "";
+      try {
+          htmlText = await invoke<string>("fetch_html", { 
+            url, 
+            headers: { 
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+              "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+              "Accept-Language": "en-US,en;q=0.5",
+              "Referer": "https://www.webnovel.com/"
+            } 
+          });
+      } catch (e) {
+          console.warn("[WebNovel] Discovery fetch_html failed, falling back to headless", e);
+      }
+
+      if (!htmlText || htmlText.includes("Just a moment...") || htmlText.includes("challenge-error-text")) {
+          try {
+              htmlText = await invoke<string>("fetch_html_headless", { url });
+          } catch (e) {
+              console.error("[WebNovel] Discovery headless fetch failed", e);
+              return [];
+          }
+      }
+
+      if (!htmlText) return [];
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlText, "text/html");
+      const items = Array.from(doc.querySelectorAll('a.g_thumb, a.c_l, .j_category_wrapper ul li a[title], .j_search_result ul li a[title]'));
+      
+      const results: SourceSearchResult[] = [];
+      const seen = new Set<string>();
+
+      items.forEach(item => {
+          let href = item.getAttribute("href") || "";
+          if (!href.includes("webnovel.com/comic") && !href.startsWith("/comic/")) return;
+
+          let absoluteUrl = href;
+          if (href.startsWith("//")) absoluteUrl = "https:" + href;
+          else if (href.startsWith("/")) absoluteUrl = "https://www.webnovel.com" + href;
+          
+          if (seen.has(absoluteUrl)) return;
+
+          const title = item.getAttribute("title") || item.textContent?.trim() || "Unknown";
+          
+          let coverUrl = "";
+          const img = item.querySelector("img");
+          if (img) {
+              coverUrl = img.getAttribute("src") || img.getAttribute("data-original") || "";
+              if (coverUrl.startsWith("//")) coverUrl = "https:" + coverUrl;
+          } else {
+              // Try to reconstruct cover from ID if possible
+              const idMatch = absoluteUrl.match(/_(\d+)/);
+              if (idMatch) {
+                  coverUrl = `https://book-pic.webnovel.com/bookcover/${idMatch[1]}`;
+              }
+          }
+
+          if (absoluteUrl && coverUrl && title && title !== "Unknown") {
+              seen.add(absoluteUrl);
+              results.push({
+                  id: absoluteUrl,
+                  title: title,
+                  coverUrl: coverUrl,
+                  source: "webnovel.com",
+                  provider: this.id,
+                  contentType: this.contentType,
+                  url: absoluteUrl
+              });
+          }
+      });
+
+      return results;
   }
 }

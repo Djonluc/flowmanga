@@ -68,10 +68,10 @@ export class DownloadService {
                     await invoke('download_image', {
                         url: coverUrl,
                         filePath: coverPath,
-                        headers:
-                            metadata.source !== 'mangadex' && coverReferer
-                                ? { Referer: coverReferer }
-                                : null,
+                        headers: {
+                            ...(metadata.source !== 'mangadex' && coverReferer ? { Referer: coverReferer } : {}),
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                        },
                     });
                     mergedMeta.coverFile = 'cover.jpg';
                 } catch (e) {
@@ -340,7 +340,10 @@ export class DownloadService {
                     await invoke('download_image', {
                         url: img.url,
                         filePath: filePath,
-                        headers: referer ? { Referer: referer } : null,
+                        headers: {
+                            ...(referer ? { Referer: referer } : {}),
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                        },
                         encryptionKey: img.encryptionKey || null
                     });
 

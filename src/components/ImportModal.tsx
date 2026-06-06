@@ -258,6 +258,16 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                               src={metadata.coverUrl} 
                                               alt="Cover"
                                               className="w-32 h-44 object-cover rounded-xl shadow-2xl border border-white/10"
+                                              onError={(e) => {
+                                                  // Try to proxy it if it fails natively (fixes WebNovel Cloudflare blocking <img> tags)
+                                                  if (!e.currentTarget.src.startsWith("data:")) {
+                                                      import("@tauri-apps/api/core").then(({ invoke }) => {
+                                                          invoke("proxy_image", { url: metadata.coverUrl }).then(dataUri => {
+                                                              e.currentTarget.src = dataUri as string;
+                                                          }).catch(() => {});
+                                                      });
+                                                  }
+                                              }}
                                             />
                                           </div>
                                         )}

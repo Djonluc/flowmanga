@@ -114,7 +114,6 @@ export const GalleryImageCard: React.FC<GalleryImageCardProps> = ({
       .then(({ fetch }) => {
         fetch(targetUrl, {
           method: "GET",
-          headers: { "User-Agent": "okhttp/4.12.0" },
         })
           .then(async (res) => {
             if (!res.ok) throw new Error("Proxy failed");
