@@ -23,7 +23,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const sizes = {
       sm: 'h-8 px-3 text-xs',
       md: 'h-[40px] px-6 text-sm font-bold uppercase tracking-widest',
-      lg: 'h-12 px-8 text-base font-black uppercase tracking-[0.2em]',
+      lg: 'h-12 px-8 text-base font-black uppercase tracking-widest',
       icon: 'h-[40px] w-[40px] flex items-center justify-center p-0',
     };
 

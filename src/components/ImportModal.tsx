@@ -107,7 +107,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/80 backdrop-blur-md z-50"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50"
           />
           
           <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none p-4">
@@ -115,7 +115,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl pointer-events-auto overflow-hidden flex flex-col max-h-[90vh]"
+              className="bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl pointer-events-auto overflow-hidden flex flex-col max-h-[85vh]"
             >
               {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-white/10 bg-white/5">
@@ -147,14 +147,14 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <button
                         onClick={handleFolderClick}
-                        className="p-10 bg-black/20 hover:bg-white/5 border border-white/5 hover:border-accent/50 rounded-[40px] transition-all duration-500 group text-left relative overflow-hidden backdrop-blur-3xl shadow-cinematic"
+                        className="p-10 bg-black/20 hover:bg-white/5 border border-white/5 hover:border-accent/50 rounded-[40px] transition-all duration-300 group text-left relative overflow-hidden backdrop-blur-3xl shadow-cinematic"
                       >
-                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity duration-700">
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity duration-300">
                           <FolderOpen size={120} />
                         </div>
                         <div className="relative">
-                          <div className="w-20 h-20 bg-blue-500/10 rounded-3xl group-hover:scale-110 group-hover:-rotate-12 transition-all duration-500 flex items-center justify-center mb-8 shadow-lg border border-blue-500/20">
+                          <div className="w-20 h-20 bg-blue-500/10 rounded-3xl group-hover:scale-110 group-hover:-rotate-12 transition-all duration-300 flex items-center justify-center mb-8 shadow-lg border border-blue-500/20">
                             <FolderOpen size={40} className="text-blue-400 drop-shadow-md" />
                           </div>
                           <h3 className="font-black italic uppercase tracking-widest text-foreground text-3xl mb-4 group-hover:text-blue-400 transition-colors">Local Archive</h3>
@@ -166,14 +166,14 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
 
                       <button
                         onClick={() => setMode('web')}
-                        className="p-10 bg-black/20 hover:bg-white/5 border border-white/5 hover:border-purple-500/50 rounded-[40px] transition-all duration-500 group text-left relative overflow-hidden backdrop-blur-3xl shadow-cinematic"
+                        className="p-10 bg-black/20 hover:bg-white/5 border border-white/5 hover:border-purple-500/50 rounded-[40px] transition-all duration-300 group text-left relative overflow-hidden backdrop-blur-3xl shadow-cinematic"
                       >
-                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity duration-700">
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity duration-300">
                           <Globe size={120} />
                         </div>
                         <div className="relative">
-                          <div className="w-20 h-20 bg-purple-500/10 rounded-3xl group-hover:scale-110 group-hover:rotate-12 transition-all duration-500 flex items-center justify-center mb-8 shadow-lg border border-purple-500/20">
+                          <div className="w-20 h-20 bg-purple-500/10 rounded-3xl group-hover:scale-110 group-hover:rotate-12 transition-all duration-300 flex items-center justify-center mb-8 shadow-lg border border-purple-500/20">
                             <Globe size={40} className="text-purple-400 drop-shadow-md" />
                           </div>
                           <h3 className="font-black italic uppercase tracking-widest text-foreground text-3xl mb-4 group-hover:text-purple-400 transition-colors">Online Source</h3>
@@ -189,7 +189,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                     {!isScraping && scrapedImages.length === 0 && chapterFeed.length === 0 && !isDownloading ? (
                         <form onSubmit={handleWebSubmit} className="space-y-6">
                           <div className="space-y-3">
-                            <label className="text-xs font-black text-foreground-dim uppercase tracking-[0.2em]">Source URL</label>
+                            <label className="text-xs font-black text-foreground-dim uppercase tracking-widest">Source URL</label>
                             <input
                                 type="text"
                                 value={localUrl}
@@ -324,7 +324,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                         </div>
                                         <div className="flex flex-col gap-4">
                                           <div className="flex items-center justify-between">
-                                            <label className="text-xs font-black text-foreground-dim uppercase tracking-[0.2em]">Batch Selection</label>
+                                            <label className="text-xs font-black text-foreground-dim uppercase tracking-widest">Batch Selection</label>
                                             <div className="flex gap-2">
                                               <button 
                                                 onClick={handleSelectAll}

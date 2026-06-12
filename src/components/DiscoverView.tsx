@@ -190,32 +190,8 @@ export const DiscoverView = () => {
   return (
     <div className="flex-1 h-full overflow-y-auto custom-scrollbar relative bg-transparent">
       {/* ─── Top Sticky Header (Search & Filters) ─── */}
-      <div className="sticky top-0 z-40 bg-background/40 backdrop-blur-3xl border-b border-border-subtle px-8 lg:px-12 py-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        {/* Search Bar */}
-        <form
-          onSubmit={handleSearch}
-          className="relative group w-full md:max-w-md"
-        >
-          <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-            <Search
-              size={16}
-              className="text-foreground-dim group-focus-within:text-accent transition-colors"
-            />
-          </div>
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cast vision across all realms..."
-            className="w-full bg-surface-elevated hover:bg-surface-raised focus:bg-surface-elevated border border-border-subtle focus:border-accent/50 rounded-2xl py-3 pl-12 pr-4 text-foreground placeholder:text-foreground-dim/50 focus:outline-none transition-all duration-300 text-sm font-medium"
-          />
-          <button
-            type="submit"
-            className="absolute right-2 top-2 bottom-2 px-4 rounded-xl bg-accent hover:opacity-90 text-foreground font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 flex items-center"
-          >
-            Seek
-          </button>
-        </form>
+      <div className="sticky top-0 z-40 bg-background/40 backdrop-blur-3xl border-b border-border-subtle px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+
 
         {/* Content Types & Filters */}
         <div className="flex items-center gap-4 overflow-x-auto no-scrollbar">
@@ -249,7 +225,7 @@ export const DiscoverView = () => {
       </div>
 
       {/* ─── Main Content Area ─── */}
-      <div className="px-8 lg:px-12 py-8 pb-32">
+      <div className="px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-8 pb-32">
         <AnimatePresence>
           {activeTab === "search" ? (
             <motion.div
@@ -312,7 +288,7 @@ export const DiscoverView = () => {
                     {isSearching && (
                       <div className="flex items-center gap-3 text-foreground-dim animate-pulse">
                         <Loader2 size={16} className="animate-spin" />
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-dim">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-foreground-dim">
                           Loading more content...
                         </span>
                       </div>
@@ -434,8 +410,8 @@ export const DiscoverView = () => {
               <section className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400">
-                      <Zap size={16} />
+                    <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-accent">
+                      <Compass size={16} />
                     </div>
                     <h2 className="text-2xl font-black text-foreground uppercase tracking-tight">
                       New Spirits
@@ -443,7 +419,7 @@ export const DiscoverView = () => {
                   </div>
                   <button
                     onClick={() => setActiveTab("latest-grid")}
-                    className="flex items-center gap-2 text-[10px] font-black text-amber-400 hover:text-amber-300 uppercase tracking-widest transition-all"
+                    className="flex items-center gap-2 text-[10px] font-black text-accent hover:text-accent/80 uppercase tracking-widest transition-all"
                   >
                     View All <ChevronRight size={14} />
                   </button>
@@ -476,8 +452,8 @@ export const DiscoverView = () => {
                     ))}
                     {isLoadingLatest && filteredLatest.length > 0 && (
                       <div className="w-[260px] h-[390px] flex-shrink-0 flex flex-col items-center justify-center gap-3 bg-surface-elevated rounded-[32px] border border-border-subtle">
-                        <Loader2 size={24} className="animate-spin text-amber-500" />
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-dim">
+                        <Loader2 size={24} className="animate-spin text-accent" />
+                        <span className="text-[10px] font-black text-accent uppercase tracking-widest animate-pulse">
                           Fetching...
                         </span>
                       </div>
@@ -540,7 +516,7 @@ export const DiscoverView = () => {
                 {isLoadingRandom && (
                   <div className="flex items-center gap-3 text-foreground-dim animate-pulse">
                     <Loader2 size={16} className="animate-spin" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-dim">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-foreground-dim">
                       Summoning more randomness...
                     </span>
                   </div>
@@ -557,8 +533,8 @@ export const DiscoverView = () => {
             >
               <div className="flex items-center justify-between bg-white/5 border border-white/5 rounded-3xl p-6">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-400">
-                    <Zap size={24} />
+                  <div className="w-12 h-12 rounded-2xl bg-accent/20 flex items-center justify-center text-accent">
+                    <Compass size={24} />
                   </div>
                   <div>
                     <h2 className="text-xl font-black text-foreground uppercase tracking-tight">
@@ -593,7 +569,7 @@ export const DiscoverView = () => {
                 {isLoadingLatest && (
                   <div className="flex items-center gap-3 text-foreground-dim animate-pulse">
                     <Loader2 size={16} className="animate-spin" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-dim">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-foreground-dim">
                       Fetching latest spirits...
                     </span>
                   </div>

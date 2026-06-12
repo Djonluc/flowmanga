@@ -377,7 +377,7 @@ export const TagSearch: React.FC = () => {
                 {/* User's Favorite Tags */}
                 {favoriteTags && favoriteTags.length > 0 && (
                   <div>
-                    <span className="w-full text-[10px] font-black uppercase tracking-[0.2em] text-pink-400/60 mb-2 flex items-center gap-2">
+                    <span className="w-full text-[10px] font-black uppercase tracking-widest text-pink-400/60 mb-2 flex items-center gap-2">
                        <Heart size={10} fill="currentColor" /> Your Tags
                     </span>
                     <div className="flex flex-wrap gap-2 mt-2">
@@ -410,7 +410,7 @@ export const TagSearch: React.FC = () => {
 
                 {/* Popular Tags */}
                 <div>
-                  <span className="w-full text-[10px] font-black uppercase tracking-[0.2em] text-foreground-dim/40 mb-2 flex items-center gap-2">
+                  <span className="w-full text-[10px] font-black uppercase tracking-widest text-foreground-dim/40 mb-2 flex items-center gap-2">
                      <Tag size={10} /> Popular Tags
                   </span>
                   <div className="flex flex-wrap gap-2 mt-2">
@@ -494,7 +494,7 @@ export const TagSearch: React.FC = () => {
             {isSearching && (
               <div className="flex items-center gap-3 text-purple-400/60 animate-pulse">
                 <Loader2 size={16} className="animate-spin" />
-                <span className="text-[10px] font-black uppercase tracking-[0.2em]">
+                <span className="text-[10px] font-black uppercase tracking-widest">
                   Resolving More Visions
                 </span>
               </div>

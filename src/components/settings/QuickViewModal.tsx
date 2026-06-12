@@ -182,7 +182,7 @@ export const QuickViewModal = () => {
                                 <div className="flex items-start justify-between gap-6">
                                     <div className="space-y-4 flex-1">
                                         <div className="flex items-center gap-3">
-                                            <div className="px-4 py-1.5 bg-accent text-white rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-accent-glow">
+                                            <div className="px-4 py-1.5 bg-accent text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-accent-glow">
                                                 {libraryItem ? 'In Collection' : 'Discovery'}
                                             </div>
                                             {libraryItem && (
@@ -294,7 +294,7 @@ export const QuickViewModal = () => {
                                             useLibraryStore.getState().setSelectedSeriesId(libraryItem.id);
                                             closeQuickView();
                                         }}
-                                        className="flex-1 h-18 bg-white/10 hover:bg-white/20 text-foreground rounded-[24px] text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 shadow-2xl border border-white/5"
+                                        className="flex-1 h-18 bg-white/10 hover:bg-white/20 text-foreground rounded-[24px] text-xs font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 shadow-2xl border border-white/5"
                                     >
                                         <BookOpen size={22} />
                                         Enter Archive
@@ -302,7 +302,7 @@ export const QuickViewModal = () => {
                                 ) : (
                                     <button 
                                         onClick={handleImport}
-                                        className="flex-[2] h-18 bg-indigo-500 hover:bg-indigo-600 text-white rounded-[24px] text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 shadow-[0_20px_40px_rgba(99,102,241,0.3)]"
+                                        className="flex-[2] h-18 bg-indigo-500 hover:bg-indigo-600 text-white rounded-[24px] text-xs font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 shadow-[0_20px_40px_rgba(99,102,241,0.3)]"
                                     >
                                         <Download size={22} />
                                         Download
@@ -317,7 +317,7 @@ export const QuickViewModal = () => {
                                             await openShell(sourceUrl);
                                         }
                                     }}
-                                    className="flex-1 h-18 bg-white/5 hover:bg-white/10 text-foreground rounded-[24px] text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all border border-white/10"
+                                    className="flex-1 h-18 bg-white/5 hover:bg-white/10 text-foreground rounded-[24px] text-xs font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all border border-white/10"
                                     title="Open original site"
                                 >
                                     <Globe size={20} />

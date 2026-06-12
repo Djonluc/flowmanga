@@ -428,7 +428,7 @@ export const HomeView = () => {
       >
         <div
           className={clsx(
-            "flex-1 min-w-0 pb-32 h-full overflow-y-auto no-scrollbar",
+            "flex-1 min-w-0 pb-32 h-full overflow-y-auto custom-scrollbar",
             isScreenshotMode && "h-auto overflow-visible",
           )}
         >
@@ -472,7 +472,7 @@ export const HomeView = () => {
                   layout="masonry"
                   onItemClick={handleExternalClick}
                   onRefresh={fetchExternalData}
-                  accentColor="text-purple-400"
+                  accentColor="text-accent"
                 />
               </div>
             )}
@@ -542,7 +542,7 @@ const RightPanel = ({
   return (
     <div
       className={clsx(
-        "flex flex-col flex-shrink-0 bg-surface border-l border-border-subtle overflow-y-auto no-scrollbar transition-all duration-500 backdrop-blur-2xl shadow-cinematic",
+        "flex flex-col flex-shrink-0 bg-surface border-l border-border-subtle overflow-y-auto custom-scrollbar transition-all duration-500 backdrop-blur-2xl shadow-cinematic",
         "flex gap-6 p-5 lg:p-6 w-64 lg:w-72 xl:w-80",
         isScreenshotMode ? "h-auto" : "hidden lg:flex h-full",
       )}
@@ -663,7 +663,7 @@ const RightPanel = ({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1 rounded-xl border border-border-subtle bg-surface p-3">
-            <span className="text-[9px] font-black text-foreground-dim uppercase tracking-[0.2em]">
+            <span className="text-[9px] font-black text-foreground-dim uppercase tracking-widest">
               Series
             </span>
             <span className="text-lg font-black tracking-tighter text-foreground">
@@ -671,7 +671,7 @@ const RightPanel = ({
             </span>
           </div>
           <div className="flex flex-col gap-1 rounded-xl border border-border-subtle bg-surface p-3">
-            <span className="text-[9px] font-black text-foreground-dim uppercase tracking-[0.2em]">
+            <span className="text-[9px] font-black text-foreground-dim uppercase tracking-widest">
               Chapters
             </span>
             <span className="text-lg font-black tracking-tighter text-foreground">

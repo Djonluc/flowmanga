@@ -4,8 +4,10 @@ import { useLibraryStore } from '../stores/useLibraryStore';
 import { useDownloadStore } from '../stores/useDownloadStore';
 import { useModalStore } from '../stores/useModalStore';
 import { useAutomationStore } from '../stores/useAutomationStore';
+import { useDiscoveryStore } from '../stores/useDiscoveryStore';
 import { Search, Command, LayoutGrid, SlidersHorizontal, Download, Bell, RefreshCcw, Filter, Plus, Sparkles } from 'lucide-react';
 import clsx from 'clsx';
+import { useState, useEffect } from 'react';
 
 export const TopBar = () => {
     const { activeView, toggleDownloadPanel, toggleSettings, libraryViewMode, setLibraryViewMode } = useSettingsStore();
@@ -14,6 +16,7 @@ export const TopBar = () => {
     const { activeJobIds, queue } = useDownloadStore();
     const { openImportModal, openFilterModal, openNotificationCenter } = useModalStore();
     const { isChecking, checkForUpdates } = useAutomationStore();
+    const { query: discoverQuery, setQuery: setDiscoverQuery, search: discoverSearch, setActiveTab: setDiscoverTab } = useDiscoveryStore();
 
     const activeCount = activeJobIds.length;
     const queueCount = queue.length;
@@ -21,10 +24,39 @@ export const TopBar = () => {
 
     if (images.length > 0) return null;
 
+    const [localQuery, setLocalQuery] = useState(activeView === 'discover' ? discoverQuery : searchQuery);
+
+    // Sync local query when view changes or external store changes (if we clear it externally)
+    useEffect(() => {
+        setLocalQuery(activeView === 'discover' ? discoverQuery : searchQuery);
+    }, [activeView, discoverQuery, searchQuery]);
+
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            if (activeView === 'discover') {
+                if (discoverQuery !== localQuery) setDiscoverQuery(localQuery);
+            } else {
+                if (searchQuery !== localQuery) {
+                    setSearchQuery(localQuery);
+                    if (localQuery.trim() && activeView !== 'library') {
+                        useSettingsStore.getState().setActiveView('library');
+                    }
+                }
+            }
+        }, 300);
+        return () => clearTimeout(timeoutId);
+    }, [localQuery, activeView]);
+
     const handleSearchChange = (value: string) => {
-        setSearchQuery(value);
-        if (value.trim() && activeView !== 'library') {
-            useSettingsStore.getState().setActiveView('library');
+        setLocalQuery(value);
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter' && activeView === 'discover') {
+            if (discoverQuery.trim()) {
+                setDiscoverTab("search");
+                discoverSearch(discoverQuery);
+            }
         }
     };
 
@@ -38,12 +70,13 @@ export const TopBar = () => {
                     <input 
                         id="global-search"
                         type="text"
-                        placeholder="Search for titles, genres, authors..."
-                        value={searchQuery}
+                        placeholder={activeView === 'discover' ? "Cast vision across all realms... (Press Enter)" : "Search for titles, genres, authors..."}
+                        value={localQuery}
                         onChange={(e) => handleSearchChange(e.target.value)}
+                        onKeyDown={handleKeyDown}
                         className="w-full bg-surface-elevated border border-border-subtle rounded-2xl py-3.5 pl-14 pr-20 text-sm font-semibold focus:outline-none focus:bg-surface-raised focus:border-accent/40 transition-all placeholder:text-foreground-dim shadow-2xl focus:shadow-accent-glow/5 group-hover/search:border-foreground-dim/10"
                     />
-                    <div className="absolute right-5 top-1/2 -translate-y-1/2 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface border border-border-subtle text-[10px] text-foreground-dim font-black uppercase tracking-[0.2em] shadow-lg">
+                    <div className="absolute right-5 top-1/2 -translate-y-1/2 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface border border-border-subtle text-[10px] text-foreground-dim font-black uppercase tracking-widest shadow-lg">
                         <Command size={12} />
                         <span>K</span>
                     </div>
@@ -54,7 +87,7 @@ export const TopBar = () => {
             <div className="flex items-center gap-3">
                 <TopBarButton 
                     icon={<Plus size={20} />} 
-                    title="Import" 
+                    title="Manifest Source" 
                     onClick={() => openImportModal()}
                 />
                 <TopBarButton 

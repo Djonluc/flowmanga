@@ -62,7 +62,7 @@ export const AutomationSettings = () => {
                     {/* Status Info */}
                     <div className="flex items-center justify-between bg-black/40 rounded-2xl p-4 border border-white/5">
                         <div className="flex flex-col gap-1">
-                            <span className="text-[8px] font-black text-foreground-dim uppercase tracking-[0.2em]">Last Sync</span>
+                            <span className="text-[8px] font-black text-foreground-dim uppercase tracking-widest">Last Sync</span>
                             <span className="text-xs text-foreground-muted font-bold tracking-tight">
                                 {lastCheckTime ? new Date(lastCheckTime).toLocaleString() : 'Never'}
                             </span>

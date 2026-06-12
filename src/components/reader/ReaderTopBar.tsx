@@ -51,7 +51,7 @@ export const ReaderTopBar = ({ visible, onBack }: { visible: boolean, onBack: ()
                                 )}
                              >
                                 {autoScroll ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
-                                <span className="text-[9px] font-black uppercase tracking-[0.2em] flex items-center">
+                                <span className="text-[9px] font-black uppercase tracking-widest flex items-center">
                                     {autoScroll ? 'Active' : 'Scroll'}
                                     {autoScroll && (
                                         <span className="ml-3 px-2 py-0.5 rounded-md bg-white/20 text-[7px]">
@@ -65,7 +65,7 @@ export const ReaderTopBar = ({ visible, onBack }: { visible: boolean, onBack: ()
                          <div className="h-8 w-px bg-white/10 mx-2" />
 
                          <div className="px-4 py-1.5 rounded-xl bg-white/5 border border-white/5">
-                            <span className="text-[9px] font-black text-foreground-dim uppercase tracking-[0.2em]">
+                            <span className="text-[9px] font-black text-foreground-dim uppercase tracking-widest">
                                 {mode}
                             </span>
                          </div>

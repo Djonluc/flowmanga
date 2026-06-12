@@ -395,29 +395,7 @@ export const LibraryGrid = () => {
                           <Layers size={14} />
                           {selectionMode ? "Marking" : "Mass Sealing"}
                         </button>
-                        <div className="w-px h-4 bg-border-subtle mx-1" />
-                        <button
-                          onClick={() => setLibraryViewMode("grid")}
-                          className={clsx(
-                            "p-2 rounded-lg transition-all",
-                            libraryViewMode === "grid"
-                              ? "bg-surface-raised text-foreground"
-                              : "text-foreground-dim hover:text-foreground",
-                          )}
-                        >
-                          <LayoutGrid size={18} />
-                        </button>
-                        <button
-                          onClick={() => setLibraryViewMode("shelf")}
-                          className={clsx(
-                            "p-2 rounded-lg transition-all",
-                            libraryViewMode === "shelf"
-                              ? "bg-surface-raised text-foreground"
-                              : "text-foreground-dim hover:text-foreground",
-                          )}
-                        >
-                          <LibraryIcon size={18} />
-                        </button>
+
                       </div>
 
                       {activeView === "collections" ? (
@@ -432,20 +410,12 @@ export const LibraryGrid = () => {
                               },
                             });
                           }}
-                          className="h-[40px] px-6 bg-indigo-500 text-white hover:bg-indigo-400 rounded-2xl text-xs font-semibold tracking-wide transition-all active:scale-[0.97] flex items-center gap-2 shadow-lg shadow-indigo-500/20"
+                          className="h-[40px] px-6 bg-accent text-white hover:opacity-90 rounded-2xl text-xs font-semibold tracking-wide transition-all active:scale-[0.97] flex items-center gap-2 shadow-lg shadow-accent/20"
                         >
                           <PlusCircle size={16} />
                           <span>New Faction</span>
                         </button>
-                      ) : (
-                        <button
-                          onClick={() => openImportModal()}
-                          className="h-[40px] px-6 bg-white text-black hover:bg-neutral-200 rounded-2xl text-xs font-semibold tracking-wide transition-all active:scale-[0.97] flex items-center gap-2 shadow-lg shadow-white/5"
-                        >
-                          <PlusCircle size={16} />
-                          <span>Acquire</span>
-                        </button>
-                      )}
+                      ) : null}
                     </div>
                   </div>
 
@@ -734,7 +704,7 @@ const EmptyState = ({
         >
           <PlusCircle
             size={24}
-            className="text-indigo-500 mb-3 group-hover:scale-110 transition-transform"
+            className="text-accent mb-3 group-hover:scale-110 transition-transform"
           />
           <span className="block text-foreground font-semibold text-xs tracking-wide">
             Acquire Tome
@@ -742,7 +712,7 @@ const EmptyState = ({
         </button>
         <button
           onClick={onLink}
-          className="p-6 rounded-[24px] bg-indigo-600 hover:bg-indigo-500 shadow-xl shadow-indigo-600/20 transition-all text-left group"
+          className="p-6 rounded-[24px] bg-accent hover:opacity-90 shadow-xl shadow-accent/20 transition-all text-left group"
         >
           <FolderOpen
             size={24}
@@ -758,9 +728,9 @@ const EmptyState = ({
 );
 
 const DragOverlay = () => (
-  <div className="absolute inset-0 z-50 bg-indigo-500/20 backdrop-blur-sm border-4 border-indigo-500 border-dashed m-4 rounded-xl flex items-center justify-center pointer-events-none">
+  <div className="absolute inset-0 z-50 bg-accent/20 backdrop-blur-sm border-4 border-accent border-dashed m-4 rounded-xl flex items-center justify-center pointer-events-none">
     <div className="bg-surface/90 p-6 rounded-2xl text-foreground transform scale-110">
-      <FolderOpen size={48} className="mx-auto mb-2 text-indigo-400" />
+      <FolderOpen size={48} className="mx-auto mb-2 text-accent" />
       <h3 className="text-xl font-bold">Unseal Folder</h3>
     </div>
   </div>

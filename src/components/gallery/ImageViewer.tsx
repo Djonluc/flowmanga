@@ -48,7 +48,7 @@ const TagGroup: React.FC<{
 
   return (
     <div className="space-y-3">
-      <h4 className={`text-[9px] font-black uppercase tracking-[0.2em] ${colors[color].split(" ").pop()}`}>
+      <h4 className={`text-[9px] font-black uppercase tracking-widest ${colors[color].split(" ").pop()}`}>
         {title}
       </h4>
       <div className="flex flex-wrap gap-2">
@@ -965,7 +965,7 @@ export const ImageViewer: React.FC = () => {
                 <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
                   <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-black/40 border border-white/10 backdrop-blur-md shadow-2xl">
                     <Loader2 size={12} className="text-purple-400 animate-spin" />
-                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/80">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-white/80">
                       Loading Original...
                     </span>
                   </div>
@@ -1039,7 +1039,7 @@ export const ImageViewer: React.FC = () => {
 
                       {(generalTags.length > 0 || tags.length > 0) && (
                         <div className="space-y-3">
-                          <h4 className="text-[9px] font-black uppercase tracking-[0.2em] text-white/20">
+                          <h4 className="text-[9px] font-black uppercase tracking-widest text-white/20">
                             Tags
                           </h4>
                           <div className="flex flex-wrap gap-2">

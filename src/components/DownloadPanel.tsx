@@ -208,7 +208,7 @@ export const DownloadPanel = () => {
 
 const Section = ({ title, color, children }: { title: string, color: string, children: React.ReactNode }) => (
     <div className="space-y-3">
-        <h3 className={`text-[10px] font-black uppercase ${color} tracking-[0.2em] mb-3`}>{title}</h3>
+        <h3 className={`text-[10px] font-black uppercase ${color} tracking-widest mb-3`}>{title}</h3>
         <div className="space-y-3">
             {children}
         </div>

@@ -137,7 +137,7 @@ export const FeaturedCarousel = ({ items: propItems }: { items?: any[] }) => {
           >
             {/* Metadata Tags Zone - Horizontal Scroll Fallback */}
             <div className="flex items-center gap-3 overflow-x-auto no-scrollbar flex-shrink-0 pb-1 mb-[clamp(0.5rem,1.5vw,1rem)] [mask-image:linear-gradient(to_right,white_85%,transparent)] w-full pr-8">
-              <span className="flex-shrink-0 px-4 py-2 bg-accent text-white rounded-xl text-[10px] font-black tracking-[0.2em] uppercase shadow-lg shadow-accent-glow/20 border border-white/10">
+              <span className="flex-shrink-0 px-4 py-2 bg-accent text-white rounded-xl text-[10px] font-black tracking-widest uppercase shadow-lg shadow-accent-glow/20 border border-white/10">
                 {currentItem.books && currentItem.books.length > 0 ? "In Archive" : "Global Trending"}
               </span>
               <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 bg-surface-elevated backdrop-blur-md rounded-xl border border-border-subtle text-[10px] font-bold text-foreground-dim uppercase tracking-widest drop-shadow-md">
@@ -177,7 +177,7 @@ export const FeaturedCarousel = ({ items: propItems }: { items?: any[] }) => {
             {/* CTA Zone - Anchored & Fixed Size */}
             <div className="flex items-center gap-4 flex-shrink-0 pt-2">
               <button
-                className="h-14 px-[clamp(1.5rem,3vw,2.5rem)] bg-foreground text-background rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] sm:text-xs hover:scale-105 active:scale-95 transition-all shadow-2xl flex items-center gap-3 group/btn"
+                className="h-14 px-[clamp(1.5rem,3vw,2.5rem)] bg-foreground text-background rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs hover:scale-105 active:scale-95 transition-all shadow-2xl flex items-center gap-3 group/btn"
                 onClick={() => {
                   if (currentItem.books && currentItem.books.length > 0) {
                     const bookToOpen =

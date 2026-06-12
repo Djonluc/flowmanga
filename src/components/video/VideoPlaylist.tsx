@@ -54,7 +54,7 @@ export const VideoPlaylist = ({ isOpen, onClose }: VideoPlaylistProps) => {
                                 <h3 className="text-2xl font-black text-foreground uppercase italic tracking-tighter">
                                     Media <span className="text-blue-500">Queue</span>
                                 </h3>
-                                <p className="text-foreground-dim text-[10px] font-bold uppercase tracking-[0.2em] mt-1">
+                                <p className="text-foreground-dim text-[10px] font-bold uppercase tracking-widest mt-1">
                                     {queue.length} items available
                                 </p>
                             </div>

@@ -320,7 +320,7 @@ export const SavedCollections: React.FC = () => {
                   <h2 className="text-3xl font-black text-white uppercase tracking-tighter italic">
                     {selectedSmartCollection.tag}
                   </h2>
-                  <p className="text-purple-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1">
+                  <p className="text-purple-400 text-[10px] font-black uppercase tracking-widest mt-1">
                     Smart Collection • {selectedSmartCollection.count} Results
                   </p>
                 </div>
@@ -353,7 +353,7 @@ export const SavedCollections: React.FC = () => {
                 )}
                 <button 
                   onClick={() => useGalleryStore.getState().startSlideshowFromContext(selectedSmartCollection.images)}
-                  className="px-8 py-3.5 bg-purple-500 text-white rounded-2xl text-xs font-black uppercase tracking-[0.2em] hover:bg-purple-400 transition-all active:scale-95 shadow-lg shadow-purple-500/20"
+                  className="px-8 py-3.5 bg-purple-500 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-purple-400 transition-all active:scale-95 shadow-lg shadow-purple-500/20"
                 >
                   Play Slideshow
                 </button>
@@ -427,7 +427,7 @@ export const SavedCollections: React.FC = () => {
           ))}
           {localFolders.length === 0 && (
             <div className="col-span-full py-8 border-2 border-dashed border-white/5 rounded-2xl flex flex-col items-center justify-center text-center gap-2 bg-white/[0.01]">
-              <p className="text-foreground-dim text-[10px] font-black uppercase tracking-[0.2em] opacity-40">
+              <p className="text-foreground-dim text-[10px] font-black uppercase tracking-widest opacity-40">
                 No local folders linked
               </p>
             </div>

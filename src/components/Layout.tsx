@@ -93,7 +93,6 @@ export const Layout = ({ children, hideSidebar = false }: LayoutProps) => {
                 isOpen={isImportModalOpen} 
                 onClose={closeImportModal} 
                 onImportFolder={handleImportFolder} 
-                onImportWeb={(url) => {}} 
             />
 
             {tagManagerSeriesId && (

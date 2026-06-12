@@ -93,7 +93,7 @@ export const VideoLibrary: React.FC = () => {
                           <p className="text-foreground-dim font-bold text-xs uppercase tracking-widest mb-8">Link a folder to populate your archive.</p>
                           <button 
                             onClick={handleScanFolder}
-                            className="w-full py-4 bg-white text-black rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-neutral-200 transition-all active:scale-95"
+                            className="w-full py-4 bg-white text-black rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-neutral-200 transition-all active:scale-95"
                           >
                               Link Source Directory
                           </button>

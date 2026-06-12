@@ -652,7 +652,7 @@ export const SlideshowPlayer: React.FC = () => {
             className="absolute top-0 right-0 bottom-0 w-80 bg-black/80 backdrop-blur-3xl border-l border-white/10 z-60 p-6 flex flex-col"
           >
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white/40">
+              <h3 className="text-xs font-black uppercase tracking-widest text-white/40">
                 Upcoming Vision
               </h3>
               <button

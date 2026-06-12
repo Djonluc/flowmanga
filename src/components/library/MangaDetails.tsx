@@ -104,7 +104,15 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
   const [heroBackground, setHeroBackground] = useState<string | null>(null);
   const [downloadRange, setDownloadRange] = useState({ start: "", end: "" });
 
+  const [localQuery, setLocalQuery] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setSearchQuery(localQuery);
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [localQuery]);
   const [isSearching, setIsSearching] = useState(false);
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [jumpInput, setJumpInput] = useState("");
@@ -605,7 +613,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                   </div>
                 )}
                 <div className="absolute bottom-4 left-4">
-                  <span className="px-3 py-1.5 rounded-xl bg-background/60 backdrop-blur-md border border-border-subtle text-[10px] font-black uppercase tracking-[0.2em] text-accent flex items-center gap-2">
+                  <span className="px-3 py-1.5 rounded-xl bg-background/60 backdrop-blur-md border border-border-subtle text-[10px] font-black uppercase tracking-widest text-accent flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
                     {selectedSeries.status || "Ongoing"}
                   </span>
@@ -694,7 +702,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                 </p>
                 <button
                   onClick={() => setSynopsisExpanded(!synopsisExpanded)}
-                  className="mt-3 text-[10px] font-black uppercase tracking-[0.2em] text-accent hover:text-foreground transition-colors flex items-center gap-1 group/btn"
+                  className="mt-3 text-[10px] font-black uppercase tracking-widest text-accent hover:text-foreground transition-colors flex items-center gap-1 group/btn"
                 >
                   {synopsisExpanded ? "Collapse Chronicle" : "Expand Chronicle"}
                   <ChevronRight
@@ -822,7 +830,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                   }
                   className="group-hover:scale-110 transition-transform"
                 />
-                <span className="text-[10px] font-black uppercase tracking-[0.2em]">
+                <span className="text-[10px] font-black uppercase tracking-widest">
                   {selectedSeries.tags.includes("favorite")
                     ? "Favorited"
                     : "Favorite"}
@@ -844,7 +852,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                     size={24}
                     className="group-hover:scale-110 transition-transform"
                   />
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em]">
+                  <span className="text-[10px] font-black uppercase tracking-widest">
                     More
                   </span>
                 </button>
@@ -1009,15 +1017,18 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                           autoFocus
                           placeholder="Search scrolls..."
                           className="bg-transparent border-none outline-none text-xs font-bold px-2 py-1 placeholder:text-foreground-dim"
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
+                          value={localQuery}
+                          onChange={(e) => setLocalQuery(e.target.value)}
                         />
                       )}
                     </AnimatePresence>
                     <button
                       onClick={() => {
                         setIsSearching(!isSearching);
-                        if (isSearching) setSearchQuery("");
+                        if (isSearching) {
+                          setSearchQuery("");
+                          setLocalQuery("");
+                        }
                       }}
                       className={clsx(
                         "p-2.5 transition-colors rounded-lg",
@@ -1141,12 +1152,12 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                               Scroll {item.meta.chapter || idx + 1}
                             </h4>
                             {((sortOrder === "desc" && idx === 0) || (sortOrder === "asc" && idx === filteredChapters.length - 1)) && (
-                              <span className="px-2 py-0.5 rounded-lg bg-accent/20 text-accent text-[9px] font-black uppercase tracking-[0.2em] animate-pulse">
+                              <span className="px-2 py-0.5 rounded-lg bg-accent/20 text-accent text-[9px] font-black uppercase tracking-widest animate-pulse">
                                 NEW
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-6 mt-2 text-[10px] font-black uppercase tracking-[0.2em] text-foreground-dim group-hover:text-foreground-muted transition-colors">
+                          <div className="flex items-center gap-6 mt-2 text-[10px] font-black uppercase tracking-widest text-foreground-dim group-hover:text-foreground-muted transition-colors">
                             <span className="flex items-center gap-2">
                               <Clock size={12} />{" "}
                               {new Date(
@@ -1169,7 +1180,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
 
                         <div className="flex items-center gap-8 pr-2">
                           {isCurrent ? (
-                            <button className="px-6 py-2.5 bg-accent text-white rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-xl shadow-accent/30 hover:scale-105 active:scale-95">
+                            <button className="px-6 py-2.5 bg-accent text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-accent/30 hover:scale-105 active:scale-95">
                               Resonate
                             </button>
                           ) : (
@@ -1716,7 +1727,7 @@ const MissingChapterCard = ({
             Scroll {item.number}
           </h4>
         </div>
-        <div className="text-[10px] text-foreground-dim font-black uppercase tracking-[0.2em] mt-2 italic">
+        <div className="text-[10px] text-foreground-dim font-black uppercase tracking-widest mt-2 italic">
           Missing from Archive
         </div>
       </div>
@@ -1741,7 +1752,7 @@ const MissingChapterCard = ({
           }
         }}
         disabled={isSummoning}
-        className="px-6 py-3 bg-surface-raised hover:bg-accent text-foreground-dim hover:text-foreground rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all active:scale-95 shadow-sm"
+        className="px-6 py-3 bg-surface-raised hover:bg-accent text-foreground-dim hover:text-foreground rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-sm"
       >
         {isSummoning ? (
           <Loader2 size={16} className="animate-spin" />

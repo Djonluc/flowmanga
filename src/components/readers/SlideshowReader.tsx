@@ -146,7 +146,7 @@ export const SlideshowReader = () => {
             <div className="absolute bottom-10 left-10 flex items-center gap-3 bg-black/60 backdrop-blur-2xl border border-white/10 px-6 py-3 rounded-full shadow-2xl z-40">
                 <div className={clsx("w-2 h-2 rounded-full", slideshowActive ? "bg-green-500 animate-pulse" : "bg-yellow-500")} />
                 <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-foreground uppercase tracking-[0.2em] leading-none">
+                    <span className="text-[10px] font-black text-foreground uppercase tracking-widest leading-none">
                         Slideshow {slideshowActive ? 'Active' : 'Paused'}
                     </span>
                     <span className="text-[8px] font-bold text-foreground/40 uppercase tracking-widest mt-1">

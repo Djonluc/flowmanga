@@ -67,7 +67,7 @@ export const HorizontalRail = ({
                                     </h2>
                                 </div>
                                 <div className="flex items-center gap-2 mt-3 ml-[52px]">
-                                    <span className={clsx("text-[10px] font-black tracking-[0.2em] uppercase", accentColor)}>{title}</span>
+                                    <span className={clsx("text-[10px] font-black tracking-widest uppercase", accentColor)}>{title}</span>
                                     {subtitle && (
                                         <>
                                             <div className="w-px h-3 bg-border-subtle mx-1" />
