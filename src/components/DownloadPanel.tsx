@@ -87,6 +87,13 @@ export const DownloadPanel = () => {
                         {/* Content */}
                         <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
                             
+                            <div className="flex items-start gap-3 bg-accent/5 border border-accent/10 p-4 rounded-xl text-accent/80">
+                                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                                <p className="text-[9px] font-bold uppercase tracking-widest leading-relaxed">
+                                    Note: Depending on the archival source, manifesting scrolls may take significantly longer. Please be patient while content is being retrieved.
+                                </p>
+                            </div>
+                            
                             {/* Empty State */}
                             {queue.length === 0 && (
                                 <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 opacity-30">

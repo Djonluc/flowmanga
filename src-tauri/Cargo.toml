@@ -32,7 +32,7 @@ tauri-plugin-dialog = "2"
 walkdir = "2.5"
 uuid = { version = "1.8", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
-reqwest = { version = "0.11", features = ["blocking", "rustls-tls", "json"] }
+reqwest = { version = "0.11", features = ["blocking", "rustls-tls", "json", "cookies", "gzip", "deflate"] }
 headless_chrome = "1"
 zip = "0.6"
 tauri-plugin-http = "2"

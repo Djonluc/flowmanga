@@ -11,6 +11,8 @@ import type {
   ReaderMode,
   SourceCapabilities,
   SourceProvider,
+  SourceContent,
+  SourceImage,
   SourceSearchResult,
   SourceSearchOptions,
 } from "../types";
@@ -32,7 +34,7 @@ export class SankakuProvider implements SourceProvider {
   readonly capabilities: SourceCapabilities = {
     search: true,
     tagSearch: true,
-    seriesBrowse: false,
+    seriesBrowse: true,
     chapterFeed: false,
     pagination: true,
     authentication: true,
@@ -54,7 +56,65 @@ export class SankakuProvider implements SourceProvider {
     }
   }
 
-  async fetchSeries(url: string, signal?: AbortSignal) {
+  private normalizePostTags(item: any): string[] {
+    if (!Array.isArray(item?.tags)) return [];
+    return item.tags
+      .map((tag: any) =>
+        typeof tag === "string"
+          ? tag
+          : tag.name_en || tag.name || tag.tagName || tag.name_ja,
+      )
+      .filter(Boolean);
+  }
+
+  private normalizeMediaUrl(url: string): string {
+    if (!url) return "";
+    return url.startsWith("//") ? `https:${url}` : url;
+  }
+
+  private mapSankakuPosts(items: any[]): SourceSearchResult[] {
+    return items
+      .filter(Boolean)
+      .map((item) => {
+        const tags = this.normalizePostTags(item);
+        item.tag_string = tags.join(" ");
+        const mapped = mapBooruPosts([item], "sankaku", "https://www.sankakucomplex.com")[0];
+        if (!mapped) return null;
+        const fileUrl = this.normalizeMediaUrl(item.file_url || item.sample_url || "");
+        const previewUrl = this.normalizeMediaUrl(item.preview_url || item.preview_file_url || item.sample_url || "");
+        const mediaType: MediaType =
+          String(item.file_type || item.content_type || fileUrl).toLowerCase().includes("video") ||
+          /\.(mp4|webm|mov)(?:$|\?)/i.test(fileUrl)
+            ? "video"
+            : /\.(gif)(?:$|\?)/i.test(fileUrl)
+              ? "gif"
+              : "image";
+
+        return {
+          ...mapped,
+          id: `sankaku-${item.id || mapped.id}`,
+          title: tags.slice(0, 3).join(" ") || `Sankaku #${item.id || "item"}`,
+          provider: this.id,
+          source: this.id,
+          tags,
+          previewUrl: previewUrl || mapped.previewUrl || mapped.coverUrl,
+          coverUrl: previewUrl || mapped.coverUrl,
+          imageUrl: fileUrl || mapped.imageUrl,
+          fullResUrl: this.normalizeMediaUrl(item.file_url) || mapped.fullResUrl,
+          file_url: fileUrl || mapped.file_url,
+          sample_url: this.normalizeMediaUrl(item.sample_url) || mapped.sample_url,
+          mediaDomain: "image" as MediaDomain,
+          contentType: "gallery" as ContentType,
+          url: item.id
+            ? `https://www.sankakucomplex.com/posts/${item.id}`
+            : mapped.url,
+          mediaType,
+        } as SourceSearchResult & { mediaType: MediaType };
+      })
+      .filter((item): item is SourceSearchResult => Boolean(item));
+  }
+
+  async fetchSeries(url: string, _signal?: AbortSignal) {
     const parsed = new URL(url);
     const match = parsed.pathname.match(/\/books\/([a-zA-Z0-9]+)/) || parsed.pathname.match(/\/pool\/show\/(\d+)/);
     if (!match) throw new Error("Invalid Sankaku Book/Pool URL");
@@ -69,13 +129,13 @@ export class SankakuProvider implements SourceProvider {
     if (items.length === 0) throw new Error("No pages found in this book");
 
     const firstPost = items[0];
-    const coverUrl = firstPost.preview_url || firstPost.file_url || firstPost.sample_url || "";
-    const tags = Array.isArray(firstPost.tags) ? firstPost.tags.map((t: any) => typeof t === 'string' ? t : t.name_en || t.name) : [];
+    const coverUrl = this.normalizeMediaUrl(firstPost.preview_url || firstPost.file_url || firstPost.sample_url || "");
+    const tags = this.normalizePostTags(firstPost);
 
     return {
         title: `Sankaku Book #${bookId}`,
-        description: `Sankaku Pool / Book ${bookId}`,
-        coverUrl: coverUrl.startsWith('//') ? `https:${coverUrl}` : coverUrl,
+        description: `Sankaku book ${bookId}`,
+        coverUrl,
         seriesUrl: url,
         source: this.id,
         tags: tags.filter(Boolean),
@@ -90,7 +150,7 @@ export class SankakuProvider implements SourceProvider {
     };
   }
 
-  async fetchContent(url: string) {
+  async fetchContent(url: string): Promise<SourceContent> {
     try {
       const parsed = new URL(url);
       
@@ -107,23 +167,27 @@ export class SankakuProvider implements SourceProvider {
 
         items.sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
 
-        const images = items.map((item: any, idx: number) => {
+        const images = items.map((item: any, idx: number): SourceImage | null => {
             const imgUrl = item.file_url || item.sample_url || item.jpeg_url;
             if (!imgUrl) return null;
+            const normalizedUrl = this.normalizeMediaUrl(imgUrl);
             return {
-                url: imgUrl.startsWith('//') ? `https:${imgUrl}` : imgUrl,
+                url: normalizedUrl,
                 pageNumber: idx + 1,
+                mediaType: /\.(mp4|webm|mov)(?:$|\?)/i.test(normalizedUrl) ? "video" : "image",
             };
-        }).filter(Boolean);
+        }).filter((img): img is SourceImage => Boolean(img));
 
         const firstPost = items[0];
         return {
             images,
             metadata: {
                 title: `Sankaku Book #${bookId}`,
-                coverUrl: firstPost.preview_url || firstPost.file_url,
+                coverUrl: this.normalizeMediaUrl(firstPost.preview_url || firstPost.file_url),
                 sourceId: bookId,
                 sourceUrl: url,
+                tags: this.normalizePostTags(firstPost),
+                mediaCount: images.length,
             }
         };
       }
@@ -140,21 +204,24 @@ export class SankakuProvider implements SourceProvider {
         return { images: [], metadata: { sourceUrl: url } };
       }
 
-      const imageUrl = item.file_url || item.sample_url || url;
+      const imageUrl = this.normalizeMediaUrl(item.file_url || item.sample_url || url);
+      const mediaType: MediaType = /\.(mp4|webm|mov)(?:$|\?)/i.test(imageUrl) ? "video" : "image";
 
       return {
         images: [
           {
-            url: imageUrl.startsWith('//') ? `https:${imageUrl}` : imageUrl,
+            url: imageUrl,
             pageNumber: 1,
+            mediaType,
           },
         ],
         metadata: {
           title: `Sankaku #${id}`,
-          coverUrl: item.preview_url || item.file_url,
+          coverUrl: this.normalizeMediaUrl(item.preview_url || item.file_url),
           sourceId: String(item.id),
           sourceUrl: url,
-          tags: Array.isArray(item.tags) ? item.tags.map((t: any) => typeof t === 'string' ? t : t.name) : [],
+          tags: this.normalizePostTags(item),
+          mediaCount: 1,
         },
       };
     } catch (e) {
@@ -215,14 +282,7 @@ export class SankakuProvider implements SourceProvider {
       items = [data];
     }
 
-    // Convert sankaku tag object arrays to simple string arrays for compatibility
-    items.forEach((item: any) => {
-        if (Array.isArray(item.tags)) {
-            item.tag_string = item.tags.map((t: any) => t.name || t.tagName).join(' ');
-        }
-    });
-
-    return mapBooruPosts(items, "sankaku", "https://chan.sankakucomplex.com");
+    return this.mapSankakuPosts(items);
   }
 
   async searchByTags(
@@ -242,9 +302,13 @@ export class SankakuProvider implements SourceProvider {
     // Sankaku API restricts multi-tag searches for non-premium users. (Max 2 tags total).
     // To bypass this, we query the API using the maximum allowed tags,
     // request a larger batch, and then strictly filter the results client-side for the remaining tags.
+    const includeTags = tags.filter((tag) => !tag.startsWith("-"));
+    const excludeTags = tags
+      .filter((tag) => tag.startsWith("-"))
+      .map((tag) => tag.slice(1).toLowerCase());
     const maxAllowedTags = options.contentFilter === "sfw" ? 1 : 2;
-    const apiTags = tags.slice(0, maxAllowedTags);
-    const filterTags = tags.slice(maxAllowedTags).map((t) => t.toLowerCase());
+    const apiTags = includeTags.slice(0, maxAllowedTags);
+    const filterTags = includeTags.slice(maxAllowedTags).map((t) => t.toLowerCase());
 
     const normalized = buildBooruTagsFromArray(
       apiTags,
@@ -259,7 +323,15 @@ export class SankakuProvider implements SourceProvider {
     if (filterTags.length > 0) {
       results = results.filter(item => {
          const itemTags = (item.tags || []).map(t => t.toLowerCase());
-         return filterTags.every(ft => itemTags.includes(ft));
+         return filterTags.every(ft => itemTags.includes(ft)) &&
+           !excludeTags.some(et => itemTags.includes(et));
+      });
+    }
+
+    if (excludeTags.length > 0 && filterTags.length === 0) {
+      results = results.filter(item => {
+        const itemTags = (item.tags || []).map(t => t.toLowerCase());
+        return !excludeTags.some(et => itemTags.includes(et));
       });
     }
 

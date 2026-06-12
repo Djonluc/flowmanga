@@ -825,14 +825,23 @@ async fn fetch_html(
     headers: Option<HashMap<String, String>>,
 ) -> Result<String, String> {
     let client_builder = reqwest::Client::builder()
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .gzip(true)
+        .deflate(true)
+        .redirect(reqwest::redirect::Policy::limited(10));
 
     let client = client_builder.build().map_err(|e| e.to_string())?;
 
-    let mut request = client.get(&url).header(
-        "Accept",
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    );
+    let mut request = client.get(&url)
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+        .header("Accept-Language", "en-US,en;q=0.5")
+        .header("Accept-Encoding", "gzip, deflate")
+        .header("Connection", "keep-alive")
+        .header("Upgrade-Insecure-Requests", "1")
+        .header("Sec-Fetch-Dest", "document")
+        .header("Sec-Fetch-Mode", "navigate")
+        .header("Sec-Fetch-Site", "none")
+        .header("Sec-Fetch-User", "?1");
 
     if let Some(h_map) = headers {
         for (key, value) in h_map {

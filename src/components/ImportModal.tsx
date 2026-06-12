@@ -316,6 +316,12 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                     {/* Chapter Selector & Advanced Options */}
                                     {chapterFeed.length > 0 && (
                                       <div className="space-y-4">
+                                        <div className="flex items-start gap-4 bg-blue-500/10 border border-blue-500/20 p-5 rounded-2xl text-blue-400">
+                                          <AlertCircle size={24} className="shrink-0 mt-0.5" />
+                                          <p className="text-[11px] font-bold uppercase tracking-widest leading-relaxed">
+                                            Note: Depending on the online source, downloading chapters may take significantly longer than others. Please be patient and allow time for completion.
+                                          </p>
+                                        </div>
                                         <div className="flex flex-col gap-4">
                                           <div className="flex items-center justify-between">
                                             <label className="text-xs font-black text-foreground-dim uppercase tracking-[0.2em]">Batch Selection</label>

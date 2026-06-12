@@ -47,6 +47,7 @@ import {
   FileOutput,
   Search,
   X,
+  ArrowUpDown,
 } from "lucide-react";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { useLibraryStore, type Book } from "../../stores/useLibraryStore";
@@ -105,6 +106,9 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
+  const [jumpInput, setJumpInput] = useState("");
+  const [highlightedChapterId, setHighlightedChapterId] = useState<string | null>(null);
 
   const selectedSeries = series.find((s) => s.id === seriesId);
   const coverSrc = selectedSeries?.cover
@@ -155,7 +159,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
       const numB = parseFloat(
         (b as any).meta?.chapter || (b as any).number || "0",
       );
-      return numB - numA;
+      return sortOrder === "desc" ? numB - numA : numA - numB;
     });
 
     if (activeTab === "downloaded") {
@@ -174,7 +178,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
     }
 
     return base;
-  }, [sortedChapters, missingFromRemote, activeTab, searchQuery]);
+  }, [sortedChapters, missingFromRemote, activeTab, searchQuery, sortOrder]);
 
   useEffect(() => {
     let active = true;
@@ -242,6 +246,60 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
     coverSrc,
     setAmbientImage,
   ]);
+
+  const handleJumpToChapter = () => {
+    if (!jumpInput.trim()) return;
+
+    const targetQuery = jumpInput.trim().toLowerCase();
+    const allItems = [
+      ...sortedChapters,
+      ...missingFromRemote.map((rc) => ({ ...rc, isMissing: true })),
+    ];
+
+    const match = allItems.find((item: any) => {
+      const chNum = (item.meta?.chapter || item.number || "").toString().toLowerCase();
+      const title = (item.title || "").toLowerCase();
+      return chNum === targetQuery || chNum.includes(targetQuery) || title.includes(targetQuery);
+    });
+
+    if (match) {
+      setSearchQuery("");
+      setIsSearching(false);
+
+      if (match.isMissing) {
+        if (activeTab === "downloaded") {
+          setActiveTab("missing");
+        }
+      } else {
+        if (activeTab === "missing") {
+          setActiveTab("downloaded");
+        }
+      }
+
+      const targetId = match.isMissing 
+        ? `missing-${match.id || match.number}`
+        : match.id;
+
+      setHighlightedChapterId(targetId);
+
+      setTimeout(() => {
+        const element = document.getElementById(`chapter-card-${targetId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
+        } else {
+          console.warn(`Element chapter-card-${targetId} not found in DOM`);
+        }
+      }, 100);
+
+      setTimeout(() => {
+        setHighlightedChapterId(null);
+      }, 3000);
+
+      setJumpInput("");
+    } else {
+      toast.error(`Scroll "${jumpInput}" not found`);
+    }
+  };
 
   const handleReadChapter = async (targetBook: Book, startPage?: number) => {
     const sequence = [...sortedChapters]
@@ -912,7 +970,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                   {activeTab === "missing" && missingFromRemote.length > 0 && (
                     <button
                       onClick={() => {
-                        toast.success(`Summoning ${missingFromRemote.length} missing scrolls...`);
+                        toast.success(`Summoning ${missingFromRemote.length} missing scrolls. This may take a while depending on the source.`);
                         UpdateManager.checkForUpdates(selectedSeries.id);
                       }}
                       className="hidden sm:flex px-4 py-2 bg-accent text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-accent-glow hover:scale-105 active:scale-95 transition-all mr-2"
@@ -920,6 +978,27 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                       Manifest All Missing
                     </button>
                   )}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleJumpToChapter();
+                    }}
+                    className="flex items-center bg-surface-elevated rounded-xl p-1 border border-border-subtle mr-2"
+                  >
+                    <input
+                      type="text"
+                      placeholder="Jump to scroll..."
+                      className="bg-transparent border-none outline-none text-xs font-bold px-2 py-1 placeholder:text-foreground-dim w-24 focus:w-32 transition-all duration-300"
+                      value={jumpInput}
+                      onChange={(e) => setJumpInput(e.target.value)}
+                    />
+                    <button
+                      type="submit"
+                      className="p-1.5 text-accent hover:bg-accent/10 rounded-lg text-[10px] font-black uppercase tracking-widest px-2"
+                    >
+                      Go
+                    </button>
+                  </form>
                   <div className="flex items-center bg-surface-elevated rounded-xl p-1 border border-border-subtle mr-4">
                     <AnimatePresence>
                       {isSearching && (
@@ -950,6 +1029,14 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                       {isSearching ? <X size={16} /> : <Search size={16} />}
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
+                    className="p-3 rounded-xl transition-all border text-foreground-dim hover:text-foreground border-transparent hover:bg-white/5 active:scale-95 mr-2"
+                    title={sortOrder === "desc" ? "Sort Oldest First" : "Sort Newest First"}
+                  >
+                    <ArrowUpDown size={20} className={clsx(sortOrder === "asc" && "rotate-180 transition-transform")} />
+                  </button>
                   <button
                     onClick={() => setViewMode("list")}
                     className={clsx(
@@ -986,11 +1073,13 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                 <AnimatePresence mode="popLayout">
                   {filteredChapters.map((item: any, idx) => {
                     if (item.isMissing) {
+                      const cardId = `missing-${item.id || item.number}`;
                       return (
                         <MissingChapterCard
-                          key={`missing-${item.id || item.number}`}
+                          key={cardId}
                           item={item}
                           seriesId={selectedSeries.id}
+                          isHighlighted={highlightedChapterId === cardId}
                         />
                       );
                     }
@@ -999,6 +1088,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                       item.progress &&
                       item.progress.currentPage >= item.progress.totalPages - 2;
                     const isCurrent = latestWithProgress?.id === item.id;
+                    const isHighlighted = highlightedChapterId === item.id;
                     const percent = item.progress
                       ? Math.floor(
                           (item.progress.currentPage /
@@ -1015,12 +1105,15 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                     return (
                       <motion.div
                         key={item.id}
+                        id={`chapter-card-${item.id}`}
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         onClick={() => handleReadChapter(item)}
                         className={clsx(
                           "group relative flex items-center p-5 bg-surface-elevated hover:bg-surface-raised border rounded-[24px] transition-all cursor-pointer overflow-hidden",
-                          isCurrent
+                          isHighlighted
+                            ? "border-accent ring-2 ring-accent/50 shadow-accent-glow animate-pulse"
+                            : isCurrent
                             ? "border-accent/40 bg-accent/10 shadow-accent-glow"
                             : "border-border-subtle hover:border-border-strong",
                         )}
@@ -1047,7 +1140,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                             <h4 className="text-foreground font-black text-base truncate uppercase italic tracking-tight group-hover:text-accent transition-colors">
                               Scroll {item.meta.chapter || idx + 1}
                             </h4>
-                            {idx === 0 && (
+                            {((sortOrder === "desc" && idx === 0) || (sortOrder === "asc" && idx === filteredChapters.length - 1)) && (
                               <span className="px-2 py-0.5 rounded-lg bg-accent/20 text-accent text-[9px] font-black uppercase tracking-[0.2em] animate-pulse">
                                 NEW
                               </span>
@@ -1295,7 +1388,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                     label="Manifest Missing"
                     sub="Only fill archive gaps"
                     onClick={() => {
-                      toast.success("Summoning missing scrolls...");
+                      toast.success("Summoning missing scrolls. This may take a while depending on the source.");
                       setIsDownloadSelectorOpen(false);
                       UpdateManager.checkForUpdates(selectedSeries.id);
                     }}
@@ -1305,11 +1398,18 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                     label="Manifest Latest"
                     sub="Get the newest scrolls"
                     onClick={() => {
-                      toast.success("Summoning newest scrolls...");
+                      toast.success("Summoning newest scrolls. This may take a while depending on the source.");
                       setIsDownloadSelectorOpen(false);
                       UpdateManager.checkForUpdates(selectedSeries.id, 5);
                     }}
                   />
+                </div>
+
+                <div className="flex items-start gap-4 bg-accent/10 border border-accent/20 p-5 rounded-2xl text-accent">
+                  <AlertCircle size={24} className="shrink-0 mt-0.5" />
+                  <p className="text-[11px] font-bold uppercase tracking-widest leading-relaxed">
+                    Note: Depending on the archival origin, manifesting scrolls may take significantly longer than others. Please be patient and allow time for the content to appear in your library after initiating.
+                  </p>
                 </div>
 
                 <div className="space-y-6 bg-white/[0.02] border border-white/5 rounded-3xl p-8">
@@ -1373,7 +1473,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                       }
 
                       toast.success(
-                        `Manifesting ${toDownload.length} Scrolls...`,
+                        `Manifesting ${toDownload.length} Scrolls. This may take a while depending on the source.`,
                       );
                       setIsDownloadSelectorOpen(false);
 
@@ -1586,14 +1686,24 @@ const StorageLabel = ({ dot, label, value }: any) => (
 const MissingChapterCard = ({
   item,
   seriesId,
+  isHighlighted,
 }: {
   item: any;
   seriesId: string;
+  isHighlighted?: boolean;
 }) => {
   const [isSummoning, setIsSummoning] = useState(false);
 
   return (
-    <div className="group relative flex items-center p-5 bg-surface/50 border border-border-subtle border-dashed rounded-[24px] transition-all opacity-60 hover:opacity-100 hover:border-accent shadow-cinematic">
+    <div
+      id={`chapter-card-missing-${item.id || item.number}`}
+      className={clsx(
+        "group relative flex items-center p-5 bg-surface/50 border rounded-[24px] transition-all shadow-cinematic",
+        isHighlighted
+          ? "border-accent border-solid ring-2 ring-accent/50 shadow-accent-glow animate-pulse opacity-100"
+          : "border-border-subtle border-dashed opacity-60 hover:opacity-100 hover:border-accent"
+      )}
+    >
       <div className="w-16 h-16 rounded-xl bg-surface-raised flex items-center justify-center text-foreground-dim group-hover:text-accent group-hover:bg-accent-soft transition-all shrink-0">
         <Download size={24} />
       </div>

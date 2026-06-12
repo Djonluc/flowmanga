@@ -153,79 +153,128 @@ export class ManhuaPlusProvider implements SourceProvider {
   }
 
   async fetchSeries(url: string): Promise<SourceSeries> {
-    // ManhuaPlus serves chapter listings in static HTML — no headless browser needed
-    const html = await invoke<string>("fetch_html", { url, headers: null });
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
+    try {
+      // ManhuaPlus serves chapter listings in static HTML — no headless browser needed
+      const html = await invoke<string>("fetch_html", { url, headers: null });
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
 
-    // Extract title
-    const titleEl = doc.querySelector(".manga-info h1, .manga-detail h1, h1");
-    const title = titleEl?.textContent?.trim() || "Untitled";
+      // Extract title
+      const titleEl = doc.querySelector(".manga-info h1, .manga-detail h1, h1, .post-title h1");
+      const title = titleEl?.textContent?.trim() || "Untitled";
 
-    // Extract description
-    const descEl = doc.querySelector(".manga-info .summary, .manga-summary, .description, .manga-excerpt");
-    const description = descEl?.textContent?.trim() || "";
+      // Extract description
+      const descEl = doc.querySelector(".manga-info .summary, .manga-summary, .description, .manga-excerpt, .summary__content");
+      const description = descEl?.textContent?.trim() || "";
 
-    // Extract cover image
-    let coverUrl = "";
-    const coverImg = doc.querySelector(
-      ".manga-info img, .manga-detail img, .summary_image img, .thumb img, .cover img, main figure img, figure a img",
-    ) as HTMLImageElement | null;
+      // Extract cover image
+      let coverUrl = "";
+      const coverImg = doc.querySelector(
+        ".manga-info img, .manga-detail img, .summary_image img, .thumb img, .cover img, main figure img, figure a img",
+      ) as HTMLImageElement | null;
 
-    if (coverImg) {
-      coverUrl = coverImg.getAttribute("data-src") || coverImg.getAttribute("src") || "";
-    }
-
-    if (coverUrl && coverUrl.startsWith("/")) {
-      coverUrl = `https://manhuaplus.org${coverUrl}`;
-    }
-
-    // Extract tags/genres
-    const tags: string[] = [];
-    doc.querySelectorAll('a[href*="/genres/"], a[rel="tag"]').forEach((tagEl) => {
-      if (tagEl.textContent) {
-        const text = tagEl.textContent.trim();
-        if (text && !tags.includes(text)) {
-          tags.push(text);
-        }
+      if (coverImg) {
+        coverUrl = coverImg.getAttribute("data-src") || coverImg.getAttribute("src") || "";
       }
-    });
 
-    // Extract chapter links — ManhuaPlus uses /manga/{slug}/chapter-{N} pattern
-    const chapterLinks: { url: string; title: string; number: string }[] = [];
-    const seen = new Set<string>();
+      if (coverUrl && coverUrl.startsWith("/")) {
+        coverUrl = `https://manhuaplus.org${coverUrl}`;
+      } else if (coverUrl && coverUrl.startsWith("//")) {
+        coverUrl = "https:" + coverUrl;
+      }
 
-    doc.querySelectorAll('a[href*="/chapter-"]').forEach((a) => {
-      const href = a.getAttribute("href");
-      if (!href || !href.includes("manhuaplus.org/manga/")) return;
-      if (seen.has(href)) return;
-      seen.add(href);
+      // Extract tags/genres
+      const tags: string[] = [];
+      doc.querySelectorAll('a[href*="/genres/"], a[rel="tag"]').forEach((tagEl) => {
+        if (tagEl.textContent) {
+          const text = tagEl.textContent.trim();
+          if (text && !tags.includes(text)) {
+            tags.push(text);
+          }
+        }
+      });
 
-      const chTitle = a.textContent?.trim() || "";
-      const numMatch = href.match(/chapter-(\d+(\.\d+)?)/);
-      const num = numMatch ? numMatch[1] : "0";
+      // Extract chapter links — ManhuaPlus uses /manga/{slug}/chapter-{N} pattern
+      const chapterLinks: { url: string; title: string; number: string }[] = [];
+      const seen = new Set<string>();
 
-      chapterLinks.push({ url: href, title: chTitle, number: num });
-    });
+      doc.querySelectorAll('a[href*="/chapter-"]').forEach((a) => {
+        const href = a.getAttribute("href");
+        if (!href || (!href.includes("manhuaplus.org/manga/") && !href.startsWith("/manga/"))) return;
+        
+        let fullHref = href;
+        if (fullHref.startsWith("/")) {
+            fullHref = "https://manhuaplus.org" + fullHref;
+        }
 
-    // Sort by chapter number ascending
-    chapterLinks.sort((a, b) => parseFloat(a.number) - parseFloat(b.number));
+        if (seen.has(fullHref)) return;
+        seen.add(fullHref);
 
-    return {
-      title,
-      description,
-      coverUrl,
-      seriesUrl: url,
-      source: "manhuaplus.org",
-      tags,
-      chapters: chapterLinks.map((ch) => ({
-        id: ch.url,
-        number: ch.number,
-        url: ch.url,
-        title: ch.title,
+        const chTitle = a.textContent?.trim() || "";
+        const numMatch = fullHref.match(/chapter-(\d+(\.\d+)?)/);
+        const num = numMatch ? numMatch[1] : "0";
+
+        chapterLinks.push({ url: fullHref, title: chTitle, number: num });
+      });
+
+      // Regex fallback if DOM fails
+      if (chapterLinks.length === 0) {
+        const matches = Array.from(html.matchAll(/href=["']([^"']*chapter-\d+[^"']*)["']/gi));
+        matches.forEach(m => {
+            let fullHref = m[1];
+            if (fullHref.startsWith("/")) fullHref = "https://manhuaplus.org" + fullHref;
+            if (seen.has(fullHref)) return;
+            seen.add(fullHref);
+            
+            const numMatch = fullHref.match(/chapter-(\d+(\.\d+)?)/);
+            const num = numMatch ? numMatch[1] : "0";
+            chapterLinks.push({ url: fullHref, title: `Chapter ${num}`, number: num });
+        });
+      }
+
+      if (chapterLinks.length === 0) {
+          throw new Error("No chapters found in static HTML, falling back to headless.");
+      }
+
+      // Sort by chapter number ascending
+      chapterLinks.sort((a, b) => parseFloat(a.number) - parseFloat(b.number));
+
+      return {
+        title,
+        description,
+        coverUrl,
+        seriesUrl: url,
         source: "manhuaplus.org",
-      })),
-    };
+        tags,
+        chapters: chapterLinks.map((ch) => ({
+          id: ch.url,
+          number: ch.number,
+          url: ch.url,
+          title: ch.title,
+          source: "manhuaplus.org",
+        })),
+      };
+    } catch (e) {
+      console.warn("[ManhuaPlus] fetchSeries direct HTTP failed, falling back to headless:", e);
+      const res = await invoke<any>("scrape_series_headless", { url });
+      const links: string[] = res.chapter_links || res.chapterLinks || [];
+      return {
+        title: (res.title || "")
+          .replace(/[\r\n\t]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim(),
+        description: (res.description || "").trim(),
+        coverUrl: res.cover_url || res.coverUrl || "",
+        seriesUrl: url,
+        source: "manhuaplus.org",
+        chapters: links.map((link: string, i: number) => ({
+          id: link,
+          number: (links.length - i).toString(),
+          url: link,
+          source: "manhuaplus.org",
+        })),
+      };
+    }
   }
 
   async fetchChapterFeed(seriesUrl: string): Promise<SourceChapter[]> {
