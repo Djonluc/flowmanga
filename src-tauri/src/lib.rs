@@ -1583,7 +1583,7 @@ async fn list_ambient_sounds(app: AppHandle, custom_folders: Vec<String>) -> Res
         }
     }
 
-    let supported = ["mp3", "ogg", "wav"];
+    let supported = ["mp3", "ogg", "wav", "dat"];
     let mut sounds = Vec::new();
 
     for audio_root in audio_roots {
@@ -1593,6 +1593,13 @@ async fn list_ambient_sounds(app: AppHandle, custom_folders: Vec<String>) -> Res
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
+
+        let mut root_manifest: serde_json::Value = serde_json::json!({});
+        if let Ok(manifest_content) = fs::read_to_string(audio_root.join("audio_manifest.json")) {
+            if let Ok(json) = serde_json::from_str(&manifest_content) {
+                root_manifest = json;
+            }
+        }
 
         if let Ok(entries) = fs::read_dir(&audio_root) {
             for entry in entries.flatten() {
@@ -1606,6 +1613,13 @@ async fn list_ambient_sounds(app: AppHandle, custom_folders: Vec<String>) -> Res
                         .to_string_lossy()
                         .to_string();
 
+                    let mut manifest: serde_json::Value = serde_json::json!({});
+                    if let Ok(manifest_content) = fs::read_to_string(path.join("audio_manifest.json")) {
+                        if let Ok(json) = serde_json::from_str(&manifest_content) {
+                            manifest = json;
+                        }
+                    }
+
                     if let Ok(file_entries) = fs::read_dir(&path) {
                         for file_entry in file_entries.flatten() {
                             let file_path = file_entry.path();
@@ -1614,12 +1628,13 @@ async fn list_ambient_sounds(app: AppHandle, custom_folders: Vec<String>) -> Res
                                     if supported.contains(&ext.to_lowercase().as_str()) {
                                         let path_str = normalize_path(&file_path);
                                         if !sounds.iter().any(|s: &AmbientSound| s.path == path_str) {
+                                            let file_name = file_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                                            let mut track_name = file_path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+                                            if let Some(mapped) = manifest.get(&file_name).and_then(|m| m.get("name")).and_then(|n| n.as_str()) {
+                                                track_name = mapped.to_string();
+                                            }
                                             sounds.push(AmbientSound {
-                                                name: file_path
-                                                    .file_stem()
-                                                    .unwrap_or_default()
-                                                    .to_string_lossy()
-                                                    .to_string(),
+                                                name: track_name,
                                                 path: path_str,
                                                 playlist: playlist_name.clone(),
                                             });
@@ -1635,12 +1650,13 @@ async fn list_ambient_sounds(app: AppHandle, custom_folders: Vec<String>) -> Res
                         if supported.contains(&ext.to_lowercase().as_str()) {
                             let path_str = normalize_path(&path);
                             if !sounds.iter().any(|s: &AmbientSound| s.path == path_str) {
+                                let file_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                                let mut track_name = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+                                if let Some(mapped) = root_manifest.get(&file_name).and_then(|m| m.get("name")).and_then(|n| n.as_str()) {
+                                    track_name = mapped.to_string();
+                                }
                                 sounds.push(AmbientSound {
-                                    name: path
-                                        .file_stem()
-                                        .unwrap_or_default()
-                                        .to_string_lossy()
-                                        .to_string(),
+                                    name: track_name,
                                     path: path_str,
                                     playlist: root_playlist_name.clone(),
                                 });
