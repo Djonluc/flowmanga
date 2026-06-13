@@ -3,6 +3,7 @@ import {
   buildBooruTags,
   buildBooruTagsFromArray,
   mapBooruPosts,
+  normalizeBooruTag,
 } from "./BooruProviderBase";
 import type {
   ContentType,
@@ -116,21 +117,50 @@ export class DanbooruProvider implements SourceProvider {
     }
 
     const page = options.page || 1;
-    const maxTags = options.contentFilter === "sfw" ? 1 : 2;
-    const tagArray = query.split(" ").filter(Boolean).slice(0, maxTags);
+    
+    // For sfw contentFilter, "rating:s" consumes 1 tag under the hood.
+    // Danbooru limits anonymous users to 2 tags total.
+    const maxApiTags = options.contentFilter === "sfw" ? 1 : 2;
+    
+    const tagArray = query.split(" ").filter(Boolean);
+    const apiTags = tagArray.slice(0, maxApiTags);
+    const localFilterTags = tagArray.slice(maxApiTags);
+
     const tags = buildBooruTags(
-      tagArray.join(" "),
+      apiTags.join(" "),
       options.contentFilter || "all",
     );
+
+    // If we have extra tags, fetch a larger batch from Danbooru to ensure we 
+    // have enough results left after local filtering.
+    const apiLimit = localFilterTags.length > 0 ? 100 : (options.limit || 20);
 
     const data = await booruGet(this.baseUrl, "/posts.json", {
       tags,
       page,
-      limit: options.limit || 20,
+      limit: apiLimit,
       auth: options.auth,
     });
 
-    return mapBooruPosts(data, "danbooru", this.baseUrl);
+    let results = mapBooruPosts(data, "danbooru", this.baseUrl);
+
+    if (localFilterTags.length > 0) {
+      results = results.filter((post) => {
+        const postTags = new Set(post.tags);
+        return localFilterTags.every(tag => {
+          const normalizedFilter = normalizeBooruTag(tag);
+          if (normalizedFilter.startsWith('-')) {
+             return !postTags.has(normalizedFilter.slice(1));
+          }
+          return postTags.has(normalizedFilter);
+        });
+      });
+      if (options.limit) {
+         results = results.slice(0, options.limit);
+      }
+    }
+
+    return results;
   }
 
   async searchByTags(
@@ -147,14 +177,8 @@ export class DanbooruProvider implements SourceProvider {
       options = pageOrOptions;
     }
 
-    const maxTags = options.contentFilter === "sfw" ? 1 : 2;
-    const limitedTags = tags.slice(0, maxTags);
-
-    const normalized = buildBooruTagsFromArray(
-      limitedTags,
-      options.contentFilter || "all",
-    );
-    return this.search(normalized, options);
+    // Rely on the search method's hybrid filtering system
+    return this.search(tags.join(" "), options);
   }
 
   async getLatest(

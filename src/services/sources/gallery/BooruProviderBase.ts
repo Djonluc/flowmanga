@@ -76,6 +76,11 @@ export async function booruGet(
     }
   });
 
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "User-Agent": customUserAgent || BOORU_USER_AGENT,
+  };
+
   if (auth) {
     const isDanbooru = url.toString().includes("danbooru");
     const idKey = isDanbooru ? "login" : "user_id";
@@ -83,7 +88,6 @@ export async function booruGet(
     // Sanitize inputs: if the user pasted a full query string like "&api_key=...&user_id=...", extract the values
     const sanitize = (val: string) => {
       if (!val) return val;
-      // Extract from &key=value or ?key=value
       const match = val.match(/(?:^|[?&])(?:api_key|user_id|login)=([^&]+)/);
       return match ? match[1] : val;
     };
@@ -91,18 +95,22 @@ export async function booruGet(
     const cleanApiKey = sanitize(auth.apiKey || "");
     const cleanUserId = sanitize(auth.userId || "");
 
-    if (cleanApiKey) url.searchParams.set("api_key", cleanApiKey);
-    if (cleanUserId) url.searchParams.set(idKey, cleanUserId);
+    if (cleanApiKey && cleanUserId) {
+      if (isDanbooru) {
+        // Danbooru strongly prefers HTTP Basic Auth over URL params
+        headers["Authorization"] = `Basic ${btoa(`${cleanUserId}:${cleanApiKey}`)}`;
+      } else {
+        url.searchParams.set("api_key", cleanApiKey);
+        url.searchParams.set(idKey, cleanUserId);
+      }
+    }
   }
 
   try {
     const response = await invoke<unknown>("fetch_json", {
       url: url.toString(),
       method: "GET",
-      headers: {
-        Accept: "application/json",
-        "User-Agent": customUserAgent || BOORU_USER_AGENT,
-      },
+      headers,
     });
 
     return response ?? [];
@@ -276,6 +284,14 @@ function normalizeBooruPost(
         ? String(post.id)
         : "unknown";
 
+    const isVideo = 
+      fullResUrl.endsWith(".mp4") || 
+      fullResUrl.endsWith(".webm") || 
+      fullResUrl.endsWith(".zip") || 
+      asString(post.file_ext) === "mp4" || 
+      asString(post.file_ext) === "webm" || 
+      asString(post.file_ext) === "zip";
+
   return {
     id: `${source}-${postId}`,
     title:
@@ -298,8 +314,8 @@ function normalizeBooruPost(
     metaTags,
     source,
     provider: source,
-    contentType: "gallery",
-    mediaDomain: "image",
+    contentType: isVideo ? "video" : "gallery",
+    mediaDomain: isVideo ? "video" : "image",
     url: `${baseUrl}/posts/${postId}`,
     rating: normalizeRating(asString(post.rating)),
     popularity: Number(asString(post.score) || asString(post.fav_count) || "0"),
@@ -319,6 +335,8 @@ export function mapBooruPosts(
         isRecord(item) &&
         item.id !== undefined &&
         asString(item.status) !== "deleted" &&
+        item.is_banned !== true &&
+        item.is_deleted !== true &&
         Boolean(
           asString(item.file_url) ||
           asString(item.large_file_url) ||
