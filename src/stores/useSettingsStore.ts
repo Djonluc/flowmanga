@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { UpdateInfo } from '../services/AppVersionService';
 
 export type ReadingMode =
   | "vertical"
@@ -173,6 +174,12 @@ interface SettingsState {
   disabledSources: string[];
   toggleSource: (sourceId: string) => void;
   isSourceEnabled: (sourceId: string) => boolean;
+
+  // App Version / Updates
+  updateInfo: UpdateInfo | null;
+  updateStatus: 'idle' | 'checking' | 'available' | 'up-to-date' | 'error';
+  setUpdateInfo: (info: UpdateInfo | null) => void;
+  setUpdateStatus: (status: 'idle' | 'checking' | 'available' | 'up-to-date' | 'error') => void;
 }
 
 
@@ -393,11 +400,17 @@ export const useSettingsStore = create<SettingsState>()(
         const state = useSettingsStore.getState();
         return !state.disabledSources.includes(sourceId);
       },
+
+      // App Version / Updates
+      updateInfo: null,
+      updateStatus: 'idle',
+      setUpdateInfo: (info) => set({ updateInfo: info, updateStatus: info?.isNewer ? 'available' : 'up-to-date' }),
+      setUpdateStatus: (status) => set({ updateStatus: status }),
     }),
     {
       name: "flowmanga-settings",
       partialize: (state) => {
-        const { isInitializing, isSettingsOpen, isDownloadPanelOpen, ...rest } = state;
+        const { isInitializing, isSettingsOpen, isDownloadPanelOpen, updateInfo, updateStatus, ...rest } = state;
         return rest;
       },
     },

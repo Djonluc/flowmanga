@@ -1,5 +1,6 @@
 import { BaseProvider } from "./BaseProvider";
 import type { PlatformImage, SearchQuery } from "../types";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 
 export class DanbooruProvider extends BaseProvider {
   id = "danbooru";
@@ -22,10 +23,11 @@ export class DanbooruProvider extends BaseProvider {
   }
 
   async search(query: SearchQuery, page: number): Promise<PlatformImage[]> {
+    const { showAdultContent } = useSettingsStore.getState();
     const apiTags: string[] = [];
 
     // Always enforce sfw if requested in predicates, and give it highest priority!
-    if (query.predicates["rating"] === "safe" || query.predicates["rating"] === "sfw") {
+    if (query.predicates["rating"] === "safe" || query.predicates["rating"] === "sfw" || !showAdultContent) {
       apiTags.push("rating:s");
     }
 
@@ -55,9 +57,11 @@ export class DanbooruProvider extends BaseProvider {
   }
 
   async getDiscovery(page: number): Promise<PlatformImage[]> {
+    const { showAdultContent } = useSettingsStore.getState();
     // Danbooru deprecated order:random because it's too expensive. 
     // They now support the random:N tag. We use random:40.
-    return this.search({ raw: "random:40", positiveTags: ["random:40"], negativeTags: [], predicates: {} }, page);
+    const baseTags = showAdultContent ? ["random:40"] : ["random:40", "rating:s"];
+    return this.search({ raw: baseTags.join(" "), positiveTags: baseTags, negativeTags: [], predicates: {} }, page);
   }
 
   async getById(id: string): Promise<PlatformImage | null> {

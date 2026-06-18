@@ -17,6 +17,11 @@ export class Rule34Provider extends BaseProvider {
   domains = ["rule34.xxx"];
 
   async search(query: SearchQuery, page: number): Promise<PlatformImage[]> {
+    // Rule34 is inherently adult-only — skip entirely if adult content is disabled
+    const { useSettingsStore } = await import("../../stores/useSettingsStore");
+    const { showAdultContent } = useSettingsStore.getState();
+    if (!showAdultContent) return [];
+
     // If the query specifically targets another provider, skip this one
     if (query.predicates["source"] && query.predicates["source"] !== this.id) {
       return [];
@@ -76,6 +81,9 @@ export class Rule34Provider extends BaseProvider {
   }
 
   async getDiscovery(page: number): Promise<PlatformImage[]> {
+    const { useSettingsStore } = await import("../../stores/useSettingsStore");
+    const { showAdultContent } = useSettingsStore.getState();
+    if (!showAdultContent) return [];
     return this.search({ raw: "sort:random", positiveTags: ["sort:random"], negativeTags: [], predicates: {} }, page);
   }
 }

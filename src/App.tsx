@@ -22,6 +22,7 @@ import { OfflineAudioEngine } from './components/OfflineAudioEngine';
 import { useVideoStore } from './stores/useVideoStore';
 import { LocationModal } from './components/modals/LocationModal';
 import { SafetyCheckModal } from './components/modals/SafetyCheckModal';
+import { UpdateNotificationModal } from './components/modals/UpdateNotificationModal';
 
 function App() {
   const { isInitializing, zoomScale, accentColor, theme } = useSettingsStore();
@@ -241,6 +242,7 @@ function MainContent() {
             setSafetyCheckModal(false);
         }}
     />
+    <UpdateNotificationModal />
     </>
   )
 }

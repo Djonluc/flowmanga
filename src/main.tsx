@@ -5,6 +5,7 @@ import App from './App.tsx'
 import { initDatabase } from './services/db'
 import { useSettingsStore } from './stores/useSettingsStore'
 import { useLibraryStore } from './stores/useLibraryStore'
+import { AppVersionService } from './services/AppVersionService'
 
 // Initialize the root early to show a loading state immediately
 const root = createRoot(document.getElementById('root')!);
@@ -24,6 +25,19 @@ const init = async () => {
     
     // 3. Notify the app that initialisation is complete
     useSettingsStore.getState().setInitializing(false);
+
+    // 4. Background version check (non-blocking, fire-and-forget)
+    setTimeout(async () => {
+      try {
+        const { setUpdateInfo, setUpdateStatus } = useSettingsStore.getState();
+        setUpdateStatus('checking');
+        const info = await AppVersionService.checkForUpdates();
+        setUpdateInfo(info);
+        AppVersionService.startBackgroundCheck();
+      } catch (_) {
+        useSettingsStore.getState().setUpdateStatus('error');
+      }
+    }, 3000); // wait 3s after startup so it doesn't interfere with init
   } catch (err) {
     console.error('Failed to initialize application:', err);
     // Even if it fails, we should stop the loading state so the error can be shown or handled

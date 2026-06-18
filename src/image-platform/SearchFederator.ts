@@ -1,4 +1,5 @@
 import type { ImageProvider, PlatformImage, SearchQuery } from "./types";
+import { useSettingsStore } from "../stores/useSettingsStore";
 
 export class SearchFederator {
   private providers: Map<string, ImageProvider> = new Map();
@@ -9,6 +10,13 @@ export class SearchFederator {
 
   getProviders(): ImageProvider[] {
     return Array.from(this.providers.values());
+  }
+
+  /** Filters out adult images when the user has adult content disabled. */
+  private filterAdult(images: PlatformImage[]): PlatformImage[] {
+    const { showAdultContent } = useSettingsStore.getState();
+    if (showAdultContent) return images;
+    return images.filter(img => img.rating === 'safe' || !img.rating);
   }
 
   async getActiveProviders(): Promise<ImageProvider[]> {
@@ -50,8 +58,9 @@ export class SearchFederator {
     const promises = activeProviders.map(p => 
       p.search(query, page)
         .then(res => {
-          if (onChunk && res.length > 0) onChunk(res);
-          return res;
+          const filtered = this.filterAdult(res);
+          if (onChunk && filtered.length > 0) onChunk(filtered);
+          return filtered;
         })
         .catch((e: any) => {
           console.warn(`[SearchFederator] Provider ${p.id} timed out or failed gracefully: ${e.message}`);
@@ -70,8 +79,9 @@ export class SearchFederator {
     const promises = activeProviders.map(p => 
       p.getLatest(page)
         .then(res => {
-          if (onChunk && res.length > 0) onChunk(res);
-          return res;
+          const filtered = this.filterAdult(res);
+          if (onChunk && filtered.length > 0) onChunk(filtered);
+          return filtered;
         })
         .catch((e: any) => {
           console.warn(`[SearchFederator] Latest provider ${p.id} timed out or failed gracefully: ${e.message}`);
@@ -138,8 +148,9 @@ export class SearchFederator {
     const promises = activeProviders.map(p => 
       p.getDiscovery(page)
         .then(res => {
-          if (onChunk && res.length > 0) onChunk(res);
-          return res;
+          const filtered = this.filterAdult(res);
+          if (onChunk && filtered.length > 0) onChunk(filtered);
+          return filtered;
         })
         .catch(e => {
           console.warn(`[SearchFederator] Discovery provider ${p.id} timed out or failed gracefully:`, e);

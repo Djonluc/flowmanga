@@ -25,7 +25,7 @@ export class GelbooruProvider extends BaseProvider {
   async search(query: SearchQuery, page: number): Promise<PlatformImage[]> {
     try {
       const { useSettingsStore } = await import("../../stores/useSettingsStore");
-      const { booruAuth } = useSettingsStore.getState();
+      const { booruAuth, showAdultContent } = useSettingsStore.getState();
       const gelbooruUserId = booruAuth?.['gelbooru']?.userId;
       const gelbooruApiKey = booruAuth?.['gelbooru']?.apiKey;
 
@@ -37,8 +37,8 @@ export class GelbooruProvider extends BaseProvider {
         apiTags.push(`-${this.normalizeTag(tag)}`);
       }
 
-      if (query.predicates["rating"] === "safe" || query.predicates["rating"] === "sfw") {
-        apiTags.push("rating:safe");
+      if (query.predicates["rating"] === "safe" || query.predicates["rating"] === "sfw" || !showAdultContent) {
+        apiTags.push("rating:general");
       } else if (query.predicates["rating"] === "explicit") {
         apiTags.push("rating:explicit");
       }
@@ -68,11 +68,12 @@ export class GelbooruProvider extends BaseProvider {
   async getDiscovery(page: number): Promise<PlatformImage[]> {
     try {
       const { useSettingsStore } = await import("../../stores/useSettingsStore");
-      const { booruAuth } = useSettingsStore.getState();
+      const { booruAuth, showAdultContent } = useSettingsStore.getState();
       const gelbooruUserId = booruAuth?.['gelbooru']?.userId;
       const gelbooruApiKey = booruAuth?.['gelbooru']?.apiKey;
       
-      let url = `${this.baseUrl}&tags=sort:random&pid=${page - 1}`;
+      const tags = showAdultContent ? "sort:random" : "sort:random rating:general";
+      let url = `${this.baseUrl}&tags=${encodeURIComponent(tags)}&pid=${page - 1}`;
       if (gelbooruUserId && gelbooruApiKey) {
         url += `&user_id=${gelbooruUserId}&api_key=${gelbooruApiKey}`;
       }

@@ -38,6 +38,10 @@ export class SankakuProvider extends BaseProvider {
   }
 
   async search(query: SearchQuery, page: number): Promise<PlatformImage[]> {
+    // Sankaku is inherently adult-only — skip entirely if adult content is disabled
+    const { showAdultContent } = useSettingsStore.getState();
+    if (!showAdultContent) return [];
+
     if (query.predicates["source"] && query.predicates["source"] !== this.id) {
       return [];
     }
@@ -105,6 +109,8 @@ export class SankakuProvider extends BaseProvider {
   }
 
   async getDiscovery(page: number): Promise<PlatformImage[]> {
+    const { showAdultContent } = useSettingsStore.getState();
+    if (!showAdultContent) return [];
     return this.search({ raw: "order:random", positiveTags: ["order:random"], negativeTags: [], predicates: {} }, page);
   }
 
@@ -152,6 +158,8 @@ export class SankakuProvider extends BaseProvider {
   }
 
   async getLatest(page: number): Promise<PlatformImage[]> {
+    const { showAdultContent } = useSettingsStore.getState();
+    if (!showAdultContent) return [];
     // Pass a special internal tag to bypass the default order:quality injection
     // and naturally return the most recently uploaded images.
     return this.search({ raw: "_sort:new_", positiveTags: ["_sort:new_"], negativeTags: [], predicates: {} }, page);

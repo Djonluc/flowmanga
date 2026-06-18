@@ -11,9 +11,10 @@ import { DownloadSettings } from './DownloadSettings';
 import { AmbientSettings } from './AmbientSettings';
 import { SourcesSettings } from './SourcesSettings';
 import { AutomationSettings } from './AutomationSettings';
-import { Headphones, Globe, Sparkles } from 'lucide-react';
+import { UpdateSettings } from './UpdateSettings';
+import { Headphones, Globe, Sparkles, RefreshCw } from 'lucide-react';
 
-type SettingsTab = 'general' | 'reader' | 'appearance' | 'audio' | 'downloads' | 'sources' | 'automation';
+type SettingsTab = 'general' | 'reader' | 'appearance' | 'audio' | 'downloads' | 'sources' | 'automation' | 'updates';
 
 export const SettingsModal = () => {
     const { isSettingsOpen, toggleSettings } = useSettingsStore();
@@ -27,6 +28,7 @@ export const SettingsModal = () => {
         { id: 'downloads', label: 'Downloads', icon: Download },
         { id: 'automation', label: 'Automation', icon: Sparkles },
         { id: 'sources', label: 'Sources', icon: Globe },
+        { id: 'updates', label: 'Updates', icon: RefreshCw },
     ];
 
     return (
@@ -99,6 +101,7 @@ export const SettingsModal = () => {
                                     {activeTab === 'downloads' && <DownloadSettings />}
                                     {activeTab === 'automation' && <AutomationSettings />}
                                     {activeTab === 'sources' && <SourcesSettings />}
+                                    {activeTab === 'updates' && <UpdateSettings />}
                                 </div>
                             </div>
                         </div>
