@@ -125,12 +125,20 @@ export const PicksForYou: React.FC = () => {
               <GalleryImageCard
                 key={`${item.id}-${index}`}
                 id={item.id}
-                imageUrl={item.coverUrl || ''}
-                previewUrl={item.coverUrl}
+                imageUrl={item.sampleUrl || item.fullUrl || ''}
+                previewUrl={item.previewUrl || item.thumbnailUrl}
                 title={item.title}
                 tags={item.tags}
                 saved={savedIds.has(item.id)}
-                onView={() => openViewer(item as any, picksForYou as any[], index)}
+                onView={() => {
+                  if (item.contentCategory === "gallery" || item.contentCategory === "album" || item.contentCategory === "doujin") {
+                     import("../../stores/useModalStore").then(({ useModalStore }) => {
+                        useModalStore.getState().openQuickView(item);
+                     });
+                  } else {
+                     openViewer(item as any, picksForYou as any[], index);
+                  }
+                }}
                 onPlay={() => useGalleryStore.getState().startSlideshowFromContext(picksForYou, index, "picks")}
                 onSave={() => saveImage(item)}
               />

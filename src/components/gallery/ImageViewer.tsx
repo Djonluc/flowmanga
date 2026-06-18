@@ -29,6 +29,8 @@ import {
 
 import { useGalleryStore } from "../../stores/useGalleryStore";
 import { useMediaLoader } from "../../hooks/useMediaLoader";
+import { getRecommendations } from "../../services/image-engine";
+import type { SourceSearchResult } from "../../services/sources/types";
 
 const TagGroup: React.FC<{
   title: string;
@@ -113,6 +115,46 @@ export const ImageViewer: React.FC = () => {
     null,
   );
   const hudTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [recommendations, setRecommendations] = useState<SourceSearchResult[]>([]);
+  const [isLoadingRecs, setIsLoadingRecs] = useState(false);
+
+  useEffect(() => {
+    if (viewerImage) {
+      let active = true;
+      const controller = new AbortController();
+      setIsLoadingRecs(true);
+      setRecommendations([]);
+      
+      const searchItem: SourceSearchResult = {
+        id: viewerImage.id,
+        title: "title" in viewerImage ? viewerImage.title || "" : "",
+        coverUrl: "coverUrl" in viewerImage ? viewerImage.coverUrl || "" : "",
+        tags: "tags" in viewerImage ? viewerImage.tags || [] : [],
+        source: "source" in viewerImage ? viewerImage.source || "" : "",
+        provider: "source" in viewerImage ? viewerImage.source || "" : "",
+        contentType: "gallery",
+        url: "url" in viewerImage ? viewerImage.url || "" : "",
+      };
+
+      getRecommendations(searchItem)
+        .then((recs) => {
+          if (active) {
+            setRecommendations(recs);
+            setIsLoadingRecs(false);
+          }
+        })
+        .catch((err) => {
+          console.error("[ImageViewer] Failed to load recommendations:", err);
+          if (active) setIsLoadingRecs(false);
+        });
+
+      return () => {
+        active = false;
+        controller.abort();
+      };
+    }
+  }, [viewerImage]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -227,7 +269,6 @@ export const ImageViewer: React.FC = () => {
 
       setDownloadProgress(30);
 
-      const isSankaku = url.includes("sankakucomplex.com") || sourceUrl?.includes("sankakucomplex.com");
       const isDanbooru = url.includes("donmai.us");
       
       const reqHeaders: Record<string, string> = {};
@@ -498,6 +539,8 @@ export const ImageViewer: React.FC = () => {
     title?: string;
     url?: string;
     source?: string;
+    fullUrl?: string;
+    thumbnailUrl?: string;
     tags?: string[];
     artistTags?: string[];
     characterTags?: string[];
@@ -509,12 +552,16 @@ export const ImageViewer: React.FC = () => {
   const rawImageUrl = typedImage
     ? "imageUrl" in typedImage && typedImage.imageUrl
       ? typedImage.imageUrl
-      : typedImage.coverUrl || ""
+      : "fullUrl" in typedImage && typedImage.fullUrl
+        ? typedImage.fullUrl
+        : typedImage.coverUrl || ""
     : "";
   const previewUrl = typedImage
     ? "previewUrl" in typedImage && typedImage.previewUrl
       ? typedImage.previewUrl
-      : typedImage.coverUrl || ""
+      : "thumbnailUrl" in typedImage && typedImage.thumbnailUrl
+        ? typedImage.thumbnailUrl
+        : typedImage.coverUrl || ""
     : "";
   const tags: string[] =
     typedImage && "tags" in typedImage && Array.isArray(typedImage.tags)
@@ -543,12 +590,6 @@ export const ImageViewer: React.FC = () => {
     "generalTags" in typedImage &&
     Array.isArray(typedImage.generalTags)
       ? typedImage.generalTags
-      : [];
-  const metaTags =
-    typedImage &&
-    "metaTags" in typedImage &&
-    Array.isArray(typedImage.metaTags)
-      ? typedImage.metaTags
       : [];
   const title = typedImage
     ? "title" in typedImage
@@ -704,24 +745,6 @@ export const ImageViewer: React.FC = () => {
     measureImageZoom,
     isVideo,
   ]);
-
-  const retryHighRes = useCallback(() => {
-    if (!image) return;
-    setHighResError(false);
-    setIsHighResLoading(true);
-    preloadHighResImage(fallbackUrls, source).then((loadedImage) => {
-      if (loadedImage) {
-        setHighResImage(loadedImage);
-        setHighResLoaded(true);
-        setIsHighResLoading(false);
-        setHighResError(false);
-        measureImageZoom();
-      } else {
-        setHighResError(true);
-        setIsHighResLoading(false);
-      }
-    });
-  }, [image, fallbackUrls, source, preloadHighResImage, measureImageZoom]);
 
   return (
     <AnimatePresence>
@@ -1211,42 +1234,47 @@ export const ImageViewer: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Recommendations Placeholder */}
+                    {/* Recommendations Block */}
                     <div className="pt-4 border-t border-white/5">
                       <h4 className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-4">
                         More Like This
                       </h4>
-                      <div className="grid grid-cols-2 gap-3">
-                        {viewerContext
-                          .slice(0, 4)
-                          .filter((i) => i.id !== image.id)
-                          .map((rec) => (
+                      {isLoadingRecs ? (
+                        <div className="flex items-center justify-center py-6">
+                          <Loader2 size={18} className="text-purple-400 animate-spin" />
+                        </div>
+                      ) : recommendations.length > 0 ? (
+                        <div className="grid grid-cols-2 gap-3">
+                          {recommendations.map((rec) => (
                             <div
                               key={rec.id}
-                              className="aspect-square rounded-xl overflow-hidden cursor-pointer hover:scale-105 transition-transform"
+                              className="aspect-square rounded-xl overflow-hidden cursor-pointer hover:scale-105 transition-transform border border-white/5 relative group"
                               onClick={() => {
-                                const idx = viewerContext.findIndex(
-                                  (i) => i.id === rec.id,
-                                );
                                 useGalleryStore
                                   .getState()
-                                  .openViewer(rec, viewerContext, idx);
+                                  .openViewer(rec, [rec], 0);
                               }}
+                              title={rec.title}
                             >
                               <img
-                                src={
-                                  "previewUrl" in rec
-                                    ? rec.previewUrl
-                                    : "coverUrl" in rec
-                                      ? rec.coverUrl
-                                      : ""
-                                }
+                                src={rec.previewUrl || rec.coverUrl || rec.imageUrl || ""}
                                 className="w-full h-full object-cover"
                                 alt=""
+                                loading="lazy"
                               />
+                              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                                <span className="text-[8px] font-bold text-white uppercase tracking-wider truncate w-full">
+                                  {rec.source}
+                                </span>
+                              </div>
                             </div>
                           ))}
-                      </div>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest text-center py-4">
+                          No recommendations found
+                        </p>
+                      )}
                     </div>
                   </div>
                 </motion.div>

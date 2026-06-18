@@ -1,14 +1,9 @@
 /**
- * CollectionsView
- * 
- * Entry point for the Gallery Ecosystem.
- * Renders the GalleryHub which contains all discovery, saving,
- * and slideshow functionality.
+ * Entry point for the new Flow Image Engine.
  */
-
 import React from 'react';
-import { GalleryHub } from '../gallery/GalleryHub';
+import { ImageCollectionDashboard } from '../../image-platform/components/ImageCollectionDashboard';
 
 export const CollectionsView = () => {
-  return <GalleryHub />;
+  return <ImageCollectionDashboard />;
 };

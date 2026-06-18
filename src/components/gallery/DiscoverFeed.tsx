@@ -109,8 +109,8 @@ const DiscoverySection: React.FC<DiscoverySectionProps> = ({
               <GalleryImageCard
                 key={`${title}-${item.id}-${index}`}
                 id={item.id}
-                imageUrl={item.coverUrl || item.imageUrl || ""}
-                previewUrl={item.coverUrl || item.previewUrl}
+                imageUrl={item.sampleUrl || item.fullUrl || ""}
+                previewUrl={item.previewUrl || item.thumbnailUrl}
                 title={item.title}
                 tags={item.tags}
                 saved={savedIds.has(item.id)}

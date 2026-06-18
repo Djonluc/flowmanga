@@ -9,7 +9,7 @@ import { getDb } from "../services/db";
 import { toast } from "../components/Toast";
 import { useSettingsStore } from "./useSettingsStore";
 import { ContentFilter } from "../services/ContentFilter";
-import { DiscoveryService } from "../services/DiscoveryService";
+import { imageDiscovery, imageAutocomplete, mapImageMediaToSearchResult } from "../services/image-engine";
 import type {
   SourceSearchResult,
   SourceSearchOptions,
@@ -560,14 +560,8 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       // Use randomized page for refresh to ensure variety
       const fetchPage = page === 1 ? Math.floor(Math.random() * 5) + 1 : page;
       if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
-      const results = await DiscoveryService.searchGlobal(
-        "masterpiece highres",
-        48,
-        false,
-        fetchPage,
-        "image",
-        _discoveryAbortController.signal,
-      );
+      const rawResults = await imageDiscovery.search("masterpiece highres", { limit: 48, page: fetchPage, ratingFilter: get().contentFilter });
+      const results = rawResults.map(mapImageMediaToSearchResult);
       const unique = dedupeResults(results, [
         get().popularImages,
         get().latestImages,
@@ -591,14 +585,8 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     set({ isLoadingLatest: true });
     if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
     try {
-      const results = await DiscoveryService.getLatest(
-        48,
-        false,
-        "image",
-        page,
-        "all",
-        _discoveryAbortController.signal,
-      );
+      const rawResults = await imageDiscovery.search("", { limit: 48, page, ratingFilter: get().contentFilter });
+      const results = rawResults.map(mapImageMediaToSearchResult);
       const unique = dedupeResults(results, [
         get().popularImages,
         get().randomVisions,
@@ -622,13 +610,8 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     try {
       // Use higher limit for random to increase pool size
       if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
-      const results = await DiscoveryService.getRandom(
-        64,
-        false,
-        "image",
-        "all",
-        _discoveryAbortController.signal,
-      );
+      const rawResults = await imageDiscovery.search("random", { limit: 64, page: 1, ratingFilter: get().contentFilter });
+      const results = rawResults.map(mapImageMediaToSearchResult);
       const unique = dedupeResults(results, [
         get().popularImages,
         get().latestImages,
@@ -663,14 +646,8 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         const aesthetics = [...CURATED_AESTHETICS]
           .sort(() => 0.5 - Math.random())
           .slice(0, 2);
-        results = await DiscoveryService.searchGlobal(
-          aesthetics.join(" "),
-          64,
-          false,
-          1,
-          "image",
-          _discoveryAbortController.signal,
-        );
+        const raw = await imageDiscovery.search(aesthetics.join(" "), { limit: 64, page: 1, ratingFilter: contentFilter });
+          results = raw.map(mapImageMediaToSearchResult);
       } else {
         const allSeeds = Array.from(
           new Set([...viewHistory.slice(0, 5), ...favoriteTags]),
@@ -681,36 +658,18 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
           .slice(0, 2);
           
         if (selectedSeeds.length > 0) {
-          results = await DiscoveryService.searchGlobal(
-            selectedSeeds.join(" "),
-            64,
-            false,
-            page,
-            "image",
-            _discoveryAbortController.signal,
-          );
+          const raw1 = await imageDiscovery.search(selectedSeeds.join(" "), { limit: 64, page, ratingFilter: contentFilter });
+          results = raw1.map(mapImageMediaToSearchResult);
           
           // If the combination of 2 random tags yielded no results (too niche), fallback to just the first tag
           if (results.length === 0 && selectedSeeds.length > 1) {
-            results = await DiscoveryService.searchGlobal(
-              selectedSeeds[0],
-              64,
-              false,
-              page,
-              "image",
-              _discoveryAbortController.signal,
-            );
+            const raw2 = await imageDiscovery.search(selectedSeeds[0], { limit: 64, page, ratingFilter: contentFilter });
+              results = raw2.map(mapImageMediaToSearchResult);
           }
         } else {
           // Fallback if seeds ended up empty somehow
-          results = await DiscoveryService.searchGlobal(
-            CURATED_AESTHETICS[Math.floor(Math.random() * CURATED_AESTHETICS.length)],
-            64,
-            false,
-            page,
-            "image",
-            _discoveryAbortController.signal,
-          );
+          const raw = await imageDiscovery.search(CURATED_AESTHETICS[Math.floor(Math.random() * CURATED_AESTHETICS.length)], { limit: 64, page, ratingFilter: contentFilter });
+          results = raw.map(mapImageMediaToSearchResult);
         }
       }
 
@@ -719,14 +678,8 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
           CURATED_AESTHETICS[
             Math.floor(Math.random() * CURATED_AESTHETICS.length)
           ];
-        results = await DiscoveryService.searchGlobal(
-          fallbackAesthetic,
-          48,
-          false,
-          1,
-          "image",
-          _discoveryAbortController.signal,
-        );
+        const raw = await imageDiscovery.search(fallbackAesthetic, { limit: 48, page: 1, ratingFilter: contentFilter });
+          results = raw.map(mapImageMediaToSearchResult);
       }
 
       const savedIds = new Set(savedImages.map((i) => i.id));
@@ -790,14 +743,8 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         CURATED_AESTHETICS[
           Math.floor(Math.random() * CURATED_AESTHETICS.length)
         ];
-      const results = await DiscoveryService.searchGlobal(
-        randomAesthetic,
-        48,
-        false,
-        1,
-        "image",
-        _discoveryAbortController.signal,
-      );
+      const rawResults = await imageDiscovery.search(randomAesthetic, { limit: 48, page: 1, ratingFilter: get().contentFilter });
+      const results = rawResults.map(mapImageMediaToSearchResult);
       const savedIds = new Set(get().savedImages.map((i) => i.id));
       const historyIds = new Set(get().viewHistory);
       const filtered = results.filter(
@@ -816,7 +763,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       });
 
       // Preload thumbnails for better performance
-      DiscoveryService.preloadThumbnails(results);
+      
     } catch (e) {
       console.error(
         "[GalleryStore] Failed to fetch recommended aesthetics:",
@@ -832,14 +779,8 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     set({ isLoadingRecentPopular: true });
     if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
     try {
-      const results = await DiscoveryService.getTrending(
-        48,
-        false,
-        "image",
-        1,
-        "all",
-        _discoveryAbortController.signal,
-      );
+      const rawResults = await imageDiscovery.search("", { limit: 48, page: 1, ratingFilter: get().contentFilter });
+      const results = rawResults.map(mapImageMediaToSearchResult);
       const savedIds = new Set(get().savedImages.map((i) => i.id));
       const historyIds = new Set(get().viewHistory);
       const filtered = results.filter(
@@ -875,14 +816,8 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     try {
       const randomLiked = liked[Math.floor(Math.random() * liked.length)];
       const seeds = randomLiked.tags.slice(0, 3);
-      const results = await DiscoveryService.searchGlobalByTags(
-        seeds,
-        48,
-        false,
-        1,
-        "image",
-        _discoveryAbortController.signal,
-      );
+      const rawResults = await imageDiscovery.search(seeds.join(" "), { limit: 48, page: 1, ratingFilter: get().contentFilter });
+      const results = rawResults.map(mapImageMediaToSearchResult);
       const savedIds = new Set(get().savedImages.map((i) => i.id));
       const historyIds = new Set(get().viewHistory);
       const filtered = results.filter(
@@ -917,14 +852,8 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     }
     try {
       const lastTag = history[0];
-      const results = await DiscoveryService.searchGlobal(
-        lastTag,
-        48,
-        false,
-        1,
-        "image",
-        _discoveryAbortController.signal,
-      );
+      const rawResults = await imageDiscovery.search(lastTag, { limit: 48, page: 1, ratingFilter: get().contentFilter });
+      const results = rawResults.map(mapImageMediaToSearchResult);
       const savedIds = new Set(get().savedImages.map((i) => i.id));
       const historyIds = new Set(get().viewHistory);
       const filtered = results.filter(
@@ -963,14 +892,8 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
 
     try {
       const tags = query.split(/[ ,+]+/).filter(Boolean);
-      const results = await DiscoveryService.searchGlobalByTags(
-        tags,
-        48,
-        false,
-        page,
-        "image",
-        _searchAbortController?.signal,
-      );
+      const rawResults = await imageDiscovery.search(tags.join(" "), { limit: 48, page, ratingFilter: get().contentFilter });
+      const results = rawResults.map(mapImageMediaToSearchResult);
 
       set((state) => {
         const newItems = page === 1 ? results : dedupeResults(results, [state.searchResults]);
@@ -1626,6 +1549,16 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   // ─── Image Viewer ──────────────────────────────────────────────
 
   openViewer: async (image, context = [], index = 0) => {
+    if ((image.source === "e-hentai" || (image as any).provider === "e-hentai") && image.contentCategory !== "image_set") {
+      const { useModalStore } = await import("./useModalStore");
+      useModalStore.getState().openQuickView({
+        ...image,
+        mediaDomain: "manga",
+        contentType: image.contentCategory || "doujin",
+      });
+      return;
+    }
+
     set({ viewerImage: image, viewerContext: context, viewerIndex: index });
     const tags = Array.isArray(image.tags) ? image.tags : [];
     get().trackInteraction(tags);
@@ -1656,3 +1589,4 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     }
   },
 }));
+

@@ -20,6 +20,8 @@ export type SidebarMode = "expanded" | "collapsed" | "hover";
 export interface BooruAuth {
   apiKey?: string;
   userId?: string;
+  sessionCookies?: string;
+  localStorage?: Record<string, string>;
 }
 
 interface SettingsState {

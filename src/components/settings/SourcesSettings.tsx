@@ -3,6 +3,10 @@ import clsx from 'clsx';
 import { useState } from 'react';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import { sourceRegistry } from '../../services/sources/registry';
+import { federator } from '../../image-platform/SearchFederator';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import { useEffect } from 'react';
 
 export const SourcesSettings = () => {
     const { 
@@ -19,10 +23,68 @@ export const SourcesSettings = () => {
     } = useSettingsStore();
     const [tagInput, setTagInput] = useState(excludedTags?.join(', ') || '');
     
+    const getAuthInstructions = (providerId: string, requiresCookies?: boolean) => {
+        switch (providerId) {
+            case 'sankaku':
+                return "Automatic: Click 'Launch Authenticator', log in, and the window will close once it extracts your token.\nManual: Click 'Open in Browser', log in, open DevTools (F12) -> Application -> Cookies, and copy the '_sankakuchannel_session' cookie below.";
+            case 'e-hentai':
+                return "Automatic: Click 'Launch Authenticator', log in, bypass Cloudflare, and the window will close automatically.\nManual: Click 'Open in Browser', log in, open DevTools (F12) -> Application -> Cookies, and copy 'ipb_member_id' and 'ipb_pass_hash' below.";
+            case 'gelbooru':
+            case 'rule34':
+                return "Navigate to your account Options page via the link above. Scroll down to find your 'User ID' and 'API Key' and paste them into the fields below.";
+            default:
+                return requiresCookies 
+                    ? "This source requires raw session cookies to bypass security checks."
+                    : "Enter your User ID and API Key from your account settings.";
+        }
+    };
+
+    const getAuthLinkText = (providerId: string, requiresCookies?: boolean) => {
+        if (requiresCookies) return "Launch Authenticator";
+        return "Get API Key";
+    };
+
+    useEffect(() => {
+        const unlisten = listen<string>('auth-cookies-extracted', (event) => {
+            try {
+                const url = new URL(event.payload);
+                const providerId = url.searchParams.get('provider');
+                const cookie = url.searchParams.get('cookie');
+                const lsStr = url.searchParams.get('ls');
+                
+                if (providerId && (cookie || lsStr)) {
+                    const currentAuth = useSettingsStore.getState().booruAuth;
+                    let parsedLs: Record<string, string> | undefined = undefined;
+                    
+                    if (lsStr) {
+                        try {
+                            parsedLs = JSON.parse(lsStr);
+                        } catch(e) {}
+                    }
+                    
+                    useSettingsStore.getState().setBooruAuth(providerId, {
+                        ...currentAuth?.[providerId],
+                        sessionCookies: cookie || currentAuth?.[providerId]?.sessionCookies,
+                        localStorage: parsedLs || currentAuth?.[providerId]?.localStorage
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to parse extracted cookies", e);
+            }
+        });
+
+        return () => {
+            unlisten.then(f => f());
+        };
+    }, []);
+
     // Get all providers (including disabled) for the toggle UI
     const allProviders = sourceRegistry.listAll();
     const mangaProviders = allProviders.filter(p => p.mediaDomain === 'manga');
-    const galleryProviders = allProviders.filter(p => p.mediaDomain === 'image');
+    
+    // Get image engine providers
+    const imageProviders = federator.getProviders() as any[];
+    const galleryProviders = imageProviders;
     // For capabilities/auth display, show only enabled
     const enabledProviders = sourceRegistry.list();
 
@@ -33,16 +95,19 @@ export const SourcesSettings = () => {
 
     const getStatusColor = (status: string) => {
         switch (status?.toLowerCase()) {
+            case 'working':
             case 'healthy':
-            case 'peak condition':
             case 'operational':
             case 'active':
                 return 'bg-emerald-500';
+            case 'degraded':
             case 'slow':
             case 'timeout':
-            case 'low chakra':
                 return 'bg-amber-500';
+            case 'auth_required':
+                return 'bg-orange-500';
             case 'error':
+            case 'disabled':
             case 'retired':
             case 'shutdown':
             case 'fallen':
@@ -54,16 +119,21 @@ export const SourcesSettings = () => {
     };
 
     const getStatusText = (status: string, providerEnabled: boolean = true) => {
-        if (!providerEnabled) return 'Disabled';
-        if (!status) return 'In Hiding';
+        if (!providerEnabled) return 'Disabled by User';
+        if (!status) return 'Unknown';
         
         switch (status.toLowerCase()) {
+            case 'working': return 'Active';
             case 'healthy': return 'Peak Condition';
             case 'operational': return 'Active';
+            case 'degraded': return 'Degraded';
+            case 'auth_required': return 'Auth Required';
             case 'slow': return 'Low Chakra';
             case 'timeout': return 'Exhausted';
             case 'error': return 'Retired';
             case 'shutdown': return 'Fallen';
+            case 'sealed': return 'Disabled';
+            case 'disabled': return 'Disabled';
             default: return status.charAt(0).toUpperCase() + status.slice(1);
         }
     };
@@ -88,7 +158,8 @@ export const SourcesSettings = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {mangaProviders.map((source) => {
                     const isEnabled = isSourceEnabled(source.id);
-                    const status = isEnabled ? 'operational' : 'sealed';
+                    const systemStatus = source.capabilities.status || 'operational';
+                    const displayStatus = !isEnabled ? 'sealed' : systemStatus;
 
                     return (
                         <div 
@@ -96,8 +167,8 @@ export const SourcesSettings = () => {
                             className={clsx(
                                 "group p-6 rounded-[32px] border transition-all duration-500 flex flex-col gap-6",
                                 !isEnabled 
-                                    ? "bg-black/40 border-rose-900/20 opacity-60" 
-                                    : "bg-white/5 border-white/5 hover:border-blue-500/20"
+                                    ? "bg-black/40 border-rose-900/20 opacity-60 backdrop-blur-md" 
+                                    : "bg-surface/40 backdrop-blur-xl border-border-subtle hover:border-blue-500/30 hover:shadow-2xl hover:shadow-blue-500/5 hover:-translate-y-1"
                             )}
                         >
                             <div className="flex items-center justify-between">
@@ -115,9 +186,9 @@ export const SourcesSettings = () => {
                                             {source.name}
                                         </span>
                                         <div className="flex items-center gap-2 mt-1">
-                                            <div className={clsx("w-1.5 h-1.5 rounded-full", getStatusColor(status))} />
-                                            <span className={clsx("text-[8px] font-black uppercase tracking-widest", getStatusColor(status).replace('bg-', 'text-'))}>
-                                                {getStatusText(status, isEnabled)}
+                                            <div className={clsx("w-1.5 h-1.5 rounded-full", getStatusColor(displayStatus))} />
+                                            <span className={clsx("text-[8px] font-black uppercase tracking-widest", getStatusColor(displayStatus).replace('bg-', 'text-'))}>
+                                                {getStatusText(displayStatus, isEnabled)}
                                             </span>
                                         </div>
                                     </div>
@@ -194,7 +265,8 @@ export const SourcesSettings = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {galleryProviders.map((source) => {
                             const isSealed = !isSourceEnabled(source.id) || source.isEnabled === false;
-                            const status = isSealed ? 'sealed' : 'operational';
+                            const systemStatus = source.capabilities.status || 'operational';
+                            const displayStatus = isSealed ? 'sealed' : systemStatus;
 
                             return (
                                 <div 
@@ -202,8 +274,8 @@ export const SourcesSettings = () => {
                                     className={clsx(
                                         "group p-6 rounded-[32px] border transition-all duration-500 flex flex-col gap-6",
                                         isSealed 
-                                            ? "bg-black/40 border-rose-900/20 grayscale opacity-60" 
-                                            : "bg-white/5 border-white/5 hover:border-purple-500/20"
+                                            ? "bg-black/40 border-rose-900/20 grayscale opacity-60 backdrop-blur-md" 
+                                            : "bg-surface/40 backdrop-blur-xl border-border-subtle hover:border-purple-500/30 hover:shadow-2xl hover:shadow-purple-500/5 hover:-translate-y-1"
                                     )}
                                 >
                                     <div className="flex items-center justify-between">
@@ -222,9 +294,9 @@ export const SourcesSettings = () => {
                                                     {isSealed && <span className="ml-2 text-[8px] text-rose-500 uppercase tracking-widest font-black">Sealed</span>}
                                                 </span>
                                                 <div className="flex items-center gap-2 mt-1">
-                                                    <div className={clsx("w-1.5 h-1.5 rounded-full", getStatusColor(status))} />
-                                                    <span className={clsx("text-[8px] font-black uppercase tracking-widest", getStatusColor(status).replace('bg-', 'text-'))}>
-                                                        {getStatusText(status, source.isEnabled !== false)}
+                                                    <div className={clsx("w-1.5 h-1.5 rounded-full", getStatusColor(displayStatus))} />
+                                                    <span className={clsx("text-[8px] font-black uppercase tracking-widest", getStatusColor(displayStatus).replace('bg-', 'text-'))}>
+                                                        {getStatusText(displayStatus, source.isEnabled !== false && !isSealed)}
                                                     </span>
                                                 </div>
                                             </div>
@@ -305,8 +377,8 @@ export const SourcesSettings = () => {
                     </h4>
                 </div>
 
-                {allProviders.filter(p => p.capabilities.authentication).map(p => (
-                    <div key={`auth-${p.id}`} className="group bg-white/5 p-6 rounded-[32px] border border-white/5 flex flex-col gap-6 hover:border-amber-500/20 transition-all duration-500">
+                {imageProviders.filter(p => p.capabilities.authentication).map(p => (
+                    <div key={`auth-${p.id}`} className="group bg-surface/40 backdrop-blur-xl p-6 rounded-[32px] border border-border-subtle flex flex-col gap-6 hover:border-amber-500/30 hover:shadow-2xl hover:shadow-amber-500/5 hover:-translate-y-1 transition-all duration-500">
                         <div className="flex items-center gap-5">
                             <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500">
                                 <ShieldCheck size={28} />
@@ -314,55 +386,99 @@ export const SourcesSettings = () => {
                             <div className="flex flex-col">
                                 <span className="text-amber-500 text-[10px] font-black uppercase tracking-widest mb-1">Secure Protocol</span>
                                 <div className="flex items-center gap-3">
-                                    <span className="text-foreground text-base font-bold tracking-tight">{p.name} API Access</span>
-                                    <button 
-                                        onClick={() => handleOpenSite(p.capabilities.authUrl || `https://${p.domains[0]}`)}
-                                        className="text-[10px] font-black text-blue-500 hover:text-blue-400 uppercase tracking-widest bg-blue-500/10 px-2 py-0.5 rounded-md flex items-center gap-1 group/link"
-                                    >
-                                        Get API Key
-                                        <ExternalLink size={10} className="group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-transform" />
-                                    </button>
+                                    <span className="text-foreground text-base font-bold tracking-tight">{p.name} {p.capabilities.requiresCookies ? "Session" : "API"} Access</span>
+                                    
+                                    {p.capabilities.requiresCookies ? (
+                                        <>
+                                            <button 
+                                                onClick={() => {
+                                                    invoke('open_auth_window', { 
+                                                        url: p.capabilities.authUrl || `https://${p.domains[0]}`, 
+                                                        providerId: p.id 
+                                                    }).catch(console.error);
+                                                }}
+                                                className="text-[10px] font-black text-blue-500 hover:text-blue-400 uppercase tracking-widest bg-blue-500/10 px-2 py-0.5 rounded-md flex items-center gap-1 group/link transition-colors"
+                                            >
+                                                Launch Authenticator
+                                                <ExternalLink size={10} className="group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-transform" />
+                                            </button>
+                                            <button 
+                                                onClick={() => handleOpenSite(p.capabilities.authUrl || `https://${p.domains[0]}`)}
+                                                className="text-[10px] font-black text-amber-500 hover:text-amber-400 uppercase tracking-widest bg-amber-500/10 px-2 py-0.5 rounded-md flex items-center gap-1 group/link transition-colors"
+                                                title="Open in your default system browser"
+                                            >
+                                                Open in Browser
+                                                <Globe size={10} className="group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-transform" />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <button 
+                                            onClick={() => handleOpenSite(p.capabilities.authUrl || `https://${p.domains[0]}`)}
+                                            className="text-[10px] font-black text-blue-500 hover:text-blue-400 uppercase tracking-widest bg-blue-500/10 px-2 py-0.5 rounded-md flex items-center gap-1 group/link transition-colors"
+                                        >
+                                            {getAuthLinkText(p.id, false)}
+                                            <ExternalLink size={10} className="group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-transform" />
+                                        </button>
+                                    )}
                                 </div>
-                                <p className="text-foreground-muted text-[10px] font-medium mt-1">
-                                    Gelbooru and other DAPI sources now require mandatory authentication. Enter your User ID and API Key from your account settings.
+                                <p className="text-foreground-muted text-[10px] font-medium mt-1 leading-relaxed">
+                                    {getAuthInstructions(p.id, p.capabilities.requiresCookies)}
                                 </p>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {p.capabilities.requiresCookies ? (
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-foreground/40 uppercase tracking-widest ml-2">User ID</label>
-                                <input
-                                    type="text"
-                                    value={booruAuth?.[p.id]?.userId || ''}
+                                <label className="text-[10px] font-black text-foreground/40 uppercase tracking-widest ml-2">Session Cookies</label>
+                                <textarea
+                                    value={booruAuth?.[p.id]?.sessionCookies || ''}
                                     onChange={(e) => {
                                         const val = e.target.value;
                                         setBooruAuth(p.id, {
                                             ...booruAuth?.[p.id],
-                                            userId: val
+                                            sessionCookies: val
                                         });
                                     }}
-                                    placeholder="Enter User ID"
-                                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-amber-500/50 transition-colors"
+                                    placeholder="e.g. ipb_member_id=123; ipb_pass_hash=abc..."
+                                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-amber-500/50 transition-colors h-24 resize-none"
                                 />
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-foreground/40 uppercase tracking-widest ml-2">API Key</label>
-                                <input
-                                    type="password"
-                                    value={booruAuth?.[p.id]?.apiKey || ''}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        setBooruAuth(p.id, {
-                                            ...booruAuth?.[p.id],
-                                            apiKey: val
-                                        });
-                                    }}
-                                    placeholder="Enter API Key"
-                                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-amber-500/50 transition-colors"
-                                />
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-foreground/40 uppercase tracking-widest ml-2">User ID</label>
+                                    <input
+                                        type="text"
+                                        value={booruAuth?.[p.id]?.userId || ''}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setBooruAuth(p.id, {
+                                                ...booruAuth?.[p.id],
+                                                userId: val
+                                            });
+                                        }}
+                                        placeholder="Enter User ID"
+                                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-amber-500/50 transition-colors"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-foreground/40 uppercase tracking-widest ml-2">API Key</label>
+                                    <input
+                                        type="password"
+                                        value={booruAuth?.[p.id]?.apiKey || ''}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setBooruAuth(p.id, {
+                                                ...booruAuth?.[p.id],
+                                                apiKey: val
+                                            });
+                                        }}
+                                        placeholder="Enter API Key"
+                                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-amber-500/50 transition-colors"
+                                    />
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 ))}
             </div>

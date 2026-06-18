@@ -1789,6 +1789,52 @@ async fn wipe_manga_contents(path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[command]
+async fn open_auth_window(app: tauri::AppHandle, url: String, provider_id: String) -> Result<(), String> {
+    use tauri::webview::WebviewWindowBuilder;
+    use tauri::Emitter;
+
+    let init_script = r#"
+        setInterval(() => {
+            const cookies = document.cookie;
+            let ls = "";
+            try {
+                ls = JSON.stringify(window.localStorage);
+            } catch (e) {}
+            
+            if ((cookies && (cookies.includes('ipb_member_id') || cookies.includes('pass_hash') || cookies.includes('_sankakuchannel_session'))) ||
+                (ls && (ls.includes('access_token') || ls.includes('token') || ls.includes('user_id')))) {
+                const targetUrl = 'http://flowmanga.local/auth-callback?provider=PROVIDER_ID&cookie=' + encodeURIComponent(cookies || "") + '&ls=' + encodeURIComponent(ls);
+                window.location.replace(targetUrl);
+            }
+        }, 2000);
+    "#.replace("PROVIDER_ID", &provider_id);
+
+    let parsed_url = url.parse().map_err(|_| "Invalid URL".to_string())?;
+    let app_clone = app.clone();
+    let label = format!("auth_window_{}", provider_id);
+
+    let _window = WebviewWindowBuilder::new(
+        &app,
+        label,
+        tauri::WebviewUrl::External(parsed_url),
+    )
+    .title(format!("Login to {}", provider_id))
+    .inner_size(800.0, 600.0)
+    .initialization_script(&init_script)
+    .on_navigation(move |url| {
+        if url.as_str().starts_with("http://flowmanga.local/auth-callback") {
+            let _ = app_clone.emit("auth-cookies-extracted", url.as_str());
+            return false;
+        }
+        true
+    })
+    .build()
+    .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1819,7 +1865,8 @@ pub fn run() {
             validate_chapter_contents,
             wipe_manga_contents,
             fetch_binary,
-            get_cwd
+            get_cwd,
+            open_auth_window
         ])
         .setup(|app| {
             use tauri_plugin_cli::CliExt;

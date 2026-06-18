@@ -113,6 +113,47 @@ export const initDatabase = async () => {
       PRIMARY KEY (tagName, sourceId)
     );
 
+    CREATE TABLE IF NOT EXISTS FavoriteTags (
+      tag TEXT PRIMARY KEY,
+      usageCount INTEGER DEFAULT 1,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Flow Image Engine Collections
+    CREATE TABLE IF NOT EXISTS FlowSavedFolders (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      coverUrl TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS FlowSavedImages (
+      id TEXT PRIMARY KEY,
+      folderId TEXT,
+      sourceId TEXT NOT NULL,
+      providerId TEXT NOT NULL,
+      fullUrl TEXT NOT NULL,
+      sampleUrl TEXT,
+      thumbnailUrl TEXT,
+      width INTEGER,
+      height INTEGER,
+      tags TEXT,
+      rating TEXT,
+      score INTEGER,
+      sourceUrl TEXT,
+      isLocal BOOLEAN DEFAULT 0,
+      savedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (folderId) REFERENCES FlowSavedFolders(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS FlowPlaylists (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      query TEXT NOT NULL,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Gallery Ecosystem Tables
     CREATE TABLE IF NOT EXISTS GalleryImages (
       id TEXT PRIMARY KEY,
@@ -272,6 +313,46 @@ export const initDatabase = async () => {
       )
     `);
   } catch (e) {}
+
+  // ─── Flow Image Engine (New Rebuild) ───────────────────────────
+  try {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS FlowImages (
+        id TEXT PRIMARY KEY,
+        sourceId TEXT NOT NULL,
+        providerId TEXT NOT NULL,
+        thumbnailUrl TEXT NOT NULL,
+        sampleUrl TEXT NOT NULL,
+        fullUrl TEXT NOT NULL,
+        width INTEGER NOT NULL,
+        height INTEGER NOT NULL,
+        aspectRatio REAL NOT NULL,
+        tags TEXT DEFAULT '',
+        rating TEXT DEFAULT 'safe',
+        score INTEGER DEFAULT 0,
+        sourceUrl TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        isLocal BOOLEAN DEFAULT 0,
+        localPath TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS FlowPlaylists (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        query TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        lastPlayedAt DATETIME
+      );
+
+      CREATE TABLE IF NOT EXISTS FlowHistory (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        query TEXT NOT NULL,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch (e) {
+    console.error("[DB] Failed to create Flow Image Engine tables", e);
+  }
 
   // Invalidate old discovery caches on startup to prevent type mismatch crashes with new mapped schemas
   try {

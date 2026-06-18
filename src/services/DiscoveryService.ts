@@ -18,6 +18,9 @@ import type {
 } from "./sources/types";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import { ContentFilter } from "./ContentFilter";
+import { TagParser } from "./image-engine/parser/TagParser";
+import type { ParsedQuery } from "./image-engine/types";
+
 
 interface CacheEntry {
   data: SourceSearchResult[];
@@ -104,7 +107,7 @@ export class DiscoveryService {
   private static readonly MAX_CACHE_ENTRIES = 50;
   private static readonly MAX_CONCURRENT_REQUESTS = 4; // Phase 5.3: Limit concurrent provider requests
 
-  private static cache = new Map<string, { data: any; timestamp: number }>();
+  private static cache = new Map<string, CacheEntry>();
   private static searchOffsets = new Map<string, Record<string, number>>();
 
   static async clearAllCache() {
@@ -543,6 +546,7 @@ export class DiscoveryService {
     mediaDomain?: MediaDomain,
     signal?: AbortSignal,
   ): Promise<SourceSearchResult[]> {
+    const parsed = TagParser.parse(query, "all");
     const cacheKey = `search_${query}_${limit}_${coloredOnly}_${page}_${mediaDomain ?? "all"}`;
 
     // Check memory cache with shorter TTL for search results
@@ -550,7 +554,11 @@ export class DiscoveryService {
     if (memCached) return memCached;
 
     const { booruAuth } = useSettingsStore.getState();
-    const providers = this.getProvidersByMediaDomain(mediaDomain);
+    let providers = this.getProvidersByMediaDomain(mediaDomain);
+
+    if (parsed.targetSource) {
+      providers = providers.filter(p => p.id.toLowerCase() === parsed.targetSource);
+    }
     
     // Manage search entropy offsets
     const queryKey = `global_${query}_${mediaDomain ?? "all"}`;
@@ -567,8 +575,9 @@ export class DiscoveryService {
     const tasks = [...providers].sort(() => Math.random() - 0.5).map((p) => async () => {
       if (!p.search) return [];
       const actualPage = page + (offsets[p.id] || 0);
+      const cleanQuery = parsed.positiveTags.join(" ") || "a";
       return await this.withTimeout(
-        p.search(query, {
+        p.search(cleanQuery, {
           page: actualPage,
           limit: Math.min(limit * 2, 100),
           auth: booruAuth[p.id],
@@ -596,7 +605,8 @@ export class DiscoveryService {
     const finalResults = this.filterRestrictedContent(
       this.interleave(flattenedResults, limit, coloredOnly),
       coloredOnly,
-    ).filter((item) => this.matchesMediaDomain(item, mediaDomain));
+    ).filter((item) => this.matchesMediaDomain(item, mediaDomain))
+     .filter((item) => this.applyTagFilters(item, parsed));
 
     // Cache search results with shorter TTL
     this.setCache(cacheKey, finalResults, false);
@@ -618,7 +628,14 @@ export class DiscoveryService {
     mediaDomain?: MediaDomain,
     signal?: AbortSignal,
   ): Promise<SourceSearchResult[]> {
-    const providers = this.getProvidersByMediaDomain(mediaDomain);
+    const query = tags.join(" ");
+    const parsed = TagParser.parse(query, "all");
+    let providers = this.getProvidersByMediaDomain(mediaDomain);
+
+    if (parsed.targetSource) {
+      providers = providers.filter(p => p.id.toLowerCase() === parsed.targetSource);
+    }
+
     const stats = { total: 0, failed: 0, providers: [] as string[] };
 
     const queryKey = `tags_${tags.join(",")}_${mediaDomain ?? "all"}`;
@@ -642,13 +659,13 @@ export class DiscoveryService {
 
           const result = await this.withTimeout(
             p.capabilities.tagSearch && p.searchByTags
-              ? p.searchByTags(tags, {
+              ? p.searchByTags(parsed.positiveTags, {
                   page: actualPage,
                   limit: Math.max(limit * 2, 100),
                   auth: booruAuth[p.id],
                   signal,
                 })
-              : p.search!(tags.join(" "), {
+              : p.search!(parsed.positiveTags.join(" "), {
                   page: actualPage,
                   limit: Math.max(limit * 2, 100),
                   auth: booruAuth[p.id],
@@ -661,7 +678,7 @@ export class DiscoveryService {
           const combined = result;
 
           console.log(
-            `[DiscoveryService] Provider '${p.name}' returned ${combined.length} results for tags: ${tags.join(", ")}`,
+            `[DiscoveryService] Provider '${p.name}' returned ${combined.length} results for tags: ${parsed.positiveTags.join(", ")}`,
           );
           if (combined.length > 0) {
             stats.providers.push(`${p.name} (${combined.length})`);
@@ -680,22 +697,8 @@ export class DiscoveryService {
 
     const results = await this.pool(tasks, this.MAX_CONCURRENT_REQUESTS);
 
-
-
-    const normalizedQueryTags = tags
-      .map((tag) =>
-        tag
-          .trim()
-          .toLowerCase()
-          .replace(/\s+/g, "_")
-          .replace(/[^\w\-:@~.()]/g, "")
-          .replace(/_+/g, "_")
-          .replace(/^_+|_+$/g, ""),
-      )
-      .filter(Boolean);
-
     const totalBeforeFilter = results.reduce((acc, curr) => acc + (curr?.length || 0), 0);
-    console.log(`[Search Pipeline] Tag Search: [${tags.join(", ")}]`);
+    console.log(`[Search Pipeline] Tag Search: [${parsed.positiveTags.join(", ")}]`);
     
     providers.filter((p) => p.capabilities.tagSearch || p.capabilities.search).forEach((p, i) => {
       console.log(`[Search Pipeline] Source ${p.name} returned: ${results[i]?.length || 0} results`);
@@ -709,7 +712,9 @@ export class DiscoveryService {
     const filtered = this.filterRestrictedContent(interleaved, coloredOnly);
     console.log(`[Search Pipeline] After filtering (NSFW/Color): ${filtered.length}`);
 
-    const finalResults = filtered.filter((item) => this.matchesMediaDomain(item, mediaDomain));
+    const finalResults = filtered
+      .filter((item) => this.matchesMediaDomain(item, mediaDomain))
+      .filter((item) => this.applyTagFilters(item, parsed));
     console.log(`[Search Pipeline] Rendered results (domain filtered): ${finalResults.length}`);
 
     // Import toast dynamically to avoid circular dependencies
@@ -723,7 +728,7 @@ export class DiscoveryService {
           toast.error(
             `${stats.failed} providers failed to respond to tag search.`,
           );
-        } else if (tags.length > 0) {
+        } else if (parsed.positiveTags.length > 0) {
           toast.info(`No matches found for tags across active providers.`);
         }
       })
@@ -732,13 +737,105 @@ export class DiscoveryService {
     return finalResults;
   }
 
+  /**
+   * Filter items client-side by positive and negative tags.
+   */
+  private static applyTagFilters(item: SourceSearchResult, parsed: ParsedQuery): boolean {
+    const itemTags = item.tags || [];
+    const itemTagsLower = itemTags.map((t: string) => t.toLowerCase().trim().replace(/_/g, " "));
+    const titleLower = (item.title || "").toLowerCase();
+
+    // Check exclusions (negative tags)
+    for (const exTag of parsed.excludedTags) {
+      const cleanEx = exTag.toLowerCase().trim().replace(/_/g, " ");
+      if (itemTagsLower.includes(cleanEx) || titleLower.includes(cleanEx)) {
+        return false; // Excluded!
+      }
+    }
+
+    // Check positive tags ONLY if the item has tags populated
+    if (itemTags.length > 0) {
+      for (const posTag of parsed.positiveTags) {
+        const cleanPos = posTag.toLowerCase().trim().replace(/_/g, " ");
+        // Check if the tag (or title) contains the positive tag
+        const tagMatched = itemTagsLower.some((t: string) => t.includes(cleanPos)) || titleLower.includes(cleanPos);
+        if (!tagMatched) {
+          return false; // Missing positive tag!
+        }
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Get recommended content based on an item.
+   * Uses source-specific recommendations if available (e.g. related tags or pools),
+   * otherwise falls back to tag similarity query across all providers.
+   */
+  static async getRecommendedContent(
+    item: SourceSearchResult,
+    limit: number = 8,
+    signal?: AbortSignal,
+  ): Promise<SourceSearchResult[]> {
+    const provider = sourceRegistry.get(item.provider);
+    
+    // 1. Try native provider recommendations if supported
+    if (provider && provider.getRelatedTags && item.tags && item.tags.length > 0) {
+      try {
+        const topTag = item.tags[0];
+        const related = await provider.getRelatedTags(topTag);
+        if (related && related.length > 0) {
+          // Search with related tags
+          console.log(`[DiscoveryService] Using native related tags for recommendations: ${related.slice(0, 3).join(", ")}`);
+          const results = await this.searchGlobalByTags(related.slice(0, 3), limit, false, 1, "image", signal);
+          if (results.length > 0) {
+            return results.filter(r => r.id !== item.id).slice(0, limit);
+          }
+        }
+      } catch (err) {
+        console.warn("[DiscoveryService] Native recommendations failed, falling back:", err);
+      }
+    }
+
+    // 2. Fallback: Tag Similarity Search
+    const itemTags = item.tags || [];
+    const filterOut = ["masterpiece", "highres", "original", "high_resolution", "photorealistic"];
+    const usefulTags = itemTags
+      .filter(t => !filterOut.includes(t.toLowerCase()))
+      .slice(0, 3); // Take top 3 tags
+
+    if (usefulTags.length > 0) {
+      console.log(`[DiscoveryService] Falling back to tag similarity recommendations for tags: ${usefulTags.join(", ")}`);
+      const results = await this.searchGlobalByTags(usefulTags, limit * 2, false, 1, "image", signal);
+      
+      // Rank by intersection count (similarity score)
+      const ranked = results
+        .filter(r => r.id !== item.id)
+        .map(r => {
+          const rTags = r.tags || [];
+          const intersection = rTags.filter(t => itemTags.includes(t)).length;
+          return { item: r, score: intersection };
+        })
+        .sort((a, b) => b.score - a.score)
+        .map(x => x.item);
+
+      if (ranked.length > 0) {
+        return ranked.slice(0, limit);
+      }
+    }
+
+    // 3. Last resort fallback: get random items
+    return this.getRandom(limit, false, "image", "all", signal);
+  }
+
   // ─── Utilities ────────────────────────────────────────────────────
 
   private static filterRestrictedContent(
     items: SourceSearchResult[],
     coloredOnly: boolean = false,
   ): SourceSearchResult[] {
-    const { showAdultContent } = useSettingsStore.getState();
+    // const { showAdultContent } = useSettingsStore.getState();
     const validItems = items.filter(
       (item) => item && item.id && item.title && item.url,
     );
@@ -1012,7 +1109,7 @@ export class DiscoveryService {
     try {
       // Race against actual work, timeout, and explicit abort signal
       return await Promise.race([promise, timeoutPromise, abortPromise]);
-    } catch (e) {
+    } catch {
       return defaultValue;
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
@@ -1035,7 +1132,7 @@ export class DiscoveryService {
             results[i] = await tasks[i]();
           } catch (e) {
             console.error("[DiscoveryService] Pool task failed:", e);
-            results[i] = [] as any;
+            results[i] = [] as unknown as T;
           }
         }
       },

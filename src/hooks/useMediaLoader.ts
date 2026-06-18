@@ -5,7 +5,7 @@ import { ReliabilityTracker } from '../services/DiscoveryService';
 const MAX_CACHE_SIZE = 50;
 
 /** Domains that commonly block direct browser requests and need Rust proxy fallback */
-const PROXY_DOMAINS = ['sankakucomplex.com', 'sankakuapi.com'];
+const PROXY_DOMAINS = ['sankakucomplex.com', 'sankakuapi.com', 'hentai.org', 'ehgt.org'];
 
 function needsProxy(url: string): boolean {
   try {

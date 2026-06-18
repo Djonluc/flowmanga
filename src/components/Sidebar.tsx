@@ -110,7 +110,7 @@ export const Sidebar = () => {
     },
     {
       icon: <Layers size={20} />,
-      label: "Collections",
+      label: "Image Collections",
       view: "collections" as const,
     },
     {

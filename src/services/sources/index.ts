@@ -22,6 +22,7 @@ import { BlueLockProvider } from "./manga/BlueLockProvider";
 import { DBMProvider } from "./manga/DBMProvider";
 import { NhentaiProvider } from "./doujin/NhentaiProvider";
 import { HentaiComicsFreeProvider } from "./doujin/HentaiComicsFreeProvider";
+import { EHentaiProvider } from "./doujin/EHentaiProvider";
 import { MangaReadProvider } from "./manga/MangaReadProvider";
 import { ManhuaPlusProvider } from "./manga/ManhuaPlusProvider";
 import { ManhuaUSProvider } from "./manga/ManhuaUSProvider";
@@ -30,13 +31,6 @@ import { WebtoonsProvider } from "./manga/WebtoonsProvider";
 // Phase 4: Novel Sources
 import { WebNovelProvider } from "./novel/WebNovelProvider";
 
-// Phase 3: Gallery / Image Board Sources
-import { ZerochanProvider } from "./gallery/ZerochanProvider";
-import { DanbooruProvider } from "./gallery/DanbooruProvider";
-import { KonachanProvider } from "./gallery/KonachanProvider";
-import { YandereProvider } from "./gallery/YandereProvider";
-import { GelbooruProvider } from "./gallery/GelbooruProvider";
-import { SankakuProvider } from "./gallery/SankakuProvider";
 
 // Register Phase 1
 sourceRegistry.register(new MangaDexProvider());
@@ -49,17 +43,11 @@ sourceRegistry.register(new BlueLockProvider());
 sourceRegistry.register(new DBMProvider());
 sourceRegistry.register(new NhentaiProvider());
 sourceRegistry.register(new HentaiComicsFreeProvider());
+sourceRegistry.register(new EHentaiProvider());
 sourceRegistry.register(new MangaReadProvider());
 sourceRegistry.register(new ManhuaPlusProvider());
 sourceRegistry.register(new ManhuaUSProvider());
 
-// Phase 3: Gallery Sources
-sourceRegistry.register(new ZerochanProvider());
-sourceRegistry.register(new DanbooruProvider());
-sourceRegistry.register(new KonachanProvider());
-sourceRegistry.register(new YandereProvider());
-sourceRegistry.register(new GelbooruProvider());
-sourceRegistry.register(new SankakuProvider());
 
 // Phase 4: Novel Sources
 sourceRegistry.register(new WebNovelProvider());

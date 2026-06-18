@@ -25,6 +25,9 @@ import { SavedCollections } from "./SavedCollections";
 import { SlideshowManager } from "./SlideshowManager";
 import { TagSearch } from "./TagSearch";
 import { FollowingTags } from "./FollowingTags";
+import { imageDiscovery } from "../../services/image-engine";
+import { ShieldAlert, Settings } from "lucide-react";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 
 const TABS: { id: GalleryTab; label: string; icon: React.ReactNode }[] = [
   { id: "discover", label: "Discover", icon: <Compass size={16} /> },
@@ -45,6 +48,8 @@ export const GalleryHub: React.FC = () => {
       setActiveTab("discover");
     }
   }, [activeTab]);
+
+  const missingAuthProviders = imageDiscovery.getProvidersMissingAuth();
 
   const renderTab = () => {
     switch (activeTab) {
@@ -98,6 +103,36 @@ export const GalleryHub: React.FC = () => {
           })}
         </div>
       </div>
+
+      {missingAuthProviders.length > 0 && (
+        <div className="shrink-0 px-6 pb-4">
+          <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl p-4 flex items-start gap-4">
+            <div className="mt-1 bg-orange-500/20 text-orange-500 p-2 rounded-xl">
+              <ShieldAlert size={20} />
+            </div>
+            <div className="flex-1">
+              <h5 className="text-orange-500 font-bold text-sm tracking-tight mb-1">
+                Authentication Required for Some Sources
+              </h5>
+              <p className="text-orange-500/70 text-xs font-medium leading-relaxed mb-3">
+                The following sources require API credentials or session cookies to function and have been temporarily disabled:{" "}
+                <span className="font-bold text-orange-500/90">
+                  {missingAuthProviders.map(p => p.name).join(", ")}
+                </span>
+              </p>
+              <button 
+                onClick={() => {
+                  useSettingsStore.getState().toggleSettings();
+                }}
+                className="flex items-center gap-2 bg-orange-500/20 hover:bg-orange-500/30 text-orange-500 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Settings size={12} />
+                Configure Auth
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab Content */}
       <div className="flex-1 overflow-y-auto no-scrollbar px-6 py-6">

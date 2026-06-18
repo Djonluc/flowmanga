@@ -149,8 +149,11 @@ export const TagSearch: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputValue.trim()) addTags(inputValue);
-    else if (activeTags.length > 0) searchByTags(activeTags.join(" "), 1);
+    if (inputValue.trim()) {
+      // Convert spaces to underscores for booru compatibility
+      const sanitized = inputValue.trim().replace(/\s+/g, "_");
+      addTags(sanitized);
+    } else if (activeTags.length > 0) searchByTags(activeTags.join(" "), 1);
   };
 
   // Compact Scroll State
@@ -432,6 +435,20 @@ export const TagSearch: React.FC = () => {
                     ))}
                   </div>
                 </div>
+
+                {activeTags.length > 2 && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="mt-3 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500/90 text-[10px] font-bold tracking-wide flex items-start gap-3 leading-relaxed"
+                  >
+                    <Tag size={14} className="flex-shrink-0 mt-0.5" />
+                    <p>
+                      <strong className="font-black uppercase tracking-widest text-amber-500 block mb-0.5">Tag Limit Warning</strong>
+                      Some sources (like Danbooru) only support 2 tags for anonymous users. Searching with {activeTags.length} tags may result in 0 results from these sources because they strictly filter locally.
+                    </p>
+                  </motion.div>
+                )}
               </div>
             </motion.div>
           )}
@@ -472,12 +489,20 @@ export const TagSearch: React.FC = () => {
               <GalleryImageCard
                 key={`${item.id}-${index}`}
                 id={item.id}
-                imageUrl={item.coverUrl || ""}
-                previewUrl={item.coverUrl}
+                imageUrl={item.sampleUrl || item.fullUrl || ""}
+                previewUrl={item.previewUrl || item.thumbnailUrl}
                 title={item.title}
                 tags={item.tags}
                 saved={savedIds.has(item.id)}
-                onView={() => openViewer(item, searchResults, index)}
+                onView={() => {
+                  if (item.contentCategory === "gallery" || item.contentCategory === "album" || item.contentCategory === "doujin") {
+                     import("../../stores/useModalStore").then(({ useModalStore }) => {
+                        useModalStore.getState().openQuickView(item);
+                     });
+                  } else {
+                     openViewer(item, searchResults, index);
+                  }
+                }}
                 onPlay={() =>
                   startSlideshowFromContext(searchResults, index, "search")
                 }

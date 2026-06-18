@@ -72,8 +72,8 @@ export const WallpaperGrid: React.FC = () => {
             <div key={item.id} className="aspect-video">
               <GalleryImageCard
                 id={item.id}
-                imageUrl={item.coverUrl || ""}
-                previewUrl={item.coverUrl}
+                imageUrl={item.sampleUrl || item.fullUrl || ""}
+                previewUrl={item.previewUrl || item.thumbnailUrl}
                 title={item.title}
                 tags={item.tags}
                 saved={savedIds.has(item.id)}
