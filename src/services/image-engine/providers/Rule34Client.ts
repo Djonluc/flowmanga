@@ -37,13 +37,14 @@ export class Rule34Client extends BaseProvider {
     supportsSort: true,
     supportsScore: true,
     nativeRecommendations: false,
-    status: "auth_required",
-    authentication: true,
+    status: "working",
+    authentication: false, // Auth is optional — API is public
     authUrl: "https://rule34.xxx/index.php?page=account&s=options"
   };
 
   private getAuthParams(): Record<string, string> {
     const auth = useSettingsStore.getState().booruAuth?.[this.id];
+    // Auth is optional — include if available, otherwise use public API
     if (auth?.userId && auth?.apiKey) {
       return {
         user_id: auth.userId,
@@ -55,10 +56,6 @@ export class Rule34Client extends BaseProvider {
 
   async search(query: StructuredQuery, options: EngineSearchOptions): Promise<ImageMedia[]> {
     const auth = this.getAuthParams();
-    if (!auth.user_id) {
-      console.warn(`[Rule34Client] Missing API credentials. Aborting to avoid Cloudflare ban.`);
-      return [];
-    }
 
     const apiTags = [...query.positiveTags, ...query.negativeTags.map(n => `-${n}`)];
     

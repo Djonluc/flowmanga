@@ -184,7 +184,7 @@ export class SearchFederator {
 
 import { DanbooruProvider } from "./providers/DanbooruProvider";
 // import { GelbooruProvider } from "./providers/GelbooruProvider"; // DISABLED — not ready
-// import { Rule34Provider } from "./providers/Rule34Provider";       // DISABLED — not ready
+import { Rule34Provider } from "./providers/Rule34Provider";
 import { SankakuProvider } from "./providers/SankakuProvider";
 import { NekosProvider } from "./providers/NekosProvider";
 
@@ -192,7 +192,7 @@ import { NekosProvider } from "./providers/NekosProvider";
 export const federator = new SearchFederator();
 federator.registerProvider(new DanbooruProvider());
 // federator.registerProvider(new GelbooruProvider()); // DISABLED — not ready
-// federator.registerProvider(new Rule34Provider());    // DISABLED — not ready
+federator.registerProvider(new Rule34Provider());
 federator.registerProvider(new SankakuProvider());
 federator.registerProvider(new NekosProvider());
 

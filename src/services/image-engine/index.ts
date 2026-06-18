@@ -9,7 +9,7 @@ import { DanbooruClient } from "./providers/DanbooruClient";
 import { KonachanClient } from "./providers/KonachanClient";
 import { YandeReClient } from "./providers/YandeReClient";
 import { SafebooruClient } from "./providers/SafebooruClient";
-// import { Rule34Client } from "./providers/Rule34Client"; // DISABLED — not ready
+import { Rule34Client } from "./providers/Rule34Client";
 import { SankakuClient } from "./providers/SankakuClient";
 import { EHentaiClient } from "./providers/EHentaiClient";
 
@@ -29,7 +29,7 @@ const providers = [
   new KonachanClient(),
   new YandeReClient(),
   new SafebooruClient(),
-  // new Rule34Client(),    // DISABLED — not ready
+  new Rule34Client(),
   new SankakuClient(),
   new EHentaiClient(),
 ];
