@@ -47,25 +47,26 @@ jobs:
           tagName: v__VERSION__
           releaseName: "FlowManga v__VERSION__"
           releaseBody: |
-            ## FlowManga v__VERSION__
+            ## What's new in FlowManga v__VERSION__ 🎉
 
-            ### New Features
-            - Media type filtering system (All Media / Images / Videos / GIFs)
-            - Automatic version checking with GitHub release integration
-            - Update notification modal on startup
-            - Updates tab in Settings with changelog viewer and manual check
-            - MangaDot manga source support
+            ### ✨ New Things
+            - **Filter by media type** — You can now choose to only show Images, Videos, or GIFs instead of seeing everything mixed together. Works everywhere in the app.
+            - **Automatic update alerts** — FlowManga will now let you know when a new version is available so you're never out of date.
+            - **Updates tab in Settings** — Check for updates manually and see a full list of what changed, right inside the app.
+            - **New manga source: MangaDot** — Browse and read manga from mangadot.net.
 
-            ### Improvements
-            - Adult content filter now correctly applies to image collections
-            - Background version polling every 24 hours
-            - Slideshow and gallery performance improvements
+            ### 🛠️ Improvements
+            - The adult content filter now works correctly when browsing image collections — it no longer shows content it shouldn't.
+            - Better content loading for certain websites that were difficult to access.
+            - General speed and stability improvements.
 
-            ### Bug Fixes
-            - Various stability and UI fixes
+            ### 🐛 Bug Fixes
+            - Various small issues fixed to make the app more reliable.
+            - Sankaku videos are now properly hidden when you only want images.
 
             ---
-            See the assets below to download and install this version.
+            👇 Download the installer below — just grab the `.exe` file and run it.
+
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

@@ -183,15 +183,16 @@ export class SearchFederator {
 }
 
 import { DanbooruProvider } from "./providers/DanbooruProvider";
-import { GelbooruProvider } from "./providers/GelbooruProvider";
-import { Rule34Provider } from "./providers/Rule34Provider";
+// import { GelbooruProvider } from "./providers/GelbooruProvider"; // DISABLED — not ready
+// import { Rule34Provider } from "./providers/Rule34Provider";       // DISABLED — not ready
 import { SankakuProvider } from "./providers/SankakuProvider";
 import { NekosProvider } from "./providers/NekosProvider";
 
 // Singleton instance for easy application-wide access
 export const federator = new SearchFederator();
 federator.registerProvider(new DanbooruProvider());
-federator.registerProvider(new GelbooruProvider());
-federator.registerProvider(new Rule34Provider());
+// federator.registerProvider(new GelbooruProvider()); // DISABLED — not ready
+// federator.registerProvider(new Rule34Provider());    // DISABLED — not ready
 federator.registerProvider(new SankakuProvider());
 federator.registerProvider(new NekosProvider());
+

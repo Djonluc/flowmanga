@@ -5,11 +5,11 @@ import { RecommendationEngine } from "./RecommendationEngine";
 import { HealthMonitor } from "./HealthMonitor";
 
 import { DanbooruClient } from "./providers/DanbooruClient";
-import { GelbooruClient } from "./providers/GelbooruClient";
+// import { GelbooruClient } from "./providers/GelbooruClient"; // DISABLED — not ready
 import { KonachanClient } from "./providers/KonachanClient";
 import { YandeReClient } from "./providers/YandeReClient";
 import { SafebooruClient } from "./providers/SafebooruClient";
-import { Rule34Client } from "./providers/Rule34Client";
+// import { Rule34Client } from "./providers/Rule34Client"; // DISABLED — not ready
 import { SankakuClient } from "./providers/SankakuClient";
 import { EHentaiClient } from "./providers/EHentaiClient";
 
@@ -25,11 +25,11 @@ export { RecommendationEngine };
 // Initialize default providers
 const providers = [
   new DanbooruClient(),
-  new GelbooruClient(),
+  // new GelbooruClient(),  // DISABLED — not ready
   new KonachanClient(),
   new YandeReClient(),
   new SafebooruClient(),
-  new Rule34Client(),
+  // new Rule34Client(),    // DISABLED — not ready
   new SankakuClient(),
   new EHentaiClient(),
 ];
