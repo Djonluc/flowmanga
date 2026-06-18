@@ -6,11 +6,12 @@ export class Rule34Provider extends BaseProvider {
   name = "Rule34";
   
   capabilities = {
-    maxTags: 100, // Rule34 allows high tag count
+    maxTags: 100,
     supportsNegative: true,
     supportsScore: true,
-    authentication: false, // Doesn't typically require auth for API
-    status: "working",
+    authentication: true, // Rule34 API requires credentials since mid-2025
+    authUrl: "https://rule34.xxx/index.php?page=account&s=options",
+    status: "auth_required",
     search: true,
     tagSearch: true,
   };
@@ -18,7 +19,14 @@ export class Rule34Provider extends BaseProvider {
 
   async search(query: SearchQuery, page: number): Promise<PlatformImage[]> {
     const { useSettingsStore } = await import("../../stores/useSettingsStore");
-    const { showAdultContent } = useSettingsStore.getState();
+    const { showAdultContent, booruAuth } = useSettingsStore.getState();
+
+    // Rule34 API requires credentials since mid-2025
+    const auth = booruAuth?.['rule34'];
+    if (!auth?.userId || !auth?.apiKey) {
+      console.warn("[Rule34Provider] No API credentials. Go to Settings → Sources to add your Rule34 User ID and API Key.");
+      return [];
+    }
 
     // If the query specifically targets another provider, skip this one
     if (query.predicates["source"] && query.predicates["source"] !== this.id) {
@@ -44,7 +52,7 @@ export class Rule34Provider extends BaseProvider {
     const tagStr = filteredTags.join(" ");
     const pid = page - 1; // 0-indexed pages
     
-    const url = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tagStr)}&pid=${pid}&limit=40`;
+    const url = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tagStr)}&pid=${pid}&limit=40&user_id=${encodeURIComponent(auth.userId)}&api_key=${encodeURIComponent(auth.apiKey)}`;
     
     try {
       const response = await this.fetchJson<any[]>(url);

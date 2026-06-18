@@ -34,11 +34,11 @@ export class Rule34Client extends BaseProvider {
   readonly capabilities: SourceCapabilities = {
     supportsNegativeTags: true,
     maxTagsPerRequest: 4,
-    supportsSort: true,
+    supportsSort: false,
     supportsScore: true,
     nativeRecommendations: false,
-    status: "working",
-    authentication: false, // Auth is optional — API is public
+    status: "auth_required",
+    authentication: true, // Rule34 API requires user_id + api_key since mid-2025
     authUrl: "https://rule34.xxx/index.php?page=account&s=options"
   };
 
@@ -57,6 +57,12 @@ export class Rule34Client extends BaseProvider {
   async search(query: StructuredQuery, options: EngineSearchOptions): Promise<ImageMedia[]> {
     const auth = this.getAuthParams();
     const { showAdultContent } = useSettingsStore.getState();
+
+    // Rule34 API requires authentication since mid-2025 — abort if no credentials
+    if (!auth.user_id || !auth.api_key) {
+      console.warn(`[Rule34Client] No API credentials. Go to Settings → Sources to add your Rule34 User ID and API Key.`);
+      return [];
+    }
 
     const apiTags = [...query.positiveTags, ...query.negativeTags.map(n => `-${n}`)];
 
