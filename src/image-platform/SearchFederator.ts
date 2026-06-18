@@ -22,7 +22,7 @@ export class SearchFederator {
    * If the query has a `source` predicate (e.g., `source:danbooru`), it routes only to that provider.
    * Otherwise, it queries all registered providers in parallel and interleaves the results.
    */
-  async search(query: SearchQuery, page: number): Promise<PlatformImage[]> {
+  async search(query: SearchQuery, page: number, onChunk?: (images: PlatformImage[]) => void): Promise<PlatformImage[]> {
     const targetSource = query.predicates["source"];
     let activeProviders: ImageProvider[] = [];
 
@@ -43,6 +43,10 @@ export class SearchFederator {
     // Fetch from all active providers concurrently
     const promises = activeProviders.map(p => 
       p.search(query, page)
+        .then(res => {
+          if (onChunk && res.length > 0) onChunk(res);
+          return res;
+        })
         .catch(e => {
           console.error(`[SearchFederator] Provider ${p.id} failed:`, e);
           return []; // Fail gracefully for individual providers
@@ -50,15 +54,19 @@ export class SearchFederator {
     );
 
     const resultsArray = await Promise.all(promises);
-    return this.interleaveResults(resultsArray);
+    return onChunk ? resultsArray.flat() : this.interleaveResults(resultsArray);
   }
 
-  async getLatest(page: number): Promise<PlatformImage[]> {
+  async getLatest(page: number, onChunk?: (images: PlatformImage[]) => void): Promise<PlatformImage[]> {
     const activeProviders = await this.getActiveProviders();
     if (activeProviders.length === 0) return [];
     
     const promises = activeProviders.map(p => 
       p.getLatest(page)
+        .then(res => {
+          if (onChunk && res.length > 0) onChunk(res);
+          return res;
+        })
         .catch(e => {
           console.error(`[SearchFederator] Latest provider ${p.id} failed:`, e);
           return [];
@@ -66,10 +74,10 @@ export class SearchFederator {
     );
 
     const resultsArray = await Promise.all(promises);
-    return this.interleaveResults(resultsArray);
+    return onChunk ? resultsArray.flat() : this.interleaveResults(resultsArray);
   }
 
-  async getCurated(page: number): Promise<PlatformImage[]> {
+  async getCurated(page: number, onChunk?: (images: PlatformImage[]) => void): Promise<PlatformImage[]> {
     const activeProviders = await this.getActiveProviders();
     if (activeProviders.length === 0) return [];
 
@@ -84,7 +92,7 @@ export class SearchFederator {
     }
 
     if (discoveryTags.length === 0) {
-      return this.getLatest(page);
+      return this.getLatest(page, onChunk);
     }
 
     // Try finding images with ALL the selected favorite tags (e.g. 3 tags)
@@ -94,6 +102,10 @@ export class SearchFederator {
       
       const promises = activeProviders.map(p => 
         p.search({ raw: currentTags.join(" "), positiveTags: currentTags, negativeTags: [], predicates: {} }, page)
+          .then(res => {
+            if (onChunk && res.length > 0) onChunk(res);
+            return res;
+          })
           .catch(e => {
             console.error(`[SearchFederator] Curated provider ${p.id} failed:`, e);
             return [];
@@ -101,7 +113,7 @@ export class SearchFederator {
       );
 
       const resultsArray = await Promise.all(promises);
-      const interleaved = this.interleaveResults(resultsArray);
+      const interleaved = onChunk ? resultsArray.flat() : this.interleaveResults(resultsArray);
       
       // If we found results, return them immediately
       if (interleaved.length > 0) {
@@ -110,10 +122,10 @@ export class SearchFederator {
     }
 
     // If even 1 tag returns 0 results across all providers, just return latest
-    return this.getLatest(page);
+    return this.getLatest(page, onChunk);
   }
 
-  async getDiscovery(page: number): Promise<PlatformImage[]> {
+  async getDiscovery(page: number, onChunk?: (images: PlatformImage[]) => void): Promise<PlatformImage[]> {
     const activeProviders = await this.getActiveProviders();
     if (activeProviders.length === 0) return [];
     
@@ -124,6 +136,10 @@ export class SearchFederator {
 
     const promises = activeProviders.map(p => 
       p.getLatest(randomPage)
+        .then(res => {
+          if (onChunk && res.length > 0) onChunk(res);
+          return res;
+        })
         .catch(e => {
           console.error(`[SearchFederator] Discovery provider ${p.id} failed:`, e);
           return [];
@@ -131,7 +147,7 @@ export class SearchFederator {
     );
 
     const resultsArray = await Promise.all(promises);
-    return this.interleaveResults(resultsArray);
+    return onChunk ? resultsArray.flat() : this.interleaveResults(resultsArray);
   }
 
   /**

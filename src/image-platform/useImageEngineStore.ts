@@ -61,12 +61,27 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
     }));
 
     try {
-      const results = await federator.search(QueryParser.parse(rawQuery), 1);
+      const mode = 'search';
+      const results = await federator.search(QueryParser.parse(rawQuery), 1, (chunk) => {
+        set(s => {
+          const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
+          const newUnique = chunk.filter(img => !existingIds.has(img.id));
+          return {
+            feeds: {
+              ...s.feeds,
+              [mode]: {
+                ...s.feeds[mode],
+                images: [...s.feeds[mode].images, ...newUnique]
+              }
+            }
+          };
+        });
+      });
       set(state => ({ 
         isLoading: false,
         feeds: {
           ...state.feeds,
-          search: { ...state.feeds.search, images: results, hasMore: results.length > 0 }
+          search: { ...state.feeds.search, hasMore: results.length > 0 }
         }
       }));
     } catch (e: any) {
@@ -82,12 +97,24 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const results = await federator.getLatest(1);
+      const mode = 'latest';
+      const results = await federator.getLatest(1, (chunk) => {
+        set(s => {
+          const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
+          const newUnique = chunk.filter(img => !existingIds.has(img.id));
+          return {
+            feeds: {
+              ...s.feeds,
+              [mode]: { ...s.feeds[mode], images: [...s.feeds[mode].images, ...newUnique] }
+            }
+          };
+        });
+      });
       set(state => ({ 
         isLoading: false,
         feeds: {
           ...state.feeds,
-          latest: { images: results, currentPage: 1, hasMore: results.length > 0 }
+          latest: { ...state.feeds.latest, currentPage: 1, hasMore: results.length > 0 }
         }
       }));
     } catch (e: any) {
@@ -102,12 +129,24 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const results = await federator.getCurated(1);
+      const mode = 'curated';
+      const results = await federator.getCurated(1, (chunk) => {
+        set(s => {
+          const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
+          const newUnique = chunk.filter(img => !existingIds.has(img.id));
+          return {
+            feeds: {
+              ...s.feeds,
+              [mode]: { ...s.feeds[mode], images: [...s.feeds[mode].images, ...newUnique] }
+            }
+          };
+        });
+      });
       set(state => ({ 
         isLoading: false,
         feeds: {
           ...state.feeds,
-          curated: { images: results, currentPage: 1, hasMore: results.length > 0 }
+          curated: { ...state.feeds.curated, currentPage: 1, hasMore: results.length > 0 }
         }
       }));
     } catch (e: any) {
@@ -122,12 +161,24 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const results = await federator.getDiscovery(1);
+      const mode = 'discover';
+      const results = await federator.getDiscovery(1, (chunk) => {
+        set(s => {
+          const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
+          const newUnique = chunk.filter(img => !existingIds.has(img.id));
+          return {
+            feeds: {
+              ...s.feeds,
+              [mode]: { ...s.feeds[mode], images: [...s.feeds[mode].images, ...newUnique] }
+            }
+          };
+        });
+      });
       set(state => ({ 
         isLoading: false,
         feeds: {
           ...state.feeds,
-          discover: { images: results, currentPage: 1, hasMore: results.length > 0 }
+          discover: { ...state.feeds.discover, currentPage: 1, hasMore: results.length > 0 }
         }
       }));
     } catch (e: any) {
@@ -148,10 +199,26 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
       const nextPage = activeFeed.currentPage + 1;
       let newResults: PlatformImage[] = [];
 
-      if (mode === 'search') newResults = await federator.search(QueryParser.parse(state.feeds.search.query), nextPage);
-      else if (mode === 'latest') newResults = await federator.getLatest(nextPage);
-      else if (mode === 'curated') newResults = await federator.getCurated(nextPage);
-      else if (mode === 'discover') newResults = await federator.getDiscovery(nextPage);
+      const handleChunk = (chunk: PlatformImage[]) => {
+        set(s => {
+          const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
+          const newUnique = chunk.filter(img => !existingIds.has(img.id));
+          return {
+            feeds: {
+              ...s.feeds,
+              [mode]: {
+                ...s.feeds[mode],
+                images: [...s.feeds[mode].images, ...newUnique]
+              }
+            }
+          };
+        });
+      };
+
+      if (mode === 'search') newResults = await federator.search(QueryParser.parse(state.feeds.search.query), nextPage, handleChunk);
+      else if (mode === 'latest') newResults = await federator.getLatest(nextPage, handleChunk);
+      else if (mode === 'curated') newResults = await federator.getCurated(nextPage, handleChunk);
+      else if (mode === 'discover') newResults = await federator.getDiscovery(nextPage, handleChunk);
 
       // If curated or discover returns empty, we might have just hit a bad random tag combo.
       // We don't want to permanently kill the feed unless it's explicitly 'latest' or 'search'.
@@ -163,7 +230,6 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
           ...s.feeds,
           [mode]: {
             ...s.feeds[mode],
-            images: [...s.feeds[mode].images, ...newResults],
             currentPage: nextPage,
             hasMore: !shouldKillFeed
           }

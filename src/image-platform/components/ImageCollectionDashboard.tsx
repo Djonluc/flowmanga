@@ -22,7 +22,7 @@ export const ImageCollectionDashboard = () => {
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
   
   type DashboardTab = "new" | "foryou" | "collection" | "playlists" | "discover";
-  const [activeTab, setActiveTab] = useState<DashboardTab>("new");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("discover");
 
   const loadFavorites = async () => {
     try {
@@ -122,11 +122,11 @@ export const ImageCollectionDashboard = () => {
         {/* Tabs Row */}
         <div className="flex items-center gap-6 overflow-x-auto no-scrollbar pt-2">
           {[
-            { id: "new", label: "New Images" },
+            { id: "discover", label: "Discover" },
             { id: "foryou", label: "For You" },
+            { id: "new", label: "New Images" },
             { id: "collection", label: "My Collection" },
-            { id: "playlists", label: "Playlists" },
-            { id: "discover", label: "Discover" }
+            { id: "playlists", label: "Playlists" }
           ].map(tab => (
             <button
               key={tab.id}
@@ -205,6 +205,11 @@ export const ImageCollectionDashboard = () => {
           images={images}
           index={selectedImageIndex}
           onClose={() => setSelectedImageIndex(null)}
+          onNavigate={(newIndex) => {
+            if (newIndex >= 0 && newIndex < images.length) {
+              setSelectedImageIndex(newIndex);
+            }
+          }}
           onSearchTag={(tag) => {
             setActiveTab("new");
             setSearchInput(tag);

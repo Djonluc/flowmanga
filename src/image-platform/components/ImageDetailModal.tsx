@@ -11,10 +11,11 @@ interface ImageDetailModalProps {
   images: PlatformImage[];
   index: number;
   onClose: () => void;
+  onNavigate?: (newIndex: number) => void;
   onSearchTag: (tag: string) => void;
 }
 
-export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, images, index, onClose, onSearchTag }) => {
+export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, images, index, onClose, onNavigate, onSearchTag }) => {
   const slideshow = useSlideshowStore();
   const { folders, saveImage, loadFolders, savedImages, removeSavedImage } = useImageCollectionStore();
   const [showFolderMenu, setShowFolderMenu] = React.useState(false);
@@ -23,6 +24,20 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
   React.useEffect(() => {
     loadFolders();
   }, []);
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!onNavigate) return;
+      if (e.key === 'ArrowLeft') {
+        onNavigate(index - 1);
+      } else if (e.key === 'ArrowRight') {
+        onNavigate(index + 1);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [index, onNavigate]);
 
   const isFavorited = savedImages.some(img => img.id === image.id);
 
