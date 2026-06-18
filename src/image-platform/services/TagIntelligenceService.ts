@@ -51,12 +51,13 @@ export class TagIntelligenceService {
 
       if (action === 'add') {
         if (existing.length > 0) {
-          // Increment score
+          // Only update score for tags the user already added manually
+          // Do NOT auto-insert new tags — user controls what's in their interests
           let newScore = existing[0].score + 1;
-          
-          // Auto-promote to dominant if score reaches 5 (and it's a tag)
+
+          // Auto-promote to dominant if score reaches 5 (and it's a tag, not pinned manually)
           let newType = existing[0].type;
-          if (newType === 'supporting_tag' && newScore >= 5) {
+          if (newType === 'supporting_tag' && newScore >= 5 && !existing[0].isPinned) {
             newType = 'dominant_tag';
           }
 
@@ -64,16 +65,11 @@ export class TagIntelligenceService {
             "UPDATE UserInterests SET score = ?, type = ? WHERE id = ?",
             [newScore, newType, existing[0].id]
           );
-        } else {
-          // Insert new
-          await db.execute(
-            "INSERT INTO UserInterests (id, type, name, score, isPinned) VALUES (?, ?, ?, ?, ?)",
-            [crypto.randomUUID(), type, name, 1, 0]
-          );
+          // If tag doesn't exist yet — skip. User must add it manually.
         }
       } else if (action === 'remove' && existing.length > 0) {
         let newScore = existing[0].score - 1;
-        
+
         if (newScore <= 0 && !existing[0].isPinned) {
           // Remove from DB if score reaches 0 and not pinned
           await db.execute("DELETE FROM UserInterests WHERE id = ?", [existing[0].id]);

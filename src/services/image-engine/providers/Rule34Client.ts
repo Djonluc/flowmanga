@@ -65,7 +65,9 @@ export class Rule34Client extends BaseProvider {
       apiTags.push("rating:safe");
     }
 
-    const tagsQueryString = apiTags.map(TagParser.normalizeBooruTag).join(" ");
+    // Rule34 API does not support sort: tags — strip them
+    const cleanTags = apiTags.filter(t => !t.startsWith("sort:"));
+    const tagsQueryString = cleanTags.map(TagParser.normalizeBooruTag).join(" ");
 
     const data = await this.fetchJson<Rule34Post[]>("/index.php", {
       page: "dapi",
@@ -82,9 +84,10 @@ export class Rule34Client extends BaseProvider {
   }
 
   async getDiscovery(options: EngineSearchOptions): Promise<ImageMedia[]> {
+    const { showAdultContent } = useSettingsStore.getState();
     return this.search({
       raw: "",
-      positiveTags: ["sort:score:desc"],
+      positiveTags: showAdultContent ? [] : ["rating:safe"],
       negativeTags: [],
       ratingFilter: options.ratingFilter
     }, { ...options, limit: options.limit || 40 });

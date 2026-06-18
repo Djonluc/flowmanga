@@ -37,11 +37,11 @@ export class Rule34Provider extends BaseProvider {
       apiTags.push("rating:safe");
     }
 
-    if (!apiTags.some(t => t.startsWith("sort:"))) {
-      apiTags.push("sort:score:desc");
-    }
+    // NOTE: Rule34 API does not support sort: tags — sort is not a valid API param
+    // Remove any sort: tags that may have come from the query
+    const filteredTags = apiTags.filter(t => !t.startsWith("sort:"));
 
-    const tagStr = apiTags.join(" ");
+    const tagStr = filteredTags.join(" ");
     const pid = page - 1; // 0-indexed pages
     
     const url = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tagStr)}&pid=${pid}&limit=40`;
@@ -86,10 +86,9 @@ export class Rule34Provider extends BaseProvider {
   async getDiscovery(page: number): Promise<PlatformImage[]> {
     const { useSettingsStore } = await import("../../stores/useSettingsStore");
     const { showAdultContent } = useSettingsStore.getState();
-    // Pass an empty query — rating filter will be applied inside search()
     return this.search({
-      raw: showAdultContent ? "sort:random" : "sort:random rating:safe",
-      positiveTags: showAdultContent ? ["sort:random"] : ["sort:random", "rating:safe"],
+      raw: "",
+      positiveTags: showAdultContent ? [] : ["rating:safe"],
       negativeTags: [],
       predicates: {}
     }, page);
