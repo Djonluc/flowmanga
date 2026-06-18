@@ -17,10 +17,8 @@ export class Rule34Provider extends BaseProvider {
   domains = ["rule34.xxx"];
 
   async search(query: SearchQuery, page: number): Promise<PlatformImage[]> {
-    // Rule34 is inherently adult-only — skip entirely if adult content is disabled
     const { useSettingsStore } = await import("../../stores/useSettingsStore");
     const { showAdultContent } = useSettingsStore.getState();
-    if (!showAdultContent) return [];
 
     // If the query specifically targets another provider, skip this one
     if (query.predicates["source"] && query.predicates["source"] !== this.id) {
@@ -28,11 +26,16 @@ export class Rule34Provider extends BaseProvider {
     }
 
     const apiTags = [...query.positiveTags];
-    
+
     // Add negative tags using -tag syntax
     query.negativeTags.forEach(tag => {
       apiTags.push(`-${tag}`);
     });
+
+    // If adult content is disabled, filter to safe posts only
+    if (!showAdultContent) {
+      apiTags.push("rating:safe");
+    }
 
     if (!apiTags.some(t => t.startsWith("sort:"))) {
       apiTags.push("sort:score:desc");
@@ -83,7 +86,12 @@ export class Rule34Provider extends BaseProvider {
   async getDiscovery(page: number): Promise<PlatformImage[]> {
     const { useSettingsStore } = await import("../../stores/useSettingsStore");
     const { showAdultContent } = useSettingsStore.getState();
-    if (!showAdultContent) return [];
-    return this.search({ raw: "sort:random", positiveTags: ["sort:random"], negativeTags: [], predicates: {} }, page);
+    // Pass an empty query — rating filter will be applied inside search()
+    return this.search({
+      raw: showAdultContent ? "sort:random" : "sort:random rating:safe",
+      positiveTags: showAdultContent ? ["sort:random"] : ["sort:random", "rating:safe"],
+      negativeTags: [],
+      predicates: {}
+    }, page);
   }
 }

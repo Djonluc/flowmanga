@@ -56,11 +56,12 @@ export class Rule34Client extends BaseProvider {
 
   async search(query: StructuredQuery, options: EngineSearchOptions): Promise<ImageMedia[]> {
     const auth = this.getAuthParams();
+    const { showAdultContent } = useSettingsStore.getState();
 
     const apiTags = [...query.positiveTags, ...query.negativeTags.map(n => `-${n}`)];
-    
-    // Rule34 is primarily NSFW, but we can attempt to filter
-    if (options.ratingFilter === "sfw") {
+
+    // When adult content is off, restrict to safe posts only
+    if (!showAdultContent || options.ratingFilter === "sfw") {
       apiTags.push("rating:safe");
     }
 
