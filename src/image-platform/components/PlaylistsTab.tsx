@@ -1,19 +1,126 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { getDb } from '../../services/db';
-import { Play, Search, Trash2 } from 'lucide-react';
+import { Play, Search, Trash2, Plus, Edit2, Copy, Save, X, Tag, Sparkles, Clock, Heart, User, Film } from 'lucide-react';
+import { useSlideshowStore } from '../useSlideshowStore';
+import { useImageCollectionStore } from '../useImageCollectionStore';
+
+export interface SmartQuery {
+  and: string[];
+  or: string[];
+  exclude: string[];
+  allowedMediaTypes?: ('image' | 'video' | 'gif')[];
+}
 
 interface Playlist {
   id: string;
   name: string;
-  query: string;
+  query: string; // Stored as JSON string of SmartQuery
 }
 
 interface PlaylistsTabProps {
   onPlay: (query: string) => void;
 }
 
+interface TagInfo {
+  tag: string;
+  cleanTag: string;
+  count: number;
+  category: 'character' | 'series' | 'artist' | 'general';
+}
+
 export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [isBuilderOpen, setIsBuilderOpen] = useState(false);
+  const [builderState, setBuilderState] = useState<SmartQuery>({ and: [], or: [], exclude: [], allowedMediaTypes: ['image', 'video', 'gif'] });
+  const [playlistName, setPlaylistName] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  
+  // Tag selector state
+  const [activeTagField, setActiveTagField] = useState<'and' | 'or' | 'exclude' | null>(null);
+  const [tagSearchFilter, setTagSearchFilter] = useState("");
+  
+  const slideshow = useSlideshowStore();
+  const { savedImages } = useImageCollectionStore();
+
+  // Build comprehensive tag index from the user's library
+  const tagIndex = useMemo<TagInfo[]>(() => {
+    const counts: Record<string, number> = {};
+    savedImages.forEach(img => {
+      (img.tags || []).forEach(t => {
+        if (!t.startsWith('rating:') && !t.startsWith('source:')) {
+          counts[t] = (counts[t] || 0) + 1;
+        }
+      });
+    });
+    
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([tag, count]) => {
+        let category: TagInfo['category'] = 'general';
+        if (tag.startsWith('character:')) category = 'character';
+        else if (tag.startsWith('series:') || tag.startsWith('copyright:')) category = 'series';
+        else if (tag.startsWith('artist:')) category = 'artist';
+        
+        return {
+          tag,
+          cleanTag: tag.replace(/^(character|series|artist|copyright):/, '').replace(/_/g, ' '),
+          count,
+          category
+        };
+      });
+  }, [savedImages]);
+
+  // Related tags: given current AND tags, find co-occurring tags
+  const relatedTags = useMemo<TagInfo[]>(() => {
+    if (builderState.and.length === 0) return [];
+    
+    // Find images that match current AND tags
+    const matchingImages = savedImages.filter(img => {
+      const tags = (img.tags || []).map(t => t.toLowerCase());
+      return builderState.and.every(t => tags.some(tag => tag.includes(t.toLowerCase())));
+    });
+    
+    // Count co-occurring tags
+    const coOccur: Record<string, number> = {};
+    matchingImages.forEach(img => {
+      (img.tags || []).forEach(t => {
+        if (!t.startsWith('rating:') && !t.startsWith('source:')) {
+          const clean = t.replace(/^(character|series|artist|copyright):/, '').replace(/_/g, ' ');
+          // Skip tags already in the builder
+          if (!builderState.and.some(a => clean.toLowerCase().includes(a.toLowerCase()) || a.toLowerCase().includes(clean.toLowerCase()))) {
+            coOccur[t] = (coOccur[t] || 0) + 1;
+          }
+        }
+      });
+    });
+    
+    return Object.entries(coOccur)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+      .map(([tag, count]) => ({
+        tag,
+        cleanTag: tag.replace(/^(character|series|artist|copyright):/, '').replace(/_/g, ' '),
+        count,
+        category: tag.startsWith('character:') ? 'character' as const 
+          : (tag.startsWith('series:') || tag.startsWith('copyright:')) ? 'series' as const 
+          : tag.startsWith('artist:') ? 'artist' as const 
+          : 'general' as const
+      }));
+  }, [savedImages, builderState.and]);
+
+  // Categorized tag groups
+  const characterTags = useMemo(() => tagIndex.filter(t => t.category === 'character').slice(0, 20), [tagIndex]);
+  const seriesTags = useMemo(() => tagIndex.filter(t => t.category === 'series').slice(0, 20), [tagIndex]);
+  const artistTags = useMemo(() => tagIndex.filter(t => t.category === 'artist').slice(0, 15), [tagIndex]);
+  const mostUsedTags = useMemo(() => tagIndex.slice(0, 20), [tagIndex]);
+
+  // Filtered tags for search
+  const filteredTags = useMemo(() => {
+    if (!tagSearchFilter.trim()) return [];
+    const q = tagSearchFilter.toLowerCase();
+    return tagIndex.filter(t => t.cleanTag.toLowerCase().includes(q) || t.tag.toLowerCase().includes(q)).slice(0, 20);
+  }, [tagIndex, tagSearchFilter]);
 
   const loadPlaylists = async () => {
     try {
@@ -39,43 +146,509 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
     }
   };
 
+  const savePlaylist = async () => {
+    if (!playlistName.trim()) return alert("Name required");
+    try {
+      const db = getDb();
+      const id = editingId || crypto.randomUUID();
+      const queryJson = JSON.stringify(builderState);
+      
+      await db.execute(
+        "INSERT OR REPLACE INTO FlowPlaylists (id, name, query) VALUES (?, ?, ?)",
+        [id, playlistName, queryJson]
+      );
+      
+      setIsBuilderOpen(false);
+      await loadPlaylists();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const parseQuery = (queryStr: string): SmartQuery => {
+    try {
+      const parsed = JSON.parse(queryStr);
+      if (parsed.and || parsed.or || parsed.exclude) return parsed;
+    } catch (e) {}
+    return { and: queryStr.split(' ').filter(Boolean), or: [], exclude: [], allowedMediaTypes: ['image', 'video', 'gif'] };
+  };
+
+  const stripPrefix = (t: string) => t.replace(/^(character|series|artist|copyright):/, '').replace(/_/g, ' ');
+
+  const buildQueryString = (query: SmartQuery): string => {
+    let parts = [...query.and.map(t => stripPrefix(t))];
+    query.or.forEach(t => parts.push(`~${stripPrefix(t)}`));
+    query.exclude.forEach(t => parts.push(`-${stripPrefix(t)}`));
+    return parts.join(' ');
+  };
+
+  const handleDuplicate = async (p: Playlist) => {
+    try {
+      const db = getDb();
+      await db.execute(
+        "INSERT INTO FlowPlaylists (id, name, query) VALUES (?, ?, ?)",
+        [crypto.randomUUID(), `${p.name} (Copy)`, p.query]
+      );
+      await loadPlaylists();
+    } catch (e) {}
+  };
+
+  const generateCuratedPlaylists = async () => {
+    if (savedImages.length === 0) {
+      return alert("You need to save some images first to generate playlists based on your library.");
+    }
+    setIsGenerating(true);
+    try {
+      const db = getDb();
+      
+      // Count all tag categories
+      const charCounts: Record<string, number> = {};
+      const seriesCounts: Record<string, number> = {};
+      const artistCounts: Record<string, number> = {};
+      const generalCounts: Record<string, number> = {};
+      
+      savedImages.forEach(img => {
+        (img.tags || []).forEach(t => {
+          const clean = t.replace(/^(character|series|artist|copyright):/, '').replace(/_/g, ' ');
+          if (t.startsWith('character:')) charCounts[clean] = (charCounts[clean] || 0) + 1;
+          else if (t.startsWith('series:') || t.startsWith('copyright:')) seriesCounts[clean] = (seriesCounts[clean] || 0) + 1;
+          else if (t.startsWith('artist:')) artistCounts[clean] = (artistCounts[clean] || 0) + 1;
+          else if (!t.startsWith('rating:') && !t.startsWith('source:') && !t.startsWith('meta:')) {
+            generalCounts[clean] = (generalCounts[clean] || 0) + 1;
+          }
+        });
+      });
+
+      const topChars = Object.entries(charCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      const topSeries = Object.entries(seriesCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      const topArtists = Object.entries(artistCounts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+      const topGeneral = Object.entries(generalCounts).sort((a, b) => b[1] - a[1]).filter(([, c]) => c >= 10).slice(0, 5);
+
+      let generatedCount = 0;
+      const tryCreate = async (name: string, queryTag: string) => {
+        const query: SmartQuery = { and: [queryTag], or: [], exclude: [] };
+        const queryStr = JSON.stringify(query);
+        const exists = playlists.some(p => p.name === name);
+        if (!exists) {
+          await db.execute("INSERT INTO FlowPlaylists (id, name, query) VALUES (?, ?, ?)", [crypto.randomUUID(), name, queryStr]);
+          generatedCount++;
+        }
+      };
+
+      // Character playlists
+      for (const [name, count] of topChars) {
+        const displayName = name.charAt(0).toUpperCase() + name.slice(1);
+        await tryCreate(`🎭 ${displayName} (${count})`, name.replace(/ /g, '_'));
+      }
+      
+      // Series playlists
+      for (const [name, count] of topSeries) {
+        const displayName = name.charAt(0).toUpperCase() + name.slice(1);
+        await tryCreate(`📺 ${displayName} (${count})`, name.replace(/ /g, '_'));
+      }
+      
+      // Artist playlists
+      for (const [name, count] of topArtists) {
+        const displayName = name.charAt(0).toUpperCase() + name.slice(1);
+        await tryCreate(`🎨 ${displayName} (${count})`, name.replace(/ /g, '_'));
+      }
+      
+      // Trait-based playlists
+      for (const [name, count] of topGeneral) {
+        const displayName = name.charAt(0).toUpperCase() + name.slice(1);
+        await tryCreate(`✨ ${displayName} (${count})`, name.replace(/ /g, '_'));
+      }
+
+      await loadPlaylists();
+      if (generatedCount > 0) {
+        alert(`Generated ${generatedCount} curated playlists based on your library!`);
+      } else {
+        alert("Playlists for your top tags already exist!");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setIsGenerating(false);
+  };
+
+  const handlePlaySlideshow = (p: Playlist) => {
+    const q = parseQuery(p.query);
+    const results = savedImages.filter(img => {
+      // Check media type first
+      const mediaType = img.mediaType || 'image';
+      if (q.allowedMediaTypes && q.allowedMediaTypes.length > 0 && !q.allowedMediaTypes.includes(mediaType as any)) {
+        return false;
+      }
+
+      const tags = (img.tags || []).map(t => t.toLowerCase());
+      const matchesAnd = q.and.length === 0 || q.and.every(t => tags.some(tag => tag.includes(t.toLowerCase())));
+      const matchesOr = q.or.length === 0 || q.or.some(t => tags.some(tag => tag.includes(t.toLowerCase())));
+      const matchesExclude = q.exclude.some(t => tags.some(tag => tag.includes(t.toLowerCase())));
+      return matchesAnd && matchesOr && !matchesExclude;
+    });
+
+    if (results.length > 0) {
+      slideshow.start(0, results);
+    } else {
+      alert(`No local images match this playlist. (${savedImages.length} images scanned)`);
+    }
+  };
+
+  const addTagToField = (tag: string) => {
+    if (!activeTagField) return;
+    const cleanTag = stripPrefix(tag);
+    if (!builderState[activeTagField].includes(cleanTag)) {
+      setBuilderState({ 
+        ...builderState, 
+        [activeTagField]: [...builderState[activeTagField], cleanTag] 
+      });
+    }
+  };
+
+  const removeTagFromField = (field: keyof SmartQuery, index: number) => {
+    setBuilderState({
+      ...builderState,
+      [field]: builderState[field].filter((_, i) => i !== index)
+    });
+  };
+
+  // Tag Chip Component
+  const TagChip: React.FC<{ tag: string; field: keyof SmartQuery; index: number; color: string }> = ({ tag, field, index, color }) => (
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${color}`}>
+      {tag}
+      <button onClick={() => removeTagFromField(field, index)} className="hover:text-white transition-colors">
+        <X size={12} />
+      </button>
+    </span>
+  );
+
+  // Tag Suggestion Button  
+  const TagButton: React.FC<{ info: TagInfo; onClick: () => void }> = ({ info, onClick }) => {
+    const colorMap = {
+      character: 'bg-green-500/10 hover:bg-green-500/20 text-green-300 border-green-500/20',
+      series: 'bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border-purple-500/20',
+      artist: 'bg-red-500/10 hover:bg-red-500/20 text-red-300 border-red-500/20',
+      general: 'bg-surface-raised hover:bg-white/10 text-foreground border-border-subtle'
+    };
+    return (
+      <button 
+        onClick={onClick}
+        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center gap-1.5 ${colorMap[info.category]}`}
+      >
+        {info.cleanTag}
+        <span className="text-[10px] opacity-50">{info.count}</span>
+      </button>
+    );
+  };
+
   return (
-    <div className="w-full h-full p-8 overflow-y-auto bg-background flex flex-col gap-6">
-      <h2 className="text-2xl font-black uppercase tracking-widest text-foreground">Smart Playlists</h2>
-      <p className="text-foreground-muted">
-        Smart playlists save your complex search queries and auto-update dynamically whenever you play them.
-      </p>
+    <div className="w-full h-full p-8 overflow-y-auto bg-background flex flex-col gap-6 relative">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-black uppercase tracking-widest text-foreground">Smart Playlists</h2>
+          <p className="text-foreground-muted text-sm mt-1">
+            Dynamic collections that auto-update based on tags. Play locally or search online.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={generateCuratedPlaylists}
+            disabled={isGenerating}
+            className="h-12 px-6 bg-surface-raised hover:bg-surface-elevated border border-border-subtle text-foreground font-black text-sm uppercase tracking-widest rounded-xl flex items-center gap-2 transition-all disabled:opacity-50"
+          >
+            {isGenerating ? "Generating..." : "✨ Auto-Generate"}
+          </button>
+          <button 
+            onClick={() => {
+              setBuilderState({ and: [], or: [], exclude: [] });
+              setPlaylistName("");
+              setEditingId(null);
+              setActiveTagField(null);
+              setTagSearchFilter("");
+              setIsBuilderOpen(true);
+            }}
+            className="h-12 px-6 bg-accent hover:bg-accent-hover text-white font-black text-sm uppercase tracking-widest rounded-xl flex items-center gap-2 transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)]"
+          >
+            <Plus size={18} strokeWidth={3} /> Create Playlist
+          </button>
+        </div>
+      </div>
 
       {playlists.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center text-foreground-muted font-bold uppercase tracking-widest">
-          No playlists saved. Try searching and hitting "Save Playlist".
+        <div className="flex-1 flex flex-col items-center justify-center text-foreground-muted bg-surface/30 rounded-3xl border border-white/5">
+          <div className="w-24 h-24 mb-6 rounded-full bg-white/5 flex items-center justify-center text-white/20">
+            <Play size={48} />
+          </div>
+          <h3 className="text-xl font-black uppercase tracking-widest text-foreground mb-2">No Playlists Yet</h3>
+          <p className="text-sm font-medium opacity-60">Create a smart playlist to auto-organize by tags.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {playlists.map(p => (
-            <div key={p.id} className="p-6 bg-surface border border-border-subtle rounded-2xl flex flex-col gap-4 group hover:border-accent transition-all relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-1 bg-accent/50 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform"></div>
-              
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-foreground">{p.name}</h3>
-                <button onClick={() => handleDelete(p.id)} className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                  <Trash2 size={16} />
-                </button>
-              </div>
+          {playlists.map(p => {
+            const q = parseQuery(p.query);
+            // Count matching local images
+            const matchCount = savedImages.filter(img => {
+              const mediaType = img.mediaType || 'image';
+              if (q.allowedMediaTypes && q.allowedMediaTypes.length > 0 && !q.allowedMediaTypes.includes(mediaType as any)) {
+                return false;
+              }
 
-              <div className="flex items-center gap-2 text-sm text-foreground-muted bg-black/20 p-3 rounded-lg">
-                <Search size={14} className="text-accent shrink-0" />
-                <span className="truncate">{p.query}</span>
-              </div>
+              const tags = (img.tags || []).map(t => t.toLowerCase());
+              return (q.and.length === 0 || q.and.every(t => tags.some(tag => tag.includes(t.toLowerCase()))));
+            }).length;
+            
+            return (
+              <div key={p.id} className="p-6 bg-surface border border-border-subtle rounded-2xl flex flex-col gap-4 group hover:border-accent transition-all relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-accent/50 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform"></div>
+                
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-foreground">{p.name}</h3>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-foreground-muted mt-0.5">{matchCount} local matches</p>
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => { setEditingId(p.id); setPlaylistName(p.name); setBuilderState(q); setActiveTagField(null); setIsBuilderOpen(true); }} className="p-2 text-foreground-muted hover:text-white hover:bg-white/10 rounded-lg"><Edit2 size={14} /></button>
+                    <button onClick={() => handleDuplicate(p)} className="p-2 text-foreground-muted hover:text-white hover:bg-white/10 rounded-lg"><Copy size={14} /></button>
+                    <button onClick={() => handleDelete(p.id)} className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg"><Trash2 size={14} /></button>
+                  </div>
+                </div>
 
-              <button 
-                onClick={() => onPlay(p.query)}
-                className="mt-2 h-12 bg-accent/10 hover:bg-accent/20 text-accent font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 transition-all"
-              >
-                <Play size={16} fill="currentColor" /> Play Channel
-              </button>
+                {/* Tag chips display */}
+                <div className="flex flex-wrap gap-1.5">
+                  {q.and.map((t, i) => (
+                    <span key={`and-${i}`} className="px-2 py-1 bg-green-500/10 text-green-300 border border-green-500/20 rounded-md text-[11px] font-bold">{stripPrefix(t)}</span>
+                  ))}
+                  {q.or.map((t, i) => (
+                    <span key={`or-${i}`} className="px-2 py-1 bg-blue-500/10 text-blue-300 border border-blue-500/20 rounded-md text-[11px] font-bold">~{stripPrefix(t)}</span>
+                  ))}
+                  {q.exclude.map((t, i) => (
+                    <span key={`ex-${i}`} className="px-2 py-1 bg-red-500/10 text-red-300 border border-red-500/20 rounded-md text-[11px] font-bold">-{stripPrefix(t)}</span>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2 mt-2">
+                  <button 
+                    onClick={() => handlePlaySlideshow(p)}
+                    className="flex-1 h-12 bg-accent hover:bg-accent-hover text-white font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 transition-all"
+                  >
+                    <Play size={16} fill="currentColor" /> Slideshow
+                  </button>
+                  <button 
+                    onClick={() => onPlay(buildQueryString(q))}
+                    className="flex-1 h-12 bg-surface-raised hover:bg-white/10 text-foreground font-black uppercase tracking-widest border border-border-subtle rounded-xl flex items-center justify-center gap-2 transition-all"
+                  >
+                    <Search size={16} /> Search Web
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Playlist Builder Modal */}
+      {isBuilderOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-surface border border-border-subtle rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-border-subtle flex items-center justify-between bg-surface-elevated">
+              <h3 className="text-xl font-black uppercase tracking-widest">{editingId ? 'Edit Playlist' : 'Create Playlist'}</h3>
+              <button onClick={() => setIsBuilderOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-all"><X size={20} /></button>
             </div>
-          ))}
+            
+            <div className="p-6 flex flex-col gap-5 overflow-y-auto">
+              {/* Name */}
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest text-foreground-muted mb-2">Playlist Name</label>
+                <input 
+                  type="text" 
+                  value={playlistName}
+                  onChange={e => setPlaylistName(e.target.value)}
+                  placeholder="e.g., Frieren Collection"
+                  className="w-full bg-surface-raised border border-border-subtle rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:border-accent"
+                />
+              </div>
+
+              {/* Media Type Toggle */}
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest text-foreground-muted mb-2">Allowed Media Types</label>
+                <div className="flex gap-2">
+                  {(['image', 'video', 'gif'] as const).map(type => {
+                    const isSelected = builderState.allowedMediaTypes?.includes(type) ?? true;
+                    return (
+                      <button
+                        key={type}
+                        onClick={() => {
+                          const current = builderState.allowedMediaTypes || ['image', 'video', 'gif'];
+                          const next = isSelected 
+                            ? current.filter(t => t !== type)
+                            : [...current, type];
+                          setBuilderState(s => ({ ...s, allowedMediaTypes: next }));
+                        }}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
+                          isSelected 
+                            ? 'bg-accent text-white border-accent' 
+                            : 'bg-surface border-border-subtle text-foreground-muted hover:text-foreground'
+                        } border`}
+                      >
+                        {type}s
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Tag Rule Sections with Chips */}
+              {(['and', 'or', 'exclude'] as const).map(field => {
+                const labels = { and: 'Match ALL', or: 'Match ANY', exclude: 'Exclude' };
+                const colors = { 
+                  and: 'bg-green-500/10 text-green-300 border-green-500/20', 
+                  or: 'bg-blue-500/10 text-blue-300 border-blue-500/20', 
+                  exclude: 'bg-red-500/10 text-red-300 border-red-500/20' 
+                };
+                const borderColors = { and: 'border-green-500/30', or: 'border-blue-500/30', exclude: 'border-red-500/30' };
+                
+                return (
+                  <div key={field}>
+                    <label className="block text-xs font-black uppercase tracking-widest text-foreground-muted mb-2">
+                      {labels[field]}
+                    </label>
+                    <div className={`min-h-[44px] p-2 rounded-xl border ${activeTagField === field ? borderColors[field] : 'border-border-subtle'} bg-black/20 flex flex-wrap items-center gap-2 cursor-text`}
+                      onClick={() => setActiveTagField(field)}
+                    >
+                      {builderState[field].map((tag, i) => (
+                        <TagChip key={`${field}-${i}`} tag={tag} field={field} index={i} color={colors[field]} />
+                      ))}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setActiveTagField(activeTagField === field ? null : field); setTagSearchFilter(''); }}
+                        className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                          activeTagField === field 
+                            ? 'bg-accent/20 text-accent' 
+                            : 'text-foreground-muted hover:text-foreground hover:bg-white/10'
+                        }`}
+                      >
+                        <Plus size={12} /> Add Tag
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Tag Selector Panel (shown when a field is active) */}
+              {activeTagField && (
+                <div className="bg-surface-elevated border border-border-subtle rounded-2xl overflow-hidden">
+                  <div className="p-3 border-b border-border-subtle bg-white/5">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" size={14} />
+                      <input
+                        type="text"
+                        value={tagSearchFilter}
+                        onChange={e => setTagSearchFilter(e.target.value)}
+                        placeholder="Search tags..."
+                        autoFocus
+                        className="w-full pl-9 pr-4 py-2 bg-black/30 border border-border-subtle rounded-lg text-sm text-foreground focus:outline-none focus:border-accent"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 flex flex-col gap-4 max-h-[300px] overflow-y-auto">
+                    {/* Search results */}
+                    {tagSearchFilter && filteredTags.length > 0 && (
+                      <div>
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-foreground-muted mb-2 flex items-center gap-1"><Search size={10} /> Search Results</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {filteredTags.map(info => (
+                            <TagButton key={info.tag} info={info} onClick={() => addTagToField(info.tag)} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Custom tag entry */}
+                    {tagSearchFilter && !filteredTags.some(t => t.cleanTag.toLowerCase() === tagSearchFilter.toLowerCase()) && (
+                      <button
+                        onClick={() => {
+                          addTagToField(tagSearchFilter.trim());
+                          setTagSearchFilter('');
+                        }}
+                        className="px-4 py-2 bg-accent/10 hover:bg-accent/20 text-accent border border-accent/20 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
+                      >
+                        <Plus size={14} /> Add custom tag: "{tagSearchFilter}"
+                      </button>
+                    )}
+
+                    {!tagSearchFilter && (
+                      <>
+                        {/* Related tags */}
+                        {relatedTags.length > 0 && (
+                          <div>
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-accent mb-2 flex items-center gap-1"><Sparkles size={10} /> Related to your selection</h4>
+                            <div className="flex flex-wrap gap-2">
+                              {relatedTags.map(info => (
+                                <TagButton key={info.tag} info={info} onClick={() => addTagToField(info.tag)} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Most Used */}
+                        {mostUsedTags.length > 0 && (
+                          <div>
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-foreground-muted mb-2 flex items-center gap-1"><Heart size={10} /> Most Used</h4>
+                            <div className="flex flex-wrap gap-2">
+                              {mostUsedTags.slice(0, 12).map(info => (
+                                <TagButton key={info.tag} info={info} onClick={() => addTagToField(info.tag)} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Characters */}
+                        {characterTags.length > 0 && (
+                          <div>
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-green-400 mb-2 flex items-center gap-1"><User size={10} /> Characters</h4>
+                            <div className="flex flex-wrap gap-2">
+                              {characterTags.map(info => (
+                                <TagButton key={info.tag} info={info} onClick={() => addTagToField(info.tag)} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Series */}
+                        {seriesTags.length > 0 && (
+                          <div>
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-purple-400 mb-2 flex items-center gap-1"><Film size={10} /> Series</h4>
+                            <div className="flex flex-wrap gap-2">
+                              {seriesTags.map(info => (
+                                <TagButton key={info.tag} info={info} onClick={() => addTagToField(info.tag)} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Artists */}
+                        {artistTags.length > 0 && (
+                          <div>
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-red-400 mb-2 flex items-center gap-1"><Tag size={10} /> Artists</h4>
+                            <div className="flex flex-wrap gap-2">
+                              {artistTags.map(info => (
+                                <TagButton key={info.tag} info={info} onClick={() => addTagToField(info.tag)} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-border-subtle bg-surface-elevated flex justify-end gap-3">
+              <button onClick={() => setIsBuilderOpen(false)} className="px-6 py-3 font-bold text-foreground-muted hover:text-white transition-all uppercase tracking-widest text-sm">Cancel</button>
+              <button onClick={savePlaylist} className="px-6 py-3 bg-accent hover:bg-accent-hover text-white font-black uppercase tracking-widest text-sm rounded-xl flex items-center gap-2 shadow-[0_0_20px_rgba(99,102,241,0.3)]"><Save size={16} /> Save Playlist</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

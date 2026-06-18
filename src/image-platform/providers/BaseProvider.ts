@@ -15,8 +15,8 @@ export abstract class BaseProvider implements ImageProvider {
     search?: boolean;
     tagSearch?: boolean;
   };
-  domains: string[];
-  isEnabled?: boolean;
+  domains: string[] = [];
+  isEnabled = true;
 
   /**
    * Helper function to fetch JSON via Tauri's HTTP plugin.
@@ -67,6 +67,24 @@ export abstract class BaseProvider implements ImageProvider {
 
   abstract getDiscovery(page: number): Promise<PlatformImage[]>;
   
-  domains: string[] = [];
-  isEnabled = true;
+  async getById(id: string): Promise<PlatformImage | null> {
+    // Default implementation falls back to returning null
+    // Providers should override this if they support explicit ID fetching
+    return null;
+  }
+  
+  /**
+   * Deduce the media type from a URL string to allow instant caching and filtering
+   */
+  protected getMediaType(url: string): 'image' | 'video' | 'gif' {
+    if (!url) return 'image';
+    const match = url.match(/\.(png|jpg|jpeg|gif|webm|mp4|avif|webp|mov)(?:\?|$)/i);
+    if (match && match[1]) {
+      const ext = match[1].toLowerCase();
+      if (ext === 'mp4' || ext === 'webm' || ext === 'mov') return 'video';
+      if (ext === 'gif') return 'gif';
+    }
+    // Fallback default
+    return 'image';
+  }
 }

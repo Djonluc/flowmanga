@@ -17,6 +17,12 @@ export class SearchFederator {
     return this.getProviders().filter(p => isSourceEnabled(p.id));
   }
 
+  async getById(providerId: string, sourceId: string): Promise<PlatformImage | null> {
+    const provider = this.providers.get(providerId);
+    if (!provider || !provider.getById) return null;
+    return provider.getById(sourceId);
+  }
+
   /**
    * Executes a search query. 
    * If the query has a `source` predicate (e.g., `source:danbooru`), it routes only to that provider.
@@ -47,8 +53,8 @@ export class SearchFederator {
           if (onChunk && res.length > 0) onChunk(res);
           return res;
         })
-        .catch(e => {
-          console.error(`[SearchFederator] Provider ${p.id} failed:`, e);
+        .catch((e: any) => {
+          console.warn(`[SearchFederator] Provider ${p.id} timed out or failed gracefully: ${e.message}`);
           return []; // Fail gracefully for individual providers
         })
     );
@@ -67,8 +73,8 @@ export class SearchFederator {
           if (onChunk && res.length > 0) onChunk(res);
           return res;
         })
-        .catch(e => {
-          console.error(`[SearchFederator] Latest provider ${p.id} failed:`, e);
+        .catch((e: any) => {
+          console.warn(`[SearchFederator] Latest provider ${p.id} timed out or failed gracefully: ${e.message}`);
           return [];
         })
     );
@@ -106,8 +112,8 @@ export class SearchFederator {
             if (onChunk && res.length > 0) onChunk(res);
             return res;
           })
-          .catch(e => {
-            console.error(`[SearchFederator] Curated provider ${p.id} failed:`, e);
+          .catch((e: any) => {
+            console.warn(`[SearchFederator] Curated provider ${p.id} timed out or failed gracefully: ${e.message}`);
             return [];
           })
       );
@@ -128,20 +134,15 @@ export class SearchFederator {
   async getDiscovery(page: number, onChunk?: (images: PlatformImage[]) => void): Promise<PlatformImage[]> {
     const activeProviders = await this.getActiveProviders();
     if (activeProviders.length === 0) return [];
-    
-    // To ensure a truly randomized discovery that doesn't break providers, we fetch 
-    // a pseudo-random page from the absolute latest images feed.
-    // E.g. page 1 -> random page between 1-5, page 2 -> random between 6-10, etc.
-    const randomPage = (page - 1) * 5 + Math.floor(Math.random() * 5) + 1;
 
     const promises = activeProviders.map(p => 
-      p.getLatest(randomPage)
+      p.getDiscovery(page)
         .then(res => {
           if (onChunk && res.length > 0) onChunk(res);
           return res;
         })
         .catch(e => {
-          console.error(`[SearchFederator] Discovery provider ${p.id} failed:`, e);
+          console.warn(`[SearchFederator] Discovery provider ${p.id} timed out or failed gracefully:`, e);
           return [];
         })
     );

@@ -163,6 +163,9 @@ interface SettingsState {
   toggleColoredOnly: () => void;
   setColoredOnly: (val: boolean) => void;
 
+  globalMediaFilter: 'all' | 'image' | 'video' | 'gif';
+  setGlobalMediaFilter: (filter: 'all' | 'image' | 'video' | 'gif') => void;
+
   booruAuth: Record<string, BooruAuth>;
   setBooruAuth: (providerId: string, auth: BooruAuth) => void;
 
@@ -356,6 +359,9 @@ export const useSettingsStore = create<SettingsState>()(
       coloredOnly: true,
       toggleColoredOnly: () => set((state) => ({ coloredOnly: !state.coloredOnly })),
       setColoredOnly: (val) => set({ coloredOnly: val }),
+
+      globalMediaFilter: 'all',
+      setGlobalMediaFilter: (filter) => set({ globalMediaFilter: filter }),
 
       booruAuth: {},
       setBooruAuth: (providerId, auth) => 

@@ -95,6 +95,10 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
     const { feeds } = get();
     if (!forceRefresh && feeds.latest.images.length > 0) return; // Cache hit
 
+    if (forceRefresh) {
+      set(state => ({ feeds: { ...state.feeds, latest: { ...state.feeds.latest, images: [], currentPage: 1, hasMore: true } } }));
+    }
+
     set({ isLoading: true, error: null });
     try {
       const mode = 'latest';
@@ -127,6 +131,10 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
     const { feeds } = get();
     if (!forceRefresh && feeds.curated.images.length > 0) return; // Cache hit
 
+    if (forceRefresh) {
+      set(state => ({ feeds: { ...state.feeds, curated: { ...state.feeds.curated, images: [], currentPage: 1, hasMore: true } } }));
+    }
+
     set({ isLoading: true, error: null });
     try {
       const mode = 'curated';
@@ -158,6 +166,10 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
     set({ fetchMode: 'discover' });
     const { feeds } = get();
     if (!forceRefresh && feeds.discover.images.length > 0) return; // Cache hit
+
+    if (forceRefresh) {
+      set(state => ({ feeds: { ...state.feeds, discover: { ...state.feeds.discover, images: [], currentPage: 1, hasMore: true } } }));
+    }
 
     set({ isLoading: true, error: null });
     try {

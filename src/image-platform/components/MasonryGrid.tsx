@@ -1,17 +1,21 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import type { PlatformImage } from '../types';
 import { useImageEngineStore } from '../useImageEngineStore';
+import { useMediaLoader } from '../../hooks/useMediaLoader';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import clsx from 'clsx';
 
 interface MasonryGridProps {
   images: PlatformImage[];
   onImageClick?: (image: PlatformImage, index: number) => void;
+  onImageDoubleClick?: (image: PlatformImage, index: number) => void;
   columns?: number;
 }
 
 export const MasonryGrid: React.FC<MasonryGridProps> = ({ 
   images, 
   onImageClick,
+  onImageDoubleClick,
   columns = 4 
 }) => {
   const store = useImageEngineStore();
@@ -73,6 +77,7 @@ export const MasonryGrid: React.FC<MasonryGridProps> = ({
                   key={image.id} 
                   image={image} 
                   onClick={() => onImageClick?.(image, globalIndex)} 
+                  onDoubleClick={() => onImageDoubleClick?.(image, globalIndex)}
                 />
               );
             })}
@@ -98,10 +103,13 @@ export const MasonryGrid: React.FC<MasonryGridProps> = ({
   );
 };
 
-const ImageCard = ({ image, onClick }: { image: PlatformImage, onClick: () => void }) => {
+const ImageCard = ({ image, onClick, onDoubleClick }: { image: PlatformImage, onClick: () => void, onDoubleClick?: () => void }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const [proxySrc, setProxySrc] = useState<string | null>(null);
+  const { proxyViaTauri, needsProxy } = useMediaLoader();
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Lazy loading using IntersectionObserver
   useEffect(() => {
@@ -119,21 +127,71 @@ const ImageCard = ({ image, onClick }: { image: PlatformImage, onClick: () => vo
     return () => observer.disconnect();
   }, []);
 
+  let targetUrl = image.thumbnailUrl || image.sampleUrl || "";
+  let shouldWaitForProxy = false;
+  let finalSrc = targetUrl;
+  let isVideo = targetUrl?.match(/\.(mp4|webm)(?:\?|$)/i);
+
+  if (image.localPath) {
+    // If the file exists locally, bypass everything and load straight from disk
+    const localSrc = convertFileSrc(image.localPath);
+    targetUrl = localSrc;
+    finalSrc = localSrc;
+    isVideo = localSrc.match(/\.(mp4|webm)(?:\?|$)/i);
+  } else {
+    shouldWaitForProxy = needsProxy(targetUrl);
+    finalSrc = shouldWaitForProxy ? proxySrc : targetUrl;
+  }
+
+  // Fetch proxy URL if needed when visible
+  useEffect(() => {
+    if (!isVisible || !shouldWaitForProxy || image.localPath) return;
+    
+    proxyViaTauri(targetUrl).then(blobUrl => {
+      if (blobUrl) setProxySrc(blobUrl);
+    });
+  }, [isVisible, targetUrl, shouldWaitForProxy, proxyViaTauri, image.localPath]);
+
   // Pre-calculate container height based on aspect ratio to prevent layout shifting
   const paddingBottom = `${(1 / image.aspectRatio) * 100}%`;
+
+  const showSkeleton = !isLoaded || (shouldWaitForProxy && !proxySrc);
 
   return (
     <div 
       ref={cardRef}
       className="relative w-full rounded-xl overflow-hidden bg-surface-elevated border border-border-subtle group cursor-pointer"
       style={{ paddingBottom }}
-      onClick={onClick}
+      onClick={() => {
+        if (clickTimer.current) {
+          clearTimeout(clickTimer.current);
+          clickTimer.current = null;
+          onDoubleClick?.();
+        } else {
+          clickTimer.current = setTimeout(() => {
+            clickTimer.current = null;
+            onClick();
+          }, 250);
+        }
+      }}
     >
-      {isVisible && (
+      {/* Loading Skeleton */}
+      {showSkeleton && (
+        <div className="absolute inset-0 bg-surface flex flex-col justify-end p-4 z-0">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-[shimmer_1.5s_infinite] -translate-x-full"></div>
+          <div className="w-1/3 h-4 bg-black/20 rounded mb-2"></div>
+          <div className="flex gap-1">
+            <div className="w-12 h-3 bg-black/20 rounded"></div>
+            <div className="w-16 h-3 bg-black/20 rounded"></div>
+          </div>
+        </div>
+      )}
+
+      {isVisible && finalSrc && (
         <>
-          {(image.thumbnailUrl?.match(/\.(mp4|webm)(?:\?|$)/i) || image.sampleUrl?.match(/\.(mp4|webm)(?:\?|$)/i) || image.fullUrl?.match(/\.(mp4|webm)(?:\?|$)/i)) ? (
+          {isVideo ? (
             <video
-              src={image.sampleUrl || image.fullUrl}
+              src={finalSrc}
               autoPlay
               loop
               muted
@@ -141,28 +199,27 @@ const ImageCard = ({ image, onClick }: { image: PlatformImage, onClick: () => vo
               referrerPolicy="no-referrer"
               onLoadedData={() => setIsLoaded(true)}
               className={clsx(
-                "absolute inset-0 w-full h-full object-cover transition-all duration-700",
+                "absolute inset-0 w-full h-full object-cover transition-all duration-700 z-10",
                 isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-105",
                 "group-hover:scale-105"
               )}
             />
           ) : (
             <img
-              src={image.thumbnailUrl || image.sampleUrl}
+              src={finalSrc}
               alt={image.tags.slice(0, 5).join(' ')}
-              loading="lazy"
               referrerPolicy="no-referrer"
               onLoad={() => setIsLoaded(true)}
               onError={(e) => {
                 const img = e.currentTarget;
-                if (img.src !== image.sampleUrl && image.sampleUrl) {
+                if (!shouldWaitForProxy && img.src !== image.sampleUrl && image.sampleUrl) {
                   img.src = image.sampleUrl; // Fallback to sampleUrl
                 } else {
                   setIsLoaded(true); // Force show broken image if both fail
                 }
               }}
               className={clsx(
-                "absolute inset-0 w-full h-full object-cover transition-all duration-700",
+                "absolute inset-0 w-full h-full object-cover transition-all duration-700 z-10",
                 isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-105",
                 "group-hover:scale-105"
               )}

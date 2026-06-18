@@ -5,9 +5,12 @@ import { ReliabilityTracker } from '../services/DiscoveryService';
 const MAX_CACHE_SIZE = 50;
 
 /** Domains that commonly block direct browser requests and need Rust proxy fallback */
-const PROXY_DOMAINS = ['sankakucomplex.com', 'sankakuapi.com', 'hentai.org', 'ehgt.org'];
+const PROXY_DOMAINS = ['sankakucomplex.com', 'sankakuapi.com', 'hentai.org', 'ehgt.org', 'donmai.us'];
 
-function needsProxy(url: string): boolean {
+const proxyCache = new Map<string, string>();
+const MAX_PROXY_CACHE = 100;
+
+export function needsProxy(url: string): boolean {
   try {
     const hostname = new URL(url).hostname;
     return PROXY_DOMAINS.some(d => hostname.includes(d));
@@ -21,14 +24,33 @@ function needsProxy(url: string): boolean {
  * and return a blob: URL the browser can display natively.
  */
 async function proxyViaTauri(url: string): Promise<string | null> {
+  if (!url) return null;
+
+  if (proxyCache.has(url)) {
+    return proxyCache.get(url)!;
+  }
+
   try {
-    const { fetch } = await import('@tauri-apps/plugin-http');
-    const response = await fetch(url, {
+    const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
+    const response = await tauriFetch(url, {
       method: 'GET',
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    
     const blob = await response.blob();
-    return URL.createObjectURL(blob);
+    const blobUrl = URL.createObjectURL(blob);
+    
+    proxyCache.set(url, blobUrl);
+    if (proxyCache.size > MAX_PROXY_CACHE) {
+      const oldestKey = proxyCache.keys().next().value;
+      const oldestUrl = proxyCache.get(oldestKey);
+      if (oldestUrl && oldestUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(oldestUrl);
+      }
+      proxyCache.delete(oldestKey);
+    }
+    
+    return blobUrl;
   } catch (e) {
     console.warn('[useMediaLoader] Rust proxy fallback failed:', e);
     return null;
@@ -162,5 +184,5 @@ export const useMediaLoader = () => {
     [evictOldest]
   );
 
-  return { preloadHighResImage, proxyViaTauri, highResCache: highResCache.current };
+  return { preloadHighResImage, proxyViaTauri, highResCache: highResCache.current, needsProxy };
 };

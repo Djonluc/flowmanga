@@ -65,6 +65,7 @@ export class Rule34Provider extends BaseProvider {
           score: post.score,
           sourceUrl: `https://rule34.xxx/index.php?page=post&s=view&id=${post.id}`,
           createdAt: post.created_at ? new Date(post.created_at * 1000).getTime() : Date.now(),
+          mediaType: this.getMediaType(fileUrl),
           isLocal: false
         };
       });

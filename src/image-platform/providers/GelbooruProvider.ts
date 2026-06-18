@@ -109,6 +109,7 @@ export class GelbooruProvider extends BaseProvider {
           score: p.score || 0,
           sourceUrl: `https://gelbooru.com/index.php?page=post&s=view&id=${p.id}`,
           createdAt: new Date(p.created_at || Date.now()).getTime(),
+          mediaType: this.getMediaType(p.file_url),
           isLocal: false
         };
       });

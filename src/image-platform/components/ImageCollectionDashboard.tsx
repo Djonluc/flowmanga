@@ -1,12 +1,84 @@
 import React, { useEffect, useState } from 'react';
 import { useImageEngineStore } from '../useImageEngineStore';
 import { useSlideshowStore } from '../useSlideshowStore';
+import { useImageCollectionStore } from '../useImageCollectionStore';
 import { MasonryGrid } from './MasonryGrid';
 import { ImageDetailModal } from './ImageDetailModal';
 import { MyCollectionTab } from './MyCollectionTab';
 import { PlaylistsTab } from './PlaylistsTab';
-import { Search, Play, Pause, FastForward, Rewind, Shuffle, Repeat } from 'lucide-react';
+import { ForYouHeader } from './ForYouHeader';
+import { Search, Play, Pause, FastForward, Rewind, Shuffle, Repeat, Loader2 } from 'lucide-react';
 import { getDb } from '../../services/db';
+import { useMediaLoader } from '../../hooks/useMediaLoader';
+import { useSettingsStore } from '../../stores/useSettingsStore';
+import type { PlatformImage } from '../types';
+
+const SlideshowMedia = ({ image, isPaused }: { image: PlatformImage; isPaused: boolean }) => {
+  const { proxyViaTauri, needsProxy } = useMediaLoader();
+  const [src, setSrc] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    setSrc(null);
+    setIsLoading(true);
+    
+    const targetUrl = image.fullUrl || image.sampleUrl || image.thumbnailUrl || "";
+    if (needsProxy(targetUrl)) {
+      proxyViaTauri(targetUrl).then(url => {
+        if (active) {
+          setSrc(url);
+          setIsLoading(false);
+        }
+      }).catch(err => {
+        console.error("Proxy failed for url:", targetUrl, err);
+        if (active) {
+          setSrc(targetUrl); // Fallback to raw URL
+          setIsLoading(false);
+        }
+      });
+    } else {
+      setSrc(targetUrl);
+      setIsLoading(false);
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [image.fullUrl, image.sampleUrl, image.thumbnailUrl, needsProxy, proxyViaTauri]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center w-full h-[70vh] text-foreground-muted gap-3">
+        <Loader2 className="animate-spin text-accent" size={40} />
+        <span className="text-sm font-bold uppercase tracking-widest">Loading Media...</span>
+      </div>
+    );
+  }
+
+  const isVideo = image.fullUrl?.match(/\.(mp4|webm)(?:\?|$)/i) || image.sampleUrl?.match(/\.(mp4|webm)(?:\?|$)/i);
+
+  if (isVideo) {
+    return (
+      <video 
+        src={src || ""}
+        autoPlay
+        loop
+        muted={!isPaused}
+        controls={isPaused}
+        className="max-w-full max-h-[85vh] object-contain select-none animate-fade-in"
+      />
+    );
+  }
+
+  return (
+    <img 
+      src={src || ""}
+      className="max-w-full max-h-[85vh] object-contain select-none animate-fade-in"
+      alt="Slideshow slide"
+    />
+  );
+};
 
 export const ImageCollectionDashboard = () => {
   const store = useImageEngineStore();
@@ -14,15 +86,23 @@ export const ImageCollectionDashboard = () => {
   
   // Derive active feed state
   const activeFeed = store.feeds[store.fetchMode];
-  const images = activeFeed.images;
+  const { globalMediaFilter, setGlobalMediaFilter } = useSettingsStore();
+
+  const images = activeFeed.images.filter(img => {
+    if (globalMediaFilter === 'all') return true;
+    return img.mediaType === globalMediaFilter;
+  });
+
   const currentQuery = store.fetchMode === 'search' ? store.feeds.search.query : "";
   
   const [searchInput, setSearchInput] = useState("");
   const [favoriteTags, setFavoriteTags] = useState<string[]>([]);
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
+  const [modalImages, setModalImages] = useState<any[] | null>(null);
   
-  type DashboardTab = "new" | "foryou" | "collection" | "playlists" | "discover";
+  type DashboardTab = "new" | "foryou" | "collection" | "playlists" | "discover" | "search";
   const [activeTab, setActiveTab] = useState<DashboardTab>("discover");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const loadFavorites = async () => {
     try {
@@ -40,6 +120,7 @@ export const ImageCollectionDashboard = () => {
     if (activeTab === "new") store.fetchLatest();
     if (activeTab === "foryou") store.fetchCurated();
     if (activeTab === "discover") store.fetchDiscover();
+    if (activeTab === "search") useImageEngineStore.setState({ fetchMode: 'search' });
     // collections and playlists will be handled by their respective components
   }, [activeTab]);
 
@@ -59,6 +140,7 @@ export const ImageCollectionDashboard = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    setActiveTab("search");
     store.search(searchInput);
   };
 
@@ -76,6 +158,26 @@ export const ImageCollectionDashboard = () => {
       alert("Failed to save playlist");
     }
   };
+  // Handle slideshow keyboard controls
+  useEffect(() => {
+    if (!slideshow.isActive) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        slideshow.prev();
+      } else if (e.key === 'ArrowRight') {
+        slideshow.next();
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        slideshow.togglePause();
+      } else if (e.key === 'Escape') {
+        slideshow.stop();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [slideshow.isActive, slideshow.next, slideshow.prev, slideshow.togglePause, slideshow.stop]);
 
   return (
     <div className="w-full h-full flex flex-col bg-background relative">
@@ -92,10 +194,32 @@ export const ImageCollectionDashboard = () => {
               className="w-full h-12 pl-12 pr-4 rounded-xl bg-black/20 border border-white/5 focus:border-accent/50 focus:bg-black/40 text-foreground transition-all outline-none"
             />
           </form>
+
+          <select
+            value={globalMediaFilter}
+            onChange={(e) => setGlobalMediaFilter(e.target.value as any)}
+            className="h-12 px-4 bg-surface hover:bg-surface-raised border border-border-subtle text-foreground-muted hover:text-foreground font-black uppercase tracking-widest rounded-xl transition-all outline-none"
+          >
+            <option value="all">All Media</option>
+            <option value="image">Images</option>
+            <option value="video">Videos</option>
+            <option value="gif">GIFs</option>
+          </select>
           
           <button 
-            onClick={() => slideshow.start(0, images, () => store.loadNextPage())}
-            className="h-12 px-6 bg-accent hover:bg-accent-hover text-white font-black uppercase tracking-widest rounded-xl flex items-center gap-3 shadow-[0_0_20px_rgba(99,102,241,0.3)] transition-all"
+            onClick={() => {
+              if (activeTab === 'collection' || activeTab === 'playlists') {
+                alert('Use the slideshow button inside the Collection or Playlist tab.');
+                return;
+              }
+              if (images.length === 0) {
+                alert('No images loaded yet. Wait for images to load first.');
+                return;
+              }
+              slideshow.start(0, images, () => store.loadNextPage());
+            }}
+            disabled={activeTab === 'collection' || activeTab === 'playlists'}
+            className="h-12 px-6 bg-accent hover:bg-accent-hover text-white font-black uppercase tracking-widest rounded-xl flex items-center gap-3 shadow-[0_0_20px_rgba(99,102,241,0.3)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Play size={18} fill="currentColor" />
             Slideshow
@@ -109,6 +233,15 @@ export const ImageCollectionDashboard = () => {
               Save Playlist
             </button>
           )}
+          <button 
+            onClick={async () => {
+              const { found, totalChecked } = await useImageCollectionStore.getState().recheckLocalFiles();
+              alert(`Checked ${totalChecked} files. Found and linked ${found} local downloads!`);
+            }}
+            className="h-12 px-6 bg-surface hover:bg-surface-raised border border-border-subtle text-foreground-muted hover:text-foreground font-black uppercase tracking-widest rounded-xl transition-all whitespace-nowrap"
+          >
+            Recheck Local Files
+          </button>
           {searchInput && (
             <button 
               onClick={(e) => { e.preventDefault(); toggleFavoriteTag(searchInput.trim()); }}
@@ -122,9 +255,10 @@ export const ImageCollectionDashboard = () => {
         {/* Tabs Row */}
         <div className="flex items-center gap-6 overflow-x-auto no-scrollbar pt-2">
           {[
-            { id: "discover", label: "Discover" },
+            { id: "new", label: "Latest Content" },
             { id: "foryou", label: "For You" },
-            { id: "new", label: "New Images" },
+            { id: "discover", label: "Discover" },
+            { id: "search", label: "Search Results" },
             { id: "collection", label: "My Collection" },
             { id: "playlists", label: "Playlists" }
           ].map(tab => (
@@ -136,6 +270,8 @@ export const ImageCollectionDashboard = () => {
                   if (tab.id === "new") store.fetchLatest(true);
                   if (tab.id === "foryou") store.fetchCurated(true);
                   if (tab.id === "discover") store.fetchDiscover(true);
+                  if (tab.id === "search") store.search(searchInput);
+                  if (tab.id === "collection" || tab.id === "playlists") setRefreshKey(prev => prev + 1);
                 } else {
                   setActiveTab(tab.id as DashboardTab);
                 }
@@ -151,46 +287,42 @@ export const ImageCollectionDashboard = () => {
           ))}
         </div>
 
-        {/* Favorite Tags Row (Only visible in For You or Search modes) */}
-        {favoriteTags.length > 0 && (activeTab === "foryou" || searchInput) && (
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2">
-            <span className="text-xs font-black uppercase tracking-widest text-foreground-muted mr-2 shrink-0">For You:</span>
-            {favoriteTags.map(tag => (
-              <button
-                key={tag}
-                onClick={() => {
-                  setSearchInput(tag);
-                  store.search(tag);
-                }}
-                className="shrink-0 px-4 py-1.5 rounded-full bg-surface border border-border-subtle hover:border-accent text-sm text-foreground transition-all flex items-center gap-2 group"
-              >
-                #{tag}
-                <div 
-                  onClick={(e) => { e.stopPropagation(); toggleFavoriteTag(tag); }}
-                  className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-500 transition-all p-0.5 rounded-full hover:bg-red-500/20"
-                >
-                  ✕
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Main Grid Area */}
-      <div className="flex-1 overflow-hidden relative">
-        {activeTab === "new" || activeTab === "foryou" || activeTab === "discover" || searchInput ? (
+      <div className="flex-1 overflow-hidden relative flex flex-col">
+        {activeTab === "foryou" && <ForYouHeader />}
+        
+        {activeTab === "new" || activeTab === "foryou" || activeTab === "discover" || activeTab === "search" ? (
           <MasonryGrid 
             images={images} 
             columns={5}
-            onImageClick={(_, index) => setSelectedImageIndex(index)}
+            onImageClick={(_, index) => {
+              setModalImages(null);
+              setSelectedImageIndex(index);
+            }}
+            onImageDoubleClick={(_, index) => {
+              slideshow.start(index, images);
+              useSlideshowStore.setState({ isPaused: true }); // Open in paused state for viewer
+            }}
           />
         ) : activeTab === "collection" ? (
-          <MyCollectionTab />
+          <MyCollectionTab 
+            key={refreshKey}
+            onImageClick={(_, index, contextImages) => {
+              setModalImages(contextImages);
+              setSelectedImageIndex(index);
+            }}
+            onImageDoubleClick={(_, index, contextImages) => {
+              slideshow.start(index, contextImages);
+              useSlideshowStore.setState({ isPaused: true });
+            }}
+          />
         ) : activeTab === "playlists" ? (
           <PlaylistsTab 
+            key={refreshKey}
             onPlay={(query) => {
-              setActiveTab("new");
+              setActiveTab("search");
               setSearchInput(query);
               store.search(query);
             }} 
@@ -199,22 +331,26 @@ export const ImageCollectionDashboard = () => {
       </div>
 
       {/* Image Detail Modal */}
-      {selectedImageIndex !== null && images[selectedImageIndex] && (
+      {selectedImageIndex !== null && (modalImages || images)[selectedImageIndex] && (
         <ImageDetailModal 
-          image={images[selectedImageIndex]} 
-          images={images}
+          image={(modalImages || images)[selectedImageIndex]} 
+          images={modalImages || images}
           index={selectedImageIndex}
           onClose={() => setSelectedImageIndex(null)}
           onNavigate={(newIndex) => {
-            if (newIndex >= 0 && newIndex < images.length) {
+            const arr = modalImages || images;
+            if (newIndex >= 0 && newIndex < arr.length) {
               setSelectedImageIndex(newIndex);
             }
           }}
           onSearchTag={(tag) => {
-            setActiveTab("new");
             setSearchInput(tag);
+            setActiveTab("search");
             store.search(tag);
+            setSelectedImageIndex(null);
           }}
+          favoriteTags={favoriteTags}
+          onToggleFavorite={(tag) => toggleFavoriteTag(tag)}
         />
       )}
 
@@ -226,22 +362,10 @@ export const ImageCollectionDashboard = () => {
           </div>
           
           {slideshow.isActive && slideshow.images[slideshow.currentIndex] && (
-            (slideshow.images[slideshow.currentIndex].fullUrl?.match(/\.(mp4|webm)$/i) || slideshow.images[slideshow.currentIndex].sampleUrl?.match(/\.(mp4|webm)$/i)) ? (
-              <video 
-                src={slideshow.images[slideshow.currentIndex].fullUrl || slideshow.images[slideshow.currentIndex].sampleUrl}
-                autoPlay
-                loop
-                muted={!slideshow.isPaused} // Allow sound if they pause? Or just keep muted
-                controls={slideshow.isPaused} // Show controls if paused
-                className="max-w-full max-h-full object-contain"
-              />
-            ) : (
-              <img 
-                src={slideshow.images[slideshow.currentIndex].fullUrl || slideshow.images[slideshow.currentIndex].sampleUrl}
-                className="max-w-full max-h-full object-contain"
-                alt="Slideshow slide"
-              />
-            )
+            <SlideshowMedia 
+              image={slideshow.images[slideshow.currentIndex]} 
+              isPaused={slideshow.isPaused}
+            />
           )}
 
           <div className="absolute bottom-10 flex items-center gap-6 px-8 py-4 bg-black/60 backdrop-blur-xl rounded-full border border-white/10 z-50">

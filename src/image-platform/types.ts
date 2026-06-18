@@ -22,12 +22,14 @@ export interface PlatformImage {
   tags: string[]; // Flat list of all tags for easy searching
   rating: 'safe' | 'questionable' | 'explicit';
   score: number;
-  sourceUrl: string; // URL back to the original post
-  createdAt: number; // Unix timestamp
+  sourceUrl?: string; // Optional URL back to the source post
+  createdAt?: number; // timestamp
   
   // Local State
-  isLocal: boolean;
-  localPath?: string;
+  isLocal?: boolean; // Whether the image was ingested locally instead of from a remote provider
+  localPath?: string; // Absolute path to the downloaded file if it exists locally
+  folderId?: string;
+  mediaType?: 'image' | 'video' | 'gif'; // Cached media type detection
 }
 
 export interface SearchQuery {
@@ -45,6 +47,7 @@ export interface ImageProvider {
   search(query: SearchQuery, page: number): Promise<PlatformImage[]>;
   getLatest(page: number): Promise<PlatformImage[]>;
   getDiscovery(page: number): Promise<PlatformImage[]>;
+  getById?(id: string): Promise<PlatformImage | null>;
   
   // Capabilities
   capabilities: {
@@ -57,7 +60,14 @@ export interface ImageProvider {
 export interface SmartPlaylist {
   id: string;
   name: string;
-  query: string; // e.g., "source:danbooru cat_ears"
+  query: SmartQuery;
   createdAt: number;
   lastPlayedAt?: number;
+}
+
+export interface SmartQuery {
+  and: string[];
+  or: string[];
+  exclude: string[];
+  allowedMediaTypes?: ('image' | 'video' | 'gif')[]; // Which media types are allowed in this playlist
 }

@@ -125,6 +125,7 @@ export const initDatabase = async () => {
       name TEXT NOT NULL,
       description TEXT,
       coverUrl TEXT,
+      query TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -143,6 +144,8 @@ export const initDatabase = async () => {
       score INTEGER,
       sourceUrl TEXT,
       isLocal BOOLEAN DEFAULT 0,
+      localPath TEXT,
+      mediaType TEXT,
       savedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (folderId) REFERENCES FlowSavedFolders(id) ON DELETE SET NULL
     );
@@ -349,6 +352,32 @@ export const initDatabase = async () => {
         query TEXT NOT NULL,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS TagAliases (
+        alias TEXT PRIMARY KEY,
+        canonicalTag TEXT NOT NULL,
+        confidence INTEGER DEFAULT 100,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS UserInterests (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL, -- 'dominant_tag', 'supporting_tag', 'artist', 'character', 'series'
+        name TEXT NOT NULL,
+        score REAL DEFAULT 0,
+        isPinned BOOLEAN DEFAULT 0,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(type, name)
+      );
+
+      CREATE TABLE IF NOT EXISTS FollowedEntities (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL, -- 'tag', 'artist', 'character', 'series'
+        name TEXT NOT NULL,
+        followedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(type, name)
+      );
     `);
   } catch (e) {
     console.error("[DB] Failed to create Flow Image Engine tables", e);
@@ -358,6 +387,28 @@ export const initDatabase = async () => {
   try {
     await db.execute("DELETE FROM DiscoveryCache");
   } catch (e) {}
+
+  try {
+    const flowTableInfo = await db.select<any[]>("PRAGMA table_info(FlowSavedFolders)");
+    const hasQueryColumn = flowTableInfo.some(col => col.name === 'query');
+    if (!hasQueryColumn) {
+      await db.execute("ALTER TABLE FlowSavedFolders ADD COLUMN query TEXT");
+    }
+  } catch (e) {
+    console.error("Migration failed:", e);
+  }
+
+  try {
+    await db.execute("ALTER TABLE FlowSavedImages ADD COLUMN localPath TEXT;");
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  try {
+    await db.execute("ALTER TABLE FlowSavedImages ADD COLUMN mediaType TEXT;");
+  } catch (e) {
+    // Column already exists, ignore
+  }
 
   // console.log('[DB] Database initialized successfully');
   return db;

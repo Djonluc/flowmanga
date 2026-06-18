@@ -55,7 +55,22 @@ export class DanbooruProvider extends BaseProvider {
   }
 
   async getDiscovery(page: number): Promise<PlatformImage[]> {
-    return this.search({ raw: "order:random", positiveTags: ["order:random"], negativeTags: [], predicates: {} }, page);
+    // Danbooru deprecated order:random because it's too expensive. 
+    // They now support the random:N tag. We use random:40.
+    return this.search({ raw: "random:40", positiveTags: ["random:40"], negativeTags: [], predicates: {} }, page);
+  }
+
+  async getById(id: string): Promise<PlatformImage | null> {
+    try {
+      const url = `https://danbooru.donmai.us/posts/${id}.json`;
+      const data = await this.fetchJson<any>(url);
+      if (!data || !data.id) return null;
+      const posts = this.mapPosts([data]);
+      return posts.length > 0 ? posts[0] : null;
+    } catch (e) {
+      console.warn("[DanbooruProvider] getById failed", e);
+      return null;
+    }
   }
 
   private mapPosts(posts: any[]): PlatformImage[] {
@@ -63,9 +78,10 @@ export class DanbooruProvider extends BaseProvider {
       .filter(p => p.id && (p.file_url || p.large_file_url || p.preview_file_url))
       .filter(p => !p.file_url?.includes("download-preview.png")) // Ignore restricted Gold posts
       .map(p => {
-        const fullUrl = p.large_file_url || p.file_url || p.preview_file_url || "";
-        const sampleUrl = p.large_file_url || p.preview_file_url || fullUrl || "";
-        const thumbnailUrl = p.preview_file_url || sampleUrl || "";
+        const fullUrl = p.file_url || p.large_file_url || p.preview_file_url || "";
+        const sampleUrl = p.large_file_url || p.file_url || p.preview_file_url || "";
+        // Use sampleUrl (850px) instead of preview_file_url (180px) for crisp thumbnails
+        const thumbnailUrl = sampleUrl;
 
         let rating: "safe" | "questionable" | "explicit" = "safe";
         if (p.rating === "e") rating = "explicit";
@@ -81,11 +97,20 @@ export class DanbooruProvider extends BaseProvider {
           width: p.image_width,
           height: p.image_height,
           aspectRatio: p.image_width && p.image_height ? p.image_width / p.image_height : 1,
-          tags: p.tag_string ? p.tag_string.split(" ") : [],
+          tags: (() => {
+            const apiTags: string[] = [];
+            if (p.tag_string_artist) apiTags.push(...p.tag_string_artist.split(" ").map((t: string) => `artist:${t}`));
+            if (p.tag_string_copyright) apiTags.push(...p.tag_string_copyright.split(" ").map((t: string) => `series:${t}`));
+            if (p.tag_string_character) apiTags.push(...p.tag_string_character.split(" ").map((t: string) => `character:${t}`));
+            if (p.tag_string_general) apiTags.push(...p.tag_string_general.split(" "));
+            if (apiTags.length === 0 && p.tag_string) apiTags.push(...p.tag_string.split(" "));
+            return apiTags;
+          })(),
           rating,
           score: p.score || 0,
           sourceUrl: `https://danbooru.donmai.us/posts/${p.id}`,
           createdAt: p.created_at ? new Date(p.created_at).getTime() : Date.now(),
+          mediaType: this.getMediaType(fullUrl),
           isLocal: false
         };
       });

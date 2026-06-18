@@ -390,7 +390,6 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       useSettingsStore.getState().setShowAdultContent(filter === "all");
       set({ contentFilter: filter });
       
-      await DiscoveryService.clearAllCache();
       get().cancelDiscovery(); 
       await get().fetchAllDiscovery();
     } catch (e) {
