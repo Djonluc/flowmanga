@@ -2,9 +2,14 @@ import React from 'react';
 import type { PlatformImage } from '../types';
 import { useSlideshowStore } from '../useSlideshowStore';
 import { useImageCollectionStore } from '../useImageCollectionStore';
-import { Download, Heart, FolderPlus, ListPlus, Play, ExternalLink, X, Tag } from 'lucide-react';
+import { Download, Heart, FolderPlus, ListPlus, Play, ExternalLink, X, Tag, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import { getDb } from '../../services/db';
+import { toast } from '../../components/Toast';
+import { writeFile, mkdir } from '@tauri-apps/plugin-fs';
+import { pictureDir, join } from '@tauri-apps/api/path';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
+import { useSettingsStore } from '../../stores/useSettingsStore';
 
 interface ImageDetailModalProps {
   image: PlatformImage;
@@ -18,8 +23,10 @@ interface ImageDetailModalProps {
 export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, images, index, onClose, onNavigate, onSearchTag }) => {
   const slideshow = useSlideshowStore();
   const { folders, saveImage, loadFolders, savedImages, removeSavedImage } = useImageCollectionStore();
+  const imageDownloadPath = useSettingsStore(state => state.imageDownloadPath);
   const [showFolderMenu, setShowFolderMenu] = React.useState(false);
   const [showAllTags, setShowAllTags] = React.useState(false);
+  const [isDownloading, setIsDownloading] = React.useState(false);
 
   React.useEffect(() => {
     loadFolders();
@@ -50,14 +57,58 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
   };
 
   const handleDownload = async () => {
+    if (isDownloading) return;
     try {
-      // In a full implementation, you'd fetch the binary array buffer here
-      // const response = await fetch(image.fullUrl);
-      // const buffer = await response.arrayBuffer();
-      // await writeBinaryFile(`downloads/${image.id}.jpg`, new Uint8Array(buffer), { dir: BaseDirectory.Picture });
-      alert("Download initiated (Placeholder)");
-    } catch (e) {
-      console.error(e);
+      setIsDownloading(true);
+      
+      const urlToDownload = image.fullUrl || image.sampleUrl || image.thumbnailUrl;
+      if (!urlToDownload) throw new Error("No URL available for download");
+
+      // Extract extension
+      let ext = "jpg";
+      const match = urlToDownload.match(/\.(png|jpg|jpeg|gif|webm|mp4|avif|webp)(?:\?|$)/i);
+      if (match && match[1]) {
+        ext = match[1].toLowerCase();
+      }
+
+      // 1. Determine save directory
+      let saveDirectory = imageDownloadPath;
+      if (!saveDirectory) {
+        const picsDir = await pictureDir();
+        saveDirectory = await join(picsDir, "FlowManga", "Images");
+      }
+
+      // Ensure directory exists
+      await mkdir(saveDirectory, { recursive: true });
+
+      // Build full path
+      const defaultFilename = `${image.providerId}-${image.sourceId}.${ext}`;
+      const savePath = await join(saveDirectory, defaultFilename);
+
+      toast.info(`Downloading to ${savePath}...`);
+
+      // 2. Fetch the file
+      const response = await tauriFetch(urlToDownload, {
+        method: "GET",
+        headers: {
+          "User-Agent": "FlowManga/3.0",
+          "Referer": "no-referrer"
+        }
+      });
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const buffer = await response.arrayBuffer();
+
+      // 3. Write file
+      await writeFile(savePath, new Uint8Array(buffer));
+
+      toast.success("Download completed successfully!");
+    } catch (e: any) {
+      console.error("Download failed:", e);
+      toast.error(`Download failed: ${e.message}`);
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -129,8 +180,13 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
             <button onClick={() => { slideshow.start(index, images); onClose(); }} className="h-10 col-span-2 bg-accent hover:bg-accent-hover text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all">
               <Play size={18} fill="currentColor" /> Start Slideshow
             </button>
-            <button onClick={handleDownload} className="h-10 bg-surface hover:bg-surface-raised border border-border-subtle rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-foreground transition-all">
-              <Download size={16} /> Download
+            <button 
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="h-10 bg-surface hover:bg-surface-raised border border-border-subtle rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-foreground transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isDownloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} 
+              {isDownloading ? "Downloading..." : "Download"}
             </button>
             <button 
               onClick={handleFavoriteToggle} 

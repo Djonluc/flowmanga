@@ -121,6 +121,7 @@ interface SettingsState {
 
   libraryPath: string | null;
   downloadPath: string | null;
+  imageDownloadPath: string | null;
   firstRunComplete: boolean;
   isLocationModalOpen: boolean;
   isSafetyCheckModalOpen: boolean;
@@ -130,6 +131,7 @@ interface SettingsState {
     | undefined;
   setLibraryPath: (path: string) => void;
   setDownloadPath: (path: string) => void;
+  setImageDownloadPath: (path: string) => void;
   setFirstRunComplete: (done: boolean) => void;
   getRecommendedPath: () => Promise<string>;
   setLocationModalOpen: (open: boolean) => void;
@@ -290,9 +292,11 @@ export const useSettingsStore = create<SettingsState>()(
       // Library Persistence
       libraryPath: null,
       downloadPath: null,
+      imageDownloadPath: null,
       firstRunComplete: false,
       setLibraryPath: (path) => set({ libraryPath: path }),
       setDownloadPath: (path) => set({ downloadPath: path }),
+      setImageDownloadPath: (path) => set({ imageDownloadPath: path }),
       setFirstRunComplete: (done) => set({ firstRunComplete: done }),
       getRecommendedPath: async () => {
         const { documentDir, join } = await import("@tauri-apps/api/path");
