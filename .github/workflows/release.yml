@@ -53,7 +53,6 @@ jobs:
             - **Filter by media type** — You can now choose to only show Images, Videos, or GIFs instead of seeing everything mixed together. Works everywhere in the app.
             - **Automatic update alerts** — FlowManga will now let you know when a new version is available so you're never out of date.
             - **Updates tab in Settings** — Check for updates manually and see a full list of what changed, right inside the app.
-            - **New manga source: MangaDot** — Browse and read manga from mangadot.net.
 
             ### 🛠️ Improvements
             - The adult content filter now works correctly when browsing image collections — it no longer shows content it shouldn't.
