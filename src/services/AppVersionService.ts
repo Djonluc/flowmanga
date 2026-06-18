@@ -6,13 +6,21 @@
  * Caches results and persists dismissal state to localStorage.
  */
 
-const CURRENT_VERSION = '2.3.0';
-const GITHUB_RELEASES_URL = 'https://api.github.com/repos/Djonluc/flowmamga/releases/latest';
+const CURRENT_VERSION = "2.3.1";
+const GITHUB_RELEASES_URL =
+  "https://api.github.com/repos/Djonluc/flowmamga/releases/latest";
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
-const LS_KEY = 'flowmanga_update_state';
+const LS_KEY = "flowmanga_update_state";
 
 export interface ReleaseNote {
-  category: 'features' | 'improvements' | 'fixes' | 'performance' | 'ui' | 'sources' | 'other';
+  category:
+    | "features"
+    | "improvements"
+    | "fixes"
+    | "performance"
+    | "ui"
+    | "sources"
+    | "other";
   text: string;
 }
 
@@ -54,29 +62,29 @@ function parseReleaseNotes(body: string): ReleaseNote[] {
   const notes: ReleaseNote[] = [];
   if (!body) return notes;
 
-  const categoryMap: Record<string, ReleaseNote['category']> = {
-    'new feature': 'features',
-    'new features': 'features',
-    'feature': 'features',
-    'features': 'features',
-    'improvement': 'improvements',
-    'improvements': 'improvements',
-    'bug fix': 'fixes',
-    'bug fixes': 'fixes',
-    'fix': 'fixes',
-    'fixes': 'fixes',
-    'performance': 'performance',
-    'ui': 'ui',
-    'ux': 'ui',
-    'ui / ux': 'ui',
-    'ui/ux': 'ui',
-    'source': 'sources',
-    'sources': 'sources',
-    'source support': 'sources',
+  const categoryMap: Record<string, ReleaseNote["category"]> = {
+    "new feature": "features",
+    "new features": "features",
+    feature: "features",
+    features: "features",
+    improvement: "improvements",
+    improvements: "improvements",
+    "bug fix": "fixes",
+    "bug fixes": "fixes",
+    fix: "fixes",
+    fixes: "fixes",
+    performance: "performance",
+    ui: "ui",
+    ux: "ui",
+    "ui / ux": "ui",
+    "ui/ux": "ui",
+    source: "sources",
+    sources: "sources",
+    "source support": "sources",
   };
 
-  let currentCategory: ReleaseNote['category'] = 'other';
-  const lines = body.split('\n');
+  let currentCategory: ReleaseNote["category"] = "other";
+  const lines = body.split("\n");
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
@@ -86,7 +94,7 @@ function parseReleaseNotes(body: string): ReleaseNote[] {
     const headingMatch = line.match(/^#{1,4}\s+(.+)/);
     if (headingMatch) {
       const headingText = headingMatch[1].toLowerCase().trim();
-      currentCategory = categoryMap[headingText] ?? 'other';
+      currentCategory = categoryMap[headingText] ?? "other";
       continue;
     }
 
@@ -104,8 +112,7 @@ function parseReleaseNotes(body: string): ReleaseNote[] {
  * Compares two semver strings. Returns true if `latest` is newer than `current`.
  */
 function isNewerVersion(current: string, latest: string): boolean {
-  const parse = (v: string) =>
-    v.replace(/^v/, '').split('.').map(Number);
+  const parse = (v: string) => v.replace(/^v/, "").split(".").map(Number);
   const [cMaj, cMin, cPatch] = parse(current);
   const [lMaj, lMin, lPatch] = parse(latest);
   if (lMaj !== cMaj) return lMaj > cMaj;
@@ -132,7 +139,7 @@ class AppVersionServiceClass {
   async checkForUpdates(): Promise<UpdateInfo | null> {
     try {
       const response = await fetch(GITHUB_RELEASES_URL, {
-        headers: { Accept: 'application/vnd.github+json' },
+        headers: { Accept: "application/vnd.github+json" },
         signal: AbortSignal.timeout(10_000),
       });
 
@@ -141,27 +148,33 @@ class AppVersionServiceClass {
       }
 
       const data = await response.json();
-      const latestVersion = (data.tag_name || '').replace(/^v/, '');
-      const notes = parseReleaseNotes(data.body || '');
+      const latestVersion = (data.tag_name || "").replace(/^v/, "");
+      const notes = parseReleaseNotes(data.body || "");
       const releaseDate = data.published_at
-        ? new Date(data.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-        : '';
+        ? new Date(data.published_at).toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })
+        : "";
 
       // Find the Windows installer asset
       const assets: any[] = data.assets || [];
       const windowsAsset = assets.find(
         (a: any) =>
-          a.name?.toLowerCase().includes('setup') ||
-          a.name?.toLowerCase().endsWith('.exe') ||
-          a.name?.toLowerCase().endsWith('.msi'),
+          a.name?.toLowerCase().includes("setup") ||
+          a.name?.toLowerCase().endsWith(".exe") ||
+          a.name?.toLowerCase().endsWith(".msi"),
       );
 
       const info: UpdateInfo = {
         currentVersion: CURRENT_VERSION,
         latestVersion,
         releaseDate,
-        downloadUrl: windowsAsset?.browser_download_url || data.html_url || '',
-        releaseUrl: data.html_url || `https://github.com/Djonluc/flowmamga/releases/latest`,
+        downloadUrl: windowsAsset?.browser_download_url || data.html_url || "",
+        releaseUrl:
+          data.html_url ||
+          `https://github.com/Djonluc/flowmamga/releases/latest`,
         notes,
         isNewer: isNewerVersion(CURRENT_VERSION, latestVersion),
       };
@@ -175,7 +188,10 @@ class AppVersionServiceClass {
 
       return info;
     } catch (err) {
-      console.warn('[AppVersionService] Update check failed (non-blocking):', err);
+      console.warn(
+        "[AppVersionService] Update check failed (non-blocking):",
+        err,
+      );
       return null;
     }
   }
@@ -209,10 +225,10 @@ class AppVersionServiceClass {
   /** Open the GitHub releases page or direct download in the system browser. */
   async openDownloadPage(url?: string) {
     try {
-      const { open } = await import('@tauri-apps/plugin-shell');
+      const { open } = await import("@tauri-apps/plugin-shell");
       await open(url || `https://github.com/Djonluc/flowmamga/releases/latest`);
     } catch (err) {
-      console.error('[AppVersionService] Failed to open browser:', err);
+      console.error("[AppVersionService] Failed to open browser:", err);
     }
   }
 
@@ -223,7 +239,7 @@ class AppVersionServiceClass {
       this.checkForUpdates().then((info) => {
         if (info?.isNewer) {
           // Notify the store so the UI can react
-          import('../stores/useSettingsStore').then(({ useSettingsStore }) => {
+          import("../stores/useSettingsStore").then(({ useSettingsStore }) => {
             useSettingsStore.getState().setUpdateInfo(info);
           });
         }

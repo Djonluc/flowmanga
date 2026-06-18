@@ -44,9 +44,28 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: app-v__VERSION__
+          tagName: v__VERSION__
           releaseName: "FlowManga v__VERSION__"
-          releaseBody: "See the assets below to download and install this release."
-          releaseDraft: true
+          releaseBody: |
+            ## FlowManga v__VERSION__
+
+            ### New Features
+            - Media type filtering system (All Media / Images / Videos / GIFs)
+            - Automatic version checking with GitHub release integration
+            - Update notification modal on startup
+            - Updates tab in Settings with changelog viewer and manual check
+            - MangaDot manga source support
+
+            ### Improvements
+            - Adult content filter now correctly applies to image collections
+            - Background version polling every 24 hours
+            - Slideshow and gallery performance improvements
+
+            ### Bug Fixes
+            - Various stability and UI fixes
+
+            ---
+            See the assets below to download and install this version.
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
