@@ -55,12 +55,19 @@ export class Rule34Provider extends BaseProvider {
     const url = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tagStr)}&pid=${pid}&limit=40&user_id=${encodeURIComponent(auth.userId)}&api_key=${encodeURIComponent(auth.apiKey)}`;
     
     try {
-      const response = await this.fetchJson<any[]>(url);
+      console.log(`[Rule34Provider] Requesting: ${url.replace(/api_key=[^&]*/, "api_key=***")}`);
+      const response = await this.fetchJson<any>(url);
       
       if (!Array.isArray(response)) {
+        console.warn("[Rule34Provider] Unexpected response from API (not an array):", response);
+        // Rule34 often returns a plain string for errors, like "Missing authentication."
+        if (typeof response === "string") {
+          console.error(`[Rule34Provider] API Error Message: ${response}`);
+        }
         return [];
       }
 
+      console.log(`[Rule34Provider] Success: Received ${response.length} images.`);
       return response.map(post => {
         const fileUrl = post.file_url;
         const sampleUrl = post.sample_url || fileUrl;

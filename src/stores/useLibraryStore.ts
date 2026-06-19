@@ -107,6 +107,11 @@ interface LibraryState {
     path: string | null,
     deleteFiles?: boolean,
   ) => Promise<void>;
+  deleteChapter: (
+    seriesId: string,
+    chapterId: string,
+    deleteFiles?: boolean,
+  ) => Promise<void>;
   bulkDelete: (deleteFiles?: boolean) => Promise<void>;
   setSeriesCover: (seriesId: string, sourcePath: string) => Promise<void>;
   removeSeriesCover: (seriesId: string) => Promise<void>;
@@ -494,6 +499,111 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       throw err;
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  deleteChapter: async (seriesId, chapterId, deleteFiles = true) => {
+    const db = getDb();
+    const series = get().series.find((s) => s.id === seriesId);
+
+    try {
+      const rows = await db.select<any[]>(
+        "SELECT * FROM Chapters WHERE id = ? AND seriesId = ?",
+        [chapterId, seriesId],
+      );
+      const chapter = rows[0];
+
+      if (!chapter) {
+        toast.error("Chapter was not found in the library");
+        return;
+      }
+
+      await db.execute("DELETE FROM ReadingProgress WHERE chapterId = ?", [
+        chapterId,
+      ]);
+      await db.execute("DELETE FROM Chapters WHERE id = ?", [chapterId]);
+
+      if (deleteFiles && series?.path) {
+        const { exists, readDir, readTextFile, remove, writeTextFile } =
+          await import("@tauri-apps/plugin-fs");
+
+        const chapterPath = chapter.filePath as string | null;
+        const isFlatChapter = !chapterPath || chapterPath === series.path;
+
+        if (!isFlatChapter && chapterPath && (await exists(chapterPath))) {
+          await remove(chapterPath, { recursive: true });
+        } else {
+          const chapterNumber = String(chapter.chapterNumber ?? "");
+          const chapterPrefix = `ch${parseFloat(chapterNumber)
+            .toString()
+            .split(".")[0]
+            .padStart(3, "0")}_`;
+
+          const entries = await readDir(series.path).catch(() => []);
+          const chapterFiles = entries
+            .map((entry: any) => entry.name)
+            .filter(
+              (name): name is string =>
+                typeof name === "string" && name.startsWith(chapterPrefix),
+            );
+
+          await Promise.all(
+            chapterFiles.map((name) =>
+              remove(`${series.path}/${name}`).catch(() => undefined),
+            ),
+          );
+
+          const metaPath = `${series.path}/metadata.json`;
+          if (await exists(metaPath)) {
+            try {
+              const metadata = JSON.parse(await readTextFile(metaPath));
+              const deletedNumber = chapterNumber.toString();
+              const remainingEntries = await readDir(series.path).catch(
+                () => [],
+              );
+              const remainingNames = remainingEntries
+                .map((entry: any) => entry.name)
+                .filter((name): name is string => typeof name === "string");
+
+              metadata.chapters = (metadata.chapters || [])
+                .filter((ch: any) => ch?.number?.toString() !== deletedNumber)
+                .sort(
+                  (a: any, b: any) =>
+                    parseFloat(a.number || "0") - parseFloat(b.number || "0"),
+                );
+
+              let startIndex = 0;
+              for (const ch of metadata.chapters) {
+                const prefix = `ch${parseFloat(ch.number || "0")
+                  .toString()
+                  .split(".")[0]
+                  .padStart(3, "0")}_`;
+                const files = remainingNames
+                  .filter((name) => name.startsWith(prefix))
+                  .sort();
+                ch.startIndex = startIndex;
+                ch.endIndex = startIndex + files.length - 1;
+                if (!ch.coverFile || !remainingNames.includes(ch.coverFile)) {
+                  ch.coverFile = files[0] || ch.coverFile;
+                }
+                startIndex += files.length;
+              }
+              metadata.totalPages = startIndex;
+
+              await writeTextFile(metaPath, JSON.stringify(metadata, null, 2));
+            } catch (error) {
+              console.warn("[LibraryStore] Failed to update chapter metadata:", error);
+            }
+          }
+        }
+      }
+
+      toast.success("Chapter deleted");
+      await get().loadFromDb();
+    } catch (err) {
+      console.error("[LibraryStore] Failed to delete chapter:", err);
+      toast.error("Failed to delete chapter");
+      throw err;
     }
   },
 

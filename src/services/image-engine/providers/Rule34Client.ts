@@ -75,18 +75,33 @@ export class Rule34Client extends BaseProvider {
     const cleanTags = apiTags.filter(t => !t.startsWith("sort:"));
     const tagsQueryString = cleanTags.map(TagParser.normalizeBooruTag).join(" ");
 
-    const data = await this.fetchJson<Rule34Post[]>("/index.php", {
-      page: "dapi",
-      s: "post",
-      q: "index",
-      json: "1",
-      tags: tagsQueryString,
-      pid: String((options.page || 1) - 1), // 0-indexed
-      limit: String(options.limit || 40),
-      ...auth
-    });
+    try {
+      console.log(`[Rule34Client] Requesting tags: ${tagsQueryString}`);
+      const data = await this.fetchJson<any>("/index.php", {
+        page: "dapi",
+        s: "post",
+        q: "index",
+        json: "1",
+        tags: tagsQueryString,
+        pid: String((options.page || 1) - 1), // 0-indexed
+        limit: String(options.limit || 40),
+        ...auth
+      });
 
-    return this.mapPosts(data || []);
+      if (!Array.isArray(data)) {
+        console.warn("[Rule34Client] Unexpected response (not an array):", data);
+        if (typeof data === "string") {
+          console.error(`[Rule34Client] API Error Message: ${data}`);
+        }
+        return [];
+      }
+
+      console.log(`[Rule34Client] Success: Received ${data.length} images.`);
+      return this.mapPosts(data);
+    } catch (e) {
+      console.error("[Rule34Client] API request failed:", e);
+      return [];
+    }
   }
 
   async getDiscovery(options: EngineSearchOptions): Promise<ImageMedia[]> {
@@ -118,7 +133,25 @@ export class Rule34Client extends BaseProvider {
         if (sample.startsWith("//")) sample = `https:${sample}`;
         if (full.startsWith("//")) full = `https:${full}`;
 
-        const tags = (post.tags || "").split(" ").filter(Boolean);
+        const metaTagKeywords = new Set([
+          "video", "animated", "sound", "webm", "mp4", "gif", "3d", "highres", 
+          "absurdres", "comic", "translation_request", "translated", "english", 
+          "japanese", "text", "watermark", "signature", "patreon", "patreon_username",
+          "twitter_username", "artist_name", "artist_request", "fanbox", "monochrome",
+          "sketch", "colored"
+        ]);
+
+        const allTags = (post.tags || "").split(" ").filter(Boolean);
+        const generalTags: string[] = [];
+        const metaTags: string[] = [];
+
+        allTags.forEach(t => {
+          if (metaTagKeywords.has(t.toLowerCase())) {
+            metaTags.push(t);
+          } else {
+            generalTags.push(t);
+          }
+        });
 
         const ratingMap: Record<string, ContentRating> = {
           "safe": "safe",
@@ -140,12 +173,12 @@ export class Rule34Client extends BaseProvider {
           fullUrl: this.ensureAbsoluteUrl(full),
           width: post.width || 0,
           height: post.height || 0,
-          tags: tags,
-          generalTags: tags,
+          tags: allTags,
+          generalTags: generalTags,
           characterTags: [],
           artistTags: [],
           copyrightTags: [],
-          metaTags: [],
+          metaTags: metaTags,
           rating: ratingMap[post.rating] || "explicit", // Default to explicit for rule34
           score: post.score || 0,
           createdAt: new Date().toISOString(), // Rule34 JSON doesn't always provide created_at easily

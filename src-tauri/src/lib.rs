@@ -687,6 +687,152 @@ async fn read_folder(app: AppHandle, path: String) -> Result<Vec<String>, String
 }
 
 use std::collections::HashMap;
+use base64::Engine;
+
+fn decode_image_data_url(url: &str) -> Result<Vec<u8>, String> {
+    let data_url = url
+        .strip_prefix("data:")
+        .ok_or_else(|| "Invalid data URL: missing data prefix".to_string())?;
+    let comma_index = data_url
+        .find(',')
+        .ok_or_else(|| "Invalid data URL: missing payload separator".to_string())?;
+    let (metadata, payload_with_comma) = data_url.split_at(comma_index);
+
+    if !metadata.contains(";base64") {
+        return Err("Only base64 data URLs are supported for image downloads".to_string());
+    }
+
+    let payload = &payload_with_comma[1..];
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(payload)
+        .map_err(|e| format!("Failed to decode image data URL: {}", e))?;
+
+    if metadata.contains("image/jpeg") && !bytes.ends_with(&[0xff, 0xd9]) {
+        return Err("Decoded JPEG data URL appears incomplete".to_string());
+    }
+
+    Ok(bytes)
+}
+
+async fn render_comix_scrambled_page(
+    chapter_url: String,
+    page_index: u64,
+) -> Result<Vec<u8>, String> {
+    let data_url = tauri::async_runtime::spawn_blocking(move || {
+        let browser = Browser::new(LaunchOptions {
+            headless: true,
+            args: vec![
+                std::ffi::OsStr::new("--no-sandbox"),
+                std::ffi::OsStr::new("--disable-setuid-sandbox"),
+                std::ffi::OsStr::new("--disable-blink-features=AutomationControlled"),
+                std::ffi::OsStr::new("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"),
+            ],
+            ..Default::default()
+        }).map_err(|e| format!("Failed to launch browser: {}", e))?;
+
+        let tab = browser
+            .new_tab()
+            .map_err(|e| format!("Failed to create tab: {}", e))?;
+
+        tab.navigate_to(&chapter_url)
+            .map_err(|e| format!("Nav failed: {}", e))?;
+        let _ = tab.wait_until_navigated();
+        std::thread::sleep(std::time::Duration::from_millis(5000));
+
+        let script = format!(
+            r#"
+            (async () => {{
+                const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+                const pageIndex = {page_index};
+                const initialText = document.getElementById('initial-data')?.textContent || '{{}}';
+                const initial = JSON.parse(initialText);
+                const pathMatch = location.pathname.match(/\/(\d+)-chapter-/);
+                const chapterId = initial?.read?.chapterId || pathMatch?.[1];
+
+                if (!chapterId) {{
+                    throw new Error('Comix.to chapter id was not found on the page.');
+                }}
+
+                let envUrl = '';
+                let secureUrl = '';
+                let readPageUrl = '';
+                for (let i = 0; i < 30; i++) {{
+                    const resources = performance
+                        .getEntriesByType('resource')
+                        .map((entry) => entry.name);
+                    envUrl = resources.find((name) => name.includes('/env-') && name.endsWith('.js')) || '';
+                    secureUrl = resources.find((name) => name.includes('/secure-') && name.endsWith('.js')) || '';
+                    readPageUrl = resources.find((name) => name.includes('/ReadPage-') && name.endsWith('.js')) || '';
+                    if (envUrl && secureUrl) break;
+                    await sleep(500);
+                }}
+
+                if (!envUrl) {{
+                    throw new Error('Comix.to env module was not loaded.');
+                }}
+
+                if (!secureUrl && readPageUrl) {{
+                    const readPageSource = await fetch(readPageUrl).then((response) => response.text());
+                    const secureMatch = readPageSource.match(/from"\.\/(secure-[^"]+\.js)"/);
+                    if (secureMatch?.[1]) {{
+                        secureUrl = new URL(secureMatch[1], readPageUrl).href;
+                    }}
+                }}
+
+                if (!secureUrl) {{
+                    throw new Error('Comix.to secure module was not loaded.');
+                }}
+
+                const env = await import(envUrl);
+                const secure = await import(secureUrl);
+                if (!env?.b?.get) {{
+                    throw new Error('Comix.to API client export was not found.');
+                }}
+                if (!secure?.t) {{
+                    throw new Error('Comix.to canvas unscrambler export was not found.');
+                }}
+
+                const chapter = await env.b.get('/chapters/' + chapterId);
+                let pages = chapter?.pages;
+                if (pages && !Array.isArray(pages) && Array.isArray(pages.items)) {{
+                    const baseUrl = pages.baseUrl || '';
+                    pages = pages.items.map((page) => ({{
+                        url: baseUrl + page.url,
+                        width: page.width,
+                        height: page.height,
+                        scramble: page.s === 1 || undefined,
+                    }}));
+                }}
+
+                const page = Array.isArray(pages) ? pages[pageIndex] : null;
+                if (!page?.url || !page.scramble) {{
+                    throw new Error('Comix.to page is not marked as scrambled.');
+                }}
+
+                const canvas = document.createElement('canvas');
+                canvas.width = Number(page.width) || 1;
+                canvas.height = Number(page.height) || 1;
+                const controller = new AbortController();
+                await secure.t(page.url, canvas, controller.signal);
+                return canvas.toDataURL('image/jpeg', 0.92);
+            }})()
+            "#,
+            page_index = page_index
+        );
+
+        let remote_obj = tab
+            .evaluate(&script, true)
+            .map_err(|e| format!("Comix.to page render eval failed: {}", e))?;
+        remote_obj
+            .value
+            .and_then(|v: serde_json::Value| v.as_str().map(|s| s.to_string()))
+            .ok_or_else(|| "No data URL returned from Comix.to page render".to_string())
+    })
+    .await
+    .map_err(|e| format!("Comix.to page render task failed: {}", e))??;
+
+    decode_image_data_url(&data_url)
+}
 
 #[command]
 async fn download_image(
@@ -695,6 +841,95 @@ async fn download_image(
     headers: Option<HashMap<String, String>>,
     encryption_key: Option<String>,
 ) -> Result<(), String> {
+    if let Some(marker) = url.strip_prefix("comix-scrambled:") {
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(marker)
+            .map_err(|e| format!("Failed to decode Comix.to page marker: {}", e))?;
+        let payload: serde_json::Value = serde_json::from_slice(&decoded)
+            .map_err(|e| format!("Failed to parse Comix.to page marker: {}", e))?;
+        let chapter_url = payload
+            .get("url")
+            .and_then(|value| value.as_str())
+            .ok_or_else(|| "Comix.to page marker is missing chapter URL".to_string())?
+            .to_string();
+        let page_index = payload
+            .get("page")
+            .and_then(|value| value.as_u64())
+            .ok_or_else(|| "Comix.to page marker is missing page index".to_string())?;
+        let bytes = render_comix_scrambled_page(chapter_url, page_index).await?;
+
+        if let Some(parent) = std::path::Path::new(&file_path).parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+
+        std::fs::write(&file_path, bytes).map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    if let Some(marker) = url.strip_prefix("comix-moves:") {
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(marker)
+            .map_err(|e| format!("Failed to decode comix-moves payload: {}", e))?;
+        let payload: serde_json::Value = serde_json::from_slice(&decoded)
+            .map_err(|e| format!("Failed to parse comix-moves JSON: {}", e))?;
+        
+        let actual_url = payload.get("url").and_then(|v| v.as_str()).ok_or("No url")?;
+        let width = payload.get("w").and_then(|v| v.as_u64()).unwrap_or(800) as u32;
+        let height = payload.get("h").and_then(|v| v.as_u64()).unwrap_or(1200) as u32;
+        let moves = payload.get("moves").and_then(|v| v.as_array()).ok_or("No moves")?;
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .danger_accept_invalid_certs(true)
+            .build()
+            .map_err(|e| e.to_string())?;
+        
+        let res = client.get(actual_url)
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+            .header("Referer", "https://comix.to/")
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+            
+        let bytes = res.bytes().await.map_err(|e| e.to_string())?;
+        let img = image::load_from_memory(&bytes).map_err(|e| e.to_string())?;
+        let mut canvas = image::RgbaImage::new(width, height);
+        
+        for m in moves {
+            if let Some(arr) = m.as_array() {
+                if arr.len() >= 8 {
+                    let sx = arr[0].as_u64().unwrap_or(0) as u32;
+                    let sy = arr[1].as_u64().unwrap_or(0) as u32;
+                    let sw = arr[2].as_u64().unwrap_or(0) as u32;
+                    let sh = arr[3].as_u64().unwrap_or(0) as u32;
+                    let dx = arr[4].as_u64().unwrap_or(0) as i64;
+                    let dy = arr[5].as_u64().unwrap_or(0) as i64;
+                    
+                    let tile = image::imageops::crop_imm(&img, sx, sy, sw, sh).to_image();
+                    image::imageops::replace(&mut canvas, &tile, dx, dy);
+                }
+            }
+        }
+        
+        if let Some(parent) = std::path::Path::new(&file_path).parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        
+        canvas.save_with_format(&file_path, image::ImageFormat::Jpeg).map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    if url.starts_with("data:") {
+        let bytes = decode_image_data_url(&url)?;
+
+        if let Some(parent) = std::path::Path::new(&file_path).parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+
+        std::fs::write(&file_path, bytes).map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
     let client_builder = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
@@ -1128,6 +1363,222 @@ async fn fetch_html_headless(url: String) -> Result<String, String> {
             
         Ok(html)
     }).await.map_err(|e| e.to_string())?
+}
+
+#[command]
+async fn scrape_comix_chapter_headless(url: String) -> Result<Vec<String>, String> {
+    println!("[Rust] Starting Comix.to page-context scrape for: {}", url);
+
+    let images = tauri::async_runtime::spawn_blocking(move || {
+        let browser = Browser::new(LaunchOptions {
+            headless: true,
+            args: vec![
+                std::ffi::OsStr::new("--no-sandbox"),
+                std::ffi::OsStr::new("--disable-setuid-sandbox"),
+                std::ffi::OsStr::new("--disable-blink-features=AutomationControlled"),
+                std::ffi::OsStr::new("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"),
+            ],
+            ..Default::default()
+        }).map_err(|e| format!("Failed to launch browser: {}", e))?;
+
+        let tab = browser
+            .new_tab()
+            .map_err(|e| format!("Failed to create tab: {}", e))?;
+
+        tab.navigate_to(&url)
+            .map_err(|e| format!("Nav failed: {}", e))?;
+        let _ = tab.wait_until_navigated();
+        std::thread::sleep(std::time::Duration::from_millis(5000));
+
+        let script = r#"
+            (async () => {
+                const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+                const initialText = document.getElementById('initial-data')?.textContent || '{}';
+                const initial = JSON.parse(initialText);
+                const pathMatch = location.pathname.match(/\/(\d+)-chapter-/);
+                const chapterId = initial?.read?.chapterId || pathMatch?.[1];
+
+                const logs = [];
+                logs.push('Detected chapterId: ' + chapterId);
+
+                if (!chapterId) {
+                    throw new Error('Comix.to chapter id was not found on the page.');
+                }
+
+                let envUrl = '';
+                let secureUrl = '';
+                let readPageUrl = '';
+                for (let i = 0; i < 30; i++) {
+                    const resources = performance
+                        .getEntriesByType('resource')
+                        .map((entry) => entry.name);
+                    envUrl = resources.find((name) => name.includes('/env-') && name.endsWith('.js')) || '';
+                    secureUrl = resources.find((name) => name.includes('/secure-') && name.endsWith('.js')) || '';
+                    readPageUrl = resources.find((name) => name.includes('/ReadPage-') && name.endsWith('.js')) || '';
+                    if (envUrl && secureUrl) break;
+                    await sleep(500);
+                }
+
+                logs.push('Resource scanning result - envUrl: ' + (envUrl ? 'found' : 'not found') + ', secureUrl: ' + (secureUrl ? 'found' : 'not found'));
+
+                if (!envUrl) {
+                    throw new Error('Comix.to env module was not loaded.');
+                }
+
+                if (!secureUrl && readPageUrl) {
+                    logs.push('Trying to resolve secureUrl from ReadPage source: ' + readPageUrl);
+                    const readPageSource = await fetch(readPageUrl).then((response) => response.text());
+                    const secureMatch = readPageSource.match(/from"\.\/(secure-[^"]+\.js)"/);
+                    if (secureMatch?.[1]) {
+                        secureUrl = new URL(secureMatch[1], readPageUrl).href;
+                        logs.push('Resolved secureUrl: ' + secureUrl);
+                    }
+                }
+
+                const mod = await import(envUrl);
+                if (!mod?.b?.get) {
+                    throw new Error('Comix.to API client export was not found.');
+                }
+
+                logs.push('Fetching chapter details...');
+                const chapter = await mod.b.get('/chapters/' + chapterId);
+                let pages = chapter?.pages;
+
+                if (pages && !Array.isArray(pages) && Array.isArray(pages.items)) {
+                    const baseUrl = pages.baseUrl || '';
+                    pages = pages.items.map((page) => ({
+                        url: baseUrl + page.url,
+                        width: page.width,
+                        height: page.height,
+                        scramble: page.s === 1 || undefined,
+                    }));
+                }
+
+                pages = (Array.isArray(pages) ? pages : [])
+                    .filter((page) => typeof page?.url === 'string' && page.url.length > 0);
+
+                logs.push('Total pages found: ' + pages.length);
+
+                let secure = null;
+                const hasScrambled = pages.some(p => p.scramble);
+                logs.push('Has scrambled pages: ' + hasScrambled);
+                if (hasScrambled) {
+                    if (!secureUrl) {
+                        throw new Error('Comix.to secure module was not loaded.');
+                    }
+                    logs.push('Importing secure module: ' + secureUrl);
+                    secure = await import(secureUrl);
+                    if (!secure?.t) {
+                        throw new Error('Comix.to canvas unscrambler export was not found.');
+                    }
+                }
+
+                const images = [];
+                let scrambledCount = 0;
+                for (let index = 0; index < pages.length; index++) {
+                    const page = pages[index];
+                    if (!page.scramble) {
+                        images.push(page.url);
+                        continue;
+                    }
+
+                    scrambledCount++;
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = Number(page.width) || 1;
+                        canvas.height = Number(page.height) || 1;
+                        
+                        const drawCalls = [];
+                        const origDrawImage = CanvasRenderingContext2D.prototype.drawImage;
+                        CanvasRenderingContext2D.prototype.drawImage = function(...args) {
+                            if (this.canvas === canvas) drawCalls.push(args.slice(1));
+                            return origDrawImage.apply(this, args);
+                        };
+                        
+                        const controller = new AbortController();
+                        await secure.t(page.url, canvas, controller.signal).catch(e => {
+                            // ignore rendering errors, we just want the coordinates
+                        });
+                        
+                        CanvasRenderingContext2D.prototype.drawImage = origDrawImage;
+                        
+                        // Extract only the tile copying commands (length >= 8)
+                        const moves = drawCalls.filter(args => args.length >= 8);
+                        
+                        const payload = JSON.stringify({
+                            url: page.url,
+                            w: canvas.width,
+                            h: canvas.height,
+                            moves: moves
+                        });
+                        
+                        images.push('comix-moves:' + btoa(payload));
+                        logs.push('Extracted scramble moves for page ' + index + ' successfully (' + page.width + 'x' + page.height + ')');
+                    } catch (err) {
+                        logs.push('Failed to extract moves for page ' + index + ': ' + err.toString());
+                        images.push('comix-scrambled:' + btoa(JSON.stringify({
+                            url: location.href,
+                            page: index,
+                        })));
+                    }
+                }
+
+                if (images.length === 0) {
+                    throw new Error('Comix.to API returned no chapter pages.');
+                }
+
+                return JSON.stringify({
+                    chapterId,
+                    images,
+                    scrambled: scrambledCount,
+                    logs
+                });
+            })()
+        "#;
+
+        let remote_obj = tab
+            .evaluate(script, true)
+            .map_err(|e| format!("Comix.to eval failed: {}", e))?;
+        let json_str = remote_obj
+            .value
+            .and_then(|v: serde_json::Value| v.as_str().map(|s| s.to_string()))
+            .ok_or("No string returned from Comix.to page context")?;
+        let value: serde_json::Value = serde_json::from_str(&json_str)
+            .map_err(|e| format!("Comix.to JSON parse failed: {}", e))?;
+
+        if let Some(logs) = value.get("logs").and_then(|v| v.as_array()) {
+            for log in logs {
+                if let Some(log_str) = log.as_str() {
+                    println!("[Rust Comix.to Headless Log] {}", log_str);
+                }
+            }
+        }
+
+        let images: Vec<String> = value
+            .get("images")
+            .and_then(|v| v.as_array())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        if images.is_empty() {
+            return Err("Comix.to returned 0 chapter pages".to_string());
+        }
+
+        println!(
+            "[Rust Comix.to] Extracted {} page URL(s) from page context.",
+            images.len()
+        );
+        Ok::<Vec<String>, String>(images)
+    })
+    .await
+    .map_err(|e| format!("Comix.to headless task failed: {}", e))??;
+
+    Ok(images)
 }
 
 #[command]
@@ -1855,6 +2306,7 @@ pub fn run() {
             fetch_html_headless,
             fetch_json,
             scrape_images_headless,
+            scrape_comix_chapter_headless,
             scrape_series_headless,
             read_file_string,
             set_manga_cover,

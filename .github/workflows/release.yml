@@ -49,22 +49,20 @@ jobs:
           releaseBody: |
             ## What's new in FlowManga v__VERSION__ 🎉
 
-            ### ✨ New Things
-            - **Filter by media type** — You can now choose to only show Images, Videos, or GIFs instead of seeing everything mixed together. Works everywhere in the app.
-            - **Automatic update alerts** — FlowManga will now let you know when a new version is available so you're never out of date.
-            - **Updates tab in Settings** — Check for updates manually and see a full list of what changed, right inside the app.
+            ### ✨ New Features & Sources
+            - **New Manga Source (Comix.to)** — You can now paste direct Comix.to links and easily import chapters right into your library.
+            - **Rule34 Gallery Enhancements** — Added support for user authentication, better tag categorization, and an overall smoother search experience.
 
-            ### 🛠️ Improvements
-            - The adult content filter now works correctly when browsing image collections — it no longer shows content it shouldn't.
-            - Better content loading for certain websites that were difficult to access.
-            - General speed and stability improvements.
-
-            ### 🐛 Bug Fixes
-            - Various small issues fixed to make the app more reliable.
-            - Sankaku videos are now properly hidden when you only want images.
+            ### 🛠️ Improvements & Fixes
+            - **Comix.to Blank Pages Fix** — Fixed an annoying bug where every 4th page would fail to load or come up completely blank. Reading should now be seamless!
+            - **Manga Manager Updates** — We've polished the manager:
+              - Fixed the chapter options button so it no longer overlaps.
+              - Added a handy new chapter menu with quick actions to **Read, Open files, Re-download, or Delete**.
+              - Improved background cleanup logic to keep your files tidy.
+              - Fixed layout issues to make it look much better on mobile screens.
 
             ---
-            👇 Download the installer below — just grab the `.exe` file and run it.
+            👇 **Download the latest installer below — just run the `.exe` file!**
 
           releaseDraft: false
           prerelease: false

@@ -27,6 +27,7 @@ import { MangaReadProvider } from "./manga/MangaReadProvider";
 import { ManhuaPlusProvider } from "./manga/ManhuaPlusProvider";
 import { ManhuaUSProvider } from "./manga/ManhuaUSProvider";
 import { WebtoonsProvider } from "./manga/WebtoonsProvider";
+import { ComixToProvider } from "./manga/ComixToProvider";
 
 // Phase 4: Novel Sources
 import { WebNovelProvider } from "./novel/WebNovelProvider";
@@ -46,6 +47,7 @@ sourceRegistry.register(new EHentaiProvider());
 sourceRegistry.register(new MangaReadProvider());
 sourceRegistry.register(new ManhuaPlusProvider());
 sourceRegistry.register(new ManhuaUSProvider());
+sourceRegistry.register(new ComixToProvider());
 
 // Phase 4: Novel Sources
 sourceRegistry.register(new WebNovelProvider());

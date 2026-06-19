@@ -180,7 +180,11 @@ export class UpdateManager {
         }
     }
 
-    static async downloadChapters(seriesId: string, chapters: any[]) {
+    static async downloadChapters(
+        seriesId: string,
+        chapters: any[],
+        options: { force?: boolean } = {}
+    ) {
         if (chapters.length === 0) return 0;
         
         const library = useLibraryStore.getState();
@@ -217,7 +221,8 @@ export class UpdateManager {
                     lastChecked: new Date().toISOString(),
                 },
                 chapterList: uniqueChapters, 
-                path: series.path
+                path: series.path,
+                force: options.force
             };
 
             useDownloadStore.getState().addJob(downloadJob);
