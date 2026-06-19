@@ -22,34 +22,38 @@ FlowManga is a **Tauri 2** desktop app: a local-first library with multiple read
 
 ## Features
 
-### Library and files
+### Library and Collections
 
 - **Local folders** are scanned in place; SQLite stores paths to your existing files (see [FEATURES.md](FEATURES.md)).
 - **URL imports** download chapters into a folder you choose in settings (not the same as “moving your whole collection into an app-owned vault”).
-- Grid and shelf-style views, collections, tags, filters, and import flows.
+- **Unified Collection UI**: Grid and shelf-style views, dynamic masonry grids, smart albums, playlists, and a dedicated "For You" feed.
+- **Media Type Filtering**: Seamlessly filter out Images, Videos, or GIFs universally across search, discovery, and collections!
 - **Command palette** and keyboard-driven navigation for common actions.
 
-### Reader
+### Reader & Viewing
 
-- **Vertical** (webtoon-style scroll), **single-page** mode, and **slideshow** auto-advance.
+- **Vertical** (webtoon-style scroll), **single-page** mode, and **dual-page** reading.
+- **Slideshow System**: Auto-advance, shuffle, and looping controls directly inside image collections.
 - Auto-scroll, zoom / fit modes, fullscreen, HUD toggle, and shortcut guide.
 - **Adaptive theming** from the current page; optional **ambient** soundscapes.
 
-### Discovery, sources, and downloads
+### Discovery, Sources, and Downloads
 
-- **Discover** view with rails, recommendations, and tag exploration (backed by `ScraperService` and source providers).
-- Registered sources include **MangaDex** (API), plus scraper-backed providers such as **ManhwaRead**, **LuaComic**, **BlueLock**, **DBM**, **ManhuaPlus**, and **NHentai** (see `src/services/sources/`). Some providers can be toggled or require cookies; respect each site’s terms of use.
-- **Download manager**: queued jobs, pause/resume, and integration with the Rust side for filesystem work.
+- **Discover** view with curated rails, recommendations, and tag exploration (backed by `ScraperService` and source providers).
+- **Manga & Comic Sources**: MangaDex (API), plus scraper-backed providers such as **Comix.to**, **MangaDot**, ManhwaRead, LuaComic, BlueLock, DBM, ManhuaPlus.
+- **Booru & Gallery Ecosystem**: Deep integrations for Danbooru, Gelbooru, Rule34, E-Hentai, Sankaku Complex, Nekos.best, Konachan, Yandere, Safebooru, and Zerochan! Includes fuzzy tag autocomplete and advanced negations.
+- **Download manager**: queued jobs, background chunk cleanup, pause/resume, and native Rust processing to effortlessly reconstruct heavily scrambled pages.
 
-### Beyond comics
+### Beyond Comics
 
-- **Video library** for local video folders and playback inside the shell.
+- **Video library** for local video folders and playback inside the shell, with robust filtering.
 - **Analytics** dashboard and **reading history** views.
 - **Automation** hooks (see settings and `AutomationService`) for scripted or scheduled behaviors where enabled.
 
-### Desktop integration
+### Desktop Integration
 
-- **Tauri 2** windowing, filesystem, SQL, dialogs, shell, and optional updater plugin (see `src-tauri/` and `DEPLOYMENT.md`).
+- **Tauri 2** windowing, filesystem, SQL, dialogs, and shell integrations.
+- **Automatic Updates**: FlowManga checks for updates natively in the background and prompts you with a stylish popup and categorized changelog when a new version drops.
 - Native **zoom** level synced from settings when running under Tauri.
 
 ---
@@ -104,6 +108,7 @@ flowmamga/
 ├── src-tauri/           # Tauri 2 Rust crate, capabilities, icons, tauri.conf.json
 ├── src/
 │   ├── components/      # UI (reader, library, modals, settings, video, home, …)
+│   ├── image-platform/  # Booru/Gallery federation, tag intelligence, query parsing
 │   ├── stores/          # Zustand stores
 │   ├── services/        # Downloads, scrapers, discovery, automation, …
 │   ├── hooks/           # Reader, library, analytics, adaptive color, …
@@ -134,8 +139,9 @@ flowmamga/
 
 - Local library, scanning, 3D shelf, multiple reader modes  
 - Adaptive color, ambient audio, keyboard shortcuts  
-- MangaDex and extended source registry; download queue and metadata flows  
+- MangaDex and extended source registry; download queue and native image descrambling
 - Discover home rails, video library, analytics and history surfaces  
+- Booru & gallery ecosystem integration with native tag intelligence and playlists
 
 ### In progress / next
 
@@ -169,6 +175,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Issues and PRs are welcome.
 [![YouTube](https://img.shields.io/badge/YouTube-@Djonluc-FF0000?style=flat-square&logo=youtube)](https://www.youtube.com/@Djonluc)
 [![Email](https://img.shields.io/badge/Email-djonstnix@gmail.com-5B8CFF?style=flat-square&logo=gmail)](mailto:djonstnix@gmail.com)
 
-**Version:** 2.2.1 (see `package.json` and `src-tauri/tauri.conf.json`) · **Status:** active development
+**Version:** 2.3.1 (see `package.json` and `src-tauri/tauri.conf.json`) · **Status:** active development
 
 </div>
