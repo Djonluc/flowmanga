@@ -38,7 +38,6 @@ const siteConfigs: Record<string, SiteConfig> = {
     imageAttr: "src",
     isVerticalWebtoon: true,
   },
-  /*
 };
 
 export interface SeriesScrapedChapter {
@@ -168,8 +167,6 @@ export class ScraperService {
       if (domain.includes("dragonball-multiverse.com")) {
         return await this.scrapeDragonBallMultiverse(url);
       }
-
-      /*
 
       // 0. Auto-detect Series Pages for Headless sites
       if (
