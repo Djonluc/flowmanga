@@ -50,11 +50,9 @@ jobs:
             ## What's new in FlowManga v__VERSION__ 🎉
 
             ### ✨ New Features & Sources
-            - **New Manga Source (Comix.to)** — You can now paste direct Comix.to links and easily import chapters right into your library.
             - **Rule34 Gallery Enhancements** — Added support for user authentication, better tag categorization, and an overall smoother search experience.
 
             ### 🛠️ Improvements & Fixes
-            - **Comix.to Blank Pages Fix** — Fixed an annoying bug where every 4th page would fail to load or come up completely blank. Reading should now be seamless!
             - **Manga Manager Updates** — We've polished the manager:
               - Fixed the chapter options button so it no longer overlaps.
               - Added a handy new chapter menu with quick actions to **Read, Open files, Re-download, or Delete**.

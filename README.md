@@ -40,8 +40,8 @@ FlowManga is a **Tauri 2** desktop app: a local-first library with multiple read
 ### Discovery, Sources, and Downloads
 
 - **Discover** view with curated rails, recommendations, and tag exploration (backed by `ScraperService` and source providers).
-- **Manga & Comic Sources**: MangaDex (API), plus scraper-backed providers such as **Comix.to**, **MangaDot**, ManhwaRead, LuaComic, BlueLock, DBM, ManhuaPlus.
-- **Booru & Gallery Ecosystem**: Deep integrations for Danbooru, Gelbooru, Rule34, E-Hentai, Sankaku Complex, Nekos.best, Konachan, Yandere, Safebooru, and Zerochan! Includes fuzzy tag autocomplete and advanced negations.
+- **Manga & Comic Sources**: MangaDex (API), plus scraper-backed providers such as ManhwaRead, LuaComic, BlueLock, DBM, ManhuaPlus.
+- **Booru & Gallery Ecosystem**: Deep integrations for Danbooru, Gelbooru, Rule34, E-Hentai, Sankaku Complex, and Nekos.best! Includes fuzzy tag autocomplete and advanced negations.
 - **Download manager**: queued jobs, background chunk cleanup, pause/resume, and native Rust processing to effortlessly reconstruct heavily scrambled pages.
 
 ### Beyond Comics

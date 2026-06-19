@@ -39,13 +39,6 @@ const siteConfigs: Record<string, SiteConfig> = {
     isVerticalWebtoon: true,
   },
   /*
-  "comix.to": {
-    domain: "comix.to",
-    imageSelector: "div.reader-image img, .reading-content img",
-    imageAttr: "src",
-    isVerticalWebtoon: true,
-  },
-  */
 };
 
 export interface SeriesScrapedChapter {
@@ -177,10 +170,6 @@ export class ScraperService {
       }
 
       /*
-      if (domain.includes("comix.to")) {
-        return await this.scrapeComixTo(url);
-      }
-      */
 
       // 0. Auto-detect Series Pages for Headless sites
       if (
@@ -1762,38 +1751,34 @@ export class ScraperService {
       const parsed = JSON.parse(text);
       return parsed?.result ?? parsed;
     } catch (e) {
-      console.warn("[Comix] API fetch failed:", url, e);
+      console.warn("[Scraper] API fetch failed:", url, e);
       return null;
     }
   }
 
-  private static normalizeComixChapter(
+  private static mapComixChapter(
     item: any,
     seriesUrl: string,
   ): SeriesScrapedChapter | null {
-    const source = "comix.to";
+    const source = "unknown";
     const url = item?.url || item?.readUrl || item?.chapterUrl;
     const id = item?.id ?? item?.chapterId ?? item?.hid ?? url;
     const number = String(
-      item?.number ??
-        item?.chapter ??
-        item?.chapterNumber ??
-        item?.chap ??
-        "unknown",
+      item?.number ?? item?.chapter ?? item?.chap ?? "unknown",
     );
+    const title = item?.title ?? item?.name ?? `Chapter ${number}`;
 
-    let finalUrl = typeof url === "string" ? url : "";
+    let finalUrl = url;
     if (!finalUrl && id && number !== "unknown") {
       finalUrl = `${seriesUrl.replace(/\/$/, "")}/${id}-chapter-${number}`;
     }
-    if (finalUrl.startsWith("/")) finalUrl = `https://www.comix.to${finalUrl}`;
 
     if (!finalUrl) return null;
     return {
       id: String(id || finalUrl),
       number,
       url: finalUrl,
-      title: item?.title,
+      title,
       source,
     };
   }

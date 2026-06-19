@@ -45,7 +45,6 @@ export interface GalleryImage {
   savedAt: string;
   liked: boolean;
   folderId?: string;
-  zerochanId?: number;
   contentType?: ContentType;
 }
 
@@ -430,7 +429,6 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         savedAt: r.savedAt,
         liked: !!r.liked,
         folderId: r.folderId,
-        zerochanId: r.zerochanId,
         generalTags: r.generalTags ? JSON.parse(r.generalTags) : [],
         characterTags: r.characterTags ? JSON.parse(r.characterTags) : [],
         copyrightTags: r.copyrightTags ? JSON.parse(r.copyrightTags) : [],
@@ -711,7 +709,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
               imageUrl: res.imageUrl || res.coverUrl || "",
               previewUrl: res.previewUrl || res.coverUrl || "",
               tags: res.tags || [],
-              source: res.source || "zerochan",
+              source: res.source || "unknown",
               rating: "safe",
               savedAt: new Date().toISOString(),
               liked: false,
@@ -912,7 +910,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
               imageUrl: res.imageUrl || res.coverUrl || "",
               previewUrl: res.previewUrl || res.coverUrl || "",
               tags: res.tags || [],
-              source: res.source || "zerochan",
+              source: res.source || "unknown",
               rating: "safe",
               savedAt: new Date().toISOString(),
               liked: false,
@@ -1034,17 +1032,15 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       const imageUrl = (image as any).imageUrl || (image as any).coverUrl || "";
       const previewUrl =
         (image as any).previewUrl || (image as any).coverUrl || "";
-      const source = image.source || "zerochan";
-      const zerochanId =
-        (image as any).zerochanId || (image as any)._zerochanId;
+      const source = image.source || "unknown";
 
       await db.execute(
         `INSERT OR IGNORE INTO GalleryImages (
-          id, imageUrl, previewUrl, tags, source, rating, zerochanId,
+          id, imageUrl, previewUrl, tags, source, rating,
           generalTags, characterTags, copyrightTags, artistTags, metaTags
-        ) VALUES (?, ?, ?, ?, ?, 'safe', ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, 'safe', ?, ?, ?, ?, ?)`,
         [
-          id, imageUrl, previewUrl, tags, source, zerochanId,
+          id, imageUrl, previewUrl, tags, source,
           JSON.stringify(image.generalTags || []),
           JSON.stringify(image.characterTags || []),
           JSON.stringify(image.copyrightTags || []),
@@ -1231,7 +1227,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
         imageUrl: res.imageUrl || res.coverUrl || "",
         previewUrl: res.previewUrl || res.coverUrl || "",
         tags: res.tags || [],
-        source: res.source || "zerochan",
+        source: res.source || "unknown",
         rating: "safe",
         savedAt: new Date().toISOString(),
         liked: false,
