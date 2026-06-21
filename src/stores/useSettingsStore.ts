@@ -160,6 +160,12 @@ interface SettingsState {
   excludedTags: string[];
   setExcludedTags: (tags: string[]) => void;
   
+  recommendationMode: "dynamic" | "strict_favorites" | "strict_interests";
+  setRecommendationMode: (mode: "dynamic" | "strict_favorites" | "strict_interests") => void;
+
+  strictForYouMode: boolean;
+  setStrictForYouMode: (strict: boolean) => void;
+  
   coloredOnly: boolean;
   toggleColoredOnly: () => void;
   setColoredOnly: (val: boolean) => void;
@@ -252,6 +258,12 @@ export const useSettingsStore = create<SettingsState>()(
       isDownloadPanelOpen: false,
       toggleDownloadPanel: () =>
         set((state) => ({ isDownloadPanelOpen: !state.isDownloadPanelOpen })),
+
+      recommendationMode: "dynamic",
+      setRecommendationMode: (mode) => set({ recommendationMode: mode }),
+
+      strictForYouMode: false,
+      setStrictForYouMode: (strict) => set({ strictForYouMode: strict }),
 
       isScreenshotMode: false,
       toggleScreenshotMode: () =>

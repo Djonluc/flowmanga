@@ -108,7 +108,7 @@ export const MusicPlayer = ({ isExpanded }: { isExpanded: boolean }) => {
     }
 
     return (
-        <div className="p-4 border-t border-white/5 bg-white/[0.02] space-y-3 relative">
+        <div className="p-5 pb-8 border-t border-white/5 bg-white/[0.02] space-y-5 relative">
 
             {/* Animated progress line at top */}
             {isPlaying && (
@@ -127,7 +127,7 @@ export const MusicPlayer = ({ isExpanded }: { isExpanded: boolean }) => {
                 <button
                     onClick={togglePlay}
                     className={clsx(
-                        'w-10 h-10 rounded-xl border flex-shrink-0 flex items-center justify-center relative overflow-hidden transition-all group',
+                        'w-12 h-12 rounded-[14px] border flex-shrink-0 flex items-center justify-center relative overflow-hidden transition-all group shadow-sm',
                         isPlaying
                             ? 'bg-indigo-950/60 border-indigo-500/40'
                             : 'bg-surface border-white/10 hover:bg-surface-raised'
@@ -222,7 +222,7 @@ export const MusicPlayer = ({ isExpanded }: { isExpanded: boolean }) => {
 
             {/* Controls Row */}
             {playlist.length > 0 && (
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-center gap-4">
                     {/* Shuffle */}
                     <button
                         onClick={toggleShuffle}

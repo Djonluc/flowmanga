@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Layout } from './components/Layout';
 import { Reader } from './components/Reader'
 import { ControlPanel } from './components/ControlPanel'
@@ -23,6 +23,7 @@ import { useVideoStore } from './stores/useVideoStore';
 import { LocationModal } from './components/modals/LocationModal';
 import { SafetyCheckModal } from './components/modals/SafetyCheckModal';
 import { UpdateNotificationModal } from './components/modals/UpdateNotificationModal';
+import { TitleBar } from './components/TitleBar';
 
 function App() {
   const { isInitializing, zoomScale, accentColor, theme } = useSettingsStore();
@@ -34,6 +35,8 @@ function App() {
     // Generate a glow variant (lower opacity)
     root.style.setProperty('--color-accent-glow', `${accentColor}66`);
   }, [accentColor]);
+
+
 
   // Implement Native Browser-Style Zoom
   useEffect(() => {
@@ -186,9 +189,30 @@ function MainContent() {
   useAdaptiveColor();
   useReadingAnalytics();
 
+  // Fix Windows maximized frameless bleed
+  const [isWindowMaximized, setIsWindowMaximized] = useState(false);
+  useEffect(() => {
+    let unmounted = false;
+    const checkMax = async () => {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        const max = await getCurrentWindow().isMaximized();
+        if (!unmounted) setIsWindowMaximized(max);
+      } catch (e) {}
+    };
+    checkMax();
+    window.addEventListener('resize', checkMax);
+    return () => {
+      unmounted = true;
+      window.removeEventListener('resize', checkMax);
+    };
+  }, []);
+
   return (
-    <>
-    <Layout hideSidebar={images.length > 0 || !!currentVideo}>
+    <div className={`w-full h-[100dvh] flex flex-col bg-background text-foreground overflow-hidden box-border ${isWindowMaximized ? 'p-2' : ''}`}>
+      <TitleBar />
+      <div className="flex-1 min-h-0 relative">
+        <Layout hideSidebar={images.length > 0 || !!currentVideo}>
         <AnimatePresence mode="wait">
             {images.length > 0 ? (
                 <motion.div 
@@ -243,7 +267,8 @@ function MainContent() {
         }}
     />
     <UpdateNotificationModal />
-    </>
+      </div>
+    </div>
   )
 }
 

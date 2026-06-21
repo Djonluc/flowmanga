@@ -15,6 +15,7 @@ interface Playlist {
   id: string;
   name: string;
   query: string; // Stored as JSON string of SmartQuery
+  coverUrl?: string;
 }
 
 interface PlaylistsTabProps {
@@ -37,8 +38,10 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   
   // Tag selector state
-  const [activeTagField, setActiveTagField] = useState<'and' | 'or' | 'exclude' | null>(null);
   const [tagSearchFilter, setTagSearchFilter] = useState("");
+  
+  const [isBulkMode, setIsBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   
   const slideshow = useSlideshowStore();
   const { savedImages } = useImageCollectionStore();
@@ -138,11 +141,72 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
 
   const handleDelete = async (id: string) => {
     try {
+      if (!confirm("Delete this playlist?")) return;
       const db = getDb();
       await db.execute("DELETE FROM FlowPlaylists WHERE id = ?", [id]);
       await loadPlaylists();
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Delete ${selectedIds.length} playlists?`)) return;
+    try {
+      const db = getDb();
+      const placeholders = selectedIds.map(() => '?').join(',');
+      await db.execute(`DELETE FROM FlowPlaylists WHERE id IN (${placeholders})`, selectedIds);
+      setSelectedIds([]);
+      setIsBulkMode(false);
+      await loadPlaylists();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCleanUpEmpty = async () => {
+    if (!confirm("Delete all playlists with 0 local matches?")) return;
+    try {
+      const db = getDb();
+      let deletedCount = 0;
+      for (const p of playlists) {
+        const q = parseQuery(p.query);
+        const matchCount = savedImages.filter(img => {
+          const mediaType = img.mediaType || 'image';
+          if (q.allowedMediaTypes && q.allowedMediaTypes.length > 0 && !q.allowedMediaTypes.includes(mediaType as any)) {
+            return false;
+          }
+          const tags = (img.tags || []).map(t => t.toLowerCase());
+          return (q.and.length === 0 || q.and.every(t => tags.some(tag => tag.includes(t.toLowerCase()))));
+        }).length;
+        if (matchCount === 0) {
+          await db.execute("DELETE FROM FlowPlaylists WHERE id = ?", [p.id]);
+          deletedCount++;
+        }
+      }
+      if (deletedCount > 0) {
+        alert(`Deleted ${deletedCount} empty playlists!`);
+        await loadPlaylists();
+      } else {
+        alert("No empty playlists found.");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleChangeCover = async (p: Playlist, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newCover = prompt("Enter image URL for playlist cover:", p.coverUrl || "");
+    if (newCover !== null) {
+      try {
+        const db = getDb();
+        await db.execute("UPDATE FlowPlaylists SET coverUrl = ? WHERE id = ?", [newCover.trim() || null, p.id]);
+        await loadPlaylists();
+      } catch (err) {
+        console.error(err);
+      }
     }
   };
 
@@ -351,26 +415,59 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button 
-            onClick={generateCuratedPlaylists}
-            disabled={isGenerating}
-            className="h-12 px-6 bg-surface-raised hover:bg-surface-elevated border border-border-subtle text-foreground font-black text-sm uppercase tracking-widest rounded-xl flex items-center gap-2 transition-all disabled:opacity-50"
-          >
-            {isGenerating ? "Generating..." : "✨ Auto-Generate"}
-          </button>
-          <button 
-            onClick={() => {
-              setBuilderState({ and: [], or: [], exclude: [] });
-              setPlaylistName("");
-              setEditingId(null);
-              setActiveTagField(null);
-              setTagSearchFilter("");
-              setIsBuilderOpen(true);
-            }}
-            className="h-12 px-6 bg-accent hover:bg-accent-hover text-white font-black text-sm uppercase tracking-widest rounded-xl flex items-center gap-2 transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)]"
-          >
-            <Plus size={18} strokeWidth={3} /> Create Playlist
-          </button>
+          {isBulkMode ? (
+            <>
+              <button 
+                onClick={handleCleanUpEmpty}
+                className="h-12 px-6 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 border border-yellow-500/20 font-black text-sm uppercase tracking-widest rounded-xl transition-all"
+              >
+                Clean Empty Playlists
+              </button>
+              <button 
+                onClick={handleBulkDelete}
+                disabled={selectedIds.length === 0}
+                className="h-12 px-6 bg-red-500/20 hover:bg-red-500/30 text-red-400 font-black text-sm uppercase tracking-widest rounded-xl transition-all disabled:opacity-50"
+              >
+                Delete Selected ({selectedIds.length})
+              </button>
+              <button 
+                onClick={() => { setIsBulkMode(false); setSelectedIds([]); }}
+                className="h-12 px-6 bg-surface-raised hover:bg-surface-elevated border border-border-subtle text-foreground font-black text-sm uppercase tracking-widest rounded-xl transition-all"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <button 
+                onClick={() => setIsBulkMode(true)}
+                className="h-12 px-4 bg-surface-raised hover:bg-surface-elevated border border-border-subtle text-foreground font-black text-sm uppercase tracking-widest rounded-xl transition-all"
+                title="Bulk Edit"
+              >
+                <Edit2 size={16} />
+              </button>
+              <button 
+                onClick={generateCuratedPlaylists}
+                disabled={isGenerating}
+                className="h-12 px-6 bg-surface-raised hover:bg-surface-elevated border border-border-subtle text-foreground font-black text-sm uppercase tracking-widest rounded-xl flex items-center gap-2 transition-all disabled:opacity-50"
+              >
+                {isGenerating ? "Generating..." : "✨ Auto-Generate"}
+              </button>
+              <button 
+                onClick={() => {
+                  setBuilderState({ and: [], or: [], exclude: [], allowedMediaTypes: ['image', 'video', 'gif'] });
+                  setPlaylistName("");
+                  setEditingId(null);
+                  setActiveTagField(null);
+                  setTagSearchFilter("");
+                  setIsBuilderOpen(true);
+                }}
+                className="h-12 px-6 bg-accent hover:bg-accent-hover text-white font-black text-sm uppercase tracking-widest rounded-xl flex items-center gap-2 transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)]"
+              >
+                <Plus size={18} strokeWidth={3} /> Create Playlist
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -397,24 +494,47 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
               return (q.and.length === 0 || q.and.every(t => tags.some(tag => tag.includes(t.toLowerCase()))));
             }).length;
             
+            const isSelected = selectedIds.includes(p.id);
             return (
-              <div key={p.id} className="p-6 bg-surface border border-border-subtle rounded-2xl flex flex-col gap-4 group hover:border-accent transition-all relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-accent/50 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform"></div>
+              <div 
+                key={p.id} 
+                onClick={() => {
+                  if (isBulkMode) {
+                    setSelectedIds(prev => isSelected ? prev.filter(id => id !== p.id) : [...prev, p.id]);
+                  }
+                }}
+                className={`p-6 bg-surface border rounded-2xl flex flex-col gap-4 group transition-all relative overflow-hidden ${
+                  isBulkMode && isSelected ? 'border-accent shadow-[0_0_20px_rgba(99,102,241,0.3)]' 
+                  : isBulkMode ? 'border-border-subtle cursor-pointer hover:border-accent/50'
+                  : 'border-border-subtle hover:border-accent'
+                }`}
+              >
+                {!isBulkMode && <div className="absolute top-0 left-0 w-full h-1 bg-accent/50 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform z-10"></div>}
                 
-                <div className="flex items-center justify-between">
+                {p.coverUrl && (
+                  <div className="absolute inset-0 z-0">
+                    <img src={p.coverUrl} className="w-full h-full object-cover opacity-20 group-hover:opacity-30 transition-opacity" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/80 to-surface/40" />
+                  </div>
+                )}
+                
+                <div className="flex items-center justify-between relative z-10">
                   <div>
                     <h3 className="text-lg font-bold text-foreground">{p.name}</h3>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-foreground-muted mt-0.5">{matchCount} local matches</p>
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => { setEditingId(p.id); setPlaylistName(p.name); setBuilderState(q); setActiveTagField(null); setIsBuilderOpen(true); }} className="p-2 text-foreground-muted hover:text-white hover:bg-white/10 rounded-lg"><Edit2 size={14} /></button>
-                    <button onClick={() => handleDuplicate(p)} className="p-2 text-foreground-muted hover:text-white hover:bg-white/10 rounded-lg"><Copy size={14} /></button>
-                    <button onClick={() => handleDelete(p.id)} className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg"><Trash2 size={14} /></button>
-                  </div>
+                  {!isBulkMode && (
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-md rounded-lg p-0.5">
+                      <button onClick={(e) => { e.stopPropagation(); setEditingId(p.id); setPlaylistName(p.name); setBuilderState(q); setActiveTagField(null); setIsBuilderOpen(true); }} className="p-2 text-foreground-muted hover:text-white hover:bg-white/10 rounded-lg" title="Edit"><Edit2 size={14} /></button>
+                      <button onClick={(e) => handleChangeCover(p, e)} className="p-2 text-foreground-muted hover:text-white hover:bg-white/10 rounded-lg" title="Change Cover"><Film size={14} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); handleDuplicate(p); }} className="p-2 text-foreground-muted hover:text-white hover:bg-white/10 rounded-lg" title="Duplicate"><Copy size={14} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }} className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg" title="Delete"><Trash2 size={14} /></button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Tag chips display */}
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5 relative z-10">
                   {q.and.map((t, i) => (
                     <span key={`and-${i}`} className="px-2 py-1 bg-green-500/10 text-green-300 border border-green-500/20 rounded-md text-[11px] font-bold">{stripPrefix(t)}</span>
                   ))}
@@ -426,20 +546,22 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
                   ))}
                 </div>
 
-                <div className="flex items-center gap-2 mt-2">
-                  <button 
-                    onClick={() => handlePlaySlideshow(p)}
-                    className="flex-1 h-12 bg-accent hover:bg-accent-hover text-white font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 transition-all"
-                  >
-                    <Play size={16} fill="currentColor" /> Slideshow
-                  </button>
-                  <button 
-                    onClick={() => onPlay(buildQueryString(q))}
-                    className="flex-1 h-12 bg-surface-raised hover:bg-white/10 text-foreground font-black uppercase tracking-widest border border-border-subtle rounded-xl flex items-center justify-center gap-2 transition-all"
-                  >
-                    <Search size={16} /> Search Web
-                  </button>
-                </div>
+                {!isBulkMode && (
+                  <div className="flex items-center gap-2 mt-2 relative z-10">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handlePlaySlideshow(p); }}
+                      className="flex-1 h-12 bg-accent hover:bg-accent-hover text-white font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 transition-all"
+                    >
+                      <Play size={16} fill="currentColor" /> Slideshow
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onPlay(buildQueryString(q)); }}
+                      className="flex-1 h-12 bg-surface-raised hover:bg-white/10 text-foreground font-black uppercase tracking-widest border border-border-subtle rounded-xl flex items-center justify-center gap-2 transition-all"
+                    >
+                      <Search size={16} /> Search Web
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}

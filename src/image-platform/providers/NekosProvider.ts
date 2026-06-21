@@ -107,4 +107,10 @@ export class NekosProvider extends BaseProvider {
   async getLatest(page: number): Promise<PlatformImage[]> {
     return this.search({ raw: "", positiveTags: [], negativeTags: [], predicates: {} }, page);
   }
+
+  async autocompleteTags(query: string): Promise<string[]> {
+    // NekosAPI v4 doesn't have a straightforward tag autocomplete endpoint, 
+    // but you can fetch /v4/tags. We'll return empty for now to fall back gracefully.
+    return [];
+  }
 }

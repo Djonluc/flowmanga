@@ -5,7 +5,17 @@ import { ReliabilityTracker } from '../services/DiscoveryService';
 const MAX_CACHE_SIZE = 50;
 
 /** Domains that commonly block direct browser requests and need Rust proxy fallback */
-const PROXY_DOMAINS = ['sankakucomplex.com', 'sankakuapi.com', 'hentai.org', 'ehgt.org', 'donmai.us'];
+const PROXY_DOMAINS = [
+  'sankakucomplex.com',
+  'sankakuapi.com',
+  'hentai.org',
+  'ehgt.org',
+  'donmai.us',
+  'pixiv.net',
+  'pximg.net',
+  'gelbooru.com',
+  'rule34.xxx'
+];
 
 const proxyCache = new Map<string, string>();
 const MAX_PROXY_CACHE = 100;
@@ -20,42 +30,47 @@ export function needsProxy(url: string): boolean {
 }
 
 /**
- * Fetch a media URL through the Rust backend (bypasses CORS/CDN restrictions)
- * and return a blob: URL the browser can display natively.
+ * Translate a media URL to the custom Tauri flowmanga:// scheme to bypass CORS/CBR/hotlinking.
  */
 async function proxyViaTauri(url: string): Promise<string | null> {
   if (!url) return null;
 
-  if (proxyCache.has(url)) {
-    return proxyCache.get(url)!;
+  if (url.includes('sankaku')) {
+    if (proxyCache.has(url)) {
+      return proxyCache.get(url)!;
+    }
+    try {
+      const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
+      const response = await tauriFetch(url, {
+        method: 'GET',
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
+      proxyCache.set(url, blobUrl);
+      if (proxyCache.size > MAX_PROXY_CACHE) {
+        const oldestKey = proxyCache.keys().next().value;
+        const oldestUrl = proxyCache.get(oldestKey);
+        if (oldestUrl && oldestUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(oldestUrl);
+        }
+        proxyCache.delete(oldestKey);
+      }
+      return blobUrl;
+    } catch (e) {
+      console.warn('[useMediaLoader] tauriFetch fallback failed for sankaku:', e);
+      return null;
+    }
   }
 
-  try {
-    const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
-    const response = await tauriFetch(url, {
-      method: 'GET',
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    
-    const blob = await response.blob();
-    const blobUrl = URL.createObjectURL(blob);
-    
-    proxyCache.set(url, blobUrl);
-    if (proxyCache.size > MAX_PROXY_CACHE) {
-      const oldestKey = proxyCache.keys().next().value;
-      const oldestUrl = proxyCache.get(oldestKey);
-      if (oldestUrl && oldestUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(oldestUrl);
-      }
-      proxyCache.delete(oldestKey);
-    }
-    
-    return blobUrl;
-  } catch (e) {
-    console.warn('[useMediaLoader] Rust proxy fallback failed:', e);
-    return null;
+  if (needsProxy(url)) {
+    return `http://flowmanga.localhost/image-proxy?url=${encodeURIComponent(url)}`;
   }
+  return url;
 }
+
 
 export const useMediaLoader = () => {
   const highResCache = useRef<Map<string, HTMLImageElement>>(new Map());

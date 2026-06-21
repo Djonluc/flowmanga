@@ -14,6 +14,7 @@ export const GeneralSettings = () => {
         zoomScale, setZoomScale,
         libraryPath, 
         setLibraryPath, 
+        recommendationMode, setRecommendationMode
     } = useSettingsStore();
     const { verifyLibraryIntegrity, scanLibrary, rebuildCollectionIndex } = useLibraryStore();
     const { downloadPath, setDownloadPath } = useGalleryStore();
@@ -212,8 +213,55 @@ export const GeneralSettings = () => {
                 </div>
             </div>
 
+             {/* Recommendation Engine Section */}
+             <div className="space-y-4 pt-4 border-t border-white/5">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="w-1.5 h-6 bg-pink-500 rounded-full" />
+                    <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
+                        Recommendation Engine
+                    </h4>
+                </div>
+                
+                <div className="group bg-white/5 p-6 rounded-[32px] border border-white/5 hover:border-pink-500/20 transition-all duration-500">
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-center gap-5">
+                            <div className="w-14 h-14 rounded-2xl bg-pink-500/10 flex items-center justify-center text-pink-500 group-hover:scale-110 transition-transform duration-500">
+                                <ScanSearch size={28} />
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                                <span className="text-pink-500 text-[10px] font-black uppercase tracking-widest mb-1">For You Algorithm</span>
+                                <span className="text-foreground text-base font-bold tracking-tight">Recommendation Mode</span>
+                                <p className="text-foreground-muted text-[10px] font-medium mt-1">Choose how the algorithm generates your "For You" feed.</p>
+                            </div>
+                        </div>
+                        
+                        <div className="flex bg-black/20 p-1.5 rounded-2xl gap-1 mt-2 border border-white/5">
+                            {[
+                                { id: "dynamic", label: "Dynamic Mix", desc: "Mix explicit favorites & learned interests." },
+                                { id: "strict_favorites", label: "Strict Favorites", desc: "Only use your manually starred tags." },
+                                { id: "strict_interests", label: "Strict Interests", desc: "Only use implicitly learned viewing habits." }
+                            ].map(mode => (
+                                <button
+                                    key={mode.id}
+                                    onClick={() => setRecommendationMode(mode.id as any)}
+                                    className={clsx(
+                                        "flex-1 flex flex-col items-center justify-center py-3 px-2 rounded-xl transition-all relative overflow-hidden",
+                                        recommendationMode === mode.id 
+                                            ? "bg-pink-500/10 text-pink-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] border border-pink-500/20" 
+                                            : "text-foreground-muted hover:text-foreground hover:bg-white/5 border border-transparent"
+                                    )}
+                                >
+                                    <span className="text-xs font-black uppercase tracking-widest relative z-10">{mode.label}</span>
+                                    <span className="text-[9px] font-medium opacity-60 text-center mt-1 relative z-10 hidden sm:block">{mode.desc}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
              {/* Safety & System */}
-             <section className="space-y-4">
+             <section className="space-y-4 pt-4 border-t border-white/5">
                 <div className="flex items-center gap-3 mb-6">
                     <div className="w-1.5 h-6 bg-amber-500 rounded-full" />
                     <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">

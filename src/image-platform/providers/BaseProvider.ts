@@ -61,6 +61,10 @@ export abstract class BaseProvider implements ImageProvider {
   }
 
   abstract search(query: SearchQuery, page: number): Promise<PlatformImage[]>;
+  
+  /** Autocomplete a tag prefix returning up to 10 suggestions */
+  abstract autocompleteTags(query: string): Promise<string[]>;
+
   async getLatest(page: number): Promise<PlatformImage[]> {
     return this.search({ raw: "", positiveTags: [], negativeTags: [], predicates: {} }, page);
   }

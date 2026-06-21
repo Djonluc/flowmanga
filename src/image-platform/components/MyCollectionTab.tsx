@@ -24,6 +24,7 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
   const [showSettings, setShowSettings] = useState(false);
   const [showFolderRules, setShowFolderRules] = useState(false);
   const [editingRules, setEditingRules] = useState({ primary: '', include: '', exclude: '', name: '', description: '' });
+  const [isRearrangeMode, setIsRearrangeMode] = useState(false);
   
   const [recommendations, setRecommendations] = useState<PlatformImage[]>([]);
   const [isLoadingRecs, setIsLoadingRecs] = useState(false);
@@ -92,6 +93,46 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
     if (name) createFolder(name);
   };
 
+  const handleRenameFolder = (e: React.MouseEvent, folder: any) => {
+    e.stopPropagation();
+    const newName = prompt('Enter new name:', folder.name);
+    if (newName && newName.trim()) {
+      updateFolder(folder.id, { name: newName.trim() });
+    }
+  };
+
+  const handleChangeCover = (e: React.MouseEvent, folder: any) => {
+    e.stopPropagation();
+    const newCover = prompt('Enter new image URL for cover:', folder.coverUrl || '');
+    if (newCover !== null) {
+      updateFolder(folder.id, { coverUrl: newCover.trim() || null });
+    }
+  };
+
+  const handleMergeFolder = async (e: React.MouseEvent, folder: any) => {
+    e.stopPropagation();
+    const targetName = prompt(`Merge all contents of "${folder.name}" INTO which folder name?`);
+    if (targetName) {
+      const target = folders.find(f => f.name.toLowerCase() === targetName.toLowerCase());
+      if (target && target.id !== folder.id) {
+        const db = getDb();
+        await db.execute("UPDATE FlowSavedImages SET folderId = ? WHERE folderId = ?", [target.id, folder.id]);
+        await deleteFolder(folder.id);
+        loadSavedImages(null);
+        alert('Merged successfully!');
+      } else {
+        alert('Target folder not found or is the same folder.');
+      }
+    }
+  };
+
+  const handleDeleteFolder = async (e: React.MouseEvent, folder: any) => {
+    e.stopPropagation();
+    if (confirm(`Are you sure you want to delete "${folder.name}"? Images will NOT be deleted, they will just be uncategorized.`)) {
+      await deleteFolder(folder.id);
+    }
+  };
+
   // Filtered images based on the active view
   const displayImages = useMemo(() => {
     if (activeFolderId) return savedImages; // Already filtered by folder via loadSavedImages
@@ -122,12 +163,13 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
 
   // Calculate folder stats efficiently
   const folderStats = useMemo(() => {
-    const stats: Record<string, { count: number; lastUpdated: string }> = {};
+    const stats: Record<string, { count: number; lastUpdated: string; firstImage: string | null }> = {};
     for (const folder of folders) {
       const folderImages = savedImages.filter(img => img.folderId === folder.id);
       stats[folder.id] = {
         count: folderImages.length,
-        lastUpdated: folderImages[0] ? new Date(folderImages[0].createdAt).toLocaleDateString() : 'Never'
+        lastUpdated: folderImages[0] ? new Date(folderImages[0].createdAt).toLocaleDateString() : 'Never',
+        firstImage: folderImages[0] ? (folderImages[0].thumbnailUrl || folderImages[0].sampleUrl || folderImages[0].fullUrl) : null
       };
     }
     return stats;
@@ -180,6 +222,13 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
               className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all shadow-[0_0_15px_rgba(99,102,241,0.2)] disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <Play size={12} fill="currentColor" /> Slideshow
+            </button>
+
+            <button 
+              onClick={() => setIsRearrangeMode(!isRearrangeMode)}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all ${isRearrangeMode ? 'bg-accent text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]' : 'bg-surface hover:bg-surface-raised border border-border-subtle text-foreground-muted hover:text-foreground'}`}
+            >
+              <LayoutGrid size={12} /> {isRearrangeMode ? 'Rearranging...' : 'Rearrange Mode'}
             </button>
 
             {/* Folder-specific actions */}
@@ -341,37 +390,61 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
             {folders.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 {folders.map(folder => {
-                  const stats = folderStats[folder.id] || { count: 0, lastUpdated: 'Never' };
+                  const stats = folderStats[folder.id] || { count: 0, lastUpdated: 'Never', firstImage: null };
                   return (
-                    <button
-                      key={folder.id}
-                      onClick={() => setActiveFolderId(folder.id)}
-                      className="group relative aspect-[4/3] rounded-xl overflow-hidden border border-border-subtle bg-surface-raised hover:border-accent/50 hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] transition-all flex flex-col justify-end text-left"
-                    >
-                      {folder.coverUrl ? (
-                        <div className="absolute inset-0">
-                          <img src={folder.coverUrl} className="w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity duration-500 group-hover:scale-105" />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                    <div key={folder.id} className="group relative">
+                      <button
+                        onClick={() => setActiveFolderId(folder.id)}
+                        className="w-full relative aspect-[4/3] rounded-xl overflow-hidden border border-border-subtle bg-surface-raised hover:border-accent/50 hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] transition-all flex flex-col justify-end text-left"
+                      >
+                        {folder.coverUrl || stats.firstImage ? (
+                          <div className="absolute inset-0">
+                            <img 
+                              src={folder.coverUrl || stats.firstImage} 
+                              onError={(e) => {
+                                if (e.currentTarget.src !== stats.firstImage && stats.firstImage) {
+                                  e.currentTarget.src = stats.firstImage;
+                                } else {
+                                  e.currentTarget.style.display = 'none';
+                                  const fallbackEl = e.currentTarget.parentElement?.querySelector('.fallback-icon');
+                                  if (fallbackEl) fallbackEl.classList.remove('hidden');
+                                }
+                              }}
+                              className="w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity duration-500 group-hover:scale-105" 
+                            />
+                            <div className="fallback-icon absolute inset-0 bg-gradient-to-br from-surface to-background hidden flex items-center justify-center">
+                              <Folder size={32} className="text-white/10" />
+                            </div>
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                          </div>
+                        ) : (
+                          <div className="absolute inset-0 bg-gradient-to-br from-surface to-background flex items-center justify-center">
+                            <Folder size={32} className="text-white/10" />
+                          </div>
+                        )}
+                        <div className="relative z-10 p-3 flex flex-col pointer-events-none">
+                          <h4 className="text-sm font-black uppercase tracking-wider text-white line-clamp-1 group-hover:text-accent transition-colors">
+                            {folder.name}
+                          </h4>
+                          <div className="flex justify-between items-end mt-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
+                            <p className="text-[10px] font-bold text-white uppercase tracking-widest">
+                              {stats.count} Images
+                            </p>
+                            <p className="text-[9px] font-medium text-white/70">
+                              {stats.lastUpdated}
+                            </p>
+                          </div>
                         </div>
-                      ) : (
-                        <div className="absolute inset-0 bg-gradient-to-br from-surface to-background flex items-center justify-center">
-                          <Folder size={32} className="text-white/10" />
-                        </div>
-                      )}
-                      <div className="relative z-10 p-3 flex flex-col">
-                        <h4 className="text-sm font-black uppercase tracking-wider text-white line-clamp-1 group-hover:text-accent transition-colors">
-                          {folder.name}
-                        </h4>
-                        <div className="flex justify-between items-end mt-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
-                          <p className="text-[10px] font-bold text-white uppercase tracking-widest">
-                            {stats.count} Images
-                          </p>
-                          <p className="text-[9px] font-medium text-white/70">
-                            {stats.lastUpdated}
-                          </p>
-                        </div>
+                      </button>
+
+                      {/* Folder Menu Overlay */}
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1 z-20">
+                        <button onClick={(e) => handleRenameFolder(e, folder)} className="p-1.5 bg-black/60 hover:bg-black backdrop-blur-sm text-white rounded-md transition-colors" title="Rename Folder"><Edit2 size={12} /></button>
+                        <button onClick={(e) => handleChangeCover(e, folder)} className="p-1.5 bg-black/60 hover:bg-black backdrop-blur-sm text-white rounded-md transition-colors" title="Change Cover"><ImageIcon size={12} /></button>
+                        <button onClick={(e) => handleMergeFolder(e, folder)} className="p-1.5 bg-black/60 hover:bg-black backdrop-blur-sm text-white rounded-md transition-colors" title="Merge Folder"><FolderOpen size={12} /></button>
+                        <button onClick={(e) => handleDeleteFolder(e, folder)} className="p-1.5 bg-red-500/80 hover:bg-red-500 backdrop-blur-sm text-white rounded-md transition-colors" title="Delete Folder"><Trash2 size={12} /></button>
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -441,6 +514,9 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
                   columns={5} 
                   onImageClick={(img, idx) => onImageClick?.(img, idx, filteredDisplayImages)}
                   onImageDoubleClick={(img, idx) => onImageDoubleClick?.(img, idx, filteredDisplayImages)}
+                  onReorder={isRearrangeMode ? (draggedId, dropId) => {
+                    useImageCollectionStore.getState().reorderImage(draggedId, dropId);
+                  } : undefined}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center py-20 text-foreground-muted">

@@ -1,3 +1,23 @@
+# FlowManga v2.4.0 Release Notes
+
+Welcome to FlowManga v2.4.0! This release focuses on expanding image platform integrations and delivering a massive UI/UX layout overhaul.
+
+### ✨ New Features & Sources
+- **Pixiv, Konachan, & Zerochan Support** — We've massively expanded the Image Platform federators! You can now search, discover, and download high-quality images directly from Pixiv, Konachan, and Zerochan APIs.
+
+### 🛠️ UX, Layout & Visual Polish
+- **Windows Taskbar Safe Area** — Completely re-engineered the main application wrapper layout to use dynamic padding and `100dvh`. Maximizing the frameless window on Windows will no longer bleed into or behind your taskbar!
+- **Home View Expansion** — Slimmed down the right-hand panel widgets to grant vastly more horizontal screen real estate to the main Featured Content rows.
+- **Music Player Overhaul** — The sidebar music player is no longer claustrophobic! We've increased the album art orb size, added generous padding to lift it off the bottom of the screen, and centered the playback controls beautifully.
+- **TopBar Spacing** — Increased the flex gaps between action buttons in the top navigation bar for a cleaner, premium feel.
+
+### 🐛 Bug Fixes
+- **Restore Button Fixed** — Fixed a core Tauri v2 security capability bug that blocked the application from un-maximizing. 
+- **Taskbar Icon Scaling** — Aggressively trimmed invisible borders from the FlowManga logo and completely regenerated all OS-level icons, making the app icon appear much larger and clearer in the Windows taskbar.
+- **React State Crashes** — Resolved uncaught ReferenceErrors during app initialization by ensuring state hooks are properly scoped to their rendering components.
+
+---
+
 # FlowManga v2.3.0 Release Notes
 
 Welcome to FlowManga v2.3.0! This massive release focuses on vastly expanding our scraping capabilities, hardening the UI/UX across the entire application, and improving privacy and performance.

@@ -437,7 +437,7 @@ export const HomeView = () => {
             <FeaturedCarousel items={trending} />
           </div>
 
-          <div className="w-full max-w-[2400px] mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 flex flex-col gap-12 sm:gap-16 md:gap-24 transition-all duration-300 relative">
+          <div className="w-full max-w-[3000px] mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 flex flex-col gap-12 sm:gap-16 md:gap-24 transition-all duration-300 relative">
             {/* Ambient Background Glows */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full pointer-events-none -z-10">
               <div className="absolute top-[10%] left-[10%] w-[40%] h-[40%] bg-accent-soft blur-[120px] rounded-full" />
@@ -543,7 +543,7 @@ const RightPanel = ({
     <div
       className={clsx(
         "flex flex-col flex-shrink-0 bg-surface border-l border-border-subtle overflow-y-auto custom-scrollbar transition-all duration-500 backdrop-blur-2xl shadow-cinematic",
-        "flex gap-6 p-5 lg:p-6 w-64 lg:w-72 xl:w-80",
+        "flex gap-6 p-4 lg:p-5 w-56 lg:w-64 xl:w-72",
         isScreenshotMode ? "h-auto" : "hidden lg:flex h-full",
       )}
     >

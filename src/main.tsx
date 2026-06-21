@@ -5,6 +5,7 @@ import App from './App.tsx'
 import { initDatabase } from './services/db'
 import { useSettingsStore } from './stores/useSettingsStore'
 import { useLibraryStore } from './stores/useLibraryStore'
+import { useGalleryStore } from './stores/useGalleryStore'
 import { AppVersionService } from './services/AppVersionService'
 
 // Initialize the root early to show a loading state immediately
@@ -22,6 +23,7 @@ const init = async () => {
     
     // 2. Preload Library State and Collections
     await useLibraryStore.getState().loadFromDb();
+    await useGalleryStore.getState().loadFromDb();
     
     // 3. Notify the app that initialisation is complete
     useSettingsStore.getState().setInitializing(false);

@@ -2290,6 +2290,84 @@ async fn open_auth_window(app: tauri::AppHandle, url: String, provider_id: Strin
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
+        .register_asynchronous_uri_scheme_protocol("flowmanga", |_ctx, request, responder| {
+            tauri::async_runtime::spawn(async move {
+                let uri = request.uri().to_string();
+                if let Ok(parsed_url) = url::Url::parse(&uri) {
+                    if parsed_url.path() == "/image-proxy" {
+                        let query_params: std::collections::HashMap<_, _> = parsed_url.query_pairs().into_owned().collect();
+                        if let Some(target_url) = query_params.get("url") {
+                            let mut user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
+                            if target_url.contains("donmai.us") {
+                                user_agent = "FlowManga/1.0";
+                            }
+                            let client = reqwest::Client::builder()
+                                .user_agent(user_agent)
+                                .build();
+                            
+                            if let Ok(c) = client {
+                                let mut req = c.get(target_url);
+                                let mut referer_str = None;
+                                if let Some(referer) = query_params.get("referer") {
+                                    referer_str = Some(referer.to_string());
+                                } else if let Ok(target_parsed) = url::Url::parse(target_url) {
+                                    if let Some(host) = target_parsed.host_str() {
+                                        let host_lower = host.to_lowercase();
+                                        if host_lower.contains("donmai.us") {
+                                            referer_str = Some("https://danbooru.donmai.us/".to_string());
+                                        } else if host_lower.contains("pximg.net") || host_lower.contains("pixiv.net") {
+                                            referer_str = Some("https://www.pixiv.net/".to_string());
+                                        } else if host_lower.contains("sankaku") {
+                                            referer_str = Some("https://chan.sankakucomplex.com/".to_string());
+                                        } else if host_lower.contains("rule34") {
+                                            referer_str = Some("https://rule34.xxx/".to_string());
+                                        } else if host_lower.contains("gelbooru") {
+                                            referer_str = Some("https://gelbooru.com/".to_string());
+                                        } else if host_lower.contains("ehgt.org") {
+                                            referer_str = Some("https://e-hentai.org/".to_string());
+                                        } else {
+                                            referer_str = Some(format!("https://{}/", host));
+                                        }
+                                    }
+                                }
+                                if let Some(ref r) = referer_str {
+                                    req = req.header("Referer", r);
+                                }
+
+                                
+                                if let Ok(res) = req.send().await {
+                                    let status = res.status().as_u16();
+                                    let content_type = res.headers()
+                                        .get("content-type")
+                                        .and_then(|v| v.to_str().ok())
+                                        .unwrap_or("application/octet-stream")
+                                        .to_string();
+                                    if let Ok(bytes) = res.bytes().await {
+                                        let response = tauri::http::Response::builder()
+                                            .status(status)
+                                            .header("Content-Type", content_type)
+                                            .header("Access-Control-Allow-Origin", "*")
+                                            .body(bytes.to_vec())
+                                            .unwrap();
+                                        responder.respond(response);
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                let error_response = tauri::http::Response::builder()
+                    .status(404)
+                    .header("Content-Type", "text/plain")
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(vec![])
+                    .unwrap();
+                responder.respond(error_response);
+            });
+        })
+
         .plugin(tauri_plugin_log::Builder::default().build())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_fs::init())

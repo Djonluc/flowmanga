@@ -164,4 +164,30 @@ export class SankakuProvider extends BaseProvider {
     // and naturally return the most recently uploaded images.
     return this.search({ raw: "_sort:new_", positiveTags: ["_sort:new_"], negativeTags: [], predicates: {} }, page);
   }
+
+  async autocompleteTags(query: string): Promise<string[]> {
+    if (!query || query.length < 2) return [];
+    
+    const headers = this.getAuthHeaders();
+    // Provide a User-Agent that doesn't get blocked by Sankaku
+    headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+    
+    const url = `https://sankakuapi.com/tags?limit=10&name=${encodeURIComponent(query)}*`;
+    
+    try {
+      const data = await this.fetchJson<any>(url, { headers });
+      if (!Array.isArray(data)) return [];
+      
+      return data.map(tag => {
+        const tagName = (tag.name_en || tag.name || "").trim().replace(/ /g, "_");
+        if (tag.type === 1) return `artist:${tagName}`;
+        if (tag.type === 3) return `series:${tagName}`;
+        if (tag.type === 4) return `character:${tagName}`;
+        return tagName;
+      }).filter(Boolean);
+    } catch (e) {
+      console.warn("[SankakuProvider] autocomplete failed", e);
+      return [];
+    }
+  }
 }

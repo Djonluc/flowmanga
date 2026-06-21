@@ -35,6 +35,7 @@ interface ImageCollectionState {
   recheckLocalFiles: () => Promise<{ found: number, totalChecked: number }>;
   retroOrganizeLibrary: () => Promise<{ scanned: number; assigned: number; created: number; skipped: number } | null>;
   batchSaveImages: (images: PlatformImage[], folderId: string) => Promise<number>;
+  reorderImage: (draggedId: string, dropId: string) => Promise<void>;
 }
 
 export const useImageCollectionStore = create<ImageCollectionState>((set, get) => ({
@@ -64,9 +65,9 @@ export const useImageCollectionStore = create<ImageCollectionState>((set, get) =
       const db = getDb();
       let rows: any[];
       if (folderId) {
-        rows = await db.select("SELECT * FROM FlowSavedImages WHERE folderId = ? ORDER BY savedAt DESC", [folderId]);
+        rows = await db.select("SELECT * FROM FlowSavedImages WHERE folderId = ? ORDER BY sortOrder ASC, savedAt DESC", [folderId]);
       } else {
-        rows = await db.select("SELECT * FROM FlowSavedImages ORDER BY savedAt DESC");
+        rows = await db.select("SELECT * FROM FlowSavedImages ORDER BY sortOrder ASC, savedAt DESC");
       }
       
       const parsedImages: PlatformImage[] = rows.map(row => ({
@@ -386,6 +387,8 @@ export const useImageCollectionStore = create<ImageCollectionState>((set, get) =
       let assigned = 0;
       let created = 0;
       let skipped = 0;
+      // Group images by target folder name first
+      const candidateGroups: Record<string, any[]> = {};
       
       for (const row of allImages) {
         const tags: string[] = row.tags ? JSON.parse(row.tags) : [];
@@ -401,30 +404,42 @@ export const useImageCollectionStore = create<ImageCollectionState>((set, get) =
 
         if (targetFolderName) {
           targetFolderName = targetFolderName.replace(/\b\w/g, c => c.toUpperCase()); // Capitalize
-          let folder = get().folders.find(f => f.name.toLowerCase() === targetFolderName!.toLowerCase());
-          
-          let folderId: string;
-          if (!folder) {
-            folderId = crypto.randomUUID();
-            await db.execute(
-              "INSERT INTO FlowSavedFolders (id, name, description) VALUES (?, ?, ?)",
-              [folderId, targetFolderName, "Auto-created folder"]
-            );
-            await get().loadFolders(); // Refresh local folder cache
-            created++;
-          } else {
-            folderId = folder.id;
-          }
+          if (!candidateGroups[targetFolderName]) candidateGroups[targetFolderName] = [];
+          candidateGroups[targetFolderName].push(row);
+        } else {
+          skipped++;
+        }
+      }
 
-          // Update image
+      // Process grouped images, enforcing a minimum threshold of 3 images
+      for (const [folderName, rows] of Object.entries(candidateGroups)) {
+        if (rows.length < 3) {
+          skipped += rows.length;
+          continue;
+        }
+
+        let folder = get().folders.find(f => f.name.toLowerCase() === folderName.toLowerCase());
+        let folderId: string;
+        
+        if (!folder) {
+          folderId = crypto.randomUUID();
+          await db.execute(
+            "INSERT INTO FlowSavedFolders (id, name, description) VALUES (?, ?, ?)",
+            [folderId, folderName, "Auto-created folder"]
+          );
+          await get().loadFolders(); // Refresh local folder cache
+          created++;
+        } else {
+          folderId = folder.id;
+        }
+
+        for (const row of rows) {
           if (row.folderId !== folderId) {
             await db.execute("UPDATE FlowSavedImages SET folderId = ? WHERE id = ?", [folderId, row.id]);
             assigned++;
           } else {
             skipped++;
           }
-        } else {
-          skipped++;
         }
       }
       
@@ -485,6 +500,42 @@ export const useImageCollectionStore = create<ImageCollectionState>((set, get) =
     } catch (e) {
       console.error("Batch save failed", e);
       return 0;
+    }
+  },
+
+  reorderImage: async (draggedId: string, dropId: string) => {
+    try {
+      const db = getDb();
+      const state = get();
+      const currentList = [...state.savedImages];
+      const draggedIdx = currentList.findIndex(i => i.id === draggedId);
+      const dropIdx = currentList.findIndex(i => i.id === dropId);
+      
+      if (draggedIdx === -1 || dropIdx === -1) return;
+
+      // Swap in UI immediately
+      const item = currentList.splice(draggedIdx, 1)[0];
+      currentList.splice(dropIdx, 0, item);
+      set({ savedImages: currentList });
+
+      // Build case statement to update sortOrder for all items in their new order
+      let caseStmt = "CASE id ";
+      const ids: string[] = [];
+      currentList.forEach((img, idx) => {
+        caseStmt += `WHEN ? THEN ? `;
+        ids.push(img.id, idx.toString());
+      });
+      caseStmt += "END";
+
+      const placeholders = currentList.map(() => '?').join(',');
+      const idsForIn = currentList.map(img => img.id);
+
+      await db.execute(
+        `UPDATE FlowSavedImages SET sortOrder = ${caseStmt} WHERE id IN (${placeholders})`,
+        [...ids, ...idsForIn]
+      );
+    } catch (e) {
+      console.error("Failed to reorder", e);
     }
   }
 }));

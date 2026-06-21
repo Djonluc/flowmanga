@@ -12,7 +12,7 @@ import { AmbientSettings } from './AmbientSettings';
 import { SourcesSettings } from './SourcesSettings';
 import { AutomationSettings } from './AutomationSettings';
 import { UpdateSettings } from './UpdateSettings';
-import { Headphones, Globe, Sparkles, RefreshCw } from 'lucide-react';
+import { Headphones, Globe, Sparkles, RefreshCw, ShieldAlert } from 'lucide-react';
 
 type SettingsTab = 'general' | 'reader' | 'appearance' | 'audio' | 'downloads' | 'sources' | 'automation' | 'updates';
 

@@ -145,9 +145,24 @@ function dedupeResults(
     }
   }
 
+  let blockedTags: string[] = [];
+  try {
+    // We get the blocked tags dynamically to avoid circular issues
+    blockedTags = useGalleryStore.getState().blockedTags || [];
+  } catch(e) {}
+
   return items.filter((item) => {
     const key = buildResultKey(item);
     if (seen.has(key)) return false;
+    
+    // Filter out items that contain any blocked tag
+    if (blockedTags.length > 0 && item.tags) {
+      const hasBlockedTag = item.tags.some(tag => 
+        blockedTags.includes(tag.toLowerCase().trim())
+      );
+      if (hasBlockedTag) return false;
+    }
+    
     seen.add(key);
     return true;
   });
@@ -160,6 +175,7 @@ interface GalleryState {
   savedImages: GalleryImage[];
   folders: GalleryFolder[];
   favoriteTags: string[];
+  blockedTags: string[];
   slideshows: Slideshow[];
   smartCollections: { tag: string; count: number; images: GalleryImage[] }[];
   localFolders: { id: string; path: string; name: string }[];
@@ -263,8 +279,14 @@ interface GalleryState {
   // Actions — Tag Management
   favoriteTag: (tag: string) => Promise<void>;
   unfavoriteTag: (tag: string) => Promise<void>;
+  clearFavoriteTags: () => Promise<void>;
+  blockTag: (tag: string) => Promise<void>;
+  unblockTag: (tag: string) => Promise<void>;
+  clearBlockedTags: () => Promise<void>;
+  toggleTagState: (tag: string, type?: string) => Promise<void>;
 
   // Actions — History / Interactions
+  clearViewHistory: () => Promise<void>;
   logInteraction: (
     imageId: string | null,
     tag: string | null,
@@ -318,6 +340,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   savedImages: [],
   folders: [],
   favoriteTags: [],
+  blockedTags: [],
   slideshows: [],
   smartCollections: [],
   localFolders: [],
@@ -448,6 +471,11 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
           set({ downloadPath: settings.get("downloadPath") });
         if (settings.has("contentFilter"))
           set({ contentFilter: settings.get("contentFilter") as any });
+        if (settings.has("blockedTags")) {
+          try {
+            set({ blockedTags: JSON.parse(settings.get("blockedTags")) });
+          } catch(e) {}
+        }
       } catch (settingsError) {
         console.warn(
           "[GalleryStore] GallerySettings table not ready or empty:",
@@ -632,10 +660,12 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     try {
       const { viewHistory, favoriteTags, savedImages } = get();
       const contentFilter = useSettingsStore.getState().showAdultContent ? "all" : "sfw";
-      const hasHistory =
-        viewHistory.length > 0 ||
-        favoriteTags.length > 0 ||
-        savedImages.some((i) => i.liked);
+      
+      // Extract top 3 tags from each liked image
+      const likedImages = savedImages.filter(i => i.liked);
+      const likedTags = likedImages.flatMap(img => img.tags.slice(0, 3));
+      
+      const hasHistory = favoriteTags.length > 0 || likedImages.length > 0;
 
       let results: SourceSearchResult[] = [];
 
@@ -647,7 +677,7 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
           results = raw.map(mapImageMediaToSearchResult);
       } else {
         const allSeeds = Array.from(
-          new Set([...viewHistory.slice(0, 5), ...favoriteTags]),
+          new Set([...likedTags, ...favoriteTags]),
         );
         // Pick up to 2 random tags to combine for precise matching
         const selectedSeeds = allSeeds
@@ -956,22 +986,9 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       _suggestionAbortController = new AbortController();
 
       try {
-        const suggestions = await DiscoveryService.searchGlobal(
-          query,
-          24,
-          false,
-          1,
-          "image",
-          _suggestionAbortController.signal,
-        );
-        const rawSuggestions = suggestions
-          .map((item) => item.tags?.[0] || item.title || query)
-          .filter(Boolean);
-        
-        const uniqueSuggestions = [...new Set(rawSuggestions.map(s => s.toLowerCase().trim()))]
-          .slice(0, 10);
-
-        set({ searchSuggestions: uniqueSuggestions });
+        const { federator } = await import("../image-platform/SearchFederator");
+        const suggestions = await federator.autocompleteTags(query);
+        set({ searchSuggestions: suggestions });
       } catch (e) {
         console.error("[GalleryStore] Autocomplete failed:", e);
       }
@@ -1156,7 +1173,85 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     await get().loadFavoriteTags();
   },
 
+  clearFavoriteTags: async () => {
+    const db = getDb();
+    await db.execute("DELETE FROM FavoriteTags");
+    await db.execute("DELETE FROM UserInterests WHERE type IN ('dominant_tag', 'supporting_tag', 'artist', 'character', 'series')");
+    await get().loadFavoriteTags();
+  },
+
+  blockTag: async (tag) => {
+    const db = getDb();
+    const cleanTag = tag.toLowerCase().trim();
+    const current = get().blockedTags;
+    if (current.includes(cleanTag)) return;
+    
+    const newTags = [...current, cleanTag];
+    await db.execute(
+      "INSERT OR REPLACE INTO GallerySettings (key, value) VALUES (?, ?)",
+      ["blockedTags", JSON.stringify(newTags)]
+    );
+    set({ blockedTags: newTags });
+  },
+
+  unblockTag: async (tag) => {
+    const db = getDb();
+    const cleanTag = tag.toLowerCase().trim();
+    const current = get().blockedTags;
+    if (!current.includes(cleanTag)) return;
+
+    const newTags = current.filter(t => t !== cleanTag);
+    await db.execute(
+      "INSERT OR REPLACE INTO GallerySettings (key, value) VALUES (?, ?)",
+      ["blockedTags", JSON.stringify(newTags)]
+    );
+    set({ blockedTags: newTags });
+  },
+
+  clearBlockedTags: async () => {
+    const db = getDb();
+    await db.execute(
+      "INSERT OR REPLACE INTO GallerySettings (key, value) VALUES (?, ?)",
+      ["blockedTags", JSON.stringify([])]
+    );
+    set({ blockedTags: [] });
+  },
+
+  toggleTagState: async (tag, type = 'supporting_tag') => {
+    const { favoriteTags, blockedTags, favoriteTag, unfavoriteTag, blockTag, unblockTag } = get();
+    const cleanTag = tag.toLowerCase().trim();
+    
+    if (favoriteTags.includes(cleanTag)) {
+      // 1st -> 2nd state: un-favorite, block
+      await unfavoriteTag(cleanTag);
+      try {
+        const db = getDb();
+        await db.execute("DELETE FROM UserInterests WHERE name = ?", [cleanTag]);
+      } catch (e) {}
+      await blockTag(cleanTag);
+    } else if (blockedTags.includes(cleanTag)) {
+      // 2nd -> 3rd state: un-block
+      await unblockTag(cleanTag);
+    } else {
+      // 0th -> 1st state: favorite
+      await favoriteTag(cleanTag);
+      try {
+        const db = getDb();
+        await db.execute(
+          "INSERT INTO UserInterests (id, type, name, score, isPinned) VALUES (?, ?, ?, 100, 0)",
+          [crypto.randomUUID(), type, cleanTag]
+        );
+      } catch (e) {}
+    }
+  },
+
   // ─── History / Interaction ──────────────────────────────────────
+  
+  clearViewHistory: async () => {
+    const db = getDb();
+    await db.execute("DELETE FROM GalleryHistory");
+    set({ viewHistory: [] });
+  },
 
   logInteraction: async (imageId, tag, action) => {
     try {

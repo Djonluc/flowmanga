@@ -35,6 +35,7 @@ interface ImageEngineState {
   fetchDiscover: (forceRefresh?: boolean) => Promise<void>;
   loadNextPage: () => Promise<void>;
   reset: () => void;
+  markAsSeen: (images: PlatformImage[]) => Promise<void>;
 }
 
 export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
@@ -106,6 +107,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
         set(s => {
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
+          get().markAsSeen(newUnique);
           return {
             feeds: {
               ...s.feeds,
@@ -142,6 +144,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
         set(s => {
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
+          get().markAsSeen(newUnique);
           return {
             feeds: {
               ...s.feeds,
@@ -178,6 +181,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
         set(s => {
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
+          get().markAsSeen(newUnique);
           return {
             feeds: {
               ...s.feeds,
@@ -215,6 +219,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
         set(s => {
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
+          get().markAsSeen(newUnique);
           return {
             feeds: {
               ...s.feeds,
@@ -232,8 +237,6 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
       else if (mode === 'curated') newResults = await federator.getCurated(nextPage, handleChunk);
       else if (mode === 'discover') newResults = await federator.getDiscovery(nextPage, handleChunk);
 
-      // If curated or discover returns empty, we might have just hit a bad random tag combo.
-      // We don't want to permanently kill the feed unless it's explicitly 'latest' or 'search'.
       const shouldKillFeed = (mode === 'search' || mode === 'latest') ? newResults.length === 0 : false;
 
       set(s => ({
@@ -266,5 +269,22 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
       isFetchingNextPage: false,
       error: null
     });
+  },
+
+  markAsSeen: async (images: PlatformImage[]) => {
+    if (images.length === 0) return;
+    try {
+      const { getDb } = await import('../services/db');
+      const db = getDb();
+      
+      // Keep transaction small
+      const values = images.map(img => `('${img.id}', '${img.sourceId}', '${img.providerId}')`).join(',');
+      await db.execute(`
+        INSERT OR IGNORE INTO FlowSeenImages (id, sourceId, providerId)
+        VALUES ${values}
+      `);
+    } catch (e) {
+      console.error("[ImageEngineStore] Failed to mark as seen", e);
+    }
   }
 }));

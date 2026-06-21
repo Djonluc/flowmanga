@@ -113,6 +113,14 @@ export const initDatabase = async () => {
       PRIMARY KEY (tagName, sourceId)
     );
 
+    CREATE TABLE IF NOT EXISTS TagDefinitions (
+      tag TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      parsedBody TEXT NOT NULL,
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS FavoriteTags (
       tag TEXT PRIMARY KEY,
       usageCount INTEGER DEFAULT 1,
@@ -154,6 +162,7 @@ export const initDatabase = async () => {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       query TEXT NOT NULL,
+      coverUrl TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -409,6 +418,35 @@ export const initDatabase = async () => {
   } catch (e) {
     // Column already exists, ignore
   }
+
+  try {
+    await db.execute("ALTER TABLE FlowSavedImages ADD COLUMN sortOrder INTEGER DEFAULT 0;");
+    // Initialize sortOrder based on rowid/createdAt for existing images
+    await db.execute(`
+      WITH Ordered AS (
+        SELECT id, row_number() OVER (ORDER BY savedAt ASC) as new_order
+        FROM FlowSavedImages
+      )
+      UPDATE FlowSavedImages 
+      SET sortOrder = (SELECT new_order FROM Ordered WHERE Ordered.id = FlowSavedImages.id)
+      WHERE sortOrder = 0;
+    `);
+  } catch (e) {}
+
+  try {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS FlowSeenImages (
+        id TEXT PRIMARY KEY,
+        sourceId TEXT,
+        providerId TEXT,
+        seenAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE FlowPlaylists ADD COLUMN coverUrl TEXT;");
+  } catch (e) {}
 
   // console.log('[DB] Database initialized successfully');
   return db;

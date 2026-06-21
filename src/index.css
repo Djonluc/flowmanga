@@ -241,11 +241,23 @@ body {
     border: 1px solid var(--color-border-subtle);
 }
 
+
 .shadow-premium {
     box-shadow: 
       0 0 0 1px var(--color-border-subtle),
       0 4px 12px rgba(0, 0, 0, 0.1),
       0 16px 32px rgba(0, 0, 0, 0.1);
+}
+
+.tag-tooltip-html span, .tag-tooltip-html a {
+    color: #818cf8 !important; /* Hardcoded indigo-400 so it doesn't break if accent is black */
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.tag-tooltip-html span:hover, .tag-tooltip-html a:hover {
+    text-decoration: underline;
+    opacity: 0.8;
 }
 
 .shadow-cinematic {

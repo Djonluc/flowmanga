@@ -19,6 +19,38 @@ export class SearchFederator {
     return images.filter(img => img.rating === 'safe' || !img.rating);
   }
 
+  /** Deprioritizes images that have already been seen and strictly excludes saved images. */
+  private async filterExclusions(images: PlatformImage[]): Promise<PlatformImage[]> {
+    if (images.length === 0) return [];
+    try {
+      const { getDb } = await import("../services/db");
+      const db = getDb();
+      const ids = images.map(img => img.id);
+      const placeholders = ids.map(() => '?').join(',');
+      
+      // 1. Strictly exclude saved images
+      const savedRows = await db.select<{id: string}>(`SELECT id FROM FlowSavedImages WHERE id IN (${placeholders})`, ids);
+      const savedSet = new Set(savedRows.map(r => r.id));
+      
+      const notSavedImages = images.filter(img => !savedSet.has(img.id));
+      if (notSavedImages.length === 0) return [];
+      
+      // 2. Deprioritize seen images
+      const notSavedIds = notSavedImages.map(img => img.id);
+      const nsPlaceholders = notSavedIds.map(() => '?').join(',');
+      const seenRows = await db.select<{id: string}>(`SELECT id FROM FlowSeenImages WHERE id IN (${nsPlaceholders})`, notSavedIds);
+      const seenSet = new Set(seenRows.map(r => r.id));
+
+      const unseen = notSavedImages.filter(img => !seenSet.has(img.id));
+      const seen = notSavedImages.filter(img => seenSet.has(img.id));
+      
+      return [...unseen, ...seen];
+    } catch (e) {
+      console.warn("[SearchFederator] Failed to filter exclusions", e);
+      return images;
+    }
+  }
+
   async getActiveProviders(): Promise<ImageProvider[]> {
     const { useSettingsStore } = await import("../stores/useSettingsStore");
     const { isSourceEnabled } = useSettingsStore.getState();
@@ -29,6 +61,20 @@ export class SearchFederator {
     const provider = this.providers.get(providerId);
     if (!provider || !provider.getById) return null;
     return provider.getById(sourceId);
+  }
+
+  /** Injects media type filters if the user wants exclusively videos or gifs */
+  private getMediaFilterQuery(baseQuery?: SearchQuery): SearchQuery {
+    const query = baseQuery || { raw: "", positiveTags: [], negativeTags: [], predicates: {} };
+    const { globalMediaFilter } = useSettingsStore.getState();
+    if (globalMediaFilter === 'all' || globalMediaFilter === 'image') return query;
+
+    const newTags = [...query.positiveTags, "animated"];
+    return {
+      ...query,
+      positiveTags: Array.from(new Set(newTags)),
+      raw: query.raw ? `${query.raw} animated` : "animated"
+    };
   }
 
   /**
@@ -54,13 +100,16 @@ export class SearchFederator {
 
     if (activeProviders.length === 0) return [];
 
+    const finalQuery = this.getMediaFilterQuery(query);
+
     // Fetch from all active providers concurrently
     const promises = activeProviders.map(p => 
-      p.search(query, page)
-        .then(res => {
+      p.search(finalQuery, page)
+        .then(async res => {
           const filtered = this.filterAdult(res);
-          if (onChunk && filtered.length > 0) onChunk(filtered);
-          return filtered;
+          const prioritized = await this.filterExclusions(filtered);
+          if (onChunk && prioritized.length > 0) onChunk(prioritized);
+          return prioritized;
         })
         .catch((e: any) => {
           console.warn(`[SearchFederator] Provider ${p.id} timed out or failed gracefully: ${e.message}`);
@@ -76,18 +125,26 @@ export class SearchFederator {
     const activeProviders = await this.getActiveProviders();
     if (activeProviders.length === 0) return [];
     
-    const promises = activeProviders.map(p => 
-      p.getLatest(page)
-        .then(res => {
+    const { globalMediaFilter } = useSettingsStore.getState();
+    const isAnimatedFilter = globalMediaFilter === 'video' || globalMediaFilter === 'gif';
+
+    const promises = activeProviders.map(p => {
+      const fetchPromise = isAnimatedFilter 
+        ? p.search(this.getMediaFilterQuery(), page)
+        : p.getLatest(page);
+
+      return fetchPromise
+        .then(async res => {
           const filtered = this.filterAdult(res);
-          if (onChunk && filtered.length > 0) onChunk(filtered);
-          return filtered;
+          const prioritized = await this.filterExclusions(filtered);
+          if (onChunk && prioritized.length > 0) onChunk(prioritized);
+          return prioritized;
         })
         .catch((e: any) => {
           console.warn(`[SearchFederator] Latest provider ${p.id} timed out or failed gracefully: ${e.message}`);
           return [];
         })
-    );
+    });
 
     const resultsArray = await Promise.all(promises);
     return onChunk ? resultsArray.flat() : this.interleaveResults(resultsArray);
@@ -97,47 +154,103 @@ export class SearchFederator {
     const activeProviders = await this.getActiveProviders();
     if (activeProviders.length === 0) return [];
 
-    let discoveryTags = [];
+    let discoveryTags: string[] = [];
+    let blockedTags: string[] = [];
     try {
       const { getDb } = await import("../services/db");
       const db = getDb();
-      const favs = await db.select<{tag: string}>("SELECT tag FROM FavoriteTags ORDER BY RANDOM() LIMIT 3");
-      discoveryTags = favs.map(f => f.tag);
+      const { useSettingsStore } = await import("../stores/useSettingsStore");
+      const mode = useSettingsStore.getState().recommendationMode;
+
+      // Pull implicit interests (tags the engine thinks you like based on viewing habits)
+      const interests = await db.select<{name: string}>(`
+        SELECT name FROM UserInterests 
+        ORDER BY isPinned DESC, score DESC, RANDOM() 
+        LIMIT 4
+      `);
+      
+      // Pull explicit favorites (tags you've explicitly starred)
+      const favs = await db.select<{tag: string}>(`
+        SELECT tag FROM FavoriteTags 
+        ORDER BY RANDOM() 
+        LIMIT 4
+      `);
+
+      let combinedTags: string[] = [];
+      if (mode === 'strict_favorites') {
+        combinedTags = favs.map(f => f.tag);
+      } else if (mode === 'strict_interests') {
+        combinedTags = interests.map(i => i.name);
+      } else {
+        // dynamic
+        combinedTags = Array.from(new Set([
+          ...favs.map(f => f.tag),
+          ...interests.map(i => i.name)
+        ]));
+      }
+      
+      // Shuffle and pick up to 4 tags to search concurrently
+      discoveryTags = combinedTags
+        .sort(() => 0.5 - Math.random())
+        .slice(0, 4);
+
+      if (discoveryTags.length === 0) {
+        // Fallback to random popular tags if no interests exist
+        discoveryTags = ["genshin_impact", "honkai_star_rail", "original"];
+      }
+      const { useGalleryStore } = await import("../stores/useGalleryStore");
+      blockedTags = useGalleryStore.getState().blockedTags;
     } catch (e) {
-      console.warn("Failed to load favorite tags for curation", e);
+      console.warn("Failed to load interests for curation", e);
     }
 
     if (discoveryTags.length === 0) {
       return this.getLatest(page, onChunk);
     }
 
-    // Try finding images with ALL the selected favorite tags (e.g. 3 tags)
-    // If it fails or returns 0 results, gradually reduce the tags.
-    for (let numTags = discoveryTags.length; numTags > 0; numTags--) {
-      const currentTags = discoveryTags.slice(0, numTags);
-      
-      const promises = activeProviders.map(p => 
-        p.search({ raw: currentTags.join(" "), positiveTags: currentTags, negativeTags: [], predicates: {} }, page)
-          .then(res => {
-            if (onChunk && res.length > 0) onChunk(res);
-            return res;
-          })
-          .catch((e: any) => {
-            console.warn(`[SearchFederator] Curated provider ${p.id} timed out or failed gracefully: ${e.message}`);
-            return [];
-          })
-      );
+    // for each tag across all providers, then interleave the results.
+    const allPromises: Promise<PlatformImage[]>[] = [];
 
-      const resultsArray = await Promise.all(promises);
-      const interleaved = onChunk ? resultsArray.flat() : this.interleaveResults(resultsArray);
-      
-      // If we found results, return them immediately
-      if (interleaved.length > 0) {
-        return interleaved;
-      }
+    discoveryTags.forEach(tag => {
+      activeProviders.forEach(p => {
+        const query = this.getMediaFilterQuery({ raw: tag, positiveTags: [tag], negativeTags: blockedTags, predicates: {} });
+        allPromises.push(
+          p.search(query, page)
+            .then(async res => {
+              const filtered = this.filterAdult(res);
+              const prioritized = await this.filterExclusions(filtered);
+              if (onChunk && prioritized.length > 0) onChunk(prioritized);
+              return prioritized;
+            })
+            .catch((e: any) => {
+              console.warn(`[SearchFederator] Curated provider ${p.id} timed out or failed gracefully: ${e.message}`);
+              return [];
+            })
+        );
+      });
+    });
+
+    const resultsArray = await Promise.all(allPromises);
+    const interleaved = onChunk ? resultsArray.flat() : this.interleaveResults(resultsArray);
+    
+    // Apply Recommendation Scoring and Strict Filtering
+    const { RecommendationEngine } = await import('./services/RecommendationEngine');
+    const { useSettingsStore } = await import('../stores/useSettingsStore');
+    const isStrict = useSettingsStore.getState().strictForYouMode;
+    const scored = await RecommendationEngine.scoreAndFilter(interleaved, isStrict);
+    
+    // Strip the "recommendation" extra data to return PlatformImage[]
+    const finalResults = scored.map(s => {
+       const img = { ...s };
+       delete (img as any).recommendation;
+       return img;
+    });
+
+    if (finalResults.length > 0) {
+      return finalResults;
     }
 
-    // If even 1 tag returns 0 results across all providers, just return latest
+    // Fallback if somehow everything fails
     return this.getLatest(page, onChunk);
   }
 
@@ -145,21 +258,73 @@ export class SearchFederator {
     const activeProviders = await this.getActiveProviders();
     if (activeProviders.length === 0) return [];
 
-    const promises = activeProviders.map(p => 
-      p.getDiscovery(page)
-        .then(res => {
+    const { globalMediaFilter } = useSettingsStore.getState();
+    const isAnimatedFilter = globalMediaFilter === 'video' || globalMediaFilter === 'gif';
+
+    const promises = activeProviders.map(p => {
+      const fetchPromise = isAnimatedFilter
+        ? p.search(this.getMediaFilterQuery(), page)
+        : p.getDiscovery(page);
+
+      return fetchPromise
+        .then(async res => {
           const filtered = this.filterAdult(res);
-          if (onChunk && filtered.length > 0) onChunk(filtered);
-          return filtered;
+          const prioritized = await this.filterExclusions(filtered);
+          if (onChunk && prioritized.length > 0) onChunk(prioritized);
+          return prioritized;
         })
         .catch(e => {
           console.warn(`[SearchFederator] Discovery provider ${p.id} timed out or failed gracefully:`, e);
           return [];
         })
-    );
+    });
 
     const resultsArray = await Promise.all(promises);
     return onChunk ? resultsArray.flat() : this.interleaveResults(resultsArray);
+  }
+
+  /**
+   * Autocomplete tags across active providers.
+   */
+  async autocompleteTags(query: string): Promise<string[]> {
+    if (!query || query.length < 2) return [];
+
+    const targetSourceMatch = query.match(/source:([a-zA-Z0-9_-]+)/);
+    let activeProviders: ImageProvider[] = [];
+
+    if (targetSourceMatch) {
+      const targetSource = targetSourceMatch[1];
+      const provider = this.providers.get(targetSource);
+      if (provider) {
+        const { useSettingsStore } = await import("../stores/useSettingsStore");
+        if (useSettingsStore.getState().isSourceEnabled(provider.id)) {
+          activeProviders.push(provider);
+        }
+      }
+    } else {
+      activeProviders = await this.getActiveProviders();
+    }
+
+    if (activeProviders.length === 0) return [];
+
+    // Extract the last word being typed as the query
+    const terms = query.split(/[ ,+]+/);
+    const lastTerm = terms[terms.length - 1];
+    if (!lastTerm || lastTerm.includes(':')) return [];
+
+    const promises = activeProviders.map(p => 
+      p.autocompleteTags(lastTerm)
+        .catch((e: any) => {
+          console.warn(`[SearchFederator] Autocomplete failed for ${p.id}:`, e);
+          return [] as string[];
+        })
+    );
+
+    const resultsArray = await Promise.all(promises);
+    const allTags = resultsArray.flat();
+    
+    // Deduplicate and return top 10
+    return [...new Set(allTags)].slice(0, 10);
   }
 
   /**
@@ -187,6 +352,8 @@ import { DanbooruProvider } from "./providers/DanbooruProvider";
 import { Rule34Provider } from "./providers/Rule34Provider";
 import { SankakuProvider } from "./providers/SankakuProvider";
 import { NekosProvider } from "./providers/NekosProvider";
+import { KonachanProvider } from "./providers/KonachanProvider";
+import { ZerochanProvider } from "./providers/ZerochanProvider";
 
 // Singleton instance for easy application-wide access
 export const federator = new SearchFederator();
@@ -195,4 +362,6 @@ federator.registerProvider(new DanbooruProvider());
 federator.registerProvider(new Rule34Provider());
 federator.registerProvider(new SankakuProvider());
 federator.registerProvider(new NekosProvider());
+federator.registerProvider(new KonachanProvider());
+federator.registerProvider(new ZerochanProvider());
 

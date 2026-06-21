@@ -44,6 +44,8 @@
     "shell:allow-open",
     "core:window:allow-set-fullscreen",
     "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-is-maximized",
     "core:window:allow-minimize",
     "core:window:allow-close",
     "core:window:allow-set-size",

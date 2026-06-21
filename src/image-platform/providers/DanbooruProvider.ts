@@ -64,6 +64,29 @@ export class DanbooruProvider extends BaseProvider {
     return this.search({ raw: baseTags.join(" "), positiveTags: baseTags, negativeTags: [], predicates: {} }, page);
   }
 
+  async autocompleteTags(query: string): Promise<string[]> {
+    if (!query || query.length < 2) return [];
+    
+    // Danbooru autocomplete allows wildcard at the end
+    const url = `https://danbooru.donmai.us/tags.json?search[name_matches]=*${encodeURIComponent(query)}*&limit=10`;
+    
+    try {
+      const data = await this.fetchJson<any>(url);
+      if (!Array.isArray(data)) return [];
+      
+      return data.map(tag => {
+        const tagName = tag.name;
+        if (tag.category === 1) return `artist:${tagName}`;
+        if (tag.category === 3) return `series:${tagName}`;
+        if (tag.category === 4) return `character:${tagName}`;
+        return tagName;
+      }).filter(Boolean);
+    } catch (e) {
+      console.warn("[DanbooruProvider] autocomplete failed", e);
+      return [];
+    }
+  }
+
   async getById(id: string): Promise<PlatformImage | null> {
     try {
       const url = `https://danbooru.donmai.us/posts/${id}.json`;

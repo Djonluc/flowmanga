@@ -77,7 +77,7 @@ export class Rule34Provider extends BaseProvider {
           id: `${this.id}-${post.id}`,
           sourceId: post.id.toString(),
           providerId: this.id,
-          thumbnailUrl: previewUrl,
+          thumbnailUrl: sampleUrl, // Use sampleUrl instead of previewUrl for sharper thumbnails
           sampleUrl: sampleUrl,
           fullUrl: fileUrl,
           width: post.width,
@@ -107,5 +107,21 @@ export class Rule34Provider extends BaseProvider {
       negativeTags: [],
       predicates: {}
     }, page);
+  }
+
+  async autocompleteTags(query: string): Promise<string[]> {
+    if (!query || query.length < 2) return [];
+    
+    const url = `https://api.rule34.xxx/autocomplete.php?q=${encodeURIComponent(query)}`;
+    
+    try {
+      const data = await this.fetchJson<any>(url);
+      if (!Array.isArray(data)) return [];
+      
+      return data.map(item => item.value).filter(Boolean);
+    } catch (e) {
+      console.warn("[Rule34Provider] autocomplete failed", e);
+      return [];
+    }
   }
 }

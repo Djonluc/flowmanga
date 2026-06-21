@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import clsx from 'clsx';
 import { useImageEngineStore } from '../useImageEngineStore';
 import { useSlideshowStore } from '../useSlideshowStore';
 import { useImageCollectionStore } from '../useImageCollectionStore';
@@ -7,6 +8,7 @@ import { ImageDetailModal } from './ImageDetailModal';
 import { MyCollectionTab } from './MyCollectionTab';
 import { PlaylistsTab } from './PlaylistsTab';
 import { ForYouHeader } from './ForYouHeader';
+import { TagDescription } from './TagDescription';
 import { Search, Play, Pause, FastForward, Rewind, Shuffle, Repeat, Loader2 } from 'lucide-react';
 import { getDb } from '../../services/db';
 import { useMediaLoader } from '../../hooks/useMediaLoader';
@@ -60,23 +62,29 @@ const SlideshowMedia = ({ image, isPaused }: { image: PlatformImage; isPaused: b
 
   if (isVideo) {
     return (
-      <video 
-        src={src || ""}
-        autoPlay
-        loop
-        muted={!isPaused}
-        controls={isPaused}
-        className="max-w-full max-h-[85vh] object-contain select-none animate-fade-in"
-      />
+      <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+        {src && <img src={image.thumbnailUrl || image.sampleUrl || ""} className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-40 scale-125 pointer-events-none saturate-150" alt="" />}
+        <video 
+          src={src || ""}
+          autoPlay
+          loop
+          muted={!isPaused}
+          controls={isPaused}
+          className="w-full h-full object-contain select-none animate-fade-in relative z-10"
+        />
+      </div>
     );
   }
 
   return (
-    <img 
-      src={src || ""}
-      className="max-w-full max-h-[85vh] object-contain select-none animate-fade-in"
-      alt="Slideshow slide"
-    />
+    <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+      {src && <img src={src} className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-40 scale-125 pointer-events-none saturate-150" alt="" />}
+      <img 
+        src={src || ""}
+        className="w-full h-full object-contain select-none animate-fade-in relative z-10"
+        alt="Slideshow slide"
+      />
+    </div>
   );
 };
 
@@ -163,21 +171,58 @@ export const ImageCollectionDashboard = () => {
     if (!slideshow.isActive) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') {
+      if (e.key === 'ArrowLeft' || e.code === 'KeyA' || e.key.toLowerCase() === 'a') {
         slideshow.prev();
-      } else if (e.key === 'ArrowRight') {
+      } else if (e.key === 'ArrowRight' || e.code === 'KeyD' || e.key.toLowerCase() === 'd') {
         slideshow.next();
       } else if (e.key === ' ') {
         e.preventDefault();
         slideshow.togglePause();
       } else if (e.key === 'Escape') {
         slideshow.stop();
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(err => console.log(err));
+        }
+      } else if (e.code === 'KeyW' || e.key.toLowerCase() === 'w') {
+        useSlideshowStore.getState().setInterval(Math.max(1000, useSlideshowStore.getState().intervalMs - 1000));
+      } else if (e.code === 'KeyS' || e.key.toLowerCase() === 's') {
+        useSlideshowStore.getState().setInterval(Math.min(60000, useSlideshowStore.getState().intervalMs + 1000));
+      } else if (e.code === 'KeyF' || e.key.toLowerCase() === 'f') {
+        if (!document.fullscreenElement) {
+          document.getElementById('slideshow-container')?.requestFullscreen().catch(err => console.log(err));
+        } else {
+          document.exitFullscreen().catch(err => console.log(err));
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [slideshow.isActive, slideshow.next, slideshow.prev, slideshow.togglePause, slideshow.stop]);
+
+  const [showSlideshowControls, setShowSlideshowControls] = useState(true);
+
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+    
+    const handleMouseMove = () => {
+      setShowSlideshowControls(true);
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setShowSlideshowControls(false);
+      }, 1500);
+    };
+
+    if (slideshow.isActive) {
+      window.addEventListener('mousemove', handleMouseMove);
+      timeoutId = setTimeout(() => setShowSlideshowControls(false), 1500);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      clearTimeout(timeoutId);
+    };
+  }, [slideshow.isActive]);
 
   return (
     <div className="w-full h-full flex flex-col bg-background relative">
@@ -274,10 +319,14 @@ export const ImageCollectionDashboard = () => {
                   if (tab.id === "collection" || tab.id === "playlists") setRefreshKey(prev => prev + 1);
                 } else {
                   setActiveTab(tab.id as DashboardTab);
+                  if (tab.id !== "collection" && tab.id !== "playlists") {
+                    const mappedMode = tab.id === "new" ? "latest" : tab.id === "foryou" ? "curated" : tab.id;
+                    useImageEngineStore.setState({ fetchMode: mappedMode as any });
+                  }
                 }
               }}
               className={`pb-2 px-1 border-b-2 font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === tab.id ? 'border-accent text-accent' : 'border-transparent text-foreground-muted hover:text-foreground hover:border-white/20'}`}
-              title={activeTab === tab.id ? "Click again to refresh" : ""}
+              title={activeTab === tab.id ? "Click again to force refresh" : ""}
             >
               {tab.label}
               {activeTab === tab.id && (
@@ -293,32 +342,66 @@ export const ImageCollectionDashboard = () => {
       <div className="flex-1 overflow-hidden relative flex flex-col">
         {activeTab === "foryou" && <ForYouHeader />}
         
-        {activeTab === "new" || activeTab === "foryou" || activeTab === "discover" || activeTab === "search" ? (
+        <div className={clsx("flex-1 overflow-hidden", activeTab === "new" ? "block" : "hidden")}>
           <MasonryGrid 
-            images={images} 
+            feedType="latest"
+            images={store.feeds.latest.images} 
             columns={5}
             onImageClick={(_, index) => {
-              setModalImages(null);
+              setModalImages(store.feeds.latest.images);
               setSelectedImageIndex(index);
             }}
-            onImageDoubleClick={(_, index) => {
-              slideshow.start(index, images);
-              useSlideshowStore.setState({ isPaused: true }); // Open in paused state for viewer
+          />
+        </div>
+
+        <div className={clsx("flex-1 overflow-hidden", activeTab === "foryou" ? "block" : "hidden")}>
+          <MasonryGrid 
+            feedType="curated"
+            images={store.feeds.curated.images} 
+            columns={5}
+            onImageClick={(_, index) => {
+              setModalImages(store.feeds.curated.images);
+              setSelectedImageIndex(index);
             }}
           />
-        ) : activeTab === "collection" ? (
+        </div>
+
+        <div className={clsx("flex-1 overflow-hidden", activeTab === "discover" ? "block" : "hidden")}>
+          <MasonryGrid 
+            feedType="discover"
+            images={store.feeds.discover.images} 
+            columns={5}
+            onImageClick={(_, index) => {
+              setModalImages(store.feeds.discover.images);
+              setSelectedImageIndex(index);
+            }}
+          />
+        </div>
+
+        <div className={clsx("flex-1 overflow-hidden", activeTab === "search" ? "block" : "hidden")}>
+          <MasonryGrid 
+            feedType="search"
+            header={currentQuery ? <TagDescription query={currentQuery} /> : undefined}
+            images={store.feeds.search.images} 
+            columns={5}
+            onImageClick={(_, index) => {
+              setModalImages(store.feeds.search.images);
+              setSelectedImageIndex(index);
+            }}
+          />
+        </div>
+
+        {activeTab === "collection" && (
           <MyCollectionTab 
             key={refreshKey}
             onImageClick={(_, index, contextImages) => {
               setModalImages(contextImages);
               setSelectedImageIndex(index);
             }}
-            onImageDoubleClick={(_, index, contextImages) => {
-              slideshow.start(index, contextImages);
-              useSlideshowStore.setState({ isPaused: true });
-            }}
           />
-        ) : activeTab === "playlists" ? (
+        )}
+
+        {activeTab === "playlists" && (
           <PlaylistsTab 
             key={refreshKey}
             onPlay={(query) => {
@@ -327,7 +410,7 @@ export const ImageCollectionDashboard = () => {
               store.search(query);
             }} 
           />
-        ) : null}
+        )}
       </div>
 
       {/* Image Detail Modal */}
@@ -356,9 +439,31 @@ export const ImageCollectionDashboard = () => {
 
       {/* Fullscreen Slideshow Overlay */}
       {slideshow.isActive && (
-        <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center">
-          <div className="absolute top-6 right-6 z-50">
-            <button onClick={slideshow.stop} className="px-6 py-2 bg-red-500/20 text-red-400 font-black uppercase tracking-widest rounded-full hover:bg-red-500/40 transition-all">Close</button>
+        <div id="slideshow-container" className={`fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center ${showSlideshowControls ? 'cursor-default' : 'cursor-none'}`}>
+          <div className={`absolute top-6 right-6 z-[110] flex items-center gap-2 transition-opacity duration-500 ${showSlideshowControls ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+            <button 
+              onClick={() => {
+                if (!document.fullscreenElement) {
+                  document.getElementById('slideshow-container')?.requestFullscreen().catch(err => console.log(err));
+                } else {
+                  document.exitFullscreen().catch(err => console.log(err));
+                }
+              }} 
+              className="px-4 py-1.5 bg-black/40 hover:bg-black/60 border border-white/10 text-foreground font-black text-xs uppercase tracking-widest rounded-full transition-all backdrop-blur-md"
+            >
+              Fullscreen (F)
+            </button>
+            <button 
+              onClick={() => {
+                slideshow.stop();
+                if (document.fullscreenElement) {
+                  document.exitFullscreen().catch(err => console.log(err));
+                }
+              }} 
+              className="px-4 py-1.5 bg-red-500/20 text-red-400 font-black text-xs uppercase tracking-widest rounded-full hover:bg-red-500/40 transition-all backdrop-blur-md"
+            >
+              Close
+            </button>
           </div>
           
           {slideshow.isActive && slideshow.images[slideshow.currentIndex] && (
@@ -368,19 +473,19 @@ export const ImageCollectionDashboard = () => {
             />
           )}
 
-          <div className="absolute bottom-10 flex items-center gap-6 px-8 py-4 bg-black/60 backdrop-blur-xl rounded-full border border-white/10 z-50">
-            <button onClick={slideshow.prev} className="p-3 hover:bg-white/10 rounded-full text-foreground transition-all"><Rewind size={24} /></button>
-            <button onClick={slideshow.togglePause} className="p-4 bg-accent hover:bg-accent-hover text-white rounded-full shadow-[0_0_20px_rgba(99,102,241,0.4)] transition-all">
-              {slideshow.isPaused ? <Play fill="currentColor" /> : <Pause fill="currentColor" />}
+          <div className={`absolute bottom-10 flex items-center gap-4 px-6 py-2 bg-black/60 backdrop-blur-xl rounded-full border border-white/10 z-[110] transition-opacity duration-500 ${showSlideshowControls ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+            <button onClick={slideshow.prev} className="p-2 hover:bg-white/10 rounded-full text-foreground transition-all"><Rewind size={20} /></button>
+            <button onClick={slideshow.togglePause} className="p-3 bg-accent hover:bg-accent-hover text-white rounded-full shadow-[0_0_15px_rgba(99,102,241,0.4)] transition-all">
+              {slideshow.isPaused ? <Play size={16} fill="currentColor" /> : <Pause size={16} fill="currentColor" />}
             </button>
-            <button onClick={slideshow.next} className="p-3 hover:bg-white/10 rounded-full text-foreground transition-all"><FastForward size={24} /></button>
+            <button onClick={slideshow.next} className="p-2 hover:bg-white/10 rounded-full text-foreground transition-all"><FastForward size={20} /></button>
             
-            <div className="w-px h-8 bg-white/20 mx-2" />
+            <div className="w-px h-6 bg-white/20 mx-1" />
             
-            <button onClick={() => useSlideshowStore.setState({ shuffle: !slideshow.shuffle })} className={`p-3 rounded-full transition-all ${slideshow.shuffle ? 'text-accent bg-accent/20' : 'text-foreground hover:bg-white/10'}`}><Shuffle size={20} /></button>
-            <button onClick={() => useSlideshowStore.setState({ loop: !slideshow.loop })} className={`p-3 rounded-full transition-all ${slideshow.loop ? 'text-accent bg-accent/20' : 'text-foreground hover:bg-white/10'}`}><Repeat size={20} /></button>
+            <button onClick={() => useSlideshowStore.setState({ shuffle: !slideshow.shuffle })} className={`p-2 rounded-full transition-all ${slideshow.shuffle ? 'text-accent bg-accent/20' : 'text-foreground hover:bg-white/10'}`}><Shuffle size={16} /></button>
+            <button onClick={() => useSlideshowStore.setState({ loop: !slideshow.loop })} className={`p-2 rounded-full transition-all ${slideshow.loop ? 'text-accent bg-accent/20' : 'text-foreground hover:bg-white/10'}`}><Repeat size={16} /></button>
             
-            <div className="w-px h-8 bg-white/20 mx-2" />
+            <div className="w-px h-6 bg-white/20 mx-1" />
             
             {/* Info Toggle */}
             <button 
@@ -388,7 +493,7 @@ export const ImageCollectionDashboard = () => {
                 const el = document.getElementById('slideshow-info-overlay');
                 if (el) el.classList.toggle('hidden');
               }}
-              className="p-3 rounded-full transition-all text-foreground hover:bg-white/10 border border-transparent"
+              className="p-2 text-xs rounded-full transition-all text-foreground hover:bg-white/10 border border-transparent"
               title="Toggle Info Overlay"
             >
               Info
@@ -408,7 +513,7 @@ export const ImageCollectionDashboard = () => {
           
           {/* Info Overlay */}
           {slideshow.images[slideshow.currentIndex] && (
-            <div id="slideshow-info-overlay" className="hidden absolute top-6 left-6 max-w-sm p-4 bg-black/50 backdrop-blur-md border border-white/10 rounded-xl pointer-events-none text-white shadow-2xl z-40">
+            <div id="slideshow-info-overlay" className={`hidden absolute top-6 left-6 max-w-sm p-4 bg-black/50 backdrop-blur-md border border-white/10 rounded-xl pointer-events-none text-white shadow-2xl z-[110] transition-opacity duration-500 ${showSlideshowControls ? 'opacity-100' : 'opacity-0'}`}>
               <div className="flex flex-col gap-1">
                 <span className="text-xs font-black uppercase tracking-widest text-accent mb-1">{slideshow.images[slideshow.currentIndex].providerId}</span>
                 <span className="font-bold">{slideshow.images[slideshow.currentIndex].width} × {slideshow.images[slideshow.currentIndex].height}</span>

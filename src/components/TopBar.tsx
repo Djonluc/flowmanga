@@ -84,7 +84,7 @@ export const TopBar = () => {
             </div>
 
             {/* Actions Section */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
                 <TopBarButton 
                     icon={<Plus size={20} />} 
                     title="Manifest Source" 
@@ -108,7 +108,7 @@ export const TopBar = () => {
                     active={isChecking}
                 />
                 
-                <div className="w-px h-8 bg-white/5 mx-3" />
+                <div className="w-px h-8 bg-white/5 mx-2" />
                 
                 {/* Download Indicator */}
                 <button 
