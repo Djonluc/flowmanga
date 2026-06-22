@@ -11,16 +11,17 @@ import type {
   ReaderMode,
   SourceSearchResult,
 } from "../types";
+import { useSettingsStore } from "../../../stores/useSettingsStore";
 
 export class WebNovelProvider implements SourceProvider {
   readonly id = "webnovel";
   readonly name = "WebNovel";
   readonly domains = ["webnovel.com"];
-  readonly contentType: ContentType = "manga"; // Explicitly manga/comic only
+  readonly contentType: ContentType = "novel";
   readonly mediaDomain: MediaDomain = "manga";
-  readonly mediaTypes: MediaType[] = ["image"];
+  readonly mediaTypes: MediaType[] = ["image", "text"];
   readonly defaultPersistence = "library" as const;
-  readonly readerModes: ReaderMode[] = ["paged", "continuous"];
+  readonly readerModes: ReaderMode[] = ["vertical", "single"];
 
   readonly capabilities: SourceCapabilities = {
     search: true,
@@ -28,7 +29,9 @@ export class WebNovelProvider implements SourceProvider {
     seriesBrowse: true,
     chapterFeed: false,
     pagination: false,
-    authentication: false,
+    authentication: true,
+    requiresCookies: true,
+    authUrl: "https://www.webnovel.com/",
   };
 
   matchesUrl(url: string): boolean {
@@ -37,6 +40,20 @@ export class WebNovelProvider implements SourceProvider {
 
   private namemodifier(str: string): string {
     return str.replace(/[\\/:*?"<>|?]/g, "").trim();
+  }
+
+  private getAuthHeaders(): Record<string, string> {
+    const auth = useSettingsStore.getState().booruAuth?.[this.id];
+    const headers: Record<string, string> = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.5",
+      "Referer": "https://www.webnovel.com/"
+    };
+    if (auth?.sessionCookies) {
+      headers["Cookie"] = auth.sessionCookies.replace(/[^\x20-\x7E]/g, "").trim();
+    }
+    return headers;
   }
 
   async fetchSeries(url: string): Promise<SourceSeries> {
@@ -64,12 +81,7 @@ export class WebNovelProvider implements SourceProvider {
     try {
       catalogHtml = await invoke<string>("fetch_html", { 
         url: catalogUrl, 
-        headers: { 
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.5",
-          "Referer": "https://www.webnovel.com/"
-        } 
+        headers: this.getAuthHeaders()
       });
     } catch (e) {
       console.warn("[WebNovel] Failed to fetch catalog HTML via fetch_html, trying headless", e);
@@ -85,12 +97,7 @@ export class WebNovelProvider implements SourceProvider {
     try {
         mainHtml = await invoke<string>("fetch_html", { 
           url, 
-          headers: { 
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
-            "Referer": "https://www.webnovel.com/"
-          } 
+          headers: this.getAuthHeaders()
         });
     } catch (e) {
         console.warn("[WebNovel] Failed to fetch main HTML, trying headless", e);
@@ -202,12 +209,7 @@ export class WebNovelProvider implements SourceProvider {
     try {
         htmlText = await invoke<string>("fetch_html", { 
           url, 
-          headers: { 
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
-            "Referer": "https://www.webnovel.com/"
-          } 
+          headers: this.getAuthHeaders()
         });
     } catch (e) {
         console.warn("[WebNovel] fetch_html failed, falling back to headless", e);
@@ -228,12 +230,37 @@ export class WebNovelProvider implements SourceProvider {
         
         imgs.forEach(img => {
             const src = img.getAttribute("data-original") || img.getAttribute("data-src") || img.getAttribute("src") || "";
-            if (src.includes("comicpage") || src.includes("comic-image")) {
-                if (!imgUrls.includes(src)) {
-                    imgUrls.push(src);
+            // Broadened image matching for WebNovel comics
+            if (src.includes("comicpage") || src.includes("comic-image") || src.includes("comic") || src.includes("/comic/")) {
+                // Ensure it's not a generic UI icon
+                if (src.length > 30 && !src.includes("avatar") && !src.includes("logo") && !src.includes("icon")) {
+                    if (!imgUrls.includes(src)) {
+                        imgUrls.push(src);
+                    }
                 }
             }
         });
+    }
+
+    // Advanced Fallback: use robust headless scraper if DOM parsing yields nothing
+    if (imgUrls.length === 0) {
+        console.warn("[WebNovel] Fallback to robust scrape_images_headless for:", url);
+        try {
+            const headlessImages = await invoke<string[]>("scrape_images_headless", { 
+                url,
+                options: {
+                    scroll_iterations: 15,
+                    wait_after_scroll: 2000,
+                    selectors: ["img.pt-img", "img[class*='comic']", ".comic-page img", ".reader-page img"]
+                }
+            });
+            
+            if (headlessImages && headlessImages.length > 0) {
+                imgUrls = headlessImages;
+            }
+        } catch (e) {
+            console.error("[WebNovel] scrape_images_headless failed:", e);
+        }
     }
 
     if (imgUrls.length === 0) {
@@ -243,10 +270,7 @@ export class WebNovelProvider implements SourceProvider {
     return {
         images: imgUrls.map((url, i) => ({ url, pageNumber: i + 1 })),
         metadata: { 
-            sourceUrl: url,
-            headers: {
-                "Referer": "https://www.webnovel.com/"
-            }
+            sourceUrl: url
         }
     };
   }
@@ -268,12 +292,7 @@ export class WebNovelProvider implements SourceProvider {
       try {
           htmlText = await invoke<string>("fetch_html", { 
             url, 
-            headers: { 
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-              "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-              "Accept-Language": "en-US,en;q=0.5",
-              "Referer": "https://www.webnovel.com/"
-            } 
+            headers: this.getAuthHeaders()
           });
       } catch (e) {
           console.warn("[WebNovel] Discovery fetch_html failed, falling back to headless", e);

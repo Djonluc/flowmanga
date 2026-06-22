@@ -9,10 +9,11 @@ import { MyCollectionTab } from './MyCollectionTab';
 import { PlaylistsTab } from './PlaylistsTab';
 import { ForYouHeader } from './ForYouHeader';
 import { TagDescription } from './TagDescription';
-import { Search, Play, Pause, FastForward, Rewind, Shuffle, Repeat, Loader2 } from 'lucide-react';
+import { Search, Play, Pause, FastForward, Rewind, Shuffle, Repeat, Loader2, ChevronDown } from 'lucide-react';
 import { getDb } from '../../services/db';
 import { useMediaLoader } from '../../hooks/useMediaLoader';
 import { useSettingsStore } from '../../stores/useSettingsStore';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import type { PlatformImage } from '../types';
 
 const SlideshowMedia = ({ image, isPaused }: { image: PlatformImage; isPaused: boolean }) => {
@@ -25,6 +26,12 @@ const SlideshowMedia = ({ image, isPaused }: { image: PlatformImage; isPaused: b
     setSrc(null);
     setIsLoading(true);
     
+    if (image.localPath) {
+      setSrc(convertFileSrc(image.localPath));
+      setIsLoading(false);
+      return;
+    }
+
     const targetUrl = image.fullUrl || image.sampleUrl || image.thumbnailUrl || "";
     if (needsProxy(targetUrl)) {
       proxyViaTauri(targetUrl).then(url => {
@@ -58,7 +65,14 @@ const SlideshowMedia = ({ image, isPaused }: { image: PlatformImage; isPaused: b
     );
   }
 
-  const isVideo = image.fullUrl?.match(/\.(mp4|webm)(?:\?|$)/i) || image.sampleUrl?.match(/\.(mp4|webm)(?:\?|$)/i);
+  const isVideo = image.fullUrl?.match(/\.(mp4|webm)(?:\?|$)/i) || image.sampleUrl?.match(/\.(mp4|webm)(?:\?|$)/i) || image.localPath?.match(/\.(mp4|webm)(?:\?|$)/i);
+
+  useEffect(() => {
+    if (isVideo && src) {
+      useSlideshowStore.getState().pauseTimer();
+      return () => useSlideshowStore.getState().resumeTimer();
+    }
+  }, [isVideo, src]);
 
   if (isVideo) {
     return (
@@ -67,9 +81,9 @@ const SlideshowMedia = ({ image, isPaused }: { image: PlatformImage; isPaused: b
         <video 
           src={src || ""}
           autoPlay
-          loop
           muted={!isPaused}
           controls={isPaused}
+          onEnded={() => useSlideshowStore.getState().next()}
           className="w-full h-full object-contain select-none animate-fade-in relative z-10"
         />
       </div>
@@ -270,31 +284,38 @@ export const ImageCollectionDashboard = () => {
             Slideshow
           </button>
           
-          {currentQuery && (
-            <button 
-              onClick={handleSavePlaylist}
-              className="h-12 px-6 bg-surface hover:bg-surface-raised border border-border-subtle text-foreground-muted hover:text-foreground font-black uppercase tracking-widest rounded-xl transition-all"
-            >
-              Save Playlist
+          <div className="relative group/actions z-[100]">
+            <button className="h-12 px-6 bg-surface hover:bg-surface-raised border border-border-subtle text-foreground-muted hover:text-foreground font-black uppercase tracking-widest rounded-xl transition-all flex items-center gap-2">
+              Actions <ChevronDown size={14} />
             </button>
-          )}
-          <button 
-            onClick={async () => {
-              const { found, totalChecked } = await useImageCollectionStore.getState().recheckLocalFiles();
-              alert(`Checked ${totalChecked} files. Found and linked ${found} local downloads!`);
-            }}
-            className="h-12 px-6 bg-surface hover:bg-surface-raised border border-border-subtle text-foreground-muted hover:text-foreground font-black uppercase tracking-widest rounded-xl transition-all whitespace-nowrap"
-          >
-            Recheck Local Files
-          </button>
-          {searchInput && (
-            <button 
-              onClick={(e) => { e.preventDefault(); toggleFavoriteTag(searchInput.trim()); }}
-              className="h-12 px-6 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 border border-yellow-500/20 font-black uppercase tracking-widest rounded-xl transition-all"
-            >
-              {favoriteTags.includes(searchInput.trim()) ? "Unstar Tag" : "Star Tag"}
-            </button>
-          )}
+            <div className="absolute right-0 top-full mt-2 w-56 bg-surface-elevated border border-border-subtle rounded-xl shadow-xl flex flex-col overflow-hidden opacity-0 invisible group-hover/actions:opacity-100 group-hover/actions:visible transition-all scale-95 origin-top-right group-hover/actions:scale-100">
+              {currentQuery && (
+                <button 
+                  onClick={handleSavePlaylist}
+                  className="px-4 py-3 text-left hover:bg-surface-raised text-foreground-muted hover:text-foreground font-black text-xs uppercase tracking-widest transition-all border-b border-white/5"
+                >
+                  Save Playlist
+                </button>
+              )}
+              {searchInput && (
+                <button 
+                  onClick={(e) => { e.preventDefault(); toggleFavoriteTag(searchInput.trim()); }}
+                  className="px-4 py-3 text-left hover:bg-yellow-500/10 text-yellow-500 font-black text-xs uppercase tracking-widest transition-all border-b border-white/5"
+                >
+                  {favoriteTags.includes(searchInput.trim()) ? "Unstar Tag" : "Star Tag"}
+                </button>
+              )}
+              <button 
+                onClick={async () => {
+                  const { found, totalChecked } = await useImageCollectionStore.getState().recheckLocalFiles();
+                  alert(`Checked ${totalChecked} files. Found and linked ${found} local downloads!`);
+                }}
+                className="px-4 py-3 text-left hover:bg-surface-raised text-foreground-muted hover:text-foreground font-black text-xs uppercase tracking-widest transition-all"
+              >
+                Recheck Local Files
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Tabs Row */}

@@ -1,13 +1,12 @@
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useSettingsStore } from '../../stores/useSettingsStore';
-import { Trash2, Folder, Zap, Cpu, Gauge } from 'lucide-react';
+import { Trash2, Folder, Zap, Cpu, Gauge, ShieldAlert } from 'lucide-react';
 import { toast } from '../Toast';
 import clsx from 'clsx';
 
 export const DownloadSettings = () => {
     const { 
-        downloadPath, 
-        setDownloadPath, 
+        downloadPath, setDownloadPath, 
         maxConcurrentJobs, setMaxConcurrentJobs,
         maxConcurrentChapters, setMaxConcurrentChapters,
         maxConcurrentPages, setMaxConcurrentPages
@@ -25,151 +24,147 @@ export const DownloadSettings = () => {
                 toast.success("Download directory updated");
             }
         } catch (e) {
-            console.error(e);
             toast.error("Failed to update directory");
         }
     };
 
     return (
-        <div className="space-y-10 pb-12">
-            <section className="space-y-4">
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="w-1.5 h-6 bg-purple-500 rounded-full" />
-                    <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
-                        Storage Configuration
-                    </h4>
+        <div className="flex flex-col gap-8 pb-12 w-full max-w-5xl mx-auto">
+            {/* Header Area */}
+            <div className="flex items-center justify-between mb-2">
+                <div>
+                    <h2 className="text-3xl font-black text-foreground uppercase tracking-tighter">Manifestation Rules</h2>
+                    <p className="text-foreground-dim font-bold tracking-wide mt-1">Configure networking concurrency and temporary storage.</p>
                 </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 
-                <div className="group bg-white/5 p-6 rounded-[32px] border border-white/5 hover:border-purple-500/20 transition-all duration-500">
-                    <div className="flex items-center justify-between gap-6">
-                        <div className="flex items-center gap-5 overflow-hidden">
-                            <div className="w-14 h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform duration-500">
-                                <Folder size={28} />
+                {/* Temporary Storage Directory */}
+                <div className="glass-panel p-6 rounded-[32px] border border-border-subtle relative overflow-hidden group lg:col-span-2">
+                    <div className="absolute top-0 right-0 w-48 h-48 bg-purple-500/10 blur-[60px] rounded-full pointer-events-none group-hover:bg-purple-500/20 transition-colors" />
+                    
+                    <div className="flex items-start justify-between relative z-10">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-500">
+                                <Folder size={24} />
                             </div>
-                            <div className="flex flex-col min-w-0">
-                                <span className="text-purple-500 text-[10px] font-black uppercase tracking-widest mb-1">Download Directory</span>
-                                <span className="text-foreground text-base font-bold truncate opacity-80" title={downloadPath || 'Default (Library)'}>
-                                    {downloadPath || 'Same as Library'}
-                                </span>
-                                <p className="text-foreground-muted text-[10px] font-medium mt-1">Where temporary and final downloads are staged.</p>
+                            <div>
+                                <h3 className="text-foreground font-black text-lg">Staging Directory</h3>
+                                <p className="text-purple-400 text-[10px] font-bold uppercase tracking-widest">Temporary Download Cache</p>
                             </div>
                         </div>
+                    </div>
+                    
+                    <div className="mt-6 bg-black/20 rounded-2xl p-4 border border-white/5 relative z-10">
+                        <p className="text-foreground-dim text-xs font-mono break-all line-clamp-2">
+                            {downloadPath || 'Default (Same as Library)'}
+                        </p>
+                    </div>
+
+                    <div className="mt-4 flex gap-3 relative z-10">
                         <button 
                             onClick={handleBrowseDownloads}
-                            className="px-6 py-3 bg-white/5 hover:bg-white/10 text-foreground border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 whitespace-nowrap"
+                            className="flex-1 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-purple-500/20"
                         >
                             Change Location
                         </button>
                     </div>
                 </div>
-            </section>
 
-            {/* Global Concurrency */}
-            <section className="space-y-4">
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="w-1.5 h-6 bg-blue-500 rounded-full" />
-                    <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
-                        Concurrency & Performance
-                    </h4>
-                </div>
+                {/* Concurrency Settings Grid */}
+                <div className="glass-panel p-6 rounded-[32px] border border-border-subtle relative overflow-hidden lg:col-span-2">
+                    <div className="absolute -top-20 -right-20 w-64 h-64 bg-blue-500/10 blur-[80px] rounded-full pointer-events-none" />
+                    <div className="flex items-center gap-4 mb-8 relative z-10">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500">
+                            <Zap size={24} />
+                        </div>
+                        <div>
+                            <h3 className="text-foreground font-black text-lg">Concurrency Engine</h3>
+                            <p className="text-blue-400 text-[10px] font-bold uppercase tracking-widest">Network Performance</p>
+                        </div>
+                    </div>
 
-                <div className="grid grid-cols-1 gap-6">
-                    <div className="bg-white/5 p-8 rounded-[32px] border border-white/5 space-y-8">
-                        {/* Jobs */}
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
-                                        <Zap size={18} />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-foreground text-sm font-bold uppercase tracking-wider">Parallel Series</span>
-                                        <span className="text-foreground-dim text-[10px] font-medium">How many manga can download at once.</span>
-                                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
+                        {/* Max Series */}
+                        <div className="bg-surface-elevated p-5 rounded-2xl border border-border-subtle hover:border-blue-500/30 transition-colors">
+                            <div className="flex justify-between items-center mb-6">
+                                <div className="flex items-center gap-3">
+                                    <Zap size={16} className="text-blue-500" />
+                                    <h4 className="text-foreground font-bold text-sm uppercase tracking-wide">Parallel Series</h4>
                                 </div>
-                                <span className="text-lg font-black text-blue-500 italic tabular-nums">{maxConcurrentJobs}</span>
+                                <span className="text-xl font-black text-blue-400 italic">{maxConcurrentJobs}</span>
                             </div>
                             <input 
-                                type="range" min="1" max="5" step="1"
-                                value={maxConcurrentJobs}
+                                type="range" min="1" max="5" step="1" value={maxConcurrentJobs}
                                 onChange={(e) => setMaxConcurrentJobs(parseInt(e.target.value))}
-                                className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
+                                className="w-full h-2 bg-black/40 rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:rounded-full cursor-pointer shadow-inner"
                             />
+                            <p className="text-foreground-dim text-[9px] font-bold uppercase tracking-widest mt-3">Manga downloading at once</p>
                         </div>
 
-                        {/* Chapters */}
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500">
-                                        <Cpu size={18} />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-foreground text-sm font-bold uppercase tracking-wider">Parallel Chapters</span>
-                                        <span className="text-foreground-dim text-[10px] font-medium">Chapters per manga processed simultaneously.</span>
-                                    </div>
+                        {/* Max Chapters */}
+                        <div className="bg-surface-elevated p-5 rounded-2xl border border-border-subtle hover:border-purple-500/30 transition-colors">
+                            <div className="flex justify-between items-center mb-6">
+                                <div className="flex items-center gap-3">
+                                    <Cpu size={16} className="text-purple-500" />
+                                    <h4 className="text-foreground font-bold text-sm uppercase tracking-wide">Parallel Chapters</h4>
                                 </div>
-                                <span className="text-lg font-black text-purple-500 italic tabular-nums">{maxConcurrentChapters}</span>
+                                <span className="text-xl font-black text-purple-400 italic">{maxConcurrentChapters}</span>
                             </div>
                             <input 
-                                type="range" min="1" max="10" step="1"
-                                value={maxConcurrentChapters}
+                                type="range" min="1" max="10" step="1" value={maxConcurrentChapters}
                                 onChange={(e) => setMaxConcurrentChapters(parseInt(e.target.value))}
-                                className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-purple-500"
+                                className="w-full h-2 bg-black/40 rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-purple-500 [&::-webkit-slider-thumb]:rounded-full cursor-pointer shadow-inner"
                             />
+                            <p className="text-foreground-dim text-[9px] font-bold uppercase tracking-widest mt-3">Chapters per manga</p>
                         </div>
 
-                        {/* Pages */}
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
-                                        <Gauge size={18} />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-foreground text-sm font-bold uppercase tracking-wider">Parallel Pages</span>
-                                        <span className="text-foreground-dim text-[10px] font-medium">Images per chapter downloaded simultaneously.</span>
-                                    </div>
+                        {/* Max Pages */}
+                        <div className="bg-surface-elevated p-5 rounded-2xl border border-border-subtle hover:border-emerald-500/30 transition-colors">
+                            <div className="flex justify-between items-center mb-6">
+                                <div className="flex items-center gap-3">
+                                    <Gauge size={16} className="text-emerald-500" />
+                                    <h4 className="text-foreground font-bold text-sm uppercase tracking-wide">Parallel Pages</h4>
                                 </div>
-                                <span className="text-lg font-black text-emerald-500 italic tabular-nums">{maxConcurrentPages}</span>
+                                <span className="text-xl font-black text-emerald-400 italic">{maxConcurrentPages}</span>
                             </div>
                             <input 
-                                type="range" min="1" max="20" step="1"
-                                value={maxConcurrentPages}
+                                type="range" min="1" max="20" step="1" value={maxConcurrentPages}
                                 onChange={(e) => setMaxConcurrentPages(parseInt(e.target.value))}
-                                className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-emerald-500"
+                                className="w-full h-2 bg-black/40 rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-emerald-500 [&::-webkit-slider-thumb]:rounded-full cursor-pointer shadow-inner"
                             />
+                            <p className="text-foreground-dim text-[9px] font-bold uppercase tracking-widest mt-3">Images per chapter</p>
                         </div>
                     </div>
                 </div>
-            </section>
 
-             <section className="space-y-4">
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="w-1.5 h-6 bg-red-500 rounded-full" />
-                    <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
-                        Maintenance
-                    </h4>
-                </div>
-                
-                 <div className="bg-red-500/5 p-8 rounded-[32px] border border-red-500/10 flex items-center justify-between">
-                    <div className="flex flex-col gap-1">
-                        <span className="text-foreground font-bold uppercase tracking-wide">Clear Download Cache</span>
-                        <span className="text-foreground-dim text-[10px] font-medium">Removes temporary files. Does not delete chapters.</span>
+                {/* Clear Cache */}
+                <div className="glass-panel p-6 rounded-[32px] border border-red-500/20 bg-red-500/5 relative overflow-hidden lg:col-span-2 flex items-center justify-between group">
+                    <div className="flex items-center gap-4 relative z-10">
+                        <div className="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-500">
+                            <ShieldAlert size={24} />
+                        </div>
+                        <div>
+                            <h3 className="text-foreground font-black text-lg text-red-100">Clear Download Cache</h3>
+                            <p className="text-red-400 text-[10px] font-bold uppercase tracking-widest">Removes temporary fragments. Does not delete chapters.</p>
+                        </div>
                     </div>
                     <button 
-                        className="px-6 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2"
                         onClick={() => {
                             if (window.confirm('Clear temporary download cache?')) {
                                 toast.success("Cache cleared");
                             }
                         }}
+                        className="px-6 py-3 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative z-10"
                     >
-                        <Trash2 size={16} />
-                        Clear Cache
+                        <span className="flex items-center gap-2">
+                            <Trash2 size={14} /> Obliterate
+                        </span>
                     </button>
                 </div>
-            </section>
+
+            </div>
         </div>
     );
 };

@@ -102,7 +102,7 @@ export const Sidebar = () => {
       label: "Downloads",
       view: "downloads" as const,
     },
-    { icon: <Clock size={20} />, label: "History", view: "history" as const },
+
     {
       icon: <Heart size={20} />,
       label: "Favorites",

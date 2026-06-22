@@ -137,12 +137,12 @@ export const Reader = () => {
 
   // Update Reading Progress in Data Store when Reader V2 page changes
   // This ensures progress persists even when using the new engine
+  const readerPage = useReaderStore((state) => state.currentPage);
   useEffect(() => {
-    const readerPage = useReaderStore.getState().currentPage;
     if (readerPage !== currentIndex) {
       useReadingStore.getState().setPageIndex(readerPage);
     }
-  }, [useReaderStore.getState().currentPage]);
+  }, [readerPage, currentIndex]);
 
   const renderReader = () => {
     // V2 Architecture: Unmount previous mode by using separate components

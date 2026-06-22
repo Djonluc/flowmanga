@@ -18,6 +18,8 @@ interface SlideshowState {
   next: () => void;
   prev: () => void;
   setInterval: (ms: number) => void;
+  pauseTimer: () => void;
+  resumeTimer: () => void;
 }
 
 // A hidden image element used purely to force the browser to cache the next image
@@ -131,6 +133,17 @@ export const useSlideshowStore = create<SlideshowState>((set, get) => {
       const { isActive, isPaused } = get();
       if (isActive && !isPaused) {
         startTimer(); // Restart timer with new interval
+      }
+    },
+
+    pauseTimer: () => {
+      stopTimer();
+    },
+
+    resumeTimer: () => {
+      const { isActive, isPaused } = get();
+      if (isActive && !isPaused) {
+        startTimer();
       }
     }
   };

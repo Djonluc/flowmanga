@@ -511,6 +511,20 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                       }}
                     />
                     <MenuAction
+                      icon={<Sparkles size={14} />}
+                      label="Smart Enrich Metadata"
+                      onClick={async () => {
+                        toast.info("Enriching metadata in background…");
+                        try {
+                          const { MetadataEnrichmentService } = await import("../../services/manga-intelligence/MetadataEnrichmentService");
+                          await MetadataEnrichmentService.enqueueSeries(selectedSeries.id);
+                        } catch (e) {
+                          console.error(e);
+                        }
+                        setIsTopMoreMenuOpen(false);
+                      }}
+                    />
+                    <MenuAction
                       icon={<FileOutput size={14} />}
                       label="Export Metadata"
                       onClick={async () => {

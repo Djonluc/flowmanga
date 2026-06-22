@@ -9,6 +9,49 @@ export class ContentFilter {
     return items.filter((item) => !this.isAdult(item));
   }
 
+  static isAdultTag(tag: string): boolean {
+    const t = tag.toLowerCase().trim();
+    return [
+      "hentai",
+      "smut",
+      "erotica",
+      "erotic",
+      "adult",
+      "porn",
+      "pornography",
+      "doujinshi",
+      "18+",
+      "nsfw",
+      "explicit",
+      "nudity",
+      "nude",
+      "fetish",
+      "sexualized",
+      "cross-gender",
+      "cross-dressing",
+      "crossdressing",
+      "gender swap",
+      "genderswap",
+      "gender transformation",
+      "roleplay",
+      "bdsm",
+      "intercourse",
+      "genitals",
+      "yuri",
+      "yaoi",
+      "bara",
+      "shounen ai",
+      "shoujo ai",
+      "boys love",
+      "girls love",
+      "bl",
+      "gl"
+    ].includes(t) ||
+    t.includes("fetish") ||
+    t.includes("explicit sexual") ||
+    t.includes("erotic");
+  }
+
   static isAdult(item: any): boolean {
     const { showAdultContent, excludedTags = [] } = useSettingsStore.getState();
     if (showAdultContent) return false;
@@ -43,46 +86,7 @@ export class ContentFilter {
       ...(item.metaTags || []),
     ].map((tag) => tag.toLowerCase().trim());
 
-    const hasAdultTag = allItemTags.some(
-      (t) =>
-        [
-          "hentai",
-          "smut",
-          "erotica",
-          "erotic",
-          "adult",
-          "porn",
-          "pornography",
-          "doujinshi",
-          //"18+",
-          "nsfw",
-          "explicit",
-          "nudity",
-          "nude",
-          "fetish",
-          "sexualized",
-          "cross-gender",
-          "cross-dressing",
-          "crossdressing",
-          "gender swap",
-          "genderswap",
-          "gender transformation",
-          "roleplay",
-          "bdsm",
-          "intercourse",
-          "genitals",
-          "yuri",
-          "yaoi",
-          "bara",
-          "shounen ai",
-          "shoujo ai",
-          "boys love",
-          "girls love",
-        ].includes(t) ||
-        t.includes("fetish") ||
-        t.includes("explicit sexual") ||
-        t.includes("erotic"),
-    );
+    const hasAdultTag = allItemTags.some((t) => this.isAdultTag(t));
 
     const adultKeywords = [
       "hentai",

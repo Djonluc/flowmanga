@@ -22,7 +22,7 @@ interface HorizontalRailProps {
     onRefresh?: () => void;
 }
 
-export const HorizontalRail = ({ 
+export const HorizontalRail = React.memo(({ 
     title,
     editorialTitle,
     subtitle,
@@ -112,13 +112,13 @@ export const HorizontalRail = ({
                         <div className="hidden gap-2 sm:flex">
                             <button 
                                 onClick={() => scroll('left')}
-                                className="w-8 h-8 rounded-full bg-surface-elevated border border-border-subtle flex items-center justify-center text-foreground-muted hover:text-foreground hover:bg-surface-raised transition-all"
+                                className="w-8 h-8 rounded-full bg-surface-elevated border border-border-subtle flex items-center justify-center text-foreground-muted hover:text-foreground hover:bg-surface-raised transition-all active:scale-90"
                             >
                                 <ChevronLeft size={16} />
                             </button>
                             <button 
                                 onClick={() => scroll('right')}
-                                className="w-8 h-8 rounded-full bg-surface-elevated border border-border-subtle flex items-center justify-center text-foreground-muted hover:text-foreground hover:bg-surface-raised transition-all"
+                                className="w-8 h-8 rounded-full bg-surface-elevated border border-border-subtle flex items-center justify-center text-foreground-muted hover:text-foreground hover:bg-surface-raised transition-all active:scale-90"
                             >
                                 <ChevronRight size={16} />
                             </button>
@@ -250,4 +250,4 @@ export const HorizontalRail = ({
             )}
         </section>
     );
-};
+});

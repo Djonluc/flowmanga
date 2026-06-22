@@ -49,19 +49,21 @@ jobs:
           releaseBody: |
             ## What's new in FlowManga v__VERSION__ 🎉
 
-            ### ✨ New Features & Sources
-            - **Pixiv, Konachan, & Zerochan Support** — We've massively expanded the Image Platform federators! You can now search, discover, and download high-quality images directly from Pixiv, Konachan, and Zerochan APIs.
+            ### 🛡️ Networking & Anti-Bot Bypassing
+            - **Universal Cloudflare Bypass (wsrv.nl)** — Resolved severe `403 Forbidden` issues where strict sources (like ManhuaUS) were actively blocking thumbnail and cover image fetches. Completely bypassed their TLS bot-fingerprinting by routing all strict image requests through the `wsrv.nl` global CDN proxy. Covers now load instantaneously without being blocked.
+            - **MangaDex API Resilience** — Fixed metadata refreshing for MangaDex. Re-routed API calls from the headless Rust scraper to native frontend `fetch` calls, preventing Cloudflare from intercepting and challenging the request.
+            - **Proxy Fallback Optimization** — Optimized `useProxiedImage` so that fallback logic is lightning-fast and no longer relies on slow backend fetches when dealing with massively protected CDN endpoints.
 
-            ### 🛠️ UX, Layout & Visual Polish
-            - **Windows Taskbar Safe Area** — Completely re-engineered the main application wrapper layout to use dynamic padding and `100dvh`. Maximizing the frameless window on Windows will no longer bleed into or behind your taskbar!
-            - **Home View Expansion** — Slimmed down the right-hand panel widgets to grant vastly more horizontal screen real estate to the main Featured Content rows.
-            - **Music Player Overhaul** — The sidebar music player is no longer claustrophobic! We've increased the album art orb size, added generous padding to lift it off the bottom of the screen, and centered the playback controls beautifully.
-            - **TopBar Spacing** — Increased the flex gaps between action buttons in the top navigation bar for a cleaner, premium feel.
+            ### 🛠️ Enhancements & Updates
+            - **Universal Proxy Integration** — Applied the new anti-WAF proxy wrapper uniformly across the entire app interface. The `FeaturedCarousel`, `HomeView` widgets, `HistoryView`, `LibraryGrid`, `ShelfView`, and `QuickViewModal` all now seamlessly load strict images without throwing console errors.
+            - **WebNovel Cookie Auto-Extraction** — Added one-click automated cookie extraction from Chrome for WebNovel, bypassing Cloudflare security check issues.
+            - **WebNovel Cookie Paste Sanitizer** — Strips non-printable ASCII characters automatically when pasting cookies manually to prevent Rust backend builder errors.
+            - **System File Manager Integration** — Added a native command to open download folders directly in the system's file manager (Explorer, Finder, or Files).
 
             ### 🐛 Bug Fixes
-            - **Restore Button Fixed** — Fixed a core Tauri v2 security capability bug that blocked the application from un-maximizing. 
-            - **Taskbar Icon Scaling** — Aggressively trimmed invisible borders from the FlowManga logo and completely regenerated all OS-level icons, making the app icon appear much larger and clearer in the Windows taskbar.
-            - **React State Crashes** — Resolved uncaught ReferenceErrors during app initialization by ensuring state hooks are properly scoped to their rendering components.
+            - **Local File Asset Serving** — Fixed `404 Not Found` errors when attempting to load local cover images from the disk. The UI now properly utilizes Tauri's `convertFileSrc` asset protocol universally.
+            - **Broken Images & Layout Shifts** — Eliminated "blank cover" bugs and layout shifts caused by hotlink-protected images silently failing in the background.
+            - **IPC Invoke Errors** — Resolved a `ReferenceError: invoke is not defined` crash that occurred during metadata refresh pipelines.
 
             ---
             👇 **Download the latest installer below — just run the `.exe` file!**

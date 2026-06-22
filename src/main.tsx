@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { initDatabase } from './services/db'
+import { MangaIntelligenceService } from './services/manga-intelligence/MangaIntelligenceService'
 import { useSettingsStore } from './stores/useSettingsStore'
 import { useLibraryStore } from './stores/useLibraryStore'
 import { useGalleryStore } from './stores/useGalleryStore'
@@ -20,6 +21,10 @@ const init = async () => {
   try {
     // 1. Initialize SQLite Database
     await initDatabase();
+    
+    // Seed Manga Intelligence taxonomy
+    await MangaIntelligenceService.seedTaxonomyIfEmpty();
+    await MangaIntelligenceService.mapHistoricalData();
     
     // 2. Preload Library State and Collections
     await useLibraryStore.getState().loadFromDb();

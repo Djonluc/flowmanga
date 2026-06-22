@@ -26,6 +26,7 @@ dist-ssr
 
 # Tauri
 src-tauri/target
+src-tauri/target_check
 src-tauri/gen/schemas
 
 # Environment Variables
@@ -41,3 +42,5 @@ browser/
 temp_*.txt
 chat_history*.jsonl
 task.md
+scratch_*.cjs
+out.json

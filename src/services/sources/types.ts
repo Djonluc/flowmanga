@@ -148,6 +148,8 @@ export interface SourceCapabilities {
   authentication: boolean;
   /** Link to user settings for retrieving API keys */
   authUrl?: string;
+  /** Provider requires raw session cookies instead of an API Key */
+  requiresCookies?: boolean;
 }
 
 // ─── Reader Mode ────────────────────────────────────────────────────

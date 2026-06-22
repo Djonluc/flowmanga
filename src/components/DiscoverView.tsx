@@ -1,13 +1,14 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useLayoutEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
   Zap,
   Compass,
   Filter,
-  ChevronRight,
   Sparkles,
   Loader2,
+  BrainCircuit,
+  Clock
 } from "lucide-react";
 import { useDiscoveryStore } from "../stores/useDiscoveryStore";
 import { useModalStore } from "../stores/useModalStore";
@@ -30,9 +31,11 @@ export const DiscoverView = () => {
     results,
     latest,
     random,
+    forYou,
     isSearching,
     isLoadingLatest,
     isLoadingRandom,
+    isLoadingForYou,
     query,
     activeType,
     search,
@@ -44,11 +47,14 @@ export const DiscoverView = () => {
     hasMoreRandom,
     fetchLatest,
     fetchRandom,
+    fetchForYou,
     setQuery,
     setActiveType,
     clearResults,
     activeTab,
     setActiveTab,
+    scrollPositions,
+    setScrollPosition,
   } = useDiscoveryStore();
 
   type DiscoveryContentType =
@@ -67,29 +73,45 @@ export const DiscoverView = () => {
     item: DiscoveryItem;
   } | null>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const { coloredOnly } = useSettingsStore();
 
-  useEffect(() => {
-    fetchLatest();
-    fetchRandom();
-  }, [fetchLatest, fetchRandom, coloredOnly, activeType]);
+  // Restore scroll position when tab changes
+  useLayoutEffect(() => {
+    if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollPositions[activeTab] || 0;
+    }
+  }, [activeTab]);
+
+  // Save scroll position on unmount or tab change
+  const handleScroll = () => {
+      if (scrollContainerRef.current) {
+          setScrollPosition(activeTab, scrollContainerRef.current.scrollTop);
+      }
+  };
 
   useEffect(() => {
-    const isFetching = isSearching || isLoadingLatest || isLoadingRandom;
+    if (activeTab === "latest" && latest.length === 0) fetchLatest();
+    if (activeTab === "discover" && random.length === 0) fetchRandom();
+    if (activeTab === "for-you" && forYou.length === 0) fetchForYou();
+  }, [activeTab, fetchLatest, fetchRandom, fetchForYou, coloredOnly, activeType, latest.length, random.length, forYou.length]);
+
+  useEffect(() => {
+    const isFetching = isSearching || isLoadingLatest || isLoadingRandom || isLoadingForYou;
     const hasMore = 
       (activeTab === "search" && hasMoreSearchResults) ||
-      (activeTab === "latest-grid" && hasMoreLatest) ||
-      (activeTab === "random-grid");
+      (activeTab === "latest" && hasMoreLatest) ||
+      (activeTab === "discover"); // Discover is random infinite
 
-    if (activeTab === "featured" || isFetching || !hasMore) return;
+    if (isFetching || !hasMore || activeTab === "for-you") return; // For you is not paginated yet
 
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
           if (activeTab === "search") loadMoreSearchResults();
-          else if (activeTab === "latest-grid") loadMoreLatest();
-          else if (activeTab === "random-grid") loadMoreRandom();
+          else if (activeTab === "latest") loadMoreLatest();
+          else if (activeTab === "discover") loadMoreRandom();
         }
       },
       { threshold: 0.1, rootMargin: "600px" },
@@ -105,11 +127,6 @@ export const DiscoverView = () => {
       setActiveTab("search");
       search(query);
     }
-  };
-
-  const handleClear = () => {
-    clearResults();
-    setActiveTab("featured");
   };
 
   const contentTypes: { id: DiscoveryContentType; label: string }[] = [
@@ -186,397 +203,194 @@ export const DiscoverView = () => {
   const filteredResults = getFilteredItems(results);
   const filteredLatest = getFilteredItems(latest);
   const filteredRandom = getFilteredItems(random);
+  const filteredForYou = getFilteredItems(forYou);
+
+  const renderGrid = (items: any[], isLoading: boolean, loadingText: string) => (
+      <>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7 gap-6">
+            {items.map((item) => item && (
+              <MangaCard
+                key={item.id}
+                item={item}
+                onClick={() => openQuickView(item)}
+                onMenuClick={(e: React.MouseEvent, item: DiscoveryItem) =>
+                  setActiveMenu({ x: e.clientX, y: e.clientY, item })
+                }
+              />
+            ))}
+          </div>
+          <div ref={observerTarget} className="h-24 flex items-center justify-center mt-6">
+            {isLoading && (
+              <div className="flex items-center gap-3 text-foreground-dim animate-pulse">
+                <Loader2 size={16} className="animate-spin" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-foreground-dim">
+                  {loadingText}
+                </span>
+              </div>
+            )}
+          </div>
+      </>
+  );
 
   return (
-    <div className="flex-1 h-full overflow-y-auto custom-scrollbar relative bg-transparent">
+    <div 
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 h-full overflow-y-auto custom-scrollbar relative bg-transparent"
+    >
       {/* ─── Top Sticky Header (Search & Filters) ─── */}
-      <div className="sticky top-0 z-40 bg-background/40 backdrop-blur-3xl border-b border-border-subtle px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="sticky top-0 z-40 bg-background/80 backdrop-blur-3xl border-b border-border-subtle px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-4 flex flex-col gap-4">
+        
+        {/* Top Bar: Tabs & Search */}
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 bg-surface-elevated border border-border-subtle p-1 rounded-2xl">
+                <button
+                    onClick={() => setActiveTab('latest')}
+                    className={clsx(
+                        "flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                        activeTab === 'latest' ? "bg-accent text-white shadow-lg shadow-accent/20" : "text-foreground-dim hover:text-foreground hover:bg-surface-raised"
+                    )}
+                >
+                    <Clock size={14} /> Latest
+                </button>
+                <button
+                    onClick={() => setActiveTab('discover')}
+                    className={clsx(
+                        "flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                        activeTab === 'discover' ? "bg-purple-500 text-white shadow-lg shadow-purple-500/20" : "text-foreground-dim hover:text-foreground hover:bg-surface-raised"
+                    )}
+                >
+                    <Compass size={14} /> Discover
+                </button>
+                <button
+                    onClick={() => setActiveTab('for-you')}
+                    className={clsx(
+                        "flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                        activeTab === 'for-you' ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20" : "text-foreground-dim hover:text-foreground hover:bg-surface-raised"
+                    )}
+                >
+                    <BrainCircuit size={14} /> For You
+                </button>
+            </div>
 
+            <form onSubmit={handleSearch} className="relative w-80">
+                <input
+                    type="text"
+                    placeholder="Search the multiverse..."
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    className="w-full bg-surface-elevated border border-border-subtle rounded-full pl-12 pr-4 py-3 text-sm font-bold text-foreground focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-foreground-muted"
+                />
+                <Search size={16} className="absolute left-5 top-1/2 -translate-y-1/2 text-foreground-muted" />
+            </form>
+        </div>
 
         {/* Content Types & Filters */}
-        <div className="flex items-center gap-4 overflow-x-auto no-scrollbar">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
             {contentTypes.map((type) => (
-              <button
+                <button
                 key={type.id}
                 onClick={() => setActiveType(type.id)}
                 className={clsx(
-                  "px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border",
-                  activeType === type.id
+                    "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border",
+                    activeType === type.id
                     ? "bg-foreground text-background border-foreground shadow-lg shadow-foreground/20"
-                    : "bg-surface-elevated text-foreground-dim border-border-subtle hover:bg-surface-raised hover:text-foreground",
+                    : "bg-transparent text-foreground-dim border-transparent hover:bg-surface-raised hover:text-foreground",
                 )}
-              >
+                >
                 {type.label}
-              </button>
+                </button>
             ))}
-          </div>
-          <div className="h-6 w-px bg-border-subtle mx-2" />
-          <button
-            onClick={() => openTagManager("discovery", [])}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface-elevated border border-border-subtle text-foreground-dim hover:text-foreground hover:bg-surface-raised transition-all"
-          >
-            <Filter size={14} />
-            <span className="text-[10px] font-black uppercase tracking-widest">
-              Filter By Genre
-            </span>
-          </button>
+            </div>
+            <button
+                onClick={() => openTagManager("discovery", [])}
+                className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-surface-elevated border border-border-subtle text-foreground-dim hover:text-foreground hover:bg-surface-raised transition-all"
+            >
+                <Filter size={12} />
+                <span className="text-[10px] font-black uppercase tracking-widest">
+                Filter By Genre
+                </span>
+            </button>
         </div>
       </div>
 
       {/* ─── Main Content Area ─── */}
-      <div className="px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-8 pb-32">
-        <AnimatePresence>
-          {activeTab === "search" ? (
-            <motion.div
-              key="search-results"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-8"
-            >
-              <div className="flex items-center justify-between bg-white/5 border border-white/5 rounded-3xl p-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 flex items-center justify-center text-indigo-400">
-                    <Compass size={24} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-black text-foreground uppercase tracking-tight">
-                      Visions Found
-                    </h2>
-                    <p className="text-foreground-dim text-sm font-medium">
-                      Found {filteredResults.length} matches across active
-                      sources
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleClear}
-                  className="px-6 py-2 rounded-full bg-white/5 hover:bg-white/10 text-[10px] font-black text-foreground/60 hover:text-foreground uppercase tracking-widest transition-colors border border-white/5"
-                >
-                  Dispel Visions
-                </button>
-              </div>
-
-              {isSearching && filteredResults.length === 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7 gap-6">
-                  {Array.from({ length: 14 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="aspect-[2/3] rounded-[24px] bg-white/5 animate-pulse"
-                    />
-                  ))}
-                </div>
-              ) : filteredResults.length > 0 ? (
-                <>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7 gap-6">
-                    {filteredResults.map(
-                      (item) =>
-                        item && (
-                          <MangaCard
-                            key={item.id}
-                            item={item}
-                            onClick={() => openQuickView(item)}
-                          />
-                        ),
-                    )}
-                  </div>
-                  <div
-                    ref={observerTarget}
-                    className="h-24 flex items-center justify-center"
-                  >
-                    {isSearching && (
-                      <div className="flex items-center gap-3 text-foreground-dim animate-pulse">
-                        <Loader2 size={16} className="animate-spin" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-foreground-dim">
-                          Loading more content...
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className="py-32 flex flex-col items-center justify-center text-center">
-                  <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6 border border-white/10">
-                    <Search size={32} className="text-foreground/20" />
-                  </div>
-                  <h3 className="text-2xl font-black text-foreground uppercase tracking-tight mb-3">
-                    The void is empty
-                  </h3>
-                  <p className="text-foreground/40 text-base max-w-md">
-                    We couldn't manifest any content matching "{query}" across
-                    active sources. Try using different incantations or checking
-                    your source seals.
-                  </p>
-                </div>
-              )}
-            </motion.div>
-          ) : activeTab === "featured" ? (
-            <motion.div
-              key="featured-discovery"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-16"
-            >
-              {/* Header */}
-              <div className="flex flex-col gap-6 mb-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shadow-lg text-indigo-500">
-                        <Sparkles size={20} />
-                      </div>
-                      <h2 className="text-3xl font-bold tracking-tight text-foreground leading-none">
-                        Scout
-                      </h2>
+      <div className="px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-8 pb-32 min-h-screen">
+        <AnimatePresence mode="wait">
+            {activeTab === 'search' && (
+                <motion.div key="search" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+                    <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                <Search size={24} />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-black text-foreground uppercase tracking-tight">Search Results</h2>
+                                <p className="text-foreground-dim text-xs font-bold">Found matches for "{query}"</p>
+                            </div>
+                        </div>
+                        <button onClick={() => { clearResults(); setActiveTab('discover'); }} className="text-[10px] font-black uppercase tracking-widest text-foreground-dim hover:text-foreground">
+                            Clear Search
+                        </button>
                     </div>
-                    <div className="flex items-center gap-2 mt-3">
-                      <p className="text-foreground-dim font-medium text-xs tracking-wide">
-                        Peer into unknown dimensions and ascending powers.
-                      </p>
+                    {renderGrid(filteredResults, isSearching, "Searching...")}
+                </motion.div>
+            )}
+
+            {activeTab === 'latest' && (
+                <motion.div key="latest" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+                    <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center text-accent">
+                                <Clock size={24} />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-black text-foreground uppercase tracking-tight">Latest Updates</h2>
+                                <p className="text-foreground-dim text-xs font-bold">Chronological releases from active sources. No personalization.</p>
+                            </div>
+                        </div>
                     </div>
-                  </div>
-                </div>
-              </div>
+                    {renderGrid(filteredLatest, isLoadingLatest, "Fetching latest releases...")}
+                </motion.div>
+            )}
 
-              {/* Random Discovery Rail */}
-              <section className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400">
-                      <Sparkles size={16} />
+            {activeTab === 'discover' && (
+                <motion.div key="discover" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+                    <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400">
+                                <Compass size={24} />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-black text-foreground uppercase tracking-tight">Discover</h2>
+                                <p className="text-foreground-dim text-xs font-bold">Randomized and trending explorations.</p>
+                            </div>
+                        </div>
+                        <button onClick={() => fetchRandom(true)} className="flex items-center gap-2 px-5 py-2 rounded-xl bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 text-[10px] font-black uppercase tracking-widest transition-all">
+                            <Sparkles size={14} /> Shuffle
+                        </button>
                     </div>
-                    <h2 className="text-2xl font-black text-foreground uppercase tracking-tight">
-                      Divine Intervention
-                    </h2>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <button
-                      onClick={() => fetchRandom(true)}
-                      className="flex items-center gap-2 text-[10px] font-black text-purple-400 hover:text-purple-300 uppercase tracking-widest transition-all"
-                    >
-                      Re-cast <ChevronRight size={14} />
-                    </button>
-                    <button
-                      onClick={() => setActiveTab("random-grid")}
-                      className="flex items-center gap-2 text-[10px] font-black text-foreground/40 hover:text-foreground uppercase tracking-widest transition-all"
-                    >
-                      See More <ChevronRight size={14} />
-                    </button>
-                  </div>
-                </div>
+                    {renderGrid(filteredRandom, isLoadingRandom, "Summoning randomness...")}
+                </motion.div>
+            )}
 
-                {isLoadingRandom && filteredRandom.length === 0 ? (
-                  <div className="flex gap-6 overflow-hidden">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className="w-[260px] h-[390px] flex-shrink-0 rounded-[32px] bg-surface-elevated animate-pulse border border-border-subtle"
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex gap-6 overflow-x-auto custom-scrollbar pb-6 -mx-8 px-8 lg:-mx-12 lg:px-12 scroll-smooth">
-                    {filteredRandom.map(
-                      (item) =>
-                        item && (
-                          <div
-                            key={item.id}
-                            className="w-[260px] flex-shrink-0"
-                          >
-                            <MangaCard
-                              item={item}
-                              onClick={() => openQuickView(item)}
-                              onMenuClick={(
-                                e: React.MouseEvent,
-                                item: DiscoveryItem,
-                              ) =>
-                                setActiveMenu({
-                                  x: e.clientX,
-                                  y: e.clientY,
-                                  item,
-                                })
-                              }
-                            />
-                          </div>
-                        ),
-                    )}
-                  </div>
-                )}
-              </section>
-
-              {/* Latest Updates Rail */}
-              <section className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-accent">
-                      <Compass size={16} />
+            {activeTab === 'for-you' && (
+                <motion.div key="for-you" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+                    <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500">
+                                <BrainCircuit size={24} />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-black text-foreground uppercase tracking-tight">For You</h2>
+                                <p className="text-foreground-dim text-xs font-bold">Powered by Manga Intelligence. Based on your reading history.</p>
+                            </div>
+                        </div>
                     </div>
-                    <h2 className="text-2xl font-black text-foreground uppercase tracking-tight">
-                      New Spirits
-                    </h2>
-                  </div>
-                  <button
-                    onClick={() => setActiveTab("latest-grid")}
-                    className="flex items-center gap-2 text-[10px] font-black text-accent hover:text-accent/80 uppercase tracking-widest transition-all"
-                  >
-                    View All <ChevronRight size={14} />
-                  </button>
-                </div>
-
-                {isLoadingLatest && filteredLatest.length === 0 ? (
-                  <div className="flex gap-6 overflow-hidden">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className="w-[260px] h-[390px] flex-shrink-0 rounded-[32px] bg-surface-elevated animate-pulse border border-border-subtle"
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex gap-6 overflow-x-auto custom-scrollbar pb-6 -mx-8 px-8 lg:-mx-12 lg:px-12 scroll-smooth">
-                    {filteredLatest.map((item) => (
-                      <div key={item.id} className="w-[260px] flex-shrink-0">
-                        <MangaCard
-                          item={item}
-                          onClick={() => openQuickView(item)}
-                          onMenuClick={(
-                            e: React.MouseEvent,
-                            item: DiscoveryItem,
-                          ) =>
-                            setActiveMenu({ x: e.clientX, y: e.clientY, item })
-                          }
-                        />
-                      </div>
-                    ))}
-                    {isLoadingLatest && filteredLatest.length > 0 && (
-                      <div className="w-[260px] h-[390px] flex-shrink-0 flex flex-col items-center justify-center gap-3 bg-surface-elevated rounded-[32px] border border-border-subtle">
-                        <Loader2 size={24} className="animate-spin text-accent" />
-                        <span className="text-[10px] font-black text-accent uppercase tracking-widest animate-pulse">
-                          Fetching...
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </section>
-            </motion.div>
-          ) : activeTab === "random-grid" ? (
-            <motion.div
-              key="random-grid"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="space-y-8"
-            >
-              <div className="flex items-center justify-between bg-white/5 border border-white/5 rounded-3xl p-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-purple-500/20 flex items-center justify-center text-purple-400">
-                    <Sparkles size={24} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-black text-foreground uppercase tracking-tight">
-                      Infinite Chaos
-                    </h2>
-                    <p className="text-foreground-dim text-sm font-medium">
-                      A randomized journey through every active realm.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => fetchRandom(true)}
-                    className="px-6 py-2 rounded-full bg-indigo-500 hover:bg-indigo-400 text-[10px] font-black text-foreground uppercase tracking-widest transition-all active:scale-95"
-                  >
-                    Shuffle New
-                  </button>
-                  <button
-                    onClick={() => setActiveTab("featured")}
-                    className="px-6 py-2 rounded-full bg-white/5 hover:bg-white/10 text-[10px] font-black text-foreground/60 hover:text-foreground uppercase tracking-widest transition-colors border border-white/5"
-                  >
-                    Back to Featured
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7 gap-6">
-                {filteredRandom.map((item) => (
-                  <MangaCard
-                    key={item.id}
-                    item={item}
-                    onClick={() => openQuickView(item)}
-                    onMenuClick={(e: React.MouseEvent, item: DiscoveryItem) =>
-                      setActiveMenu({ x: e.clientX, y: e.clientY, item })
-                    }
-                  />
-                ))}
-              </div>
-              <div ref={observerTarget} className="h-24 flex items-center justify-center">
-                {isLoadingRandom && (
-                  <div className="flex items-center gap-3 text-foreground-dim animate-pulse">
-                    <Loader2 size={16} className="animate-spin" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-foreground-dim">
-                      Summoning more randomness...
-                    </span>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="latest-grid"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="space-y-8"
-            >
-              <div className="flex items-center justify-between bg-white/5 border border-white/5 rounded-3xl p-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-accent/20 flex items-center justify-center text-accent">
-                    <Compass size={24} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-black text-foreground uppercase tracking-tight">
-                      Freshly Updated
-                    </h2>
-                    <p className="text-foreground-dim text-sm font-medium">
-                      The latest chapters from your favorite universes.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setActiveTab("featured")}
-                  className="px-6 py-2 rounded-full bg-white/5 hover:bg-white/10 text-[10px] font-black text-foreground/60 hover:text-foreground uppercase tracking-widest transition-colors border border-white/5"
-                >
-                  Back to Featured
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7 gap-6">
-                {filteredLatest.map((item) => (
-                  <MangaCard
-                    key={item.id}
-                    item={item}
-                    onClick={() => openQuickView(item)}
-                    onMenuClick={(e: React.MouseEvent, item: DiscoveryItem) =>
-                      setActiveMenu({ x: e.clientX, y: e.clientY, item })
-                    }
-                  />
-                ))}
-              </div>
-              <div ref={observerTarget} className="h-24 flex items-center justify-center">
-                {isLoadingLatest && (
-                  <div className="flex items-center gap-3 text-foreground-dim animate-pulse">
-                    <Loader2 size={16} className="animate-spin" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-foreground-dim">
-                      Fetching latest spirits...
-                    </span>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
+                    {renderGrid(filteredForYou, isLoadingForYou, "Analyzing your interests...")}
+                </motion.div>
+            )}
         </AnimatePresence>
 
         <ContextMenu

@@ -7,7 +7,13 @@ import { useLibraryStore } from '../../stores/useLibraryStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import { ScraperService } from '../../services/ScraperService';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { useProxiedImage } from '../../hooks/useProxiedImage';
 import clsx from 'clsx';
+
+const ProxiedRailImage = ({ src, alt, className }: { src: string, alt: string, className?: string }) => {
+    const { src: proxiedSrc, handleError } = useProxiedImage(src);
+    return <img src={proxiedSrc} className={className} alt={alt} onError={handleError} />;
+};
 
 export const QuickViewModal = () => {
     const { quickViewItem, closeQuickView, openImportModal, openTagManager } = useModalStore();
@@ -86,7 +92,10 @@ export const QuickViewModal = () => {
     };
 
     const rawCover = quickViewItem?.cover || quickViewItem?.coverUrl;
-    const coverSrc = rawCover ? (rawCover.startsWith('http') ? rawCover : convertFileSrc(rawCover)) : undefined;
+    const initialCoverSrc = rawCover ? (rawCover.startsWith('http') ? rawCover : convertFileSrc(rawCover)) : undefined;
+    
+    const { src: coverSrc, handleError } = useProxiedImage(initialCoverSrc || "");
+    
     const isVideo = coverSrc?.match(/\.(mp4|webm|mov)$/i);
 
     const scrollRail = (direction: 'left' | 'right') => {
@@ -144,7 +153,8 @@ export const QuickViewModal = () => {
                                             className="w-full h-full object-contain p-4 transition-transform duration-700 group-hover:scale-110 relative z-10 drop-shadow-2xl" 
                                             autoPlay loop muted playsInline
                                             onError={(e) => {
-                                                e.currentTarget.style.display = 'none';
+                                                handleError();
+                                                if (coverSrc === initialCoverSrc) e.currentTarget.style.display = 'none';
                                             }}
                                         />
                                     ) : (
@@ -153,7 +163,8 @@ export const QuickViewModal = () => {
                                             className="w-full h-full object-contain p-4 transition-transform duration-700 group-hover:scale-110 relative z-10 drop-shadow-2xl" 
                                             alt={quickViewItem?.title || ''} 
                                             onError={(e) => {
-                                                e.currentTarget.style.display = 'none';
+                                                handleError();
+                                                if (coverSrc === initialCoverSrc) e.currentTarget.style.display = 'none';
                                             }}
                                         />
                                     )}
@@ -274,7 +285,7 @@ export const QuickViewModal = () => {
                                                     onClick={() => useModalStore.getState().openQuickView(item)}
                                                     className="min-w-[120px] aspect-[2/3] rounded-2xl bg-white/5 border border-white/10 overflow-hidden cursor-pointer hover:scale-105 transition-all group relative"
                                                 >
-                                                    <img src={item.coverUrl} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" alt="" />
+                                                    <ProxiedRailImage src={item.coverUrl} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" alt="" />
                                                     <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent flex flex-col justify-end p-3">
                                                         <span className="text-[8px] font-black text-foreground uppercase truncate">{item.title}</span>
                                                     </div>

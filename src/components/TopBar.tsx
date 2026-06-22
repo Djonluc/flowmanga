@@ -21,6 +21,11 @@ export const TopBar = () => {
     const activeCount = activeJobIds.length;
     const queueCount = queue.length;
     const hasDownloads = activeCount > 0 || queueCount > 0;
+    
+    const activeJobs = queue.filter(j => activeJobIds.includes(j.id) && j.status === 'downloading');
+    const overallProgress = activeJobs.length > 0 
+        ? activeJobs.reduce((acc, job) => acc + (job.progress || 0), 0) / activeJobs.length 
+        : 0;
 
     if (images.length > 0) return null;
 
@@ -95,12 +100,14 @@ export const TopBar = () => {
                     title="Filter" 
                     onClick={() => openFilterModal()}
                 />
-                <TopBarButton 
-                    icon={<LayoutGrid size={20} />} 
-                    title="Toggle View" 
-                    onClick={() => setLibraryViewMode(libraryViewMode === 'grid' ? 'shelf' : 'grid')}
-                    active={activeView === 'library'}
-                />
+                {activeView === 'library' && (
+                    <TopBarButton 
+                        icon={<LayoutGrid size={20} />} 
+                        title="Toggle View" 
+                        onClick={() => setLibraryViewMode(libraryViewMode === 'grid' ? 'shelf' : 'grid')}
+                        active={true}
+                    />
+                )}
                 <TopBarButton 
                     icon={isChecking ? <Sparkles size={20} className="text-indigo-400 animate-pulse" /> : <RefreshCcw size={20} />} 
                     title={isChecking ? "Checking for updates..." : "Check Updates"} 
@@ -114,30 +121,37 @@ export const TopBar = () => {
                 <button 
                     onClick={toggleDownloadPanel}
                     className={clsx(
-                        "relative p-3 rounded-2xl transition-all border border-transparent group/dl shadow-lg",
-                        hasDownloads ? "bg-accent-soft border-accent/20 text-accent hover:bg-accent/20" : "text-foreground-dim hover:text-foreground hover:bg-surface-elevated hover:border-border-subtle"
+                        "relative p-3 rounded-2xl transition-all border group/dl shadow-lg overflow-hidden",
+                        hasDownloads ? "bg-accent-soft border-accent/20 text-accent hover:bg-accent/20" : "border-transparent text-foreground-dim hover:text-foreground hover:bg-surface-elevated hover:border-border-subtle"
                     )}
                 >
-                    <Download size={20} className={clsx("transition-transform", activeCount > 0 ? "animate-bounce" : "group-hover/dl:-translate-y-1")} />
+                    {activeJobs.length > 0 && (
+                        <div 
+                            className="absolute bottom-0 left-0 w-full bg-blue-500/30 transition-all duration-300 ease-linear z-0"
+                            style={{ height: `${overallProgress}%` }}
+                        />
+                    )}
+                    <Download size={20} className={clsx("transition-transform relative z-10", activeCount > 0 ? "animate-bounce" : "group-hover/dl:-translate-y-1")} />
                     {hasDownloads && (
-                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-accent text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-lg shadow-accent-glow border-2 border-background">
+                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-accent text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-lg shadow-accent-glow border-2 border-background z-20">
                             {activeCount > 0 ? activeCount : queueCount}
                         </span>
                     )}
-                </button>
-
-                {/* Notifications */}
-                <button 
-                    onClick={() => openNotificationCenter()}
-                    className="relative p-3 rounded-2xl text-foreground-dim hover:text-foreground hover:bg-surface-elevated border border-transparent hover:border-border-subtle transition-all shadow-lg"
-                >
-                    <Bell size={22} />
-                    <span className="absolute top-3.5 right-3.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-background shadow-lg shadow-red-500/20" />
                 </button>
             </div>
             </div>
             {/* Atmospheric bottom fade - Theme aware */}
             <div className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none bg-gradient-to-t from-background/10 to-transparent" />
+            
+            {/* Live Progress Bar Base */}
+            {activeJobs.length > 0 && (
+                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/5 z-40 overflow-hidden">
+                    <div 
+                        className="h-full bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.6)] transition-all duration-300 ease-linear"
+                        style={{ width: `${overallProgress}%` }}
+                    />
+                </div>
+            )}
         </div>
     );
 };

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Settings, BookOpen, Download, Palette } from 'lucide-react';
+import { X, Settings, BookOpen, Download, Palette, Search } from 'lucide-react';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import clsx from 'clsx';
 
@@ -12,24 +12,54 @@ import { AmbientSettings } from './AmbientSettings';
 import { SourcesSettings } from './SourcesSettings';
 import { AutomationSettings } from './AutomationSettings';
 import { UpdateSettings } from './UpdateSettings';
-import { Headphones, Globe, Sparkles, RefreshCw, ShieldAlert } from 'lucide-react';
+import { MangaIntelligenceDebugger } from './MangaIntelligenceDebugger';
+import { AboutSettings } from './AboutSettings';
+import { Headphones, Globe, Sparkles, RefreshCw, ShieldAlert, Brain, Info } from 'lucide-react';
 
-type SettingsTab = 'general' | 'reader' | 'appearance' | 'audio' | 'downloads' | 'sources' | 'automation' | 'updates';
+type SettingsTab = 'general' | 'reader' | 'appearance' | 'audio' | 'downloads' | 'sources' | 'automation' | 'updates' | 'intelligence' | 'about';
 
 export const SettingsModal = () => {
     const { isSettingsOpen, toggleSettings } = useSettingsStore();
     const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+    const [searchQuery, setSearchQuery] = useState('');
 
-    const tabs = [
-        { id: 'general', label: 'General', icon: Settings },
-        { id: 'reader', label: 'Reader', icon: BookOpen },
-        { id: 'audio', label: 'Audio', icon: Headphones },
-        { id: 'appearance', label: 'Appearance', icon: Palette },
-        { id: 'downloads', label: 'Downloads', icon: Download },
-        { id: 'automation', label: 'Automation', icon: Sparkles },
-        { id: 'sources', label: 'Sources', icon: Globe },
-        { id: 'updates', label: 'Updates', icon: RefreshCw },
+    const tabGroups = [
+        {
+            group: 'Core',
+            items: [
+                { id: 'general', label: 'General', icon: Settings },
+                { id: 'reader', label: 'Reader', icon: BookOpen },
+                { id: 'appearance', label: 'Appearance', icon: Palette },
+            ]
+        },
+        {
+            group: 'Content',
+            items: [
+                { id: 'sources', label: 'Sources', icon: Globe },
+                { id: 'downloads', label: 'Downloads', icon: Download },
+                { id: 'automation', label: 'Automation', icon: Sparkles },
+            ]
+        },
+        {
+            group: 'Advanced',
+            items: [
+                { id: 'audio', label: 'Audio', icon: Headphones },
+                { id: 'updates', label: 'Updates', icon: RefreshCw },
+                { id: 'intelligence', label: 'Intelligence', icon: Brain },
+                { id: 'about', label: 'About', icon: Info },
+            ]
+        }
     ];
+
+    const filteredGroups = tabGroups.map(group => ({
+        ...group,
+        items: group.items.filter(item => 
+            item.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.id.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+    })).filter(group => group.items.length > 0);
+
+    const activeTabLabel = tabGroups.flatMap(g => g.items).find(t => t.id === activeTab)?.label;
 
     return (
         <AnimatePresence>
@@ -56,33 +86,56 @@ export const SettingsModal = () => {
                             <h2 className="text-2xl font-black text-foreground italic tracking-tighter mb-8 px-4">
                                 SETTINGS
                             </h2>
-                            
-                            {tabs.map((tab) => {
-                                const Icon = tab.icon;
-                                const isActive = activeTab === tab.id;
-                                return (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveTab(tab.id as SettingsTab)}
-                                        className={clsx(
-                                            "flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-wide",
-                                            isActive 
-                                                ? "bg-accent text-white shadow-lg shadow-accent-glow/20" 
-                                                : "text-foreground-dim hover:bg-surface-raised hover:text-foreground"
-                                        )}
-                                    >
-                                        <Icon size={18} />
-                                        <span>{tab.label}</span>
-                                    </button>
-                                );
-                            })}
+                            <div className="relative mb-6 px-4">
+                                <div className="absolute inset-y-0 left-7 flex items-center pointer-events-none">
+                                    <Search size={14} className="text-foreground-muted" />
+                                </div>
+                                <input 
+                                    type="text"
+                                    placeholder="Search settings..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full bg-surface/50 border border-border-subtle rounded-xl pl-9 pr-4 py-2 text-xs font-semibold text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+                                />
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto no-scrollbar">
+                                {filteredGroups.map((group, gIdx) => (
+                                    <div key={group.group} className={clsx("mb-6 px-4", gIdx === 0 ? "" : "border-t border-border-subtle/50 pt-4")}>
+                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-foreground-dim mb-3 pl-2">
+                                            {group.group}
+                                        </h4>
+                                        <div className="flex flex-col gap-1">
+                                            {group.items.map((tab) => {
+                                                const Icon = tab.icon;
+                                                const isActive = activeTab === tab.id;
+                                                return (
+                                                    <button
+                                                        key={tab.id}
+                                                        onClick={() => setActiveTab(tab.id as SettingsTab)}
+                                                        className={clsx(
+                                                            "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-bold tracking-wide",
+                                                            isActive 
+                                                                ? "bg-accent text-white shadow-lg shadow-accent-glow/20" 
+                                                                : "text-foreground-dim hover:bg-surface-raised hover:text-foreground"
+                                                        )}
+                                                    >
+                                                        <Icon size={16} />
+                                                        <span>{tab.label}</span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
 
                         {/* Content Area */}
                         <div className="flex-1 flex flex-col min-w-0 bg-surface">
                             <div className="flex items-center justify-between p-8 border-b border-border-subtle">
                                 <h3 className="text-xl font-black text-foreground uppercase tracking-widest">
-                                    {tabs.find(t => t.id === activeTab)?.label}
+                                    {activeTabLabel}
                                 </h3>
                                 <button 
                                     onClick={toggleSettings}
@@ -102,6 +155,8 @@ export const SettingsModal = () => {
                                     {activeTab === 'automation' && <AutomationSettings />}
                                     {activeTab === 'sources' && <SourcesSettings />}
                                     {activeTab === 'updates' && <UpdateSettings />}
+                                    {activeTab === 'intelligence' && <MangaIntelligenceDebugger />}
+                                    {activeTab === 'about' && <AboutSettings />}
                                 </div>
                             </div>
                         </div>

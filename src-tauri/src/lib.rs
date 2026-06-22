@@ -2247,15 +2247,18 @@ async fn open_auth_window(app: tauri::AppHandle, url: String, provider_id: Strin
 
     let init_script = r#"
         setInterval(() => {
-            const cookies = document.cookie;
+            let cookies = "";
+            try {
+                cookies = document.cookie;
+            } catch (e) {}
             let ls = "";
             try {
                 ls = JSON.stringify(window.localStorage);
             } catch (e) {}
             
-            if ((cookies && (cookies.includes('ipb_member_id') || cookies.includes('pass_hash') || cookies.includes('_sankakuchannel_session'))) ||
+            if ((cookies && (cookies.includes('ipb_member_id') || cookies.includes('pass_hash') || cookies.includes('_sankakuchannel_session') || cookies.includes('sessionid='))) ||
                 (ls && (ls.includes('access_token') || ls.includes('token') || ls.includes('user_id')))) {
-                const targetUrl = 'http://flowmanga.local/auth-callback?provider=PROVIDER_ID&cookie=' + encodeURIComponent(cookies || "") + '&ls=' + encodeURIComponent(ls);
+                const targetUrl = 'https://flowmanga.local/auth-callback?provider=PROVIDER_ID&cookie=' + encodeURIComponent(cookies || "") + '&ls=' + encodeURIComponent(ls);
                 window.location.replace(targetUrl);
             }
         }, 2000);
@@ -2274,7 +2277,7 @@ async fn open_auth_window(app: tauri::AppHandle, url: String, provider_id: Strin
     .inner_size(800.0, 600.0)
     .initialization_script(&init_script)
     .on_navigation(move |url| {
-        if url.as_str().starts_with("http://flowmanga.local/auth-callback") {
+        if url.as_str().starts_with("https://flowmanga.local/auth-callback") {
             let _ = app_clone.emit("auth-cookies-extracted", url.as_str());
             return false;
         }
@@ -2283,6 +2286,57 @@ async fn open_auth_window(app: tauri::AppHandle, url: String, provider_id: Strin
     .build()
     .map_err(|e| e.to_string())?;
 
+    Ok(())
+}
+
+#[command]
+async fn auto_extract_cookies(domains: Vec<String>) -> Result<String, String> {
+    let domain_refs: Option<Vec<String>> = if domains.is_empty() {
+        None
+    } else {
+        Some(domains)
+    };
+
+    match rookie::load(domain_refs) {
+        Ok(cookies) => {
+            let mut cookie_str = String::new();
+            for cookie in cookies {
+                cookie_str.push_str(&format!("{}={}; ", cookie.name, cookie.value));
+            }
+            Ok(cookie_str)
+        },
+        Err(e) => Err(format!("Failed to extract cookies from system browsers: {}", e))
+    }
+}
+
+#[command]
+async fn show_path_in_file_manager(path: String) -> Result<(), String> {
+    use std::process::Command;
+    
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer")
+            .args(["/select,", &path])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .args(["-R", &path])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    
     Ok(())
 }
 
@@ -2394,9 +2448,11 @@ pub fn run() {
             import_ambient_sound,
             validate_chapter_contents,
             wipe_manga_contents,
+            open_auth_window,
+            auto_extract_cookies,
+            show_path_in_file_manager,
             fetch_binary,
-            get_cwd,
-            open_auth_window
+            get_cwd
         ])
         .setup(|app| {
             use tauri_plugin_cli::CliExt;

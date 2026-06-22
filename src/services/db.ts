@@ -282,6 +282,50 @@ export const initDatabase = async () => {
     await db.execute("ALTER TABLE Series ADD COLUMN malId TEXT");
   } catch (e) {}
 
+  try {
+    await db.execute("ALTER TABLE Series ADD COLUMN kitsuId TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE Series ADD COLUMN alternativeTitles TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE Series ADD COLUMN japaneseTitle TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE Series ADD COLUMN englishTitle TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE Series ADD COLUMN genres TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE Series ADD COLUMN themes TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE Series ADD COLUMN publisher TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE Series ADD COLUMN status TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE Series ADD COLUMN releaseDate TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE Series ADD COLUMN artist TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE Series ADD COLUMN confidenceScore REAL");
+  } catch (e) {}
+
   // Phase 1: Source Provider Architecture — content type classification
   try {
     await db.execute(
@@ -390,6 +434,58 @@ export const initDatabase = async () => {
     `);
   } catch (e) {
     console.error("[DB] Failed to create Flow Image Engine tables", e);
+  }
+
+  // ─── Manga Intelligence Engine (Phase 1) ────────────────────────
+  try {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS MangaTagCategories (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        description TEXT,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS MangaTagRelationships (
+        id TEXT PRIMARY KEY,
+        parentTag TEXT NOT NULL,
+        childTag TEXT NOT NULL,
+        type TEXT DEFAULT 'belongs_to',
+        UNIQUE(parentTag, childTag)
+      );
+
+      CREATE TABLE IF NOT EXISTS MangaTagSynonyms (
+        canonicalTag TEXT NOT NULL,
+        synonym TEXT NOT NULL,
+        PRIMARY KEY (canonicalTag, synonym)
+      );
+
+      CREATE TABLE IF NOT EXISTS MangaTagAliases (
+        alias TEXT PRIMARY KEY,
+        canonicalTag TEXT NOT NULL,
+        confidence INTEGER DEFAULT 100
+      );
+
+      CREATE TABLE IF NOT EXISTS MangaInterestProfiles (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL, -- 'dominant', 'supporting'
+        name TEXT NOT NULL,
+        weight REAL DEFAULT 1.0,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(type, name)
+      );
+
+      CREATE TABLE IF NOT EXISTS MangaFollowedEntities (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL, -- 'manga', 'character', 'author', 'publisher', 'studio', 'franchise', 'genre', 'tag', 'series'
+        name TEXT NOT NULL,
+        entityId TEXT,
+        followedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(type, name)
+      );
+    `);
+  } catch (e) {
+    console.error("[DB] Failed to create Manga Intelligence tables", e);
   }
 
   // Invalidate old discovery caches on startup to prevent type mismatch crashes with new mapped schemas

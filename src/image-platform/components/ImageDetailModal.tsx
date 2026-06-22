@@ -28,7 +28,7 @@ interface ImageDetailModalProps {
   onToggleFavorite?: (tag: string) => void;
 }
 
-const ClickableTag = ({ tag, type, onSearch, onClose }: { tag: string, type: string, onSearch: (t: string) => void, onClose: () => void }) => {
+const ClickableTag = ({ tag, type, onSearch, onClose, isInterest }: { tag: string, type: string, onSearch: (t: string) => void, onClose: () => void, isInterest: boolean }) => {
   const { favoriteTags, blockedTags, toggleTagState } = useGalleryStore();
   const cleanTag = tag.replace(`${type}:`, '').toLowerCase().trim();
   const isFav = favoriteTags.includes(cleanTag);
@@ -94,6 +94,8 @@ const ClickableTag = ({ tag, type, onSearch, onClose }: { tag: string, type: str
     colorClasses = "bg-yellow-500/20 border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/30";
   } else if (isBlocked) {
     colorClasses = "bg-red-500/20 border-red-500/50 text-red-500 hover:bg-red-500/30";
+  } else if (isInterest) {
+    colorClasses = "bg-sky-500/20 border-sky-500/50 text-sky-500 hover:bg-sky-500/30";
   } else {
     if (type === "artist") colorClasses = "bg-red-500/10 border-red-500/20 text-red-300 hover:bg-red-500/20";
     else if (type === "series") colorClasses = "bg-purple-500/10 border-purple-500/20 text-purple-300 hover:bg-purple-500/20";
@@ -164,6 +166,18 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
   const [downloadingIds, setDownloadingIds] = React.useState<string[]>([]);
   const isDownloading = downloadingIds.includes(image.id);
   const [isRefreshingMeta, setIsRefreshingMeta] = React.useState(false);
+  
+  const [userInterests, setUserInterests] = React.useState<string[]>([]);
+  React.useEffect(() => {
+    const fetchInterests = async () => {
+      try {
+        const { TagIntelligenceService } = await import('../services/TagIntelligenceService');
+        const interests = await TagIntelligenceService.getInterests();
+        setUserInterests(interests.map(i => i.name.toLowerCase()));
+      } catch (e) { console.error(e); }
+    };
+    fetchInterests();
+  }, []);
 
   // Pan and Zoom State
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -757,9 +771,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
                   <Tag size={12} /> Artist
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {artistTags.map(t => (
-                    <ClickableTag key={t} tag={t} type="artist" onSearch={onSearchTag} onClose={onClose} />
-                  ))}
+                  {artistTags.map(t => {
+                    const clean = typeof t === 'string' ? t.replace('artist:', '').toLowerCase().trim() : '';
+                    return <ClickableTag key={t as string} tag={t as string} type="artist" onSearch={onSearchTag} onClose={onClose} isInterest={userInterests.includes(clean)} />
+                  })}
                 </div>
               </div>
             )}
@@ -770,9 +785,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
                   <Tag size={12} /> Series
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {seriesTags.map(t => (
-                    <ClickableTag key={t} tag={t} type="series" onSearch={onSearchTag} onClose={onClose} />
-                  ))}
+                  {seriesTags.map(t => {
+                    const clean = typeof t === 'string' ? t.replace('series:', '').toLowerCase().trim() : '';
+                    return <ClickableTag key={t as string} tag={t as string} type="series" onSearch={onSearchTag} onClose={onClose} isInterest={userInterests.includes(clean)} />
+                  })}
                 </div>
               </div>
             )}
@@ -783,9 +799,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
                   <Tag size={12} /> Character
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {characterTags.map(t => (
-                    <ClickableTag key={t} tag={t} type="character" onSearch={onSearchTag} onClose={onClose} />
-                  ))}
+                  {characterTags.map(t => {
+                    const clean = typeof t === 'string' ? t.replace('character:', '').toLowerCase().trim() : '';
+                    return <ClickableTag key={t as string} tag={t as string} type="character" onSearch={onSearchTag} onClose={onClose} isInterest={userInterests.includes(clean)} />
+                  })}
                 </div>
               </div>
             )}
@@ -805,9 +822,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
-                {(showAllTags ? generalTags : generalTags.slice(0, 20)).map(t => (
-                  <ClickableTag key={t} tag={t} type="supporting_tag" onSearch={onSearchTag} onClose={onClose} />
-                ))}
+                {generalTags.slice(0, showAllTags ? undefined : 20).map(t => {
+                  const clean = typeof t === 'string' ? t.toLowerCase().trim() : '';
+                  return <ClickableTag key={t as string} tag={t as string} type="general" onSearch={onSearchTag} onClose={onClose} isInterest={userInterests.includes(clean)} />
+                })}
                 {!showAllTags && generalTags.length > 20 && (
                   <button onClick={() => setShowAllTags(true)} className="px-3 py-1 bg-surface-raised text-foreground-muted rounded-lg text-sm">
                     +{generalTags.length - 20} more...

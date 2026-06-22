@@ -8,9 +8,15 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import type { Series } from "../../stores/useLibraryStore";
 import { Button } from "../ui/Button";
 import type { SourceSearchResult } from "../../services/sources/types";
+import { useProxiedImage } from "../../hooks/useProxiedImage";
 import clsx from "clsx";
 
 type FeaturedSeries = (Series | SourceSearchResult) & { coverUrl?: string };
+
+const ProxiedCarouselImage = ({ src, className, alt }: { src: string, className?: string, alt?: string }) => {
+  const { src: proxiedSrc, handleError } = useProxiedImage(src);
+  return <img src={proxiedSrc} className={className} alt={alt} onError={() => handleError()} />;
+};
 
 export const FeaturedCarousel = ({ items: propItems }: { items?: any[] }) => {
   const { series } = useLibraryStore();
@@ -71,7 +77,7 @@ export const FeaturedCarousel = ({ items: propItems }: { items?: any[] }) => {
           className="absolute inset-0 z-0 bg-background"
         >
           {currentItem.cover || currentItem.coverUrl ? (
-            <img
+            <ProxiedCarouselImage
               src={
                 (currentItem.cover || currentItem.coverUrl).startsWith("http")
                   ? currentItem.cover || currentItem.coverUrl
@@ -235,7 +241,7 @@ export const FeaturedCarousel = ({ items: propItems }: { items?: any[] }) => {
             <div className="absolute inset-0 bg-indigo-500/20 blur-[80px] rounded-full scale-125" />
             
             {(currentItem.cover || currentItem.coverUrl) && (
-              <img
+              <ProxiedCarouselImage
                 src={
                   (currentItem.cover || currentItem.coverUrl).startsWith("http")
                     ? currentItem.cover || currentItem.coverUrl

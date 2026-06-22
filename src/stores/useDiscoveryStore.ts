@@ -13,6 +13,8 @@ import type {
   SourceSearchResult,
   ContentType,
 } from "../services/sources/types";
+import { useLibraryStore } from "./useLibraryStore";
+import { MangaIntelligenceService } from "../services/manga-intelligence/MangaIntelligenceService";
 
 const dedupeResults = (current: SourceSearchResult[], incoming: SourceSearchResult[]) => {
   const seenIds = new Set(current.map(r => r.id));
@@ -20,12 +22,25 @@ const dedupeResults = (current: SourceSearchResult[], incoming: SourceSearchResu
     current.map(r => r.title?.toLowerCase().replace(/[^a-z0-9]/g, "")).filter(Boolean)
   );
   
+  // Library de-duplication
+  const librarySeries = useLibraryStore.getState().series || [];
+  const libraryIds = new Set(librarySeries.map(s => s.id));
+  const libraryTitles = new Set(
+    librarySeries.map(s => s.title?.toLowerCase().replace(/[^a-z0-9]/g, "")).filter(Boolean)
+  );
+  
   return [
     ...current,
     ...incoming.filter(r => {
       if (seenIds.has(r.id)) return false;
+      
       const titleKey = r.title?.toLowerCase().replace(/[^a-z0-9]/g, "");
       if (titleKey && seenTitles.has(titleKey)) return false;
+      
+      // Filter out library series
+      if (libraryIds.has(r.id)) return false;
+      if (titleKey && libraryTitles.has(titleKey)) return false;
+
       seenIds.add(r.id);
       if (titleKey) seenTitles.add(titleKey);
       return true;
@@ -39,6 +54,7 @@ interface DiscoveryState {
   trending: SourceSearchResult[];
   latest: SourceSearchResult[];
   random: SourceSearchResult[];
+  forYou: SourceSearchResult[];
 
   // UI State
   query: string;
@@ -52,9 +68,12 @@ interface DiscoveryState {
   isSearching: boolean;
   isLoadingTrending: boolean;
   isLoadingLatest: boolean;
+  isLoadingRandom: boolean;
+  isLoadingForYou: boolean;
   activeType: ContentType | "all";
   error: string | null;
-  activeTab: "featured" | "search" | "latest-grid" | "random-grid";
+  activeTab: "latest" | "discover" | "for-you" | "search";
+  scrollPositions: Record<string, number>;
 
   // Actions
   search: (query: string, page?: number) => Promise<void>;
@@ -65,10 +84,12 @@ interface DiscoveryState {
   fetchTrending: (force?: boolean) => Promise<void>;
   fetchLatest: (force?: boolean, page?: number) => Promise<void>;
   fetchRandom: (force?: boolean) => Promise<void>;
+  fetchForYou: (force?: boolean) => Promise<void>;
   forceRefresh: () => Promise<void>;
   setQuery: (query: string) => void;
   setActiveType: (type: ContentType | "all") => void;
-  setActiveTab: (tab: "featured" | "search" | "latest-grid" | "random-grid") => void;
+  setActiveTab: (tab: "latest" | "discover" | "for-you" | "search") => void;
+  setScrollPosition: (tab: string, pos: number) => void;
   clearResults: () => void;
 }
 
@@ -77,6 +98,7 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
   trending: [],
   latest: [],
   random: [],
+  forYou: [],
   query: "",
   searchTags: [],
   currentSearchPage: 1,
@@ -89,9 +111,11 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
   isLoadingTrending: false,
   isLoadingLatest: false,
   isLoadingRandom: false,
+  isLoadingForYou: false,
   activeType: "all",
   error: null,
-  activeTab: "featured",
+  activeTab: "discover",
+  scrollPositions: {},
 
   setQuery: (query) => set({ query }),
 
@@ -101,6 +125,7 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
       trending: [],
       latest: [],
       random: [],
+      forYou: [],
       currentLatestPage: 1,
       currentRandomPage: 1,
       hasMoreLatest: true,
@@ -108,6 +133,10 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
     }),
 
   setActiveTab: (activeTab) => set({ activeTab }),
+  
+  setScrollPosition: (tab, pos) => set((state) => ({
+      scrollPositions: { ...state.scrollPositions, [tab]: pos }
+  })),
 
   clearResults: () =>
     set({
@@ -121,7 +150,7 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
       hasMoreLatest: true,
       hasMoreRandom: true,
       error: null,
-      activeTab: "featured",
+      activeTab: "discover",
     }),
 
   search: async (query, page = 1) => {
@@ -129,10 +158,10 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
     set({ isSearching: true, error: null });
     try {
       const { coloredOnly } = useSettingsStore.getState();
-      const mediaDomain =
-        get().activeType === "gallery"
-          ? "image"
-          : "manga";
+      
+      // The user requested to always search ALL content within the active ecosystem (manga vs image)
+      const mediaDomain = get().activeType === "gallery" ? "image" : "manga"; 
+      
       const results = await DiscoveryService.searchGlobal(
         query,
         48, // Increased limit for better results
@@ -141,9 +170,28 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
         mediaDomain,
       );
 
+      // Inject local library matches on page 1
+      let localMatches: SourceSearchResult[] = [];
+      if (page === 1) {
+        const librarySeries = useLibraryStore.getState().series || [];
+        const lowerQuery = query.toLowerCase();
+        localMatches = librarySeries
+            .filter(s => s.title?.toLowerCase().includes(lowerQuery) || s.tags?.some(t => t.toLowerCase().includes(lowerQuery)))
+            .map(s => ({
+                id: s.id,
+                title: s.title,
+                coverUrl: s.coverPath || s.coverUrl || "",
+                tags: s.tags,
+                source: "Library",
+                provider: "local",
+                url: "",
+                rating: s.rating
+            }));
+      }
+
       set((state) => {
-        const nextResults =
-          page === 1 ? results : dedupeResults(state.results, results);
+        const sourceResults = page === 1 ? dedupeResults(localMatches, results) : dedupeResults(state.results, results);
+        const nextResults = page === 1 ? sourceResults : sourceResults; // dedupeResults handles combining them
 
         return {
           results: nextResults,
@@ -168,10 +216,10 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
     set({ isSearching: true, error: null, searchTags: tags });
     try {
       const { coloredOnly } = useSettingsStore.getState();
-      const mediaDomain =
-        get().activeType === "gallery"
-          ? "image"
-          : "manga";
+      
+      // Always search ALL content within the active ecosystem (manga vs image)
+      const mediaDomain = get().activeType === "gallery" ? "image" : "manga";
+      
       const results = await DiscoveryService.searchGlobalByTags(
         tags,
         48,
@@ -180,9 +228,29 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
         mediaDomain,
       );
 
+      // Inject local library matches on page 1
+      let localMatches: SourceSearchResult[] = [];
+      if (page === 1) {
+        const librarySeries = useLibraryStore.getState().series || [];
+        const lowerTags = tags.map(t => t.toLowerCase());
+        localMatches = librarySeries
+            .filter(s => s.tags?.some(t => lowerTags.includes(t.toLowerCase())))
+            .map(s => ({
+                id: s.id,
+                title: s.title,
+                coverUrl: s.coverPath || s.coverUrl || "",
+                tags: s.tags,
+                source: "Library",
+                provider: "local",
+                url: "",
+                rating: s.rating
+            }));
+      }
+
       set((state) => {
-        const nextResults =
-          page === 1 ? results : dedupeResults(state.results, results);
+        // dedupeResults filters out duplicate titles, so we pass localMatches as current to ensure they take precedence
+        const sourceResults = page === 1 ? dedupeResults(localMatches, results) : dedupeResults(state.results, results);
+        const nextResults = sourceResults;
 
         return {
           results: nextResults,
@@ -344,6 +412,35 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
     }
   },
 
+  fetchForYou: async (force = false) => {
+    if (!force && get().forYou.length > 0) return;
+
+    set({ isLoadingForYou: true });
+    try {
+        const smartRecommendations = await MangaIntelligenceService.getSmartRecommendations(24);
+        
+        // Convert recommendations back to SourceSearchResult
+        // The MangaIntelligence Engine caches the full object in generic series struct, so we map it back.
+        const mappedResults = smartRecommendations.map(rec => ({
+            id: rec.series.id,
+            title: rec.series.title,
+            coverUrl: rec.series.coverUrl,
+            source: rec.series.source,
+            provider: rec.series.source,
+            contentType: rec.series.contentType as ContentType || 'manga',
+            url: rec.series.url || '',
+            tags: rec.series.tags,
+            description: rec.series.description,
+            score: rec.score // Keep score for debugging if needed
+        })) as unknown as SourceSearchResult[];
+
+        set({ forYou: mappedResults, isLoadingForYou: false });
+    } catch (err) {
+      console.error("[DiscoveryStore] Fetch For You failed:", err);
+      set({ isLoadingForYou: false });
+    }
+  },
+
   forceRefresh: async () => {
     set({
       isLoadingTrending: true,
@@ -359,6 +456,7 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
       get().fetchTrending(true),
       get().fetchLatest(true),
       get().fetchRandom(true),
+      get().fetchForYou(true),
     ]);
   },
 }));

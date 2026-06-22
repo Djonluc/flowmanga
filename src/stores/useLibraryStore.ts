@@ -42,6 +42,15 @@ export interface Series {
   books: Book[];
   anilistId?: string;
   malId?: string;
+  kitsuId?: string;
+  alternativeTitles?: string; // Stored as JSON array string
+  japaneseTitle?: string;
+  englishTitle?: string;
+  genres?: string; // Comma separated in DB
+  themes?: string; // Comma separated in DB
+  publisher?: string;
+  releaseDate?: string;
+  confidenceScore?: number;
   displayTitle?: string;
   createdAt: string;
   updatedAt: string;
@@ -216,6 +225,17 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         seriesUrl: s.seriesUrl,
         anilistId: s.anilistId,
         malId: s.malId,
+        kitsuId: s.kitsuId,
+        alternativeTitles: s.alternativeTitles,
+        japaneseTitle: s.japaneseTitle,
+        englishTitle: s.englishTitle,
+        genres: s.genres,
+        themes: s.themes,
+        publisher: s.publisher,
+        status: s.status,
+        releaseDate: s.releaseDate,
+        artist: s.artist,
+        confidenceScore: s.confidenceScore,
         createdAt: s.createdAt,
         updatedAt: s.updatedAt,
         books: chapters.map((c) => ({
@@ -324,6 +344,17 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       }
 
       await get().loadFromDb();
+
+      // Trigger background metadata enrichment for all newly added series
+      try {
+        const { MetadataEnrichmentService } = await import("../services/manga-intelligence/MetadataEnrichmentService");
+        for (const m of results) {
+          await MetadataEnrichmentService.enqueueSeries(m.id);
+        }
+      } catch (e) {
+        console.warn("[LibraryStore] Failed to trigger metadata enrichment:", e);
+      }
+
     } catch (err) {
       console.error("[LibraryStore] Failed to add manga folder:", err);
       throw err;
@@ -907,6 +938,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         if (coverUrl && coverUrl.startsWith("http")) {
           try {
             const { join } = await import("@tauri-apps/api/path");
+            const { invoke } = await import("@tauri-apps/api/core");
             const coverPath = await join(series.path, "cover.jpg");
             const referer = targetUrl || series.seriesUrl || null;
             await invoke("download_image", {
@@ -955,6 +987,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         // Also try to generate thumbnails if missing
         await get().refreshChapterThumbnails(seriesId);
         await get().loadFromDb();
+        
+        // Trigger background metadata enrichment
+        try {
+          const { MetadataEnrichmentService } = await import("../services/manga-intelligence/MetadataEnrichmentService");
+          await MetadataEnrichmentService.enqueueSeries(seriesId);
+        } catch (e) {
+          console.warn("[LibraryStore] Failed to enqueue series for enrichment:", e);
+        }
       }
     } catch (err) {
       console.error("[LibraryStore] Failed to refresh metadata:", err);

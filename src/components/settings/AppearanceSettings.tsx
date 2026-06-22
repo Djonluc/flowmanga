@@ -1,5 +1,5 @@
 import { useSettingsStore, type Theme, type AmbientMode } from '../../stores/useSettingsStore';
-import { Palette, Zap, Sun, Moon, FileText } from 'lucide-react';
+import { Palette, Zap, Sun, Moon, FileText, LayoutTemplate, Layers, Eye, SlidersHorizontal } from 'lucide-react';
 import clsx from 'clsx';
 
 export const AppearanceSettings = () => {
@@ -12,29 +12,37 @@ export const AppearanceSettings = () => {
         showAmbientNoise, setAmbientNoise,
     } = useSettingsStore();
 
-    const themes: { id: Theme; label: string; icon: any; color: string }[] = [
-        { id: 'dark', label: 'Dark', icon: Moon, color: '#1a1a1a' },
-        { id: 'light', label: 'Light', icon: Sun, color: '#ffffff' },
-        { id: 'oled', label: 'OLED', icon: Palette, color: '#000000' },
-        { id: 'paper', label: 'Paper', icon: FileText, color: '#f5f5dc' },
-        { id: 'amethyst', label: 'Amethyst', icon: Zap, color: '#c084fc' },
+    const themes: { id: Theme; label: string; icon: any; color: string; bg: string }[] = [
+        { id: 'dark', label: 'Dark', icon: Moon, color: '#3b82f6', bg: '#0f172a' },
+        { id: 'oled', label: 'OLED', icon: Eye, color: '#10b981', bg: '#000000' },
+        { id: 'amethyst', label: 'Amethyst', icon: Zap, color: '#c084fc', bg: '#2e1065' },
+        { id: 'paper', label: 'Paper', icon: FileText, color: '#d97706', bg: '#fef3c7' },
+        { id: 'light', label: 'Light', icon: Sun, color: '#eab308', bg: '#f8fafc' },
     ];
 
-    const ambientModes: { id: AmbientMode; label: string }[] = [
-        { id: 'blurred-page', label: 'Page Blur' },
-        { id: 'blurred-cover', label: 'Cover Blur' },
-        { id: 'gradient', label: 'Gradient' },
-        { id: 'solid', label: 'Solid Color' },
+    const ambientModes: { id: AmbientMode; label: string; desc: string }[] = [
+        { id: 'blurred-page', label: 'Page Blur', desc: 'Dynamic blur based on current reading page' },
+        { id: 'blurred-cover', label: 'Cover Blur', desc: 'Static blur based on series cover art' },
+        { id: 'gradient', label: 'Gradient Mesh', desc: 'Smooth animated cinematic mesh' },
+        { id: 'solid', label: 'Solid Color', desc: 'Minimal solid color backing' },
     ];
 
     return (
-        <div className="space-y-8">
-            {/* Theme Selection */}
-            <section className="space-y-4">
-                <h4 className="text-foreground font-black uppercase tracking-widest text-xs border-b border-white/10 pb-2">
-                    Interface Theme
-                </h4>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="flex flex-col gap-8 pb-12 w-full max-w-5xl mx-auto">
+            {/* Header Area */}
+            <div className="flex items-center justify-between mb-2">
+                <div>
+                    <h2 className="text-3xl font-black text-foreground uppercase tracking-tighter">Appearance</h2>
+                    <p className="text-foreground-dim font-bold tracking-wide mt-1">Customize themes and configure the ambient background engine.</p>
+                </div>
+            </div>
+
+            {/* Interface Theme Selection */}
+            <div className="glass-panel p-6 rounded-[32px] border border-border-subtle relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-accent/5 blur-[80px] rounded-full pointer-events-none" />
+                <h3 className="text-foreground font-black uppercase tracking-widest text-sm italic opacity-50 mb-6 relative z-10">Application Theme</h3>
+                
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 relative z-10">
                     {themes.map((t) => {
                         const Icon = t.icon;
                         const active = theme === t.id;
@@ -43,113 +51,137 @@ export const AppearanceSettings = () => {
                                 key={t.id}
                                 onClick={() => setTheme(t.id)}
                                 className={clsx(
-                                    "flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border transition-all relative overflow-hidden",
+                                    "flex flex-col items-center justify-center p-5 rounded-2xl border transition-all relative overflow-hidden",
                                     active 
-                                        ? "ring-1 shadow-lg shadow-accent/40" 
-                                        : "border-white/5 hover:bg-white/5 opacity-60 hover:opacity-100"
+                                        ? "ring-2 ring-offset-2 ring-offset-surface shadow-xl" 
+                                        : "border-border-subtle hover:border-white/20 hover:bg-white/5 opacity-80 hover:opacity-100 bg-surface"
                                 )}
                                 style={{ 
-                                   backgroundColor: active ? `${t.color}33` : 'transparent',
-                                   borderColor: active ? 'var(--color-accent)' : undefined,
-                                   boxShadow: active ? '0 0 15px var(--color-accent-glow)' : undefined
+                                   borderColor: active ? t.color : undefined,
+                                   backgroundColor: active ? `${t.color}22` : undefined,
                                 }}
                             >
-                                <Icon size={24} style={{ color: active ? 'var(--color-accent)' : 'currentColor' }} />
-                                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: active ? 'var(--color-accent)' : 'currentColor' }}>{t.label}</span>
-                                {active && <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--color-accent)' }} />}
+                                <div 
+                                    className="w-12 h-12 rounded-full mb-3 shadow-inner flex items-center justify-center"
+                                    style={{ backgroundColor: t.bg }}
+                                >
+                                    <Icon size={20} style={{ color: t.color }} />
+                                </div>
+                                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: active ? t.color : 'var(--color-foreground)' }}>{t.label}</span>
                             </button>
                         );
                     })}
                 </div>
-            </section>
+            </div>
 
-             {/* Ambient System */}
-             <section className="space-y-4">
-                <h4 className="text-foreground font-black uppercase tracking-widest text-xs border-b border-white/10 pb-2">
-                    Ambient Atmosphere
-                </h4>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 
-                {/* Mode Selector */}
-                <div className="flex p-1 bg-white/5 rounded-xl border border-white/5 mb-6">
-                    {ambientModes.map((m) => (
-                        <button
-                            key={m.id}
-                            onClick={() => setAmbientMode(m.id)}
-                            className={clsx(
-                                "flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
-                                ambientMode === m.id 
-                                    ? "text-white shadow-lg shadow-accent/40" 
-                                    : "text-foreground-dim hover:text-foreground"
-                            )}
-                            style={{ backgroundColor: ambientMode === m.id ? 'var(--color-accent)' : 'transparent' }}
-                        >
-                            {m.label}
-                        </button>
-                    ))}
-                </div>
-
-                {/* Sliders */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-4">
-                        <div className="flex justify-between items-center text-xs font-bold uppercase text-foreground-dim">
-                             <span>Intensity</span>
-                             <span className="text-foreground">{Math.round(ambientIntensity * 100)}%</span>
-                        </div>
-                        <input 
-                            type="range" 
-                            min="0" max="1" step="0.05"
-                            value={ambientIntensity}
-                            onChange={(e) => setAmbientIntensity(Number(e.target.value))}
-                            className="w-full accent-blue-500 h-1 bg-white/10 rounded-full appearance-none cursor-pointer"
-                        />
-                    </div>
+                {/* Ambient Mode Selection */}
+                <div className="glass-panel p-6 rounded-[32px] border border-border-subtle relative overflow-hidden lg:col-span-2">
+                    <div className="absolute -top-20 -right-20 w-64 h-64 bg-blue-500/10 blur-[80px] rounded-full pointer-events-none" />
                     
-                    <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-4">
-                        <div className="flex justify-between items-center text-xs font-bold uppercase text-foreground-dim">
-                             <span>Blur Radius</span>
-                             <span className="text-foreground">{ambientBlur}px</span>
+                    <div className="flex items-center gap-4 mb-6 relative z-10">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500">
+                            <Layers size={24} />
                         </div>
-                        <input 
-                            type="range" 
-                            min="0" max="120" step="5"
-                            value={ambientBlur}
-                            onChange={(e) => setAmbientBlur(Number(e.target.value))}
-                            className="w-full accent-blue-500 h-1 bg-white/10 rounded-full appearance-none cursor-pointer"
-                        />
+                        <div>
+                            <h3 className="text-foreground font-black text-lg">Ambient Background</h3>
+                            <p className="text-blue-400 text-[10px] font-bold uppercase tracking-widest">Atmosphere Engine</p>
+                        </div>
                     </div>
 
-                    <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-4">
-                        <div className="flex justify-between items-center text-xs font-bold uppercase text-foreground-dim">
-                             <span>Brightness</span>
-                             <span className="text-foreground">{Math.round(ambientBrightness * 100)}%</span>
-                        </div>
-                        <input 
-                            type="range" 
-                            min="0" max="2" step="0.1"
-                            value={ambientBrightness}
-                            onChange={(e) => setAmbientBrightness(Number(e.target.value))}
-                            className="w-full accent-blue-500 h-1 bg-white/10 rounded-full appearance-none cursor-pointer"
-                        />
-                    </div>
-
-                    <div className="bg-white/5 p-4 rounded-2xl border border-white/5 flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase text-foreground-dim">Texture Noise</span>
-                        <button 
-                            onClick={() => setAmbientNoise(!showAmbientNoise)}
-                            className={clsx(
-                                "w-12 h-6 rounded-full transition-colors relative",
-                                !showAmbientNoise && "bg-white/10"
-                            )}
-                            style={{ backgroundColor: showAmbientNoise ? 'var(--color-accent)' : undefined }}
-                        >
-                            <div className={clsx(
-                                "absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform",
-                                showAmbientNoise ? "translate-x-6 shadow-[0_0_10px_var(--color-accent)]" : "translate-x-0"
-                            )} />
-                        </button>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
+                        {ambientModes.map((m) => (
+                            <button
+                                key={m.id}
+                                onClick={() => setAmbientMode(m.id)}
+                                className={clsx(
+                                    "flex flex-col p-4 rounded-xl border transition-all text-left relative overflow-hidden",
+                                    ambientMode === m.id 
+                                        ? "bg-blue-500/10 border-blue-500/30" 
+                                        : "bg-surface border-border-subtle hover:border-white/20"
+                                )}
+                            >
+                                {ambientMode === m.id && <div className="absolute top-0 left-0 w-full h-1 bg-blue-500" />}
+                                <span className={clsx("text-sm font-black tracking-wide", ambientMode === m.id ? "text-blue-400" : "text-foreground")}>{m.label}</span>
+                                <span className="text-[10px] font-medium text-foreground-dim mt-1 line-clamp-2">{m.desc}</span>
+                            </button>
+                        ))}
                     </div>
                 </div>
-            </section>
+
+                {/* Ambient Tuning */}
+                <div className="glass-panel p-6 rounded-[32px] border border-border-subtle relative overflow-hidden lg:col-span-2">
+                    <div className="flex items-center gap-4 mb-6 relative z-10">
+                        <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-500">
+                            <SlidersHorizontal size={24} />
+                        </div>
+                        <div>
+                            <h3 className="text-foreground font-black text-lg">Engine Tuning</h3>
+                            <p className="text-purple-400 text-[10px] font-bold uppercase tracking-widest">Fine-tune visuals</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
+                        <div className="bg-surface-elevated p-5 rounded-2xl border border-border-subtle">
+                            <div className="flex justify-between items-center mb-6">
+                                <h4 className="text-foreground font-bold text-sm">Intensity</h4>
+                                <span className="text-xl font-black text-purple-400 italic">{Math.round(ambientIntensity * 100)}%</span>
+                            </div>
+                            <input 
+                                type="range" min="0" max="1" step="0.05" value={ambientIntensity}
+                                onChange={(e) => setAmbientIntensity(Number(e.target.value))}
+                                className="w-full h-2 bg-black/40 rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:bg-purple-500 [&::-webkit-slider-thumb]:rounded-full cursor-pointer shadow-inner"
+                            />
+                        </div>
+
+                        <div className="bg-surface-elevated p-5 rounded-2xl border border-border-subtle">
+                            <div className="flex justify-between items-center mb-6">
+                                <h4 className="text-foreground font-bold text-sm">Blur Radius</h4>
+                                <span className="text-xl font-black text-emerald-400 italic">{ambientBlur}px</span>
+                            </div>
+                            <input 
+                                type="range" min="0" max="120" step="5" value={ambientBlur}
+                                onChange={(e) => setAmbientBlur(Number(e.target.value))}
+                                className="w-full h-2 bg-black/40 rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:bg-emerald-500 [&::-webkit-slider-thumb]:rounded-full cursor-pointer shadow-inner"
+                            />
+                        </div>
+
+                        <div className="bg-surface-elevated p-5 rounded-2xl border border-border-subtle">
+                            <div className="flex justify-between items-center mb-6">
+                                <h4 className="text-foreground font-bold text-sm">Brightness</h4>
+                                <span className="text-xl font-black text-amber-400 italic">{Math.round(ambientBrightness * 100)}%</span>
+                            </div>
+                            <input 
+                                type="range" min="0" max="2" step="0.1" value={ambientBrightness}
+                                onChange={(e) => setAmbientBrightness(Number(e.target.value))}
+                                className="w-full h-2 bg-black/40 rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:bg-amber-500 [&::-webkit-slider-thumb]:rounded-full cursor-pointer shadow-inner"
+                            />
+                        </div>
+
+                        {/* Texture Noise Toggle */}
+                        <div className="col-span-1 md:col-span-3 bg-surface-elevated p-5 rounded-2xl border border-border-subtle flex items-center justify-between">
+                            <div>
+                                <h4 className="text-foreground font-bold text-sm">Cinematic Texture Noise</h4>
+                                <p className="text-foreground-dim text-[10px] font-medium mt-1">Applies a subtle film grain effect over the ambient background.</p>
+                            </div>
+                            <button 
+                                onClick={() => setAmbientNoise(!showAmbientNoise)}
+                                className={clsx(
+                                    "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
+                                    showAmbientNoise ? "bg-accent" : "bg-black/40 border border-white/10"
+                                )}
+                            >
+                                <div className={clsx(
+                                    "absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform",
+                                    showAmbientNoise ? "translate-x-6 shadow-[0_0_10px_rgba(255,255,255,0.5)]" : "translate-x-0"
+                                )} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
         </div>
     );
 };

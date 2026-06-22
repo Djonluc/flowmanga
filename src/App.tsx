@@ -16,7 +16,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { HomeView } from './components/HomeView';
 import { DiscoverView } from './components/DiscoverView';
 import { VideoLibrary } from './components/video/VideoLibrary';
-import { HistoryView } from './components/HistoryView';
+import { DownloadsView } from './components/DownloadsView';
+
 import { AmbientBackground } from './components/AmbientBackground';
 import { OfflineAudioEngine } from './components/OfflineAudioEngine';
 import { useVideoStore } from './stores/useVideoStore';
@@ -236,9 +237,11 @@ function MainContent() {
                 >
                     {activeView === 'stats' ? (
                         <AnalyticsDashboard />
-                    ) : activeView === 'history' ? (
-                        <HistoryView />
-                    ) : activeView === 'home' ? (
+                     ) : activeView === 'downloads' ? (
+                    <div className="flex-1 min-h-0 bg-transparent relative">
+                        <DownloadsView />
+                    </div>
+                ) : activeView === 'home' ? (
                         <HomeView />
                     ) : activeView === 'discover' ? (
                         <DiscoverView />

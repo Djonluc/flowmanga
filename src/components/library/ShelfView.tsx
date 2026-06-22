@@ -2,6 +2,12 @@ import { motion } from 'framer-motion';
 import { useRef } from 'react';
 import clsx from 'clsx';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { useProxiedImage } from '../../hooks/useProxiedImage';
+
+const ProxiedShelfImage = ({ src, className, alt }: { src: string, className?: string, alt?: string }) => {
+  const { src: proxiedSrc, handleError } = useProxiedImage(src);
+  return <img src={proxiedSrc} className={className} alt={alt} onError={() => handleError()} />;
+};
 
 interface ShelfViewProps {
     allSeries: any[];
@@ -79,7 +85,7 @@ const Book = ({ item, onClick }: { item: any, onClick: () => void }) => {
                     isSeries ? "border-accent/40" : "border-border-subtle"
                 )}>
                     {coverSrc ? (
-                        <img src={coverSrc} alt={item.title} className="w-full h-full object-cover" />
+                        <ProxiedShelfImage src={coverSrc} alt={item.title} className="w-full h-full object-cover" />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-foreground-dim bg-surface-elevated">
                            <span className="text-xs p-2 text-center font-bold uppercase opacity-30">{item.title}</span>

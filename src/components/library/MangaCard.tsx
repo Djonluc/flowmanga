@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Play, MoreVertical, FolderOpen, Heart } from "lucide-react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useLibraryStore } from "../../stores/useLibraryStore";
+import { useProxiedImage } from "../../hooks/useProxiedImage";
 import clsx from "clsx";
 
 interface MangaCardProps {
@@ -20,7 +21,7 @@ interface MangaCardProps {
   density?: "compact" | "comfortable" | "cinematic";
 }
 
-export const MangaCard = ({
+export const MangaCard = React.memo(({
   item,
   onClick,
   onMenuClick,
@@ -32,18 +33,20 @@ export const MangaCard = ({
   density = "comfortable"
 }: MangaCardProps) => {
   const { toggleFavorite } = useLibraryStore();
-  const [hasImageError, setHasImageError] = useState(false);
   const isSeries = "books" in item;
 
   // Derived state
   const isHistoryItem = !!item.seriesTitle && !!item.chapterNumber;
   const title = item.seriesTitle || item.title;
   const rawCover = item.cover || item.coverUrl || item.coverPath;
-  const coverSrc = rawCover
-    ? rawCover.startsWith("http")
+  const initialCoverSrc = rawCover
+    ? rawCover.startsWith("http") || rawCover.startsWith("data:")
       ? rawCover
       : convertFileSrc(rawCover)
     : "";
+  
+  const { src: coverSrc, hasError: hasImageError, handleError } = useProxiedImage(initialCoverSrc);
+  
   const isVideo = coverSrc.match(/\.(mp4|webm|mov)$/i);
   const progress =
     !isSeries && item.progress
@@ -70,15 +73,16 @@ export const MangaCard = ({
     return (
         <motion.div 
             whileHover={{ x: 4 }}
+            whileTap={{ scale: 0.98 }}
             onClick={onClick}
             className="flex items-center gap-4 group cursor-pointer p-2 rounded-2xl hover:bg-surface-elevated transition-all border border-transparent hover:border-border-subtle"
         >
             <div className="w-14 h-20 rounded-xl bg-surface overflow-hidden flex-shrink-0 border border-border-subtle shadow-card relative">
                 {coverSrc && !hasImageError ? (
                     isVideo ? (
-                        <video src={coverSrc} className="w-full h-full object-cover opacity-85 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500" autoPlay loop muted playsInline onError={() => setHasImageError(true)} />
+                        <video src={coverSrc} className="w-full h-full object-cover opacity-85 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500" autoPlay loop muted playsInline onError={handleError} />
                     ) : (
-                        <img src={coverSrc} className="w-full h-full object-cover opacity-85 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500" alt="" onError={() => setHasImageError(true)} />
+                        <img src={coverSrc} referrerPolicy="no-referrer" className="w-full h-full object-cover opacity-85 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500" alt="" onError={handleError} />
                     )
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-foreground-dim"><FolderOpen size={16} /></div>
@@ -115,6 +119,7 @@ export const MangaCard = ({
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       whileHover={{ y: -8 }}
+      whileTap={{ scale: 0.98 }}
       className="group relative flex w-full max-w-full flex-col gap-4 cursor-pointer"
       onClick={onClick}
     >
@@ -177,21 +182,23 @@ export const MangaCard = ({
               loop
               muted
               playsInline
-              onError={() => setHasImageError(true)}
+              onError={handleError}
             />
           ) : (
             <img
               src={coverSrc}
               alt={title}
+              referrerPolicy="no-referrer"
               className="w-full h-full object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110"
-              loading="lazy"
-              onError={() => setHasImageError(true)}
+              onError={handleError}
             />
           )
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center bg-surface-elevated text-foreground-dim font-medium p-4 text-center text-xs tracking-wide gap-2">
-            <FolderOpen size={24} className="opacity-20" />
-            {hasImageError ? "Broken Link" : "No Cover"}
+          <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-surface-elevated to-surface border border-border-subtle p-4 text-center gap-3">
+            <FolderOpen size={28} className="opacity-40 text-accent" />
+            <span className="font-black text-[10px] uppercase tracking-[0.2em] text-foreground-dim">
+              {hasImageError ? "Cover Unavailable" : "No Cover"}
+            </span>
           </div>
         )}
 
@@ -229,7 +236,7 @@ export const MangaCard = ({
         </div>
 
         {/* New Badge */}
-        {(isNew || (item.updatedAt && new Date().getTime() - new Date(item.updatedAt).getTime() < 3 * 24 * 60 * 60 * 1000)) && (
+        {(isNew || (item.createdAt && new Date().getTime() - new Date(item.createdAt).getTime() < 3 * 24 * 60 * 60 * 1000)) && (
           <div className="absolute top-4 left-4 z-20">
             <span className="px-3 py-1 rounded-xl bg-accent text-[9px] font-black text-white shadow-lg tracking-tight uppercase border border-white/10">
               New
@@ -286,4 +293,5 @@ export const MangaCard = ({
       </div>
     </motion.div>
   );
-};
+});
+

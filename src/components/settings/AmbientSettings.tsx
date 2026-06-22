@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Volume2, Music2, Shuffle, Repeat, Repeat1, FolderOpen, Play, Pause, RefreshCw, Plus, Trash2, Link } from 'lucide-react';
+import { Volume2, Music2, Shuffle, Repeat, Repeat1, FolderOpen, Play, Pause, RefreshCw, Link, Trash2, Headphones, Plus } from 'lucide-react';
 import { useMusicStore } from '../../stores/useMusicStore';
 import clsx from 'clsx';
+import { motion } from 'framer-motion';
 
 export const AmbientSettings = () => {
     const {
@@ -28,11 +28,8 @@ export const AmbientSettings = () => {
 
     const playlist = getPlaylistTracks();
     const currentTrack = getCurrentTrack();
-
-    // Gather available playlist names
     const playlistNames = Array.from(new Set(tracks.map(t => t.playlist))).sort();
 
-    // Open assets/audio/lofi/ folder in system explorer
     const handleOpenFolder = async () => {
         try {
             const { invoke } = await import('@tauri-apps/api/core');
@@ -55,295 +52,247 @@ export const AmbientSettings = () => {
             });
             if (selected && typeof selected === 'string') {
                 addCustomFolder(selected);
-                loadTracks(); // Refresh to scan the new folder
+                loadTracks();
             }
-        } catch (e) {
-            console.error('Failed to select custom folder:', e);
-        }
+        } catch (e) {}
     };
 
     const handleAddStreamLink = () => {
         const url = window.prompt("Enter the direct audio stream URL (e.g., https://example.com/stream.mp3 or a radio link):");
         if (!url) return;
         const name = window.prompt("Enter a name for this stream:") || "Custom Stream";
-        addCustomStream({
-            name,
-            path: url,
-            playlist: 'Custom Streams',
-        });
+        addCustomStream({ name, path: url, playlist: 'Custom Streams' });
         loadTracks();
     };
 
-    const getAudio = (): HTMLAudioElement | undefined =>
-        (window as any).offlineAudio as HTMLAudioElement | undefined;
+    const getAudio = (): HTMLAudioElement | undefined => (window as any).offlineAudio as HTMLAudioElement | undefined;
 
     const handlePlayPause = (trackPath: string) => {
         const audio = getAudio();
         if (!audio) return;
-        const isCurrentTrack = currentTrack?.path === trackPath;
-        if (isCurrentTrack) {
-            if (audio.paused) {
-                audio.play().catch(console.error);
-            } else {
-                audio.pause();
-            }
+        if (currentTrack?.path === trackPath) {
+            if (audio.paused) audio.play().catch(console.error);
+            else audio.pause();
         } else {
             playTrack(trackPath);
         }
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-            {/* Volume Control */}
-            <section className="space-y-4">
-                <h4 className="text-foreground font-black uppercase tracking-widest text-xs border-b border-white/10 pb-2">
-                    Master Volume
-                </h4>
-                <div className="bg-white/5 p-6 rounded-[32px] border border-white/5 space-y-4">
-                    <div className="flex items-center justify-between">
-                        <button
-                            onClick={toggleMute}
-                            className="flex items-center gap-3 text-foreground-dim hover:text-foreground transition-colors"
-                        >
-                            <Volume2 size={18} />
-                            <span className="text-xs font-bold uppercase tracking-wider">
-                                {isMuted ? 'Muted' : 'Music Level'}
-                            </span>
-                        </button>
-                        <span className="text-sm font-black text-indigo-400 italic">
-                            {isMuted ? '—' : `${Math.round(volume * 100)}%`}
-                        </span>
-                    </div>
-                    <input
-                        type="range" min="0" max="1" step="0.05"
-                        value={isMuted ? 0 : volume}
-                        onChange={(e) => {
-                            useMusicStore.getState().setIsMuted(false);
-                            setVolume(parseFloat(e.target.value));
-                        }}
-                        className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-indigo-500"
-                    />
+        <div className="flex flex-col gap-8 pb-12 w-full max-w-5xl mx-auto">
+            {/* Header Area */}
+            <div className="flex items-center justify-between mb-2">
+                <div>
+                    <h2 className="text-3xl font-black text-foreground uppercase tracking-tighter">Audio Experience</h2>
+                    <p className="text-foreground-dim font-bold tracking-wide mt-1">Configure ambient background music and custom local sources.</p>
                 </div>
-            </section>
+            </div>
 
-            {/* Playback Settings */}
-            <section className="space-y-4">
-                <h4 className="text-foreground font-black uppercase tracking-widest text-xs border-b border-white/10 pb-2">
-                    Playback Options
-                </h4>
-                <div className="grid grid-cols-2 gap-3">
+            {/* Now Playing / Master Control */}
+            <div className="glass-panel p-8 rounded-[32px] border border-border-subtle relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 blur-[80px] rounded-full pointer-events-none" />
+                
+                <div className="flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
+                    <div className="flex items-center gap-6">
+                        <div className="w-20 h-20 rounded-[24px] bg-indigo-500/10 border-2 border-indigo-500/20 flex flex-col items-center justify-center text-indigo-500 shadow-[0_0_30px_rgba(99,102,241,0.15)] flex-shrink-0 relative overflow-hidden">
+                            {isPlaying && <div className="absolute inset-0 bg-indigo-500/10 animate-pulse" />}
+                            <Headphones size={32} className={clsx(isPlaying && "animate-bounce")} />
+                        </div>
+                        <div>
+                            <h3 className="text-foreground font-black text-xl line-clamp-1">{currentTrack ? currentTrack.name.replace(/[-_]/g, ' ') : 'Silence'}</h3>
+                            <p className="text-indigo-400 text-xs font-bold uppercase tracking-widest mt-1">
+                                {isPlaying ? 'Now Playing' : 'Playback Stopped'}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div className="flex flex-col items-end gap-3 w-full max-w-[300px]">
+                        <div className="flex items-center justify-between w-full">
+                            <button onClick={toggleMute} className="flex items-center gap-2 text-foreground-dim hover:text-indigo-400 transition-colors">
+                                <Volume2 size={16} />
+                                <span className="text-[10px] font-black uppercase tracking-widest">{isMuted ? 'Muted' : 'Volume'}</span>
+                            </button>
+                            <span className="text-lg font-black text-foreground italic">{isMuted ? '0%' : `${Math.round(volume * 100)}%`}</span>
+                        </div>
+                        <input
+                            type="range" min="0" max="1" step="0.05"
+                            value={isMuted ? 0 : volume}
+                            onChange={(e) => {
+                                useMusicStore.getState().setIsMuted(false);
+                                setVolume(parseFloat(e.target.value));
+                            }}
+                            className="w-full h-2 bg-black/40 rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:bg-indigo-500 [&::-webkit-slider-thumb]:rounded-full cursor-pointer shadow-inner"
+                        />
+                    </div>
+                </div>
+
+                <div className="flex gap-4 mt-8 pt-6 border-t border-white/5 relative z-10">
                     <button
                         onClick={toggleShuffle}
                         className={clsx(
-                            'flex items-center gap-3 p-5 rounded-[24px] border transition-all',
-                            shuffle
-                                ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400'
-                                : 'bg-white/2 border-white/5 text-foreground-dim hover:bg-white/5'
+                            'flex-1 flex items-center justify-center gap-3 p-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all border',
+                            shuffle ? 'bg-indigo-500/20 border-indigo-500/30 text-indigo-300' : 'bg-surface border-border-subtle text-foreground-dim hover:text-foreground hover:border-white/20'
                         )}
                     >
-                        <Shuffle size={20} />
-                        <div className="text-left">
-                            <div className="text-xs font-black uppercase tracking-widest">Shuffle</div>
-                            <div className="text-[9px] text-foreground-muted mt-0.5">{shuffle ? 'On' : 'Off'}</div>
-                        </div>
+                        <Shuffle size={16} /> {shuffle ? 'Shuffle On' : 'Shuffle Off'}
                     </button>
-
                     <button
                         onClick={cycleRepeat}
                         className={clsx(
-                            'flex items-center gap-3 p-5 rounded-[24px] border transition-all',
-                            repeat !== 'none'
-                                ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400'
-                                : 'bg-white/2 border-white/5 text-foreground-dim hover:bg-white/5'
+                            'flex-1 flex items-center justify-center gap-3 p-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all border',
+                            repeat !== 'none' ? 'bg-indigo-500/20 border-indigo-500/30 text-indigo-300' : 'bg-surface border-border-subtle text-foreground-dim hover:text-foreground hover:border-white/20'
                         )}
                     >
-                        {repeat === 'one' ? <Repeat1 size={20} /> : <Repeat size={20} />}
-                        <div className="text-left">
-                            <div className="text-xs font-black uppercase tracking-widest">Repeat</div>
-                            <div className="text-[9px] text-foreground-muted mt-0.5 capitalize">{repeat}</div>
-                        </div>
+                        {repeat === 'one' ? <Repeat1 size={16} /> : <Repeat size={16} />} 
+                        {repeat === 'none' ? 'No Repeat' : repeat === 'all' ? 'Repeat All' : 'Repeat One'}
                     </button>
                 </div>
-            </section>
+            </div>
 
-            {/* Playlist Selector */}
-            {playlistNames.length > 1 && (
-                <section className="space-y-4">
-                    <h4 className="text-foreground font-black uppercase tracking-widest text-xs border-b border-white/10 pb-2">
-                        Playlist
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                        {playlistNames.map(name => (
-                            <button
-                                key={name}
-                                onClick={() => setActivePlaylist(name)}
-                                className={clsx(
-                                    'px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border',
-                                    activePlaylist === name
-                                        ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300'
-                                        : 'bg-white/5 border-white/10 text-foreground-dim hover:text-foreground'
-                                )}
-                            >
-                                {name}
-                            </button>
-                        ))}
-                    </div>
-                </section>
-            )}
-
-            {/* Track Library */}
-            <section className="space-y-4">
-                <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                    <h4 className="text-foreground font-black uppercase tracking-widest text-xs">
-                        Track Library
-                    </h4>
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-foreground-dim">
-                            {playlist.length} track{playlist.length !== 1 ? 's' : ''}
-                        </span>
-                        <button
-                            onClick={loadTracks}
-                            disabled={isLoadingTracks}
-                            className="p-1.5 rounded-lg hover:bg-white/10 text-foreground-dim hover:text-foreground transition-colors"
-                            title="Refresh tracks"
-                        >
-                            <RefreshCw size={12} className={isLoadingTracks ? 'animate-spin' : ''} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* Playlist Explorer */}
+                <div className="glass-panel p-6 rounded-[32px] border border-border-subtle relative overflow-hidden flex flex-col h-[500px]">
+                    <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-500">
+                                <Music2 size={20} />
+                            </div>
+                            <div>
+                                <h3 className="text-foreground font-black">Track Library</h3>
+                                <p className="text-foreground-dim text-[10px] font-bold uppercase tracking-widest mt-0.5">{playlist.length} Tracks Available</p>
+                            </div>
+                        </div>
+                        <button onClick={loadTracks} disabled={isLoadingTracks} className="p-2 bg-surface-elevated hover:bg-white/10 rounded-xl transition-all">
+                            <RefreshCw size={16} className={clsx(isLoadingTracks && "animate-spin text-purple-400")} />
                         </button>
                     </div>
-                </div>
 
-                {isLoadingTracks ? (
-                    <div className="py-8 flex items-center justify-center gap-3 text-foreground-dim">
-                        <RefreshCw size={16} className="animate-spin" />
-                        <span className="text-xs font-bold">Discovering tracks…</span>
-                    </div>
-                ) : playlist.length === 0 ? (
-                    <div className="py-8 flex flex-col items-center justify-center gap-4 text-center">
-                        <div className="w-16 h-16 rounded-[24px] bg-white/5 flex items-center justify-center text-foreground-muted">
-                            <Music2 size={32} />
-                        </div>
-                        <div>
-                            <p className="text-sm font-black uppercase tracking-widest text-foreground-dim">No tracks found</p>
-                            <p className="text-[10px] text-foreground-muted mt-1">
-                                Add MP3 files to <code className="text-indigo-400">assets/audio/lofi/</code>
-                            </p>
-                        </div>
-                        <button
-                            onClick={handleOpenFolder}
-                            className="flex items-center gap-2 px-4 py-2 bg-indigo-600/20 border border-indigo-500/50 text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600/30 transition-all"
-                        >
-                            <FolderOpen size={14} />
-                            Open Folder
-                        </button>
-                    </div>
-                ) : (
-                    <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar pr-1">
-                        {playlist.map((track) => {
-                            const isActive = currentTrack?.path === track.path;
-                            return (
+                    {playlistNames.length > 1 && (
+                        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-4 mb-2">
+                            {playlistNames.map(name => (
                                 <button
-                                    key={track.path}
-                                    onClick={() => handlePlayPause(track.path)}
+                                    key={name}
+                                    onClick={() => setActivePlaylist(name)}
                                     className={clsx(
-                                        'w-full flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all text-left group',
-                                        isActive
-                                            ? 'bg-indigo-600/10 border-indigo-500/40 text-foreground'
-                                            : 'bg-white/2 border-white/5 text-foreground-dim hover:bg-white/5 hover:text-foreground hover:border-white/10'
+                                        'px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border whitespace-nowrap',
+                                        activePlaylist === name ? 'bg-purple-500/20 border-purple-500/30 text-purple-300' : 'bg-surface-elevated border-border-subtle text-foreground-dim hover:text-foreground'
                                     )}
                                 >
-                                    <div className={clsx(
-                                        'w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all',
-                                        isActive ? 'bg-indigo-600/20 text-indigo-300' : 'bg-white/5 text-foreground-muted group-hover:bg-white/10'
-                                    )}>
-                                        {isActive && isPlaying
-                                            ? <Pause size={13} />
-                                            : <Play size={13} className="ml-0.5" />}
-                                    </div>
-                                    <span className="text-xs font-bold capitalize truncate flex-1">
-                                        {track.name.replace(/[-_]/g, ' ')}
-                                    </span>
-                                    {isActive && (
-                                        <span className="text-[9px] font-black uppercase tracking-widest text-indigo-400 flex-shrink-0">
-                                            {isPlaying ? 'Playing' : 'Paused'}
-                                        </span>
-                                    )}
+                                    {name}
                                 </button>
-                            );
-                        })}
-                    </div>
-                )}
-            </section>
+                            ))}
+                        </div>
+                    )}
 
-            {/* Open Folder shortcut */}
-            {playlist.length > 0 && (
-                <section>
-                    <button
-                        onClick={handleOpenFolder}
-                        className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-foreground-muted hover:text-foreground transition-colors"
-                    >
-                        <FolderOpen size={13} />
-                        Open default audio folder to add more tracks
-                    </button>
-                </section>
-            )}
-
-            {/* Custom Sources Management */}
-            <section className="space-y-3 pt-4 border-t border-border/10">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold text-foreground">Custom Sources</h3>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={handleAddCustomFolder}
-                            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-foreground-dim hover:text-foreground transition-all"
-                            title="Add Custom Local Folder"
-                        >
-                            <FolderOpen size={14} />
-                        </button>
-                        <button
-                            onClick={handleAddStreamLink}
-                            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-foreground-dim hover:text-foreground transition-all"
-                            title="Add Online Stream URL"
-                        >
-                            <Link size={14} />
-                        </button>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
+                        {isLoadingTracks ? (
+                            <div className="h-full flex items-center justify-center opacity-50">
+                                <Loader />
+                            </div>
+                        ) : playlist.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-center opacity-50 space-y-4">
+                                <Music2 size={48} className="text-foreground-dim" />
+                                <div>
+                                    <h4 className="text-foreground font-black text-sm uppercase tracking-widest">No Tracks</h4>
+                                    <p className="text-foreground-dim text-xs font-bold mt-1">Add MP3 files to custom folders</p>
+                                </div>
+                            </div>
+                        ) : (
+                            playlist.map((track) => {
+                                const isActive = currentTrack?.path === track.path;
+                                return (
+                                    <button
+                                        key={track.path}
+                                        onClick={() => handlePlayPause(track.path)}
+                                        className={clsx(
+                                            'w-full flex items-center gap-4 px-4 py-3 rounded-2xl border transition-all text-left group',
+                                            isActive ? 'bg-purple-500/10 border-purple-500/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]' : 'bg-surface border-border-subtle hover:border-white/20'
+                                        )}
+                                    >
+                                        <div className={clsx(
+                                            'w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors shadow-inner',
+                                            isActive ? 'bg-purple-500/20 text-purple-400' : 'bg-surface-elevated text-foreground-dim group-hover:text-foreground'
+                                        )}>
+                                            {isActive && isPlaying ? <Pause size={16} /> : <Play size={16} className="ml-1" />}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className={clsx("text-sm font-bold truncate", isActive ? "text-purple-300" : "text-foreground")}>{track.name.replace(/[-_]/g, ' ')}</h4>
+                                            <p className="text-[10px] text-foreground-dim font-black uppercase tracking-widest mt-0.5">{isActive && isPlaying ? 'Playing Now' : track.playlist}</p>
+                                        </div>
+                                    </button>
+                                );
+                            })
+                        )}
                     </div>
                 </div>
 
-                {customFolders.length > 0 && (
-                    <div className="space-y-1">
-                        <div className="text-[10px] font-bold text-foreground-muted uppercase tracking-widest mb-2">Folders</div>
-                        {customFolders.map(folder => (
-                            <div key={folder} className="flex items-center justify-between group text-xs text-foreground-dim py-1">
-                                <span className="truncate max-w-[180px]">{folder}</span>
-                                <button 
-                                    onClick={() => { removeCustomFolder(folder); loadTracks(); }}
-                                    className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-300 transition-opacity"
-                                >
-                                    <Trash2 size={12} />
-                                </button>
+                {/* Custom Sources */}
+                <div className="glass-panel p-6 rounded-[32px] border border-border-subtle relative overflow-hidden flex flex-col">
+                    <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                                <FolderOpen size={20} />
                             </div>
-                        ))}
+                            <div>
+                                <h3 className="text-foreground font-black">Custom Sources</h3>
+                                <p className="text-foreground-dim text-[10px] font-bold uppercase tracking-widest mt-0.5">Local folders & Web streams</p>
+                            </div>
+                        </div>
                     </div>
-                )}
 
-                {customStreams.length > 0 && (
-                    <div className="space-y-1">
-                        <div className="text-[10px] font-bold text-foreground-muted uppercase tracking-widest mt-3 mb-2">Web Streams</div>
-                        {customStreams.map(stream => (
-                            <div key={stream.path} className="flex items-center justify-between group text-xs text-foreground-dim py-1">
-                                <span className="truncate max-w-[180px]">{stream.name}</span>
-                                <button 
-                                    onClick={() => { removeCustomStream(stream.path); loadTracks(); }}
-                                    className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-300 transition-opacity"
-                                >
-                                    <Trash2 size={12} />
+                    <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar">
+                        {/* Folders */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Local Directories</h4>
+                                <button onClick={handleAddCustomFolder} className="text-[10px] font-bold text-foreground-dim hover:text-emerald-400 flex items-center gap-1 transition-colors">
+                                    <Plus size={12} /> Add Folder
                                 </button>
                             </div>
-                        ))}
+                            {customFolders.length === 0 && <p className="text-xs text-foreground-muted italic">No custom folders added.</p>}
+                            {customFolders.map(folder => (
+                                <div key={folder} className="flex items-center justify-between p-3 rounded-xl bg-surface-elevated border border-border-subtle group">
+                                    <span className="text-xs font-mono text-foreground-dim truncate max-w-[250px]">{folder}</span>
+                                    <button onClick={() => { removeCustomFolder(folder); loadTracks(); }} className="text-foreground-dim hover:text-red-400 p-1">
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Streams */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Web Streams</h4>
+                                <button onClick={handleAddStreamLink} className="text-[10px] font-bold text-foreground-dim hover:text-blue-400 flex items-center gap-1 transition-colors">
+                                    <Plus size={12} /> Add Stream
+                                </button>
+                            </div>
+                            {customStreams.length === 0 && <p className="text-xs text-foreground-muted italic">No custom streams added.</p>}
+                            {customStreams.map(stream => (
+                                <div key={stream.path} className="flex items-center justify-between p-3 rounded-xl bg-surface-elevated border border-border-subtle group">
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="text-xs font-bold text-foreground truncate">{stream.name}</span>
+                                        <span className="text-[10px] font-mono text-foreground-dim truncate max-w-[250px]">{stream.path}</span>
+                                    </div>
+                                    <button onClick={() => { removeCustomStream(stream.path); loadTracks(); }} className="text-foreground-dim hover:text-red-400 p-1">
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                )}
-            </section>
+                </div>
+
+            </div>
         </div>
     );
 };
+
+const Loader = () => (
+    <div className="flex items-center gap-2 text-foreground-dim">
+        <RefreshCw size={16} className="animate-spin" />
+        <span className="text-xs font-bold">Discovering tracks...</span>
+    </div>
+);

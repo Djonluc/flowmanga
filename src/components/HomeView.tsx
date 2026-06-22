@@ -29,6 +29,12 @@ import { ScraperService } from "../services/ScraperService";
 import { DiscoveryService } from "../services/DiscoveryService";
 import { ContentFilter } from "../services/ContentFilter";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { useProxiedImage } from '../hooks/useProxiedImage';
+
+const ProxiedHomeImage = ({ src, className, alt }: { src: string, className?: string, alt?: string }) => {
+  const { src: proxiedSrc, handleError } = useProxiedImage(src);
+  return <img src={proxiedSrc} className={className} alt={alt} onError={() => handleError()} />;
+};
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import clsx from "clsx";
@@ -72,6 +78,7 @@ export const HomeView = () => {
     y: number;
     item: any;
   } | null>(null);
+  const [favoriteTags, setFavoriteTags] = useState<string[]>([]);
 
   const { coloredOnly, showAdultContent } = useSettingsStore();
 
@@ -95,7 +102,7 @@ export const HomeView = () => {
       const existingIds = new Set(series.map((s) => s.mangaId || s.id));
 
       // Get tags from favorites
-      const favoriteTags = Array.from(
+      const favTags = Array.from(
         new Set(
           series
             .filter((s) => s.tags.includes("favorite"))
@@ -103,12 +110,13 @@ export const HomeView = () => {
             .filter((t) => t !== "favorite"),
         ),
       ).slice(0, 5); // Use top 5 tags
+      setFavoriteTags(favTags);
 
       const [trendRaw, personRaw] = await Promise.all([
         DiscoveryService.getRandom(60, coloredOnly, "manga"), // Home banner should surface manga content only
-        favoriteTags.length > 0
+        favTags.length > 0
           ? ScraperService.getRecommendationsByTags(
-              favoriteTags,
+              favTags,
               48, // Increased for better recommendations
               coloredOnly,
               "manga"
@@ -437,36 +445,76 @@ export const HomeView = () => {
             <FeaturedCarousel items={trending} />
           </div>
 
-          <div className="w-full max-w-[3000px] mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 flex flex-col gap-12 sm:gap-16 md:gap-24 transition-all duration-300 relative">
+          <div className="w-full max-w-[3000px] mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 flex flex-col gap-8 sm:gap-10 md:gap-16 transition-all duration-300 relative">
             {/* Ambient Background Glows */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full pointer-events-none -z-10">
               <div className="absolute top-[10%] left-[10%] w-[40%] h-[40%] bg-accent-soft blur-[120px] rounded-full" />
               <div className="absolute top-[40%] right-[10%] w-[35%] h-[35%] bg-accent-soft blur-[100px] rounded-full opacity-50" />
             </div>
 
-            {/* 2. Continue Reading - Horizontal Rail */}
+            {/* 2. Continue Reading - Hero Banner */}
             {continueReading.length > 0 && (
+              <div className="relative z-10 w-full mt-4">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-black text-foreground tracking-tight">Continue Reading</h2>
+                    <p className="text-xs font-bold text-foreground-dim uppercase tracking-widest mt-1">Pick up where you left off</p>
+                  </div>
+                  <Bookmark size={24} className="text-accent opacity-50" />
+                </div>
+                <button 
+                  onClick={() => handleOpenItem(continueReading[0])}
+                  className="w-full text-left group relative rounded-[24px] overflow-hidden bg-surface-elevated/40 border border-border-subtle p-6 flex flex-col sm:flex-row gap-6 items-center shadow-lg hover:bg-surface-raised transition-all active:scale-[0.98]"
+                >
+                  <div className="w-24 h-36 sm:w-32 sm:h-48 flex-shrink-0 rounded-xl overflow-hidden shadow-md relative">
+                    <ProxiedHomeImage src={continueReading[0].cover ? (continueReading[0].cover.startsWith('http') ? continueReading[0].cover : convertFileSrc(continueReading[0].cover)) : ""} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                  </div>
+                  <div className="flex-1 min-w-0 flex flex-col gap-3">
+                    <h3 className="text-2xl sm:text-3xl font-black text-foreground truncate">{continueReading[0].seriesTitle || continueReading[0].title}</h3>
+                    <div className="flex items-center gap-3">
+                      <span className="px-3 py-1 bg-accent/20 text-accent rounded-full text-xs font-black uppercase tracking-widest">
+                        Ch. {continueReading[0].chapterNumber}
+                      </span>
+                      <span className="text-sm font-bold text-foreground-muted">
+                        Page {continueReading[0].currentPage} {continueReading[0].totalPages ? `of ${continueReading[0].totalPages}` : ''}
+                      </span>
+                    </div>
+                    {continueReading[0].totalPages > 0 && (
+                      <div className="w-full max-w-md h-2 bg-black/40 rounded-full overflow-hidden mt-2 border border-white/5">
+                        <div className="h-full bg-accent rounded-full" style={{ width: `${(continueReading[0].currentPage / continueReading[0].totalPages) * 100}%` }} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="hidden sm:flex w-14 h-14 rounded-full bg-accent text-white items-center justify-center shadow-lg shadow-accent/20 group-hover:scale-110 transition-transform">
+                    <ChevronRight size={24} className="ml-1" />
+                  </div>
+                </button>
+              </div>
+            )}
+
+            {/* 3. Recommended For You - Horizontal Rail */}
+            {personalized.length > 0 && (
               <div className="relative z-10">
                 <HorizontalRail
-                  title="Continue Reading"
-                  editorialTitle="Resume your sagas."
-                  icon={<Bookmark size={18} />}
-                  items={continueReading}
+                  title="Recommended For You"
+                  editorialTitle={favoriteTags.length > 0 ? `Chosen by the spirits. Based on your interest in: ${favoriteTags.join(', ')}.` : "Chosen by the spirits. Curated for your tastes."}
+                  icon={<Sparkles size={18} />}
+                  items={personalized}
                   layout="masonry"
-                  onItemClick={handleOpenItem}
-                  onMenuClick={handleMenuClick}
-                  onViewAll={() => setActiveView("history")}
+                  onItemClick={handleExternalClick}
+                  onRefresh={fetchExternalData}
                   accentColor="text-indigo-400"
                 />
               </div>
             )}
 
-            {/* 3. Trending — hero + grid */}
+            {/* 4. Trending — hero + grid */}
             {trending.length > 0 && (
               <div className="relative z-10">
                 <HorizontalRail
                   title="Trending This Week"
-                  editorialTitle="Rising in the shadows."
+                  editorialTitle="Rising in the shadows. The most active tomes across the realm."
                   icon={<TrendingUp size={18} />}
                   items={trending}
                   layout="masonry"
@@ -477,11 +525,11 @@ export const HomeView = () => {
               </div>
             )}
 
-            {/* 4. New Releases — same hero + grid layout as other rails */}
-            <div className="relative z-10">
+            {/* 5. New Releases — same hero + grid layout as other rails */}
+            <div className="relative z-10 pb-20">
               <HorizontalRail
                 title="New Releases"
-                editorialTitle="Newly manifested tomes."
+                editorialTitle="Newly manifested tomes in your local library."
                 icon={<Plus size={18} />}
                 items={recentlyAdded}
                 layout="masonry"
@@ -491,22 +539,6 @@ export const HomeView = () => {
                 accentColor="text-emerald-400"
               />
             </div>
-
-            {/* 5. Recommended For You - Horizontal Rail */}
-            {personalized.length > 0 && (
-              <div className="relative z-10 pb-20">
-                <HorizontalRail
-                  title="Recommended For You"
-                  editorialTitle="Chosen by the spirits."
-                  icon={<Sparkles size={18} />}
-                  items={personalized}
-                  layout="masonry"
-                  onItemClick={handleExternalClick}
-                  onRefresh={fetchExternalData}
-                  accentColor="text-indigo-400"
-                />
-              </div>
-            )}
           </div>
         </div>
 
@@ -548,21 +580,7 @@ const RightPanel = ({
       )}
     >
       <div className="flex flex-1 flex-col gap-6">
-        {continueReading && continueReading.length > 0 && (
-          <section className="space-y-3 rounded-2xl border border-border-subtle bg-gradient-to-br from-surface-elevated/80 to-surface p-4 shadow-inner">
-            <div className="flex items-center justify-between">
-              <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.25em]">
-                Quick Resume
-              </h3>
-              <Bookmark size={12} className="shrink-0 text-accent" />
-            </div>
-            <MangaCard
-              item={continueReading[0]}
-              variant="compact"
-              onClick={() => onItemClick(continueReading[0])}
-            />
-          </section>
-        )}
+
 
         {activity.length > 0 && (
           <section className="space-y-3 rounded-2xl border border-border-subtle bg-surface-elevated/25 p-4">
@@ -614,11 +632,6 @@ const RightPanel = ({
             <div className="flex flex-col gap-1.5">
               {trending.slice(0, 5).map((item: any, idx: number) => {
                 const raw = item.coverUrl as string | undefined;
-                const thumbSrc = raw
-                  ? raw.startsWith("http")
-                    ? raw
-                    : convertFileSrc(raw)
-                  : "";
                 return (
                   <button
                     type="button"
@@ -630,12 +643,11 @@ const RightPanel = ({
                       {idx + 1}
                     </span>
                     <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded-lg border border-border-subtle bg-surface shadow-sm">
-                      {thumbSrc ? (
-                        <img
-                          src={thumbSrc}
+                      {raw ? (
+                        <ProxiedHomeImage
+                          src={item.coverUrl ? (item.coverUrl.startsWith('http') ? item.coverUrl : convertFileSrc(item.coverUrl)) : ""}
                           alt=""
-                          className="h-full w-full object-cover opacity-90 transition-opacity group-hover:opacity-100"
-                          loading="lazy"
+                          className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity"
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-foreground-dim">
@@ -654,32 +666,7 @@ const RightPanel = ({
         )}
       </div>
 
-      <section className="mt-auto shrink-0 rounded-2xl border border-border-subtle bg-surface-elevated/25 p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-[10px] font-black text-foreground-dim uppercase tracking-[0.25em]">
-            Archive Status
-          </h3>
-          <BarChart3 size={12} className="shrink-0 text-accent" />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1 rounded-xl border border-border-subtle bg-surface p-3">
-            <span className="text-[9px] font-black text-foreground-dim uppercase tracking-widest">
-              Series
-            </span>
-            <span className="text-lg font-black tracking-tighter text-foreground">
-              {stats.totalSeries || 0}
-            </span>
-          </div>
-          <div className="flex flex-col gap-1 rounded-xl border border-border-subtle bg-surface p-3">
-            <span className="text-[9px] font-black text-foreground-dim uppercase tracking-widest">
-              Chapters
-            </span>
-            <span className="text-lg font-black tracking-tighter text-foreground">
-              {stats.totalChapters || 0}
-            </span>
-          </div>
-        </div>
-      </section>
+
     </div>
   );
 };

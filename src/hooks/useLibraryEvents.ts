@@ -14,6 +14,7 @@ export const useLibraryEvents = () => {
   useEffect(() => {
     let unlistenOpenPath: (() => void) | undefined;
     let unlistenUpdate: (() => void) | undefined;
+    let unlistenEnriched: (() => void) | undefined;
 
     const setupListeners = async () => {
       unlistenOpenPath = await listen<string>('open-path', async (event) => {
@@ -42,6 +43,11 @@ export const useLibraryEvents = () => {
         // console.log('[Native] Library updated event received');
         await loadFromDb();
       });
+
+      unlistenEnriched = await listen('library-metadata-enriched', async () => {
+        // console.log('[Native] Metadata enriched event received');
+        await loadFromDb();
+      });
     };
 
     setupListeners();
@@ -49,6 +55,7 @@ export const useLibraryEvents = () => {
     return () => {
       unlistenOpenPath?.();
       unlistenUpdate?.();
+      unlistenEnriched?.();
     };
   }, [addMangaFolder, addFolder, openFolder, setActiveView, loadFromDb]);
 };

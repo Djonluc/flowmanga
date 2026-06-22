@@ -174,28 +174,6 @@ export const SmartImage = ({
       (entries) => {
         if (entries[0].isIntersecting) {
           setIsVisible(true);
-          if (cleanupTimeoutRef.current) {
-            clearTimeout(cleanupTimeoutRef.current);
-            cleanupTimeoutRef.current = null;
-          }
-        } else {
-          // Delayed cleanup: Keep in memory for 15s after leaving viewport
-          cleanupTimeoutRef.current = setTimeout(() => {
-            // Do NOT set isVisible to false for native <img> tags to prevent scroll jumping.
-            // We only clear memory for Canvas operations.
-            if (needsCanvas) {
-              setIsVisible(false);
-              setIsLoaded(false);
-              setImgElement(null);
-              const canvas = canvasRef.current;
-              if (canvas) {
-                const ctx = canvas.getContext("2d");
-                ctx?.clearRect(0, 0, canvas.width, canvas.height);
-                canvas.width = 1;
-                canvas.height = 1;
-              }
-            }
-          }, 15000);
         }
       },
       { rootMargin: "3000px" },

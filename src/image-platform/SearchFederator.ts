@@ -19,6 +19,26 @@ export class SearchFederator {
     return images.filter(img => img.rating === 'safe' || !img.rating);
   }
 
+  /** Strictly removes any image that contains a user's blocked tag. */
+  private async filterBlocked(images: PlatformImage[]): Promise<PlatformImage[]> {
+    if (images.length === 0) return [];
+    try {
+      const { useGalleryStore } = await import("../stores/useGalleryStore");
+      const blockedTags = useGalleryStore.getState().blockedTags.map((t: string) => t.toLowerCase().trim());
+      
+      if (blockedTags.length === 0) return images;
+
+      return images.filter(img => {
+        const imgTags = (img.tags || []).map(t => t.toLowerCase().trim());
+        const hasBlockedTag = imgTags.some(t => blockedTags.some(b => t.includes(b)));
+        return !hasBlockedTag;
+      });
+    } catch (e) {
+      console.warn("[SearchFederator] Failed to filter blocked tags", e);
+      return images; 
+    }
+  }
+
   /** Deprioritizes images that have already been seen and strictly excludes saved images. */
   private async filterExclusions(images: PlatformImage[]): Promise<PlatformImage[]> {
     if (images.length === 0) return [];
@@ -107,7 +127,8 @@ export class SearchFederator {
       p.search(finalQuery, page)
         .then(async res => {
           const filtered = this.filterAdult(res);
-          const prioritized = await this.filterExclusions(filtered);
+          const blockFiltered = await this.filterBlocked(filtered);
+          const prioritized = await this.filterExclusions(blockFiltered);
           if (onChunk && prioritized.length > 0) onChunk(prioritized);
           return prioritized;
         })
@@ -136,7 +157,8 @@ export class SearchFederator {
       return fetchPromise
         .then(async res => {
           const filtered = this.filterAdult(res);
-          const prioritized = await this.filterExclusions(filtered);
+          const blockFiltered = await this.filterBlocked(filtered);
+          const prioritized = await this.filterExclusions(blockFiltered);
           if (onChunk && prioritized.length > 0) onChunk(prioritized);
           return prioritized;
         })
@@ -210,6 +232,8 @@ export class SearchFederator {
 
     // for each tag across all providers, then interleave the results.
     const allPromises: Promise<PlatformImage[]>[] = [];
+    const { RecommendationEngine } = await import('./services/RecommendationEngine');
+    const isStrict = useSettingsStore.getState().strictForYouMode;
 
     discoveryTags.forEach(tag => {
       activeProviders.forEach(p => {
@@ -218,9 +242,18 @@ export class SearchFederator {
           p.search(query, page)
             .then(async res => {
               const filtered = this.filterAdult(res);
-              const prioritized = await this.filterExclusions(filtered);
-              if (onChunk && prioritized.length > 0) onChunk(prioritized);
-              return prioritized;
+              const blockFiltered = await this.filterBlocked(filtered);
+              const prioritized = await this.filterExclusions(blockFiltered);
+              
+              const scored = await RecommendationEngine.scoreAndFilter(prioritized, isStrict);
+              const finalChunk = scored.map(s => {
+                 const img = { ...s };
+                 delete (img as any).recommendation;
+                 return img;
+              });
+
+              if (onChunk && finalChunk.length > 0) onChunk(finalChunk);
+              return finalChunk;
             })
             .catch((e: any) => {
               console.warn(`[SearchFederator] Curated provider ${p.id} timed out or failed gracefully: ${e.message}`);
@@ -231,27 +264,14 @@ export class SearchFederator {
     });
 
     const resultsArray = await Promise.all(allPromises);
-    const interleaved = onChunk ? resultsArray.flat() : this.interleaveResults(resultsArray);
+    const finalResults = onChunk ? resultsArray.flat() : this.interleaveResults(resultsArray);
     
-    // Apply Recommendation Scoring and Strict Filtering
-    const { RecommendationEngine } = await import('./services/RecommendationEngine');
-    const { useSettingsStore } = await import('../stores/useSettingsStore');
-    const isStrict = useSettingsStore.getState().strictForYouMode;
-    const scored = await RecommendationEngine.scoreAndFilter(interleaved, isStrict);
-    
-    // Strip the "recommendation" extra data to return PlatformImage[]
-    const finalResults = scored.map(s => {
-       const img = { ...s };
-       delete (img as any).recommendation;
-       return img;
-    });
-
     if (finalResults.length > 0) {
       return finalResults;
     }
 
-    // Fallback if somehow everything fails
-    return this.getLatest(page, onChunk);
+    // Fallback if somehow everything fails (Only if not in Strict Mode)
+    return isStrict ? [] : this.getLatest(page, onChunk);
   }
 
   async getDiscovery(page: number, onChunk?: (images: PlatformImage[]) => void): Promise<PlatformImage[]> {
@@ -269,7 +289,8 @@ export class SearchFederator {
       return fetchPromise
         .then(async res => {
           const filtered = this.filterAdult(res);
-          const prioritized = await this.filterExclusions(filtered);
+          const blockFiltered = await this.filterBlocked(filtered);
+          const prioritized = await this.filterExclusions(blockFiltered);
           if (onChunk && prioritized.length > 0) onChunk(prioritized);
           return prioritized;
         })

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useScraperStore } from "../stores/useScraperStore";
 import { useLibraryStore } from "../stores/useLibraryStore";
 import { useReadingStore } from "../stores/useReadingStore";
@@ -21,18 +21,28 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Search,
+  Filter,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShelfView } from "./library/ShelfView";
 import { GridView } from "./library/GridView";
 import { CollectionsView } from "./library/CollectionsView";
+import { LibraryFilterDrawer } from "./library/LibraryFilterDrawer";
 import { toast } from "./Toast";
 import { MangaDetails } from "./library/MangaDetails";
 import { ScraperService } from "../services/ScraperService";
 import { ContentFilter } from "../services/ContentFilter";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { useProxiedImage } from '../hooks/useProxiedImage';
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
 import type { Series } from "../stores/useLibraryStore";
+
+const ProxiedLibraryImage = ({ src, className, alt }: { src: string, className?: string, alt?: string }) => {
+  const { src: proxiedSrc, handleError } = useProxiedImage(src);
+  return <img src={proxiedSrc} className={className} alt={alt} onError={() => handleError()} />;
+};
 
 export const LibraryGrid = () => {
   const {
@@ -45,6 +55,7 @@ export const LibraryGrid = () => {
     filterGenre,
     filterTags,
     filterSource,
+    filterStatus,
     selectedSeriesId,
     setSearchQuery,
     setFilterGenre,
@@ -71,6 +82,7 @@ export const LibraryGrid = () => {
     setLibraryViewMode,
     setLibraryDensity,
     isInitializing,
+    showAdultContent,
   } = useSettingsStore();
   const {
     openImportModal,
@@ -94,6 +106,7 @@ export const LibraryGrid = () => {
   };
 
   const [isDragging, setIsDragging] = useState(false);
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState<{
     x: number;
     y: number;
@@ -149,7 +162,7 @@ export const LibraryGrid = () => {
   }, [autoOpenModal, setAutoOpenModal, openImportModal]);
 
   // --- Filtering Logic ---
-  const getFilteredItems = () => {
+  const displayItems = useMemo(() => {
     if (selectedSeriesId) {
       const selectedSeries = series.find((s) => s.id === selectedSeriesId);
       if (!selectedSeries) return [];
@@ -180,21 +193,41 @@ export const LibraryGrid = () => {
       const author = s.author || "";
       const matchesSearch =
         title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        author.toLowerCase().includes(searchQuery.toLowerCase());
+        author.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (s.tags && s.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())));
       const matchesTags =
         filterTags.length === 0 ||
         filterTags.every((tag) => s.tags && s.tags.includes(tag));
       const matchesSource = !filterSource || s.source === filterSource;
       const isAdult = ContentFilter.isAdult(s);
-      
-      return matchesSearch && matchesTags && matchesSource && !isAdult;
-    });
-  };
 
-  const displayItems = getFilteredItems();
-  const allTags = Array.from(
-    new Set(series.flatMap((s) => s.tags || [])),
-  ).sort();
+      const hasProgress = s.books && s.books.some(b => b.progress && b.progress.currentPage > 0);
+      const isCompleted = s.books && s.books.length > 0 && s.books.every(b => b.progress && b.progress.currentPage >= (b.progress.totalPages || 1) - 1);
+      
+      let matchesStatus = true;
+      if (filterStatus === 'unread') matchesStatus = !hasProgress;
+      else if (filterStatus === 'reading') matchesStatus = hasProgress && !isCompleted;
+      else if (filterStatus === 'completed') matchesStatus = isCompleted;
+      
+      return matchesSearch && matchesTags && matchesSource && matchesStatus && !isAdult;
+    });
+  }, [series, selectedSeriesId, searchQuery, activeView, filterTags, filterSource, filterStatus, showAdultContent]);
+  const GLOBAL_TAGS = [
+    "Action", "Adventure", "Comedy", "Drama", "Fantasy", 
+    "Horror", "Mystery", "Psychological", "Romance", 
+    "Sci-Fi", "Slice of Life", "Sports", "Supernatural", "Thriller",
+    "Isekai", "Shounen", "Shoujo", "Seinen", "Josei", "Mecha"
+  ];
+  
+  const allTags = useMemo(() => {
+    const rawTags = Array.from(
+      new Set([...GLOBAL_TAGS, ...series.flatMap((s) => s.tags || [])]),
+    ).sort();
+
+    return showAdultContent 
+      ? rawTags 
+      : rawTags.filter(tag => !ContentFilter.isAdultTag(tag));
+  }, [series, showAdultContent]);
 
   const handleAction = async (
     action: "tag" | "rename" | "delete" | "refresh" | "favorite",
@@ -360,7 +393,7 @@ export const LibraryGrid = () => {
                 {isDragging && <DragOverlay />}
 
                 <div className="flex flex-col gap-6 mb-4 px-4 pt-2 z-10 shrink-0">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-2xl bg-surface-elevated border border-border-subtle flex items-center justify-center shadow-lg">
@@ -381,24 +414,47 @@ export const LibraryGrid = () => {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center bg-surface-elevated p-1 rounded-xl border border-border-subtle gap-1">
-                        <button
-                          onClick={toggleSelectionMode}
-                          className={clsx(
-                            "px-3 py-2 rounded-lg transition-all text-[10px] font-black uppercase tracking-widest flex items-center gap-2",
-                            selectionMode
-                              ? "bg-accent text-white shadow-lg shadow-accent-glow"
-                              : "text-foreground-dim hover:text-foreground",
-                          )}
-                        >
-                          <Layers size={14} />
-                          {selectionMode ? "Marking" : "Mass Sealing"}
-                        </button>
-
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="relative w-64">
+                          <input
+                              type="text"
+                              placeholder="Search library..."
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              className="w-full bg-surface-elevated border border-border-subtle rounded-full pl-10 pr-4 py-2.5 text-xs font-bold text-foreground focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-foreground-muted shadow-sm"
+                          />
+                          <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted" />
                       </div>
 
-                      {activeView === "collections" ? (
+                      <button
+                          onClick={() => setIsFilterDrawerOpen(true)}
+                          className={clsx(
+                              "px-4 py-2.5 rounded-full transition-all text-xs font-black uppercase tracking-widest flex items-center gap-2 border",
+                              (filterTags.length > 0 || filterSource || filterStatus)
+                                ? "bg-accent text-white border-accent shadow-lg shadow-accent/20"
+                                : "bg-surface-elevated text-foreground-dim border-border-subtle hover:text-foreground hover:bg-surface-raised"
+                          )}
+                      >
+                          <Filter size={14} /> Filters
+                          {(filterTags.length > 0 || filterSource || filterStatus) && (
+                              <span className="w-2 h-2 rounded-full bg-white ml-1" />
+                          )}
+                      </button>
+
+                      <button
+                        onClick={toggleSelectionMode}
+                        className={clsx(
+                          "px-4 py-2.5 rounded-full transition-all text-xs font-black uppercase tracking-widest flex items-center gap-2 border",
+                          selectionMode
+                            ? "bg-purple-500 text-white border-purple-500 shadow-lg shadow-purple-500/20"
+                            : "bg-surface-elevated text-foreground-dim border-border-subtle hover:text-foreground hover:bg-surface-raised"
+                        )}
+                      >
+                        <Layers size={14} />
+                        {selectionMode ? "Cancel Selection" : "Batch Actions"}
+                      </button>
+
+                      {activeView === "collections" && (
                         <button
                           onClick={() => {
                             useModalStore.getState().openInputModal({
@@ -410,94 +466,11 @@ export const LibraryGrid = () => {
                               },
                             });
                           }}
-                          className="h-[40px] px-6 bg-accent text-white hover:opacity-90 rounded-2xl text-xs font-semibold tracking-wide transition-all active:scale-[0.97] flex items-center gap-2 shadow-lg shadow-accent/20"
+                          className="px-4 py-2.5 bg-accent text-white hover:opacity-90 rounded-full text-xs font-black uppercase tracking-widest transition-all active:scale-[0.97] flex items-center gap-2 shadow-lg shadow-accent/20 border border-accent"
                         >
-                          <PlusCircle size={16} />
-                          <span>New Faction</span>
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-4 px-1 pb-2">
-                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-                      {(filterGenre ||
-                        searchQuery ||
-                        filterTags.length > 0) && (
-                        <button
-                          onClick={() => {
-                            setFilterGenre(null);
-                            setSearchQuery("");
-                            clearFilterTags();
-                          }}
-                          className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium tracking-wide bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center gap-1"
-                        >
-                          <X size={12} /> Clear
+                          <PlusCircle size={14} /> New Faction
                         </button>
                       )}
-
-                      {filterTags.length > 0 && (
-                        <div className="flex items-center gap-2 px-2 border-l border-white/10">
-                          {filterTags.map((tag) => (
-                            <button
-                              key={`selected-${tag}`}
-                              onClick={() => toggleFilterTag(tag)}
-                              className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium tracking-wide bg-accent/20 border border-accent/30 text-foreground shadow-lg shadow-accent/10 flex items-center gap-1"
-                            >
-                              {tag} <X size={10} />
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-4 bg-surface-elevated border border-border-subtle p-3 rounded-2xl relative group/tags">
-                      <div className="flex items-center gap-2 flex-shrink-0 pr-4 border-r border-border-subtle">
-                        <Tag size={14} className="text-accent" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-foreground-dim whitespace-nowrap">
-                          Explore Sigils
-                        </span>
-                      </div>
-
-                      <div className="flex-1 relative overflow-hidden flex items-center">
-                        <div
-                          ref={tagRef}
-                          className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth w-full"
-                        >
-                          {allTags
-                            .filter((t) => !filterTags.includes(t))
-                            .map((tag) => (
-                              <button
-                                key={tag}
-                                onClick={() => toggleFilterTag(tag)}
-                                className="flex-shrink-0 px-4 py-2 rounded-xl text-[11px] font-bold tracking-tight bg-surface-raised border border-border-subtle text-foreground-muted hover:text-foreground hover:bg-surface-elevated hover:border-accent/20 transition-all active:scale-95"
-                              >
-                                {tag}
-                              </button>
-                            ))}
-                          {allTags.length === 0 && (
-                            <span className="text-[10px] text-foreground-dim font-medium">
-                              No sigils etched yet
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Scroll Buttons */}
-                        <div className="absolute right-0 top-0 bottom-0 flex items-center gap-1 pl-8 bg-gradient-to-l from-background via-background/80 to-transparent opacity-0 group-hover/tags:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => scrollTags("left")}
-                            className="p-1.5 rounded-lg bg-surface-elevated hover:bg-surface-raised text-foreground-dim hover:text-foreground transition-all"
-                          >
-                            <ChevronLeft size={14} />
-                          </button>
-                          <button
-                            onClick={() => scrollTags("right")}
-                            className="p-1.5 rounded-lg bg-surface-elevated hover:bg-surface-raised text-foreground-dim hover:text-foreground transition-all"
-                          >
-                            <ChevronRight size={14} />
-                          </button>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -506,7 +479,32 @@ export const LibraryGrid = () => {
                   {isLoading ? (
                     <LoadingDisplay />
                   ) : displayItems.length === 0 ? (
-                    <NoResultsState />
+                    <div className="flex flex-col items-center justify-center py-20 text-center">
+                        <div className="w-20 h-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-6 text-foreground-dim">
+                            {searchQuery || filterTags.length > 0 || filterSource || filterStatus ? <Search size={28} /> : <LibraryIcon size={28} />}
+                        </div>
+                        <h3 className="text-2xl font-black text-foreground uppercase tracking-tight mb-2">
+                            {searchQuery || filterTags.length > 0 || filterSource || filterStatus ? "No Matches Found" : "Library Empty"}
+                        </h3>
+                        <p className="text-foreground-muted text-sm font-medium mb-8 max-w-sm">
+                            {searchQuery || filterTags.length > 0 || filterSource || filterStatus 
+                                ? "Try adjusting your filters or search query to find what you're looking for." 
+                                : "Your library is empty. Import local folders or discover new series from the network."}
+                        </p>
+                        <div className="flex items-center gap-4">
+                            {searchQuery || filterTags.length > 0 || filterSource || filterStatus ? (
+                                <button onClick={() => { setSearchQuery(""); clearFilterTags(); setFilterSource(null); setFilterStatus(null); }} className="px-6 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-foreground text-xs font-black uppercase tracking-widest transition-all border border-white/10">
+                                    Clear All Filters
+                                </button>
+                            ) : (
+                                <>
+                                    <button onClick={handleSelectLibrary} className="px-6 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-foreground text-xs font-black uppercase tracking-widest transition-all border border-white/10 flex items-center gap-2">
+                                        <FolderOpen size={14} /> Add Local Folder
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
                   ) : libraryViewMode === "shelf" ? (
                     <ShelfView
                       allSeries={displayItems as Series[]}
@@ -558,14 +556,10 @@ export const LibraryGrid = () => {
                               <div className="absolute inset-0 flex items-center justify-center opacity-20 group-hover:opacity-40 transition-opacity">
                                 <LibraryIcon size={32} />
                               </div>
-                              <img
+                              <ProxiedLibraryImage
                                 src={item.coverUrl || item.cover}
                                 alt={item.title}
                                 className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700 opacity-60 group-hover:opacity-100"
-                                onError={(e) => {
-                                  const target = e.currentTarget;
-                                  target.style.display = "none";
-                                }}
                               />
                               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
                                 <span className="text-[10px] font-black text-foreground uppercase tracking-widest">
@@ -594,82 +588,73 @@ export const LibraryGrid = () => {
                     )}
                   </div>
                 )}
+                
+                {/* Selection Mode Action Bar */}
+                <AnimatePresence>
+                    {selectionMode && (
+                        <motion.div
+                            initial={{ y: 100, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            exit={{ y: 100, opacity: 0 }}
+                            className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-surface/90 backdrop-blur-3xl border border-border-strong rounded-full px-6 py-4 flex items-center gap-6 shadow-2xl z-50"
+                        >
+                            <div className="flex items-center gap-3">
+                                <span className="text-foreground font-black text-sm">{selectedIds.length}</span>
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-foreground-dim">Selected</span>
+                            </div>
+                            
+                            <div className="w-px h-6 bg-border-subtle" />
+
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => {
+                                        if (selectedIds.length === displayItems.length) clearSelection();
+                                        else displayItems.forEach(item => toggleSelectedId(item.id));
+                                    }}
+                                    className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-surface-raised text-foreground-dim hover:text-foreground transition-all"
+                                >
+                                    {selectedIds.length === displayItems.length ? "Deselect All" : "Select All"}
+                                </button>
+                                
+                                <button
+                                    onClick={() => {
+                                        openTagManager('batch', []);
+                                    }}
+                                    disabled={selectedIds.length === 0}
+                                    className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 disabled:opacity-50 transition-all flex items-center gap-2"
+                                >
+                                    <Tag size={14} /> Apply Tags
+                                </button>
+                                
+                                <button
+                                    onClick={() => bulkDelete()}
+                                    disabled={selectedIds.length === 0}
+                                    className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-red-500/10 text-red-400 hover:bg-red-500/20 disabled:opacity-50 transition-all flex items-center gap-2"
+                                >
+                                    <Trash2 size={14} /> Delete Selected
+                                </button>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
               </div>
             )}
           </motion.div>
         )}
       </AnimatePresence>
 
+      <LibraryFilterDrawer 
+        isOpen={isFilterDrawerOpen}
+        onClose={() => setIsFilterDrawerOpen(false)}
+        allTags={allTags}
+      />
+      
       <ContextMenu
         activeMenu={activeMenu}
         onAction={handleAction}
         onClose={() => setActiveMenu(null)}
       />
-
-      {/* Batch Action Bar */}
-      <AnimatePresence>
-        {selectionMode && (
-          <motion.div
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[80] w-full max-w-2xl px-4"
-          >
-            <div className="bg-surface glass-panel border border-border-subtle rounded-[32px] p-4 shadow-cinematic flex items-center justify-between gap-6">
-              <div className="flex items-center gap-4 pl-4">
-                <div className="w-10 h-10 rounded-2xl bg-accent-soft flex items-center justify-center text-accent">
-                  <Layers size={20} />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-foreground text-sm font-black uppercase tracking-tighter italic">
-                    {selectedIds.size} Souls Marked
-                  </span>
-                  <button
-                    onClick={clearSelection}
-                    className="text-foreground-dim text-[10px] font-bold uppercase tracking-widest hover:text-foreground transition-colors text-left"
-                  >
-                    Clear Selection
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 pr-2">
-                <button
-                  onClick={() => {
-                    const ids = Array.from(selectedIds);
-                    if (ids.length > 0) openTagManager(ids[0], []); // Simplified for now
-                  }}
-                  className="px-6 py-3 bg-surface-elevated hover:bg-surface-raised text-foreground rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border border-border-subtle"
-                >
-                  <Tag size={14} />
-                  Etch Sigils
-                </button>
-                <button
-                  onClick={() => {
-                    if (
-                      confirm(
-                        `Are you sure you want to delete ${selectedIds.size} series? This will PERMANENTLY remove the folders from your disk. This cannot be undone.`,
-                      )
-                    ) {
-                      bulkDelete(true);
-                    }
-                  }}
-                  className="px-6 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border border-red-500/10"
-                >
-                  <Trash2 size={14} />
-                  Delete
-                </button>
-                <button
-                  onClick={toggleSelectionMode}
-                  className="p-3 bg-white/5 hover:bg-white/10 text-foreground-dim hover:text-foreground rounded-2xl transition-all border border-white/5"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

@@ -7,15 +7,15 @@ import clsx from 'clsx';
 
 const categoryConfig: Record<
   ReleaseNote['category'],
-  { label: string; color: string; bgColor: string; icon: React.ReactNode }
+  { label: string; color: string; bg: string; icon: React.ReactNode }
 > = {
-  features:     { label: 'New Features',    color: 'text-blue-400',   bgColor: 'bg-blue-500/10 border-blue-500/20',   icon: <Star size={11} /> },
-  improvements: { label: 'Improvements',   color: 'text-purple-400', bgColor: 'bg-purple-500/10 border-purple-500/20', icon: <TrendingUp size={11} /> },
-  fixes:        { label: 'Bug Fixes',       color: 'text-emerald-400',bgColor: 'bg-emerald-500/10 border-emerald-500/20',icon: <Wrench size={11} /> },
-  performance:  { label: 'Performance',    color: 'text-amber-400',  bgColor: 'bg-amber-500/10 border-amber-500/20',  icon: <Zap size={11} /> },
-  ui:           { label: 'UI / UX',         color: 'text-pink-400',   bgColor: 'bg-pink-500/10 border-pink-500/20',   icon: <Monitor size={11} /> },
-  sources:      { label: 'Source Support',  color: 'text-cyan-400',   bgColor: 'bg-cyan-500/10 border-cyan-500/20',   icon: <Globe size={11} /> },
-  other:        { label: 'Other',           color: 'text-foreground-dim', bgColor: 'bg-white/5 border-white/10',       icon: null },
+  features:     { label: 'New Features',    color: 'text-blue-400',   bg: 'bg-blue-500/10 border-blue-500/20',   icon: <Star size={14} /> },
+  improvements: { label: 'Improvements',   color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20', icon: <TrendingUp size={14} /> },
+  fixes:        { label: 'Bug Fixes',       color: 'text-emerald-400',bg: 'bg-emerald-500/10 border-emerald-500/20',icon: <Wrench size={14} /> },
+  performance:  { label: 'Performance',    color: 'text-amber-400',  bg: 'bg-amber-500/10 border-amber-500/20',  icon: <Zap size={14} /> },
+  ui:           { label: 'UI / UX',         color: 'text-pink-400',   bg: 'bg-pink-500/10 border-pink-500/20',   icon: <Monitor size={14} /> },
+  sources:      { label: 'Source Support',  color: 'text-cyan-400',   bg: 'bg-cyan-500/10 border-cyan-500/20',   icon: <Globe size={14} /> },
+  other:        { label: 'Other',           color: 'text-foreground-dim', bg: 'bg-white/5 border-white/10',       icon: null },
 };
 
 const categoryOrder: ReleaseNote['category'][] = ['features', 'improvements', 'fixes', 'performance', 'ui', 'sources', 'other'];
@@ -28,9 +28,9 @@ function formatLastChecked(iso: string | null): string {
     const diffMs = now.getTime() - d.getTime();
     const diffMins = Math.floor(diffMs / 60000);
     if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+    if (diffMins < 60) return `${diffMins} min ago`;
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hr ago`;
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   } catch (_) {
     return 'Unknown';
@@ -69,7 +69,6 @@ export const UpdateSettings = () => {
     await AppVersionService.openDownloadPage(updateInfo?.releaseUrl);
   };
 
-  // Group notes by category
   const notesByCategory = updateInfo?.notes.reduce(
     (acc, note) => {
       if (!acc[note.category]) acc[note.category] = [];
@@ -81,210 +80,137 @@ export const UpdateSettings = () => {
   const orderedCategories = categoryOrder.filter(c => notesByCategory[c]?.length > 0);
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* Version Status Card */}
-      <div className="space-y-4 pt-4 border-t border-white/5">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
-          <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
-            Version Info
-          </h4>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          {/* Current Version */}
-          <div className="bg-white/5 rounded-[24px] p-5 border border-white/5">
-            <p className="text-foreground-dim text-[10px] font-black uppercase tracking-widest mb-2">Installed</p>
-            <p className="text-foreground text-2xl font-black tracking-tighter">v{currentVersion}</p>
-            <p className="text-foreground-muted text-[10px] font-medium mt-1">Current build</p>
-          </div>
-
-          {/* Latest Version */}
-          <div className={clsx(
-            'rounded-[24px] p-5 border transition-all duration-300',
-            updateStatus === 'available'
-              ? 'bg-blue-500/10 border-blue-500/20'
-              : updateStatus === 'up-to-date'
-                ? 'bg-emerald-500/10 border-emerald-500/20'
-                : 'bg-white/5 border-white/5',
-          )}>
-            <p className={clsx(
-              'text-[10px] font-black uppercase tracking-widest mb-2',
-              updateStatus === 'available' ? 'text-blue-400' :
-              updateStatus === 'up-to-date' ? 'text-emerald-400' : 'text-foreground-dim',
-            )}>
-              Latest
-            </p>
-            {updateInfo ? (
-              <>
-                <p className={clsx(
-                  'text-2xl font-black tracking-tighter',
-                  updateStatus === 'available' ? 'text-blue-300' :
-                  updateStatus === 'up-to-date' ? 'text-emerald-300' : 'text-foreground',
-                )}>
-                  v{updateInfo.latestVersion}
-                </p>
-                {updateInfo.releaseDate && (
-                  <p className="text-foreground-muted text-[10px] font-medium mt-1">{updateInfo.releaseDate}</p>
+    <div className="flex flex-col gap-8 pb-12 w-full max-w-5xl mx-auto">
+        {/* Header Area */}
+        <div className="flex items-center justify-between mb-2">
+            <div>
+                <h2 className="text-3xl font-black text-foreground uppercase tracking-tighter">System Updates</h2>
+                <p className="text-foreground-dim font-bold tracking-wide mt-1">Check for new versions and review changelogs.</p>
+            </div>
+            <button 
+                onClick={handleCheckForUpdates}
+                disabled={isChecking}
+                className={clsx(
+                    "flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest transition-all",
+                    isChecking ? "bg-white/5 text-foreground-dim" : "bg-accent hover:bg-accent-hover text-white shadow-lg shadow-accent/20"
                 )}
-              </>
-            ) : (
-              <p className="text-foreground-dim text-base font-bold tracking-tight">—</p>
-            )}
-          </div>
-        </div>
-
-        {/* Status indicator */}
-        <div className={clsx(
-          'flex items-center gap-3 px-5 py-4 rounded-2xl border',
-          updateStatus === 'available' ? 'bg-blue-500/10 border-blue-500/20' :
-          updateStatus === 'up-to-date' ? 'bg-emerald-500/10 border-emerald-500/20' :
-          updateStatus === 'error' ? 'bg-red-500/10 border-red-500/20' :
-          'bg-white/5 border-white/5',
-        )}>
-          {updateStatus === 'checking' || isChecking ? (
-            <Loader2 size={16} className="animate-spin text-blue-400" />
-          ) : updateStatus === 'available' ? (
-            <Download size={16} className="text-blue-400" />
-          ) : updateStatus === 'up-to-date' ? (
-            <CheckCircle2 size={16} className="text-emerald-400" />
-          ) : updateStatus === 'error' ? (
-            <AlertCircle size={16} className="text-red-400" />
-          ) : (
-            <RefreshCw size={16} className="text-foreground-dim" />
-          )}
-          <div className="flex-1 min-w-0">
-            <p className={clsx(
-              'text-sm font-bold',
-              updateStatus === 'available' ? 'text-blue-300' :
-              updateStatus === 'up-to-date' ? 'text-emerald-300' :
-              updateStatus === 'error' ? 'text-red-300' : 'text-foreground',
-            )}>
-              {updateStatus === 'checking' || isChecking
-                ? 'Checking for updates...'
-                : updateStatus === 'available'
-                  ? `v${updateInfo?.latestVersion} is available`
-                  : updateStatus === 'up-to-date'
-                    ? 'FlowManga is up to date'
-                    : updateStatus === 'error'
-                      ? 'Unable to check for updates'
-                      : 'Click below to check for updates'}
-            </p>
-            <div className="flex items-center gap-1 mt-0.5">
-              <Clock size={10} className="text-foreground-muted" />
-              <p className="text-foreground-muted text-[10px] font-medium">Last checked: {lastCheckedDisplay}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="space-y-4 pt-4 border-t border-white/5">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-1.5 h-6 bg-purple-600 rounded-full" />
-          <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
-            Actions
-          </h4>
-        </div>
-
-        <div className="space-y-3">
-          {/* Check for Updates */}
-          <div className="group bg-white/5 p-5 rounded-[24px] border border-white/5 hover:border-blue-500/20 transition-all duration-500 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
-                <RefreshCw size={22} className={clsx(isChecking && 'animate-spin')} />
-              </div>
-              <div>
-                <p className="text-foreground text-sm font-bold">Check for Updates</p>
-                <p className="text-foreground-muted text-[10px] font-medium mt-0.5">Manually check GitHub for the latest release</p>
-              </div>
-            </div>
-            <button
-              onClick={handleCheckForUpdates}
-              disabled={isChecking}
-              className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-foreground border border-white/10 rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none flex items-center gap-2"
             >
-              {isChecking ? <Loader2 size={14} className="animate-spin" /> : null}
-              {isChecking ? 'Checking...' : 'Check Now'}
+                {isChecking ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                {isChecking ? 'Checking...' : 'Check Now'}
             </button>
-          </div>
+        </div>
 
-          {/* Download / Open GitHub — only show when update available */}
-          {updateStatus === 'available' && updateInfo && (
-            <div className="group bg-blue-500/10 p-5 rounded-[24px] border border-blue-500/20 hover:border-blue-500/40 transition-all duration-500 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
-                  <Download size={22} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Current Version */}
+            <div className="glass-panel p-6 rounded-[32px] border border-border-subtle relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-[50px] rounded-full pointer-events-none" />
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-foreground-dim mb-4 relative z-10">Installed Version</h4>
+                <div className="flex items-end gap-2 relative z-10">
+                    <span className="text-4xl font-black text-foreground tracking-tighter">v{currentVersion}</span>
                 </div>
-                <div>
-                  <p className="text-blue-300 text-sm font-bold">Download v{updateInfo.latestVersion}</p>
-                  <p className="text-blue-400/60 text-[10px] font-medium mt-0.5">Opens the GitHub release page</p>
+                <div className="flex items-center gap-2 mt-4 text-[10px] font-bold text-foreground-muted uppercase tracking-widest relative z-10">
+                    <Clock size={12} /> Last checked: {lastCheckedDisplay}
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleViewOnGitHub}
-                  className="px-4 py-2.5 bg-white/5 hover:bg-white/10 text-foreground-dim border border-white/10 rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-1.5"
-                >
-                  <ExternalLink size={12} />
-                  GitHub
-                </button>
-                <button
-                  onClick={handleDownload}
-                  className="px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-1.5"
-                >
-                  <Download size={12} />
-                  Download
-                </button>
-              </div>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Changelog Section */}
-      {orderedCategories.length > 0 && (
-        <div className="space-y-4 pt-4 border-t border-white/5">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-1.5 h-6 bg-cyan-600 rounded-full" />
-            <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
-              Changelog — v{updateInfo?.latestVersion}
-            </h4>
-          </div>
+            {/* Latest Version Status */}
+            <div className={clsx(
+                "glass-panel p-6 rounded-[32px] border relative overflow-hidden group lg:col-span-2",
+                updateStatus === 'available' ? "border-blue-500/30 bg-blue-500/5" :
+                updateStatus === 'up-to-date' ? "border-emerald-500/30 bg-emerald-500/5" :
+                updateStatus === 'error' ? "border-red-500/30 bg-red-500/5" : "border-border-subtle"
+            )}>
+                {updateStatus === 'available' && <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[80px] rounded-full pointer-events-none" />}
+                {updateStatus === 'up-to-date' && <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 blur-[80px] rounded-full pointer-events-none" />}
+                
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-foreground-dim mb-4 relative z-10">Status</h4>
+                
+                <div className="flex items-center justify-between relative z-10">
+                    <div className="flex items-center gap-4">
+                        <div className={clsx(
+                            "w-12 h-12 rounded-2xl flex items-center justify-center",
+                            updateStatus === 'available' ? "bg-blue-500/20 text-blue-400" :
+                            updateStatus === 'up-to-date' ? "bg-emerald-500/20 text-emerald-400" :
+                            updateStatus === 'error' ? "bg-red-500/20 text-red-400" : "bg-surface-elevated text-foreground-dim"
+                        )}>
+                            {updateStatus === 'checking' || isChecking ? <Loader2 size={24} className="animate-spin" /> :
+                             updateStatus === 'available' ? <Download size={24} /> :
+                             updateStatus === 'up-to-date' ? <CheckCircle2 size={24} /> :
+                             updateStatus === 'error' ? <AlertCircle size={24} /> : <RefreshCw size={24} />}
+                        </div>
+                        <div>
+                            <h3 className={clsx(
+                                "text-2xl font-black tracking-tight",
+                                updateStatus === 'available' ? "text-blue-400" :
+                                updateStatus === 'up-to-date' ? "text-emerald-400" :
+                                updateStatus === 'error' ? "text-red-400" : "text-foreground"
+                            )}>
+                                {updateStatus === 'checking' || isChecking ? 'Checking for updates...' :
+                                 updateStatus === 'available' ? `Update Available: v${updateInfo?.latestVersion}` :
+                                 updateStatus === 'up-to-date' ? 'You are up to date' :
+                                 updateStatus === 'error' ? 'Check Failed' : 'Unknown Status'}
+                            </h3>
+                            {updateInfo?.releaseDate && updateStatus === 'available' && (
+                                <p className="text-blue-400/60 text-[10px] font-bold uppercase tracking-widest mt-1">Released {updateInfo.releaseDate}</p>
+                            )}
+                        </div>
+                    </div>
 
-          <div className="space-y-3">
-            {orderedCategories.map((cat) => {
-              const cfg = categoryConfig[cat];
-              const notes = notesByCategory[cat];
-              return (
-                <div key={cat} className={clsx('rounded-2xl p-4 border', cfg.bgColor)}>
-                  <div className={clsx('flex items-center gap-1.5 mb-2.5', cfg.color)}>
-                    {cfg.icon}
-                    <span className="text-[10px] font-black uppercase tracking-widest">{cfg.label}</span>
-                  </div>
-                  <ul className="space-y-1.5">
-                    {notes.map((note, i) => (
-                      <li key={i} className="text-foreground-dim text-xs flex items-start gap-2">
-                        <span className={clsx('mt-1.5 w-1 h-1 rounded-full shrink-0', cfg.color.replace('text-', 'bg-'))} />
-                        {note.text}
-                      </li>
-                    ))}
-                  </ul>
+                    {updateStatus === 'available' && (
+                        <button 
+                            onClick={handleDownload}
+                            className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2"
+                        >
+                            <Download size={16} /> Get Update
+                        </button>
+                    )}
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+            </div>
 
-      {/* Background check info */}
-      <div className="pt-4 border-t border-white/5">
-        <p className="text-foreground-muted text-[10px] font-medium text-center leading-relaxed">
-          FlowManga automatically checks for updates on startup and every 24 hours in the background.
-          <br />
-          Updates are downloaded and installed manually from GitHub.
-        </p>
-      </div>
+            {/* Release Notes */}
+            {updateInfo && orderedCategories.length > 0 && (
+                <div className="glass-panel p-8 rounded-[32px] border border-border-subtle relative overflow-hidden lg:col-span-3">
+                    <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/5">
+                        <div>
+                            <h3 className="text-xl font-black text-foreground">Release Notes</h3>
+                            <p className="text-foreground-dim text-[10px] font-bold uppercase tracking-widest mt-1">What's new in v{updateInfo.latestVersion}</p>
+                        </div>
+                        <button 
+                            onClick={handleViewOnGitHub}
+                            className="flex items-center gap-2 text-xs font-bold text-foreground-muted hover:text-foreground transition-colors uppercase tracking-widest"
+                        >
+                            View on GitHub <ExternalLink size={14} />
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {orderedCategories.map(cat => {
+                            const conf = categoryConfig[cat];
+                            const notes = notesByCategory[cat];
+                            return (
+                                <div key={cat} className="space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <div className={clsx("p-1.5 rounded-lg border", conf.bg, conf.color)}>
+                                            {conf.icon}
+                                        </div>
+                                        <h4 className={clsx("font-black text-sm uppercase tracking-wide", conf.color)}>{conf.label}</h4>
+                                    </div>
+                                    <ul className="space-y-3 pl-2">
+                                        {notes.map((n, i) => (
+                                            <li key={i} className="flex gap-3 text-sm">
+                                                <span className="text-foreground-dim mt-1.5 w-1 h-1 rounded-full bg-current flex-shrink-0" />
+                                                <span className="text-foreground font-medium leading-relaxed">{n.text}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
     </div>
   );
 };

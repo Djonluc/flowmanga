@@ -51,6 +51,7 @@
     "core:window:allow-set-size",
     "core:webview:allow-set-webview-zoom",
     "core:webview:allow-create-webview-window",
-    "core:window:allow-create"
+    "core:window:allow-create",
+    "core:window:allow-start-dragging"
   ]
 }

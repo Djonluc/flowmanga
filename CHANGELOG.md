@@ -1,3 +1,25 @@
+# FlowManga v2.4.1 Release Notes
+
+We've been hard at work polishing the engine, squashing bugs, and ensuring smooth access to all your favorite sources. Here is everything packed into this upcoming release:
+
+### 🛡️ Networking & Anti-Bot Bypassing
+- **Universal Cloudflare Bypass (wsrv.nl)** — Resolved severe `403 Forbidden` issues where strict sources (like ManhuaUS) were actively blocking thumbnail and cover image fetches. Completely bypassed their TLS bot-fingerprinting by routing all strict image requests through the `wsrv.nl` global CDN proxy. Covers now load instantaneously without being blocked.
+- **MangaDex API Resilience** — Fixed metadata refreshing for MangaDex. Re-routed API calls from the headless Rust scraper to native frontend `fetch` calls, preventing Cloudflare from intercepting and challenging the request.
+- **Proxy Fallback Optimization** — Optimized `useProxiedImage` so that fallback logic is lightning-fast and no longer relies on slow backend fetches when dealing with massively protected CDN endpoints.
+
+### 🛠️ Enhancements & Updates
+- **Universal Proxy Integration** — Applied the new anti-WAF proxy wrapper uniformly across the entire app interface. The `FeaturedCarousel`, `HomeView` widgets, `HistoryView`, `LibraryGrid`, `ShelfView`, and `QuickViewModal` all now seamlessly load strict images without throwing console errors.
+- **WebNovel Cookie Auto-Extraction** — Added one-click automated cookie extraction from Chrome for WebNovel, bypassing Cloudflare security check issues.
+- **WebNovel Cookie Paste Sanitizer** — Strips non-printable ASCII characters automatically when pasting cookies manually to prevent Rust backend builder errors.
+- **System File Manager Integration** — Added a native command to open download folders directly in the system's file manager (Explorer, Finder, or Files).
+
+### 🐛 Bug Fixes
+- **Local File Asset Serving** — Fixed `404 Not Found` errors when attempting to load local cover images from the disk. The UI now properly utilizes Tauri's `convertFileSrc` asset protocol universally.
+- **Broken Images & Layout Shifts** — Eliminated "blank cover" bugs and layout shifts caused by hotlink-protected images silently failing in the background.
+- **IPC Invoke Errors** — Resolved a `ReferenceError: invoke is not defined` crash that occurred during metadata refresh pipelines.
+
+---
+
 # FlowManga v2.4.0 Release Notes
 
 Welcome to FlowManga v2.4.0! This release focuses on expanding image platform integrations and delivering a massive UI/UX layout overhaul.

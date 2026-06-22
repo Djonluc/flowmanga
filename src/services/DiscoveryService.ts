@@ -738,7 +738,9 @@ export class DiscoveryService {
   }
 
   /**
-   * Filter items client-side by positive and negative tags.
+   * Filter items client-side by negative tags.
+   * We trust the provider's search engine for positive tags/queries, 
+   * since scraped tags are often incomplete or use different terminology.
    */
   private static applyTagFilters(item: SourceSearchResult, parsed: ParsedQuery): boolean {
     const itemTags = item.tags || [];
@@ -746,25 +748,18 @@ export class DiscoveryService {
     const titleLower = (item.title || "").toLowerCase();
 
     // Check exclusions (negative tags)
-    for (const exTag of parsed.excludedTags) {
+    for (const exTag of parsed.negativeTags || []) {
       const cleanEx = exTag.toLowerCase().trim().replace(/_/g, " ");
       if (itemTagsLower.includes(cleanEx) || titleLower.includes(cleanEx)) {
         return false; // Excluded!
       }
     }
 
-    // Check positive tags ONLY if the item has tags populated
-    if (itemTags.length > 0) {
-      for (const posTag of parsed.positiveTags) {
-        const cleanPos = posTag.toLowerCase().trim().replace(/_/g, " ");
-        // Check if the tag (or title) contains the positive tag
-        const tagMatched = itemTagsLower.some((t: string) => t.includes(cleanPos)) || titleLower.includes(cleanPos);
-        if (!tagMatched) {
-          return false; // Missing positive tag!
-        }
-      }
-    }
-
+    // We no longer strictly enforce positive tags client-side.
+    // Providers often don't return all tags in search results (e.g., ManhuaPlus just returns ["Full Color", "Manhua"]),
+    // or they use different naming conventions (e.g., MangaDex uses "Suggestive" content rating instead of "adult" tag).
+    // Filtering strictly here causes valid results returned by the provider's backend to be dropped.
+    
     return true;
   }
 

@@ -19,8 +19,38 @@ export class RecommendationEngine {
     const dominantTags = await TagIntelligenceService.getInterests('dominant_tag');
     const supportingTags = await TagIntelligenceService.getInterests('supporting_tag');
     
-    const dominantNames = dominantTags.map(t => t.name.toLowerCase());
-    const supportingNames = supportingTags.map(t => t.name.toLowerCase());
+    let favs: { tag: string }[] = [];
+    let mode = 'dynamic';
+    try {
+      const { getDb } = await import('../../services/db');
+      const db = getDb();
+      favs = await db.select<{tag: string}>("SELECT tag FROM FavoriteTags");
+      
+      const { useSettingsStore } = await import('../../stores/useSettingsStore');
+      mode = useSettingsStore.getState().recommendationMode;
+    } catch (e) {
+      console.warn("Could not load settings/favorites for recommendation engine", e);
+    }
+    
+    const normalizeTag = (t: string) => t.toLowerCase().replace(/[\s_\-]+/g, '').trim();
+
+    let dominantNames: string[] = [];
+    let supportingNames: string[] = [];
+
+    if (mode === 'strict_favorites') {
+      dominantNames = favs.map(f => normalizeTag(f.tag));
+      supportingNames = [];
+    } else if (mode === 'strict_interests') {
+      dominantNames = dominantTags.map(t => normalizeTag(t.name));
+      supportingNames = supportingTags.map(t => normalizeTag(t.name));
+    } else {
+      // dynamic - use curated interests as dominant, and mix favorites into supporting
+      dominantNames = dominantTags.map(t => normalizeTag(t.name));
+      supportingNames = Array.from(new Set([
+        ...supportingTags.map(t => normalizeTag(t.name)),
+        ...favs.map(f => normalizeTag(f.tag))
+      ])).filter(t => !dominantNames.includes(t));
+    }
 
     if (dominantNames.length === 0) {
       // Not enough data to score properly, return all with 0 score
@@ -33,26 +63,35 @@ export class RecommendationEngine {
     const scoredImages: ScoredImage[] = [];
 
     for (const img of images) {
-      const tags = (img.tags || []).map(t => t.toLowerCase());
+      // Normalize image tags: replace underscores/spaces/dashes and remove namespaces (e.g. 'character:')
+      const tags = (img.tags || []).map(t => 
+        typeof t === 'string' ? normalizeTag(t.replace(/^.*:/, '')) : ''
+      );
       
-      const matchedDominant = tags.filter(t => dominantNames.some(d => t.includes(d)));
-      const matchedSupporting = tags.filter(t => supportingNames.some(s => t.includes(s)));
+      // Use exact match to prevent substring bugs (e.g. 'female' matching 'male')
+      const matchedDominant = tags.filter(t => dominantNames.includes(t));
+      const matchedSupporting = tags.filter(t => supportingNames.includes(t));
+      
+      // ABSOLUTE RULE: An image MUST have a dominant tag to be recommended.
+      if (matchedDominant.length === 0) {
+        continue;
+      }
       
       let score = 0;
       
       // Base score from dominant tags
-      if (matchedDominant.length > 0) {
-        score += 70 + (matchedDominant.length * 5); // 75, 80...
-      }
+      score += 70 + (matchedDominant.length * 5); // 75, 80...
 
       // Bonus score from supporting tags
       if (matchedSupporting.length > 0) {
         score += (matchedSupporting.length * 5);
       }
 
-      // If strict mode is enabled, reject images without dominant tags
-      if (strictMode && matchedDominant.length === 0) {
-        continue;
+      // If strict mode is enabled, strictly enforce supporting tag requirements if they exist
+      if (strictMode) {
+        if (supportingNames.length > 0 && matchedSupporting.length < 1) {
+          continue;
+        }
       }
 
       let explanation = "";

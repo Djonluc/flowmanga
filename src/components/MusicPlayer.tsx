@@ -152,12 +152,12 @@ export const MusicPlayer = ({ isExpanded }: { isExpanded: boolean }) => {
                 {/* Track Name */}
                 <div className="flex-1 min-w-0">
                     <p className={clsx(
-                        'text-xs font-bold truncate capitalize leading-tight',
+                        'text-sm font-black truncate capitalize leading-tight tracking-tight',
                         isPlaying ? 'text-foreground' : 'text-foreground-dim'
                     )}>
                         {getTrackDisplayName()}
                     </p>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-foreground-muted mt-0.5">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted mt-0.5">
                         {isLoading ? 'Loading…' : isPlaying ? 'Now Playing' : currentTrack ? 'Paused' : 'Idle'}
                     </p>
                 </div>
