@@ -13,9 +13,10 @@ export const TitleBar = () => {
         const win = getCurrentWindow();
         const max = await win.isMaximized();
         if (!unmounted) setIsMaximized(max);
-        setIsWindowSetup(true);
       } catch (e) {
         console.warn('Failed to check window state', e);
+      } finally {
+        if (!unmounted) setIsWindowSetup(true);
       }
     };
     

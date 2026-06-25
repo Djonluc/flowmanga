@@ -405,7 +405,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
               transition={{ duration: 2.2, ease: "easeOut" }}
               className="absolute inset-0 bg-center bg-cover bg-no-repeat blur-[4px] sm:blur-[8px] saturate-[1.1]"
               style={{
-                backgroundImage: `url(${heroBackground})`,
+                backgroundImage: `url("${heroBackground}")`,
                 backgroundPosition: "center 20%",
               }}
             />
@@ -415,7 +415,7 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
               animate={{ opacity: 0.6 }}
               transition={{ duration: 1.4 }}
               className="absolute inset-0 bg-center bg-cover scale-105 blur-[16px] sm:blur-[24px] saturate-[1.1]"
-              style={{ backgroundImage: `url(${coverSrc})` }}
+              style={{ backgroundImage: `url("${coverSrc}")` }}
             />
           ) : (
             <div className="absolute inset-0 bg-gradient-to-br from-accent/10 via-transparent to-transparent opacity-30" />

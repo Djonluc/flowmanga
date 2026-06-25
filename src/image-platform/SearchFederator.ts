@@ -55,16 +55,19 @@ export class SearchFederator {
       const notSavedImages = images.filter(img => !savedSet.has(img.id));
       if (notSavedImages.length === 0) return [];
       
-      // 2. Deprioritize seen images
+      // 2. Strictly exclude images seen in the last 24 hours
       const notSavedIds = notSavedImages.map(img => img.id);
       const nsPlaceholders = notSavedIds.map(() => '?').join(',');
-      const seenRows = await db.select<{id: string}>(`SELECT id FROM FlowSeenImages WHERE id IN (${nsPlaceholders})`, notSavedIds);
+      const seenRows = await db.select<{id: string}>(`
+        SELECT id FROM FlowSeenImages 
+        WHERE id IN (${nsPlaceholders})
+        AND seenAt >= datetime('now', '-1 day')
+      `, notSavedIds);
       const seenSet = new Set(seenRows.map(r => r.id));
 
       const unseen = notSavedImages.filter(img => !seenSet.has(img.id));
-      const seen = notSavedImages.filter(img => seenSet.has(img.id));
       
-      return [...unseen, ...seen];
+      return unseen;
     } catch (e) {
       console.warn("[SearchFederator] Failed to filter exclusions", e);
       return images;
@@ -238,8 +241,13 @@ export class SearchFederator {
     discoveryTags.forEach(tag => {
       activeProviders.forEach(p => {
         const query = this.getMediaFilterQuery({ raw: tag, positiveTags: [tag], negativeTags: blockedTags, predicates: {} });
+        
+        // Add random jitter to the page number so 'For You' feeds are always fresh on refresh
+        const jitter = Math.floor(Math.random() * 10);
+        const fetchPage = page + jitter;
+
         allPromises.push(
-          p.search(query, page)
+          p.search(query, fetchPage)
             .then(async res => {
               const filtered = this.filterAdult(res);
               const blockFiltered = await this.filterBlocked(filtered);

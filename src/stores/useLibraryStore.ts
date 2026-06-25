@@ -199,16 +199,26 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     );
     const enrichedSeries: Series[] = [];
 
+    // Fetch all chapters at once
+    const allChapters = await db.select<any[]>(
+      `
+      SELECT c.*, p.currentPage, p.totalPages as savedTotalPages 
+      FROM Chapters c 
+      LEFT JOIN ReadingProgress p ON c.id = p.chapterId
+      `
+    );
+    
+    // Group chapters by seriesId
+    const chaptersBySeries = new Map<string, any[]>();
+    for (const c of allChapters) {
+      if (!chaptersBySeries.has(c.seriesId)) {
+        chaptersBySeries.set(c.seriesId, []);
+      }
+      chaptersBySeries.get(c.seriesId)!.push(c);
+    }
+
     for (const s of series) {
-      const chapters = await db.select<any[]>(
-        `
-        SELECT c.*, p.currentPage, p.totalPages as savedTotalPages 
-        FROM Chapters c 
-        LEFT JOIN ReadingProgress p ON c.id = p.chapterId 
-        WHERE c.seriesId = ?
-      `,
-        [s.id],
-      );
+      const chapters = chaptersBySeries.get(s.id) || [];
 
       enrichedSeries.push({
         id: s.id,

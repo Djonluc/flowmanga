@@ -22,9 +22,8 @@ const init = async () => {
     // 1. Initialize SQLite Database
     await initDatabase();
     
-    // Seed Manga Intelligence taxonomy
+    // Seed Manga Intelligence taxonomy (fast, blocking is fine)
     await MangaIntelligenceService.seedTaxonomyIfEmpty();
-    await MangaIntelligenceService.mapHistoricalData();
     
     // 2. Preload Library State and Collections
     await useLibraryStore.getState().loadFromDb();
@@ -33,7 +32,16 @@ const init = async () => {
     // 3. Notify the app that initialisation is complete
     useSettingsStore.getState().setInitializing(false);
 
-    // 4. Background version check (non-blocking, fire-and-forget)
+    // 4. Background intelligence mapping (heavy, fire-and-forget)
+    setTimeout(async () => {
+      try {
+        await MangaIntelligenceService.mapHistoricalData();
+      } catch (err) {
+        console.error('[MangaIntelligence] Failed to map historical data in background:', err);
+      }
+    }, 1000); // Wait 1s after UI load
+
+    // 5. Background version check (non-blocking, fire-and-forget)
     setTimeout(async () => {
       try {
         const { setUpdateInfo, setUpdateStatus } = useSettingsStore.getState();

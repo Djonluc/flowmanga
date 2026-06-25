@@ -379,7 +379,7 @@ export const LibraryGrid = () => {
               />
             ) : (
               <div
-                className="h-full p-4 overflow-y-auto no-scrollbar flex flex-col relative"
+                className="h-full flex-1 min-h-0 flex flex-col relative"
                 onDragOver={(e) => {
                   e.preventDefault();
                   setIsDragging(true);
@@ -392,7 +392,7 @@ export const LibraryGrid = () => {
               >
                 {isDragging && <DragOverlay />}
 
-                <div className="flex flex-col gap-6 mb-4 px-4 pt-2 z-10 shrink-0">
+                <div className="flex flex-col gap-6 mb-4 px-8 pt-6 z-10 shrink-0">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-3">
@@ -475,7 +475,7 @@ export const LibraryGrid = () => {
                   </div>
                 </div>
 
-                <div>
+                <div className="flex-1 w-full h-full min-h-0 relative">
                   {isLoading ? (
                     <LoadingDisplay />
                   ) : displayItems.length === 0 ? (
@@ -509,7 +509,73 @@ export const LibraryGrid = () => {
                     <ShelfView
                       allSeries={displayItems as Series[]}
                       onOpenItem={handleOpenItem}
-                    />
+                    >
+                      {filterTags.length > 0 && (
+                        <div className="mt-12 mb-20 px-8">
+                          <div className="flex items-center justify-between mb-8">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-xl bg-accent/20 flex items-center justify-center text-accent">
+                                <Sparkles size={18} />
+                              </div>
+                              <h3 className="text-xl font-black text-foreground uppercase tracking-tighter italic">
+                                Spirit Revelations
+                              </h3>
+                            </div>
+                            {isSearchingExternal && (
+                              <div className="flex items-center gap-2 text-[10px] font-black text-foreground-dim uppercase tracking-widest animate-pulse">
+                                <RefreshCw size={12} className="animate-spin" />
+                                Sensing Aether...
+                              </div>
+                            )}
+                          </div>
+
+                          {externalResults.length > 0 ? (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-6">
+                              {externalResults.map((item) => (
+                                <motion.div
+                                  key={`ext-${item.id}`}
+                                  initial={{ opacity: 0, y: 20 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  onClick={() => openQuickView(item)}
+                                  className="group cursor-pointer"
+                                >
+                                  <div className="aspect-[2/3] rounded-2xl overflow-hidden border border-white/5 bg-white/5 relative mb-3">
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-20 group-hover:opacity-40 transition-opacity">
+                                      <LibraryIcon size={32} />
+                                    </div>
+                                    <ProxiedLibraryImage
+                                      src={item.coverUrl || item.cover}
+                                      alt={item.title}
+                                      className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700 opacity-60 group-hover:opacity-100"
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+                                      <span className="text-[10px] font-black text-foreground uppercase tracking-widest">
+                                        View Tome
+                                      </span>
+                                    </div>
+                                    <div className="absolute top-2 right-2 px-2 py-1 bg-accent/80 text-white text-[8px] font-black rounded-lg uppercase tracking-widest backdrop-blur-md">
+                                      Web
+                                    </div>
+                                  </div>
+                                  <h4 className="text-xs font-bold text-foreground-dim group-hover:text-foreground truncate transition-colors uppercase tracking-tight">
+                                    {item.title}
+                                  </h4>
+                                </motion.div>
+                              ))}
+                            </div>
+                          ) : (
+                            !isSearchingExternal && (
+                              <div className="p-12 border border-dashed border-white/5 rounded-[32px] flex flex-col items-center justify-center text-center opacity-40">
+                                <Tag size={32} className="text-foreground-muted mb-4" />
+                                <p className="text-xs font-bold text-foreground-muted uppercase tracking-widest">
+                                  No spirits found for these sigils
+                                </p>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+                    </ShelfView>
                   ) : (
                     <GridView
                       items={displayItems}
@@ -518,76 +584,75 @@ export const LibraryGrid = () => {
                       density={libraryDensity}
                       isSelectionMode={selectionMode}
                       selectedIds={selectedIds}
-                    />
-                  )}
-                </div>
+                    >
+                      {filterTags.length > 0 && (
+                        <div className="mt-12 mb-20 px-8">
+                          <div className="flex items-center justify-between mb-8">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-xl bg-accent/20 flex items-center justify-center text-accent">
+                                <Sparkles size={18} />
+                              </div>
+                              <h3 className="text-xl font-black text-foreground uppercase tracking-tighter italic">
+                                Spirit Revelations
+                              </h3>
+                            </div>
+                            {isSearchingExternal && (
+                              <div className="flex items-center gap-2 text-[10px] font-black text-foreground-dim uppercase tracking-widest animate-pulse">
+                                <RefreshCw size={12} className="animate-spin" />
+                                Sensing Aether...
+                              </div>
+                            )}
+                          </div>
 
-                {/* External Discoveries */}
-                {filterTags.length > 0 && (
-                  <div className="mt-12 mb-20 px-4">
-                    <div className="flex items-center justify-between mb-8">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-accent/20 flex items-center justify-center text-accent">
-                          <Sparkles size={18} />
-                        </div>
-                        <h3 className="text-xl font-black text-foreground uppercase tracking-tighter italic">
-                          Spirit Revelations
-                        </h3>
-                      </div>
-                      {isSearchingExternal && (
-                        <div className="flex items-center gap-2 text-[10px] font-black text-foreground-dim uppercase tracking-widest animate-pulse">
-                          <RefreshCw size={12} className="animate-spin" />
-                          Sensing Aether...
+                          {externalResults.length > 0 ? (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-6">
+                              {externalResults.map((item) => (
+                                <motion.div
+                                  key={`ext-${item.id}`}
+                                  initial={{ opacity: 0, y: 20 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  onClick={() => openQuickView(item)}
+                                  className="group cursor-pointer"
+                                >
+                                  <div className="aspect-[2/3] rounded-2xl overflow-hidden border border-white/5 bg-white/5 relative mb-3">
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-20 group-hover:opacity-40 transition-opacity">
+                                      <LibraryIcon size={32} />
+                                    </div>
+                                    <ProxiedLibraryImage
+                                      src={item.coverUrl || item.cover}
+                                      alt={item.title}
+                                      className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700 opacity-60 group-hover:opacity-100"
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+                                      <span className="text-[10px] font-black text-foreground uppercase tracking-widest">
+                                        View Tome
+                                      </span>
+                                    </div>
+                                    <div className="absolute top-2 right-2 px-2 py-1 bg-accent/80 text-white text-[8px] font-black rounded-lg uppercase tracking-widest backdrop-blur-md">
+                                      Web
+                                    </div>
+                                  </div>
+                                  <h4 className="text-xs font-bold text-foreground-dim group-hover:text-foreground truncate transition-colors uppercase tracking-tight">
+                                    {item.title}
+                                  </h4>
+                                </motion.div>
+                              ))}
+                            </div>
+                          ) : (
+                            !isSearchingExternal && (
+                              <div className="p-12 border border-dashed border-white/5 rounded-[32px] flex flex-col items-center justify-center text-center opacity-40">
+                                <Tag size={32} className="text-foreground-muted mb-4" />
+                                <p className="text-xs font-bold text-foreground-muted uppercase tracking-widest">
+                                  No spirits found for these sigils
+                                </p>
+                              </div>
+                            )
+                          )}
                         </div>
                       )}
-                    </div>
-
-                    {externalResults.length > 0 ? (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-6">
-                        {externalResults.map((item) => (
-                          <motion.div
-                            key={`ext-${item.id}`}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            onClick={() => openQuickView(item)}
-                            className="group cursor-pointer"
-                          >
-                            <div className="aspect-[2/3] rounded-2xl overflow-hidden border border-white/5 bg-white/5 relative mb-3">
-                              <div className="absolute inset-0 flex items-center justify-center opacity-20 group-hover:opacity-40 transition-opacity">
-                                <LibraryIcon size={32} />
-                              </div>
-                              <ProxiedLibraryImage
-                                src={item.coverUrl || item.cover}
-                                alt={item.title}
-                                className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700 opacity-60 group-hover:opacity-100"
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
-                                <span className="text-[10px] font-black text-foreground uppercase tracking-widest">
-                                  View Tome
-                                </span>
-                              </div>
-                              <div className="absolute top-2 right-2 px-2 py-1 bg-accent/80 text-white text-[8px] font-black rounded-lg uppercase tracking-widest backdrop-blur-md">
-                                Web
-                              </div>
-                            </div>
-                            <h4 className="text-xs font-bold text-foreground-dim group-hover:text-foreground truncate transition-colors uppercase tracking-tight">
-                              {item.title}
-                            </h4>
-                          </motion.div>
-                        ))}
-                      </div>
-                    ) : (
-                      !isSearchingExternal && (
-                        <div className="p-12 border border-dashed border-white/5 rounded-[32px] flex flex-col items-center justify-center text-center opacity-40">
-                          <Tag size={32} className="text-foreground-muted mb-4" />
-                          <p className="text-xs font-bold text-foreground-muted uppercase tracking-widest">
-                            No spirits found for these sigils
-                          </p>
-                        </div>
-                      )
-                    )}
-                  </div>
-                )}
+                    </GridView>
+                  )}
+                </div>
                 
                 {/* Selection Mode Action Bar */}
                 <AnimatePresence>

@@ -27,8 +27,6 @@ export const TopBar = () => {
         ? activeJobs.reduce((acc, job) => acc + (job.progress || 0), 0) / activeJobs.length 
         : 0;
 
-    if (images.length > 0) return null;
-
     const [localQuery, setLocalQuery] = useState(activeView === 'discover' ? discoverQuery : searchQuery);
 
     // Sync local query when view changes or external store changes (if we clear it externally)
@@ -64,6 +62,8 @@ export const TopBar = () => {
             }
         }
     };
+
+    if (images.length > 0 || activeView === 'collections') return null;
 
     return (
         <div className="relative pt-4 pb-2">

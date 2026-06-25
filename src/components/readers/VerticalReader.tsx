@@ -301,7 +301,7 @@ const LazyReaderPage = ({
       case "stretch":
         return "w-full h-full object-fill";
       case "height":
-        return "h-screen w-auto object-contain";
+        return "h-full w-auto object-contain";
       case "contain":
         return "w-full h-auto object-contain";
       case "original":

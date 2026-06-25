@@ -43,10 +43,13 @@ export const Reader = () => {
   // Sync internal storage index with Reader V2 Store on load
   useEffect(() => {
     if (images.length > 0) {
-      setTotalPages(images.length);
-      setCurrentPage(currentIndex);
+      const rs = useReaderStore.getState();
+      if (rs.totalPages !== images.length) setTotalPages(images.length);
+      
+      const currentReaderPage = useReaderStore.getState().currentPage;
+      if (currentReaderPage !== currentIndex) setCurrentPage(currentIndex);
     }
-  }, [images.length, currentIndex]);
+  }, [images.length, currentIndex, setTotalPages, setCurrentPage]);
 
   const currentSrc = images[currentIndex]
     ? images[currentIndex].startsWith("http")
@@ -139,10 +142,13 @@ export const Reader = () => {
   // This ensures progress persists even when using the new engine
   const readerPage = useReaderStore((state) => state.currentPage);
   useEffect(() => {
-    if (readerPage !== currentIndex) {
-      useReadingStore.getState().setPageIndex(readerPage);
+    const latestCurrentIndex = useReadingStore.getState().currentPageIndex;
+    const actualReaderPage = useReaderStore.getState().currentPage;
+    
+    if (actualReaderPage !== latestCurrentIndex) {
+      useReadingStore.getState().setPageIndex(actualReaderPage);
     }
-  }, [readerPage, currentIndex]);
+  }, [readerPage]);
 
   const renderReader = () => {
     // V2 Architecture: Unmount previous mode by using separate components
@@ -168,7 +174,7 @@ export const Reader = () => {
           setShowControls(true);
         }
       }}
-      className="fixed inset-0 z-50 w-screen h-screen bg-transparent overflow-hidden select-none flex flex-col items-center justify-center"
+      className="w-full h-full relative bg-transparent overflow-hidden select-none flex flex-col items-center justify-center"
     >
       {/* Adaptive UI color extraction logic is handled in <AdaptiveUI /> component below */}
 

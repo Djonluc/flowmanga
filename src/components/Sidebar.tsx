@@ -1,6 +1,7 @@
 import { useSettingsStore } from "../stores/useSettingsStore";
 import { useReadingStore } from "../stores/useReadingStore";
 import { useModalStore } from "../stores/useModalStore";
+
 import {
   Home,
   Library,
@@ -144,7 +145,7 @@ export const Sidebar = () => {
         "m-2 md:m-4 rounded-2xl md:rounded-[32px] bg-surface glass-panel shadow-cinematic overflow-hidden border border-border-subtle",
         isScreenshotMode
           ? "flex h-full"
-          : "flex h-[calc(100vh-1rem)] md:h-[calc(100vh-2rem)]",
+          : "flex h-[calc(100%-1rem)] md:h-[calc(100%-2rem)]",
       )}
     >
       {/* Logo */}
@@ -177,6 +178,7 @@ export const Sidebar = () => {
               if (item.view === "settings") toggleSettings();
               else {
                 useReadingStore.getState().reset();
+                useLibraryStore.getState().setSelectedSeriesId(null);
                 setActiveView(item.view);
               }
             }}

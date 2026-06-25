@@ -71,9 +71,9 @@ export const Layout = ({ children, hideSidebar = false }: LayoutProps) => {
         <div 
             id="flowmanga-layout-root"
             className={clsx(
-                "w-screen text-foreground transition-colors duration-500 relative flex flex-row",
+                "w-full text-foreground transition-colors duration-500 relative flex flex-row",
                 images.length === 0 ? "bg-background" : "bg-transparent",
-                isScreenshotMode ? "h-auto min-h-screen overflow-visible" : "h-screen overflow-hidden"
+                isScreenshotMode ? "h-auto min-h-full overflow-visible" : "h-full overflow-hidden"
             )}
             data-theme={theme}
         >

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import { useReadingStore } from "../stores/useReadingStore";
 import { useReaderStore } from "../stores/useReaderStore";
@@ -30,12 +30,23 @@ export const AmbientBackground = () => {
     prev: null,
   });
   const [flip, setFlip] = useState(false);
+  const lastSeenRef = useRef<string | null>(null);
 
   useEffect(() => {
     const currentImg = images[currentPageIndex];
-    if (currentImg !== layers.active) {
-      setLayers((prev) => ({ active: currentImg, prev: prev.active }));
-      setFlip((f) => !f);
+    if (!currentImg) return;
+
+    if (currentImg !== lastSeenRef.current) {
+        lastSeenRef.current = currentImg;
+        // Break out of synchronous React update cycles completely
+        const timer = setTimeout(() => {
+            setLayers((prev) => {
+                if (prev.active === currentImg) return prev;
+                return { active: currentImg, prev: prev.active };
+            });
+            setFlip((f) => !f);
+        }, 16);
+        return () => clearTimeout(timer);
     }
   }, [currentPageIndex, images]);
 

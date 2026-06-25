@@ -28,6 +28,9 @@ interface ImageEngineState {
   isFetchingNextPage: boolean;
   error: string | null;
 
+  activeTab: "new" | "foryou" | "collection" | "playlists" | "discover" | "search";
+  setActiveTab: (tab: "new" | "foryou" | "collection" | "playlists" | "discover" | "search") => void;
+
   // Actions
   search: (rawQuery: string) => Promise<void>;
   fetchLatest: (forceRefresh?: boolean) => Promise<void>;
@@ -46,6 +49,8 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
     search: { ...initialFeedState, query: "" },
   },
   fetchMode: 'latest',
+  activeTab: 'discover',
+  setActiveTab: (tab) => set({ activeTab: tab }),
   isLoading: false,
   isFetchingNextPage: false,
   error: null,
@@ -82,7 +87,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
         isLoading: false,
         feeds: {
           ...state.feeds,
-          search: { ...state.feeds.search, hasMore: results.length > 0 }
+          search: { ...state.feeds.search, hasMore: true }
         }
       }));
     } catch (e: any) {
@@ -120,7 +125,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
         isLoading: false,
         feeds: {
           ...state.feeds,
-          latest: { ...state.feeds.latest, currentPage: 1, hasMore: results.length > 0 }
+          latest: { ...state.feeds.latest, currentPage: 1, hasMore: true }
         }
       }));
     } catch (e: any) {
@@ -157,7 +162,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
         isLoading: false,
         feeds: {
           ...state.feeds,
-          curated: { ...state.feeds.curated, currentPage: 1, hasMore: results.length > 0 }
+          curated: { ...state.feeds.curated, currentPage: 1, hasMore: true }
         }
       }));
     } catch (e: any) {
@@ -194,7 +199,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
         isLoading: false,
         feeds: {
           ...state.feeds,
-          discover: { ...state.feeds.discover, currentPage: 1, hasMore: results.length > 0 }
+          discover: { ...state.feeds.discover, currentPage: 1, hasMore: true }
         }
       }));
     } catch (e: any) {
@@ -237,7 +242,8 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
       else if (mode === 'curated') newResults = await federator.getCurated(nextPage, handleChunk);
       else if (mode === 'discover') newResults = await federator.getDiscovery(nextPage, handleChunk);
 
-      const shouldKillFeed = (mode === 'search' || mode === 'latest') ? newResults.length === 0 : false;
+      // Don't kill the feed just because a page returned 0 items (they might have all been filtered out as 'seen')
+      const shouldKillFeed = false;
 
       set(s => ({
         isFetchingNextPage: false,

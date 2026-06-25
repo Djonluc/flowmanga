@@ -56,15 +56,6 @@ const SlideshowMedia = ({ image, isPaused }: { image: PlatformImage; isPaused: b
     };
   }, [image.fullUrl, image.sampleUrl, image.thumbnailUrl, needsProxy, proxyViaTauri]);
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center w-full h-[70vh] text-foreground-muted gap-3">
-        <Loader2 className="animate-spin text-accent" size={40} />
-        <span className="text-sm font-bold uppercase tracking-widest">Loading Media...</span>
-      </div>
-    );
-  }
-
   const isVideo = image.fullUrl?.match(/\.(mp4|webm)(?:\?|$)/i) || image.sampleUrl?.match(/\.(mp4|webm)(?:\?|$)/i) || image.localPath?.match(/\.(mp4|webm)(?:\?|$)/i);
 
   useEffect(() => {
@@ -73,6 +64,15 @@ const SlideshowMedia = ({ image, isPaused }: { image: PlatformImage; isPaused: b
       return () => useSlideshowStore.getState().resumeTimer();
     }
   }, [isVideo, src]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center w-full h-[70vh] text-foreground-muted gap-3">
+        <Loader2 className="animate-spin text-accent" size={40} />
+        <span className="text-sm font-bold uppercase tracking-widest">Loading Media...</span>
+      </div>
+    );
+  }
 
   if (isVideo) {
     return (
@@ -123,7 +123,8 @@ export const ImageCollectionDashboard = () => {
   const [modalImages, setModalImages] = useState<any[] | null>(null);
   
   type DashboardTab = "new" | "foryou" | "collection" | "playlists" | "discover" | "search";
-  const [activeTab, setActiveTab] = useState<DashboardTab>("discover");
+  const activeTab = store.activeTab;
+  const setActiveTab = store.setActiveTab;
   const [refreshKey, setRefreshKey] = useState(0);
 
   const loadFavorites = async () => {

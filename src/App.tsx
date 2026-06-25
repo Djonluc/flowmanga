@@ -177,6 +177,27 @@ function App() {
   );
 }
 
+const LazyTab = ({ active, children }: { active: boolean; children: React.ReactNode }) => {
+    const [mounted, setMounted] = useState(active);
+    
+    useEffect(() => {
+        if (active && !mounted) setMounted(true);
+    }, [active, mounted]);
+
+    if (!mounted) return null;
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, scale: 0.99 }}
+            animate={{ opacity: active ? 1 : 0, scale: active ? 1 : 0.99 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className={`absolute inset-0 ${active ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
+        >
+            {children}
+        </motion.div>
+    );
+};
+
 function MainContent() {
   const { images } = useReadingStore()
   const { currentVideo } = useVideoStore();
@@ -192,6 +213,8 @@ function MainContent() {
 
   // Fix Windows maximized frameless bleed
   const [isWindowMaximized, setIsWindowMaximized] = useState(false);
+  const isFullscreen = useSettingsStore((s) => s.isFullscreen);
+
   useEffect(() => {
     let unmounted = false;
     const checkMax = async () => {
@@ -210,8 +233,8 @@ function MainContent() {
   }, []);
 
   return (
-    <div className={`w-full h-[100dvh] flex flex-col bg-background text-foreground overflow-hidden box-border ${isWindowMaximized ? 'p-2' : ''}`}>
-      <TitleBar />
+    <div className={`w-full h-screen flex flex-col bg-background text-foreground overflow-hidden box-border ${isWindowMaximized && !isFullscreen ? 'p-2' : ''}`}>
+      {!isFullscreen && <TitleBar />}
       <div className="flex-1 min-h-0 relative">
         <Layout hideSidebar={images.length > 0 || !!currentVideo}>
         <AnimatePresence mode="wait">
@@ -227,30 +250,20 @@ function MainContent() {
                     <Reader />
                 </motion.div>
             ) : (
-                <motion.div
-                    key={activeView}
-                    initial={{ opacity: 0, scale: 0.99 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 1.01 }}
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                    className="h-full w-full"
-                >
-                    {activeView === 'stats' ? (
-                        <AnalyticsDashboard />
-                     ) : activeView === 'downloads' ? (
-                    <div className="flex-1 min-h-0 bg-transparent relative">
-                        <DownloadsView />
-                    </div>
-                ) : activeView === 'home' ? (
-                        <HomeView />
-                    ) : activeView === 'discover' ? (
-                        <DiscoverView />
-                    ) : activeView === 'videos' ? (
-                        <VideoLibrary />
-                    ) : (
+                <div className="h-full w-full relative">
+                    <LazyTab active={activeView === 'stats'}><AnalyticsDashboard /></LazyTab>
+                    <LazyTab active={activeView === 'downloads'}>
+                        <div className="flex-1 min-h-0 bg-transparent relative h-full">
+                            <DownloadsView />
+                        </div>
+                    </LazyTab>
+                    <LazyTab active={activeView === 'home'}><HomeView /></LazyTab>
+                    <LazyTab active={activeView === 'discover'}><DiscoverView /></LazyTab>
+                    <LazyTab active={activeView === 'videos'}><VideoLibrary /></LazyTab>
+                    <LazyTab active={!['stats', 'downloads', 'home', 'discover', 'videos'].includes(activeView)}>
                         <LibraryGrid />
-                    )}
-                </motion.div>
+                    </LazyTab>
+                </div>
             )}
         </AnimatePresence>
         <ControlPanel />

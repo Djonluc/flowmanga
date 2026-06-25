@@ -22,7 +22,15 @@ export const AdaptiveUI = () => {
 
         // Check cache first for immediate response
         if (colorCache.has(currentImg)) {
-            setCurrentThemeColor(colorCache.get(currentImg)!);
+            const cachedColor = colorCache.get(currentImg)!;
+            
+            // Break out of synchronous update loops
+            setTimeout(() => {
+                if (useReaderStore.getState().currentThemeColor !== cachedColor) {
+                    setCurrentThemeColor(cachedColor);
+                }
+            }, 0);
+            
             lastExtractedIndex.current = currentPageIndex;
             return;
         }

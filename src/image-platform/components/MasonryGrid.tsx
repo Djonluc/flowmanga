@@ -95,7 +95,7 @@ export const MasonryGrid: React.FC<MasonryGridProps> = ({
     return () => observer.disconnect();
   }, [images.length]);
 
-  if (images.length === 0) {
+  if (images.length === 0 && !hasMore) {
     return (
       <div className="p-8 text-center text-foreground-muted">
         No images found.

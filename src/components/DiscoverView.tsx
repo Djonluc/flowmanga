@@ -316,7 +316,7 @@ export const DiscoverView = () => {
       </div>
 
       {/* ─── Main Content Area ─── */}
-      <div className="px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-8 pb-32 min-h-screen">
+      <div className="px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-8 pb-32 min-h-full">
         <AnimatePresence mode="wait">
             {activeTab === 'search' && (
                 <motion.div key="search" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">

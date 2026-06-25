@@ -207,6 +207,7 @@ export class MangaIntelligenceService {
     );
 
     const tagFrequencies: Record<string, number> = {};
+    const normalizedTagCache = new Map<string, string>();
 
     for (const series of seriesList) {
       // Follow the series
@@ -232,7 +233,11 @@ export class MangaIntelligenceService {
         }
 
         for (const rawTag of parsedTags) {
-          const canonical = await this.normalizeTag(rawTag);
+          let canonical = normalizedTagCache.get(rawTag);
+          if (!canonical) {
+             canonical = await this.normalizeTag(rawTag);
+             normalizedTagCache.set(rawTag, canonical);
+          }
           tagFrequencies[canonical] = (tagFrequencies[canonical] || 0) + 1;
         }
       }
