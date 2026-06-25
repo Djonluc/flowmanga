@@ -191,14 +191,14 @@ export class SearchFederator {
       const interests = await db.select<{name: string}>(`
         SELECT name FROM UserInterests 
         ORDER BY isPinned DESC, score DESC, RANDOM() 
-        LIMIT 4
+        LIMIT 20
       `);
       
       // Pull explicit favorites (tags you've explicitly starred)
       const favs = await db.select<{tag: string}>(`
         SELECT tag FROM FavoriteTags 
         ORDER BY RANDOM() 
-        LIMIT 4
+        LIMIT 20
       `);
 
       let combinedTags: string[] = [];
@@ -219,9 +219,23 @@ export class SearchFederator {
         .sort(() => 0.5 - Math.random())
         .slice(0, 4);
 
-      if (discoveryTags.length === 0) {
-        // Fallback to random popular tags if no interests exist
-        discoveryTags = ["genshin_impact", "honkai_star_rail", "original"];
+      const fallbacks = [
+        "genshin_impact", "honkai_star_rail", "original", "anime", "landscape", 
+        "scenery", "cyberpunk", "fantasy", "digital_art", "illustration", 
+        "vocaloid", "hatsune_miku", "sky", "clouds", "nature", "night", 
+        "stars", "retro", "pixel_art", "sketch", "monochrome", "street", 
+        "city", "water", "sea", "ocean", "sunlight", "sunset", "gothic", 
+        "steampunk", "cybernetic", "mecha", "space", "underwater", "concept_art"
+      ];
+
+      if (discoveryTags.length < 4) {
+        const shuffledFallbacks = [...fallbacks].sort(() => 0.5 - Math.random());
+        for (const tag of shuffledFallbacks) {
+          if (discoveryTags.length >= 4) break;
+          if (!discoveryTags.includes(tag)) {
+            discoveryTags.push(tag);
+          }
+        }
       }
       const { useGalleryStore } = await import("../stores/useGalleryStore");
       blockedTags = useGalleryStore.getState().blockedTags;

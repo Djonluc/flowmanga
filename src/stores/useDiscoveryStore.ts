@@ -417,20 +417,43 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
 
     set({ isLoadingForYou: true });
     try {
-        const smartRecommendations = await MangaIntelligenceService.getSmartRecommendations(24);
+        const { coloredOnly } = useSettingsStore.getState();
+        const mediaDomain = get().activeType === "gallery" ? "image" : "manga";
+
+        // Fetch candidate pool from active discovery sources
+        const [trendingPool, latestPool, randomPool] = await Promise.all([
+          DiscoveryService.getTrending(48, coloredOnly, mediaDomain, 1, get().activeType),
+          DiscoveryService.getLatest(48, coloredOnly, mediaDomain, 1, get().activeType),
+          DiscoveryService.getRandom(48, coloredOnly, mediaDomain, get().activeType)
+        ]);
+
+        const candidateMap = new Map<string, SourceSearchResult>();
+        const addCandidates = (pool: SourceSearchResult[]) => {
+          for (const item of pool) {
+            if (item && item.id) {
+              candidateMap.set(item.id, item);
+            }
+          }
+        };
+        addCandidates(trendingPool);
+        addCandidates(latestPool);
+        addCandidates(randomPool);
+        const candidates = Array.from(candidateMap.values());
+
+        const smartRecommendations = await MangaIntelligenceService.getSmartRecommendations(candidates);
         
         // Convert recommendations back to SourceSearchResult
         // The MangaIntelligence Engine caches the full object in generic series struct, so we map it back.
         const mappedResults = smartRecommendations.map(rec => ({
-            id: rec.series.id,
-            title: rec.series.title,
-            coverUrl: rec.series.coverUrl,
-            source: rec.series.source,
-            provider: rec.series.source,
-            contentType: rec.series.contentType as ContentType || 'manga',
-            url: rec.series.url || '',
-            tags: rec.series.tags,
-            description: rec.series.description,
+            id: rec.item.id,
+            title: rec.item.title,
+            coverUrl: rec.item.coverUrl || rec.item.coverPath || "",
+            source: rec.item.source,
+            provider: rec.item.provider || rec.item.source,
+            contentType: rec.item.contentType as ContentType || 'manga',
+            url: rec.item.url || '',
+            tags: rec.item.tags || [],
+            description: rec.item.description || '',
             score: rec.score // Keep score for debugging if needed
         })) as unknown as SourceSearchResult[];
 
