@@ -1,3 +1,16 @@
+# FlowManga v2.4.3 Release Notes
+
+This release introduces dynamic shuffling for recommendation engines and resolves update version mapping checks.
+
+### 🚀 Features & Improvements
+- **Dynamic For You Image Shuffling** — The "For You" image recommendations feed is now completely fresh and randomized on every refresh, using dynamic interest shuffling and high-quality fallback tags.
+- **Manga For You Recommendation Pipeline** — The Manga "For You" feed now dynamically fetches and ranks candidate series from active discovery streams (trending, latest, random) against your reading profile.
+
+### 🐛 Bug Fixes
+- **Version Check Fixes** — Fixed version check mappings so the app correctly reports its current installed version on download and startup.
+
+---
+
 # FlowManga v2.4.2 Release Notes
 
 This hotfix release focuses on squashing some of the biggest bugs you've reported recently. We've smoothed out library navigation, fixed image duplication, and made the reader much more stable!

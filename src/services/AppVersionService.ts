@@ -6,7 +6,7 @@
  * Caches results and persists dismissal state to localStorage.
  */
 
-const CURRENT_VERSION = "2.4.2";
+const CURRENT_VERSION = "2.4.3";
 const GITHUB_RELEASES_URL =
   "https://api.github.com/repos/Djonluc/flowmamga/releases/latest";
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
