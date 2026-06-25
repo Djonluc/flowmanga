@@ -1,3 +1,17 @@
+# FlowManga v2.4.2 Release Notes
+
+This hotfix release focuses on squashing some of the biggest bugs you've reported recently. We've smoothed out library navigation, fixed image duplication, and made the reader much more stable!
+
+### 🐛 Bug Fixes
+- **Library Navigation Fixes** — Fixed a bug that caused the app to crash or go completely blank when clicking around and moving back and forth through your libraries.
+- **No More Duplicate Images** — Fixed an issue where the same images would repeat endlessly when scrolling through the Image Collections or User tabs.
+- **Reader & Slideshow Stability** — Fixed a severe crash (infinite loading loop) that occurred when reading manga or using the Slideshow feature. The reader is now completely stable!
+- **Slideshow Overlaps** — The top search bar now properly hides itself when you're viewing image collections so it doesn't block your view.
+- **Ambient Backgrounds** — Fixed a bug where the ambient lighting background could crash the app when you opened a chapter.
+- **First-Time Setup Automation** — If your Windows PC is missing the required WebView2 runtime to run the app, FlowManga will now help you automatically install it.
+
+---
+
 # FlowManga v2.4.1 Release Notes
 
 We've been hard at work polishing the engine, squashing bugs, and ensuring smooth access to all your favorite sources. Here is everything packed into this upcoming release:
