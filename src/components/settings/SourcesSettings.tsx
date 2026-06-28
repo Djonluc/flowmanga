@@ -557,67 +557,7 @@ export const SourcesSettings = () => {
                 ))}
             </div>
 
-            {/* Advanced Artist Tag Settings */}
-            <div className="space-y-4 pt-4 border-t border-white/5">
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="w-1.5 h-6 bg-purple-600 rounded-full" />
-                    <h4 className="text-foreground font-black uppercase tracking-widest text-sm italic">
-                        Advanced Artist Tag Resolution
-                    </h4>
-                </div>
 
-                {Array.from(new Map([...allProviders, ...imageProviders].map(p => [p.id, p])).values()).map(p => (
-                    <div key={`artist-${p.id}`} className="group bg-surface/40 backdrop-blur-xl p-6 rounded-[32px] border border-border-subtle flex flex-col gap-6 hover:border-purple-500/30 hover:shadow-2xl hover:shadow-purple-500/5 hover:-translate-y-1 transition-all duration-500">
-                        <div className="flex items-center gap-5">
-                            <div className="w-14 h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-500">
-                                <Sparkles size={28} />
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="text-purple-500 text-[10px] font-black uppercase tracking-widest mb-1">Tag Resolver</span>
-                                <span className="text-foreground text-base font-bold tracking-tight">{p.name}</span>
-                                <p className="text-foreground-muted text-[10px] font-medium mt-1 leading-relaxed">
-                                    Map missing artist tags dynamically using a dedicated tag API endpoint. Use <span className="text-purple-400 font-mono">{"{tags}"}</span> to represent the comma-separated tags variable.
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-foreground/40 uppercase tracking-widest ml-2">Artist Tag API URL (Bulk)</label>
-                                <input
-                                    type="text"
-                                    value={booruAuth?.[p.id]?.artistTagApiUrl || ''}
-                                    onChange={(e) => setBooruAuth(p.id, { ...booruAuth?.[p.id], artistTagApiUrl: e.target.value })}
-                                    placeholder="e.g. https://api.rule34.xxx/index.php?page=dapi&s=tag&q=index&json=1&names={tags}"
-                                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-purple-500/50 transition-colors font-mono text-xs"
-                                />
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-foreground/40 uppercase tracking-widest ml-2">JSON Key Path for Tag Type</label>
-                                    <input
-                                        type="text"
-                                        value={booruAuth?.[p.id]?.artistTagKeyPath || ''}
-                                        onChange={(e) => setBooruAuth(p.id, { ...booruAuth?.[p.id], artistTagKeyPath: e.target.value })}
-                                        placeholder="e.g. type"
-                                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-purple-500/50 transition-colors"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-foreground/40 uppercase tracking-widest ml-2">Artist Type Value</label>
-                                    <input
-                                        type="text"
-                                        value={booruAuth?.[p.id]?.artistTypeValue || ''}
-                                        onChange={(e) => setBooruAuth(p.id, { ...booruAuth?.[p.id], artistTypeValue: e.target.value })}
-                                        placeholder="e.g. 1"
-                                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-purple-500/50 transition-colors"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
 
             {/* Content Filtering */}
             <div className="space-y-4 pt-4 border-t border-white/5">
