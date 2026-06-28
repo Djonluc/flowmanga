@@ -486,12 +486,20 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
 
   const isVideo = image.fullUrl?.match(/\.(mp4|webm)(?:\?|$)/i) || image.sampleUrl?.match(/\.(mp4|webm)(?:\?|$)/i);
 
-  // Group tags roughly by heuristics if we don't have perfect provider metadata
-  // Ideally providers would give us typed tags, but for now we heuristically separate them if they have prefixes
-  const characterTags = image.tags.filter(t => typeof t === 'string' && t.startsWith("character:"));
-  const artistTags = image.tags.filter(t => typeof t === 'string' && t.startsWith("artist:"));
-  const seriesTags = image.tags.filter(t => typeof t === 'string' && t.startsWith("series:"));
-  const generalTags = image.tags.filter(t => typeof t === 'string' && !t.startsWith("character:") && !t.startsWith("artist:") && !t.startsWith("series:"));
+  // Use structured tag fields from providers when available, fall back to prefix-based parsing
+  const imgAny = image as any;
+  const characterTags = (imgAny.characterTags && imgAny.characterTags.length > 0) 
+    ? imgAny.characterTags 
+    : image.tags.filter(t => typeof t === 'string' && t.startsWith("character:"));
+  const artistTags = (imgAny.artistTags && imgAny.artistTags.length > 0) 
+    ? imgAny.artistTags 
+    : image.tags.filter(t => typeof t === 'string' && t.startsWith("artist:"));
+  const seriesTags = (imgAny.copyrightTags && imgAny.copyrightTags.length > 0) 
+    ? imgAny.copyrightTags 
+    : image.tags.filter(t => typeof t === 'string' && t.startsWith("series:"));
+  const generalTags = (imgAny.generalTags && imgAny.generalTags.length > 0) 
+    ? imgAny.generalTags 
+    : image.tags.filter(t => typeof t === 'string' && !t.startsWith("character:") && !t.startsWith("artist:") && !t.startsWith("series:"));
 
   const [thumbnailSrc, setThumbnailSrc] = React.useState<string | null>(null);
   const [fullSrc, setFullSrc] = React.useState<string | null>(null);

@@ -3,7 +3,7 @@ import { useSettingsStore } from '../../stores/useSettingsStore';
 import { useLibraryStore } from '../../stores/useLibraryStore';
 import { useDiscoveryStore } from '../../stores/useDiscoveryStore';
 import { useGalleryStore } from '../../stores/useGalleryStore';
-import { Folder, Shield, Zap, Info, CheckCircle2, Loader2, RefreshCw, Monitor, FolderOpen, ScanSearch, Download, HardDrive } from 'lucide-react';
+import { Folder, Shield, Zap, Info, CheckCircle2, Loader2, RefreshCw, Monitor, FolderOpen, ScanSearch, Download, HardDrive, Globe } from 'lucide-react';
 import { AppVersionService } from '../../services/AppVersionService';
 import { toast } from '../Toast';
 import { useState } from 'react';
@@ -14,6 +14,7 @@ export const GeneralSettings = () => {
     const { 
         zoomScale, setZoomScale,
         libraryPath, setLibraryPath, 
+        networkProxy, setNetworkProxy
     } = useSettingsStore();
     
     const { verifyLibraryIntegrity, scanLibrary, rebuildCollectionIndex } = useLibraryStore();
@@ -189,6 +190,33 @@ export const GeneralSettings = () => {
                                 type="range" min="0.5" max="2.0" step="0.05" value={zoomScale}
                                 onChange={(e) => setZoomScale(parseFloat(e.target.value))}
                                 className="w-full h-2 bg-black/40 rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-amber-500 [&::-webkit-slider-thumb]:rounded-full cursor-pointer shadow-inner"
+                            />
+                        </div>
+                     </div>
+                </div>
+
+                {/* Network Proxy */}
+                <div className="glass-panel p-6 rounded-[32px] border border-border-subtle relative overflow-hidden group col-span-1 lg:col-span-2">
+                     <div className="absolute top-0 left-0 w-48 h-48 bg-blue-500/5 blur-[60px] rounded-full" />
+                     
+                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 relative z-10">
+                        <div className="flex items-center gap-5">
+                            <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500">
+                                <Globe size={28} />
+                            </div>
+                            <div>
+                                <h3 className="text-foreground font-black text-lg">Network Proxy</h3>
+                                <p className="text-foreground-dim text-xs font-medium mt-1 max-w-sm">Route booru traffic through a proxy (e.g. socks5://127.0.0.1:9050)</p>
+                            </div>
+                        </div>
+                        
+                        <div className="flex flex-col gap-4 flex-1 max-w-md">
+                            <input 
+                                type="text"
+                                placeholder="Leave blank for direct connection..."
+                                value={networkProxy}
+                                onChange={(e) => setNetworkProxy(e.target.value)}
+                                className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-sm font-medium text-foreground outline-none focus:border-blue-500/50 transition-colors"
                             />
                         </div>
                      </div>

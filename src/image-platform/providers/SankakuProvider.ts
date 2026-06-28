@@ -49,14 +49,11 @@ export class SankakuProvider extends BaseProvider {
     const apiTags = [...query.positiveTags];
     query.negativeTags.forEach(tag => apiTags.push(`-${tag}`));
     
-    // Check if this is a request for purely new images
     const isNewImagesRequest = apiTags.includes("_sort:new_");
     if (isNewImagesRequest) {
       apiTags.splice(apiTags.indexOf("_sort:new_"), 1);
-    } else if (!apiTags.some(t => t.startsWith("order:"))) {
-      // For standard searches, fallback to high-quality results
-      apiTags.push("order:quality");
     }
+    // We removed order:quality fallback because it drastically limits results for obscure searches
 
     const tagStr = apiTags.join(" ");
     
@@ -77,30 +74,50 @@ export class SankakuProvider extends BaseProvider {
       return data
         .filter((post: any) => post.file_url || post.sample_url || post.preview_url)
         .map((post: any) => {
-        return {
-          id: `${this.id}-${post.id}`,
-          sourceId: post.id.toString(),
-          providerId: this.id,
-          thumbnailUrl: post.preview_url || post.sample_url || post.file_url,
-          sampleUrl: post.sample_url || post.file_url,
-          fullUrl: post.file_url,
-          width: post.width,
-          height: post.height,
-          aspectRatio: post.width / post.height,
-          tags: post.tags ? post.tags.map((t: any) => {
-            const tagName = (t.name_en || t.name || "").trim().replace(/ /g, "_");
-            if (t.type === 1) return `artist:${tagName}`;
-            if (t.type === 3) return `series:${tagName}`;
-            if (t.type === 4) return `character:${tagName}`;
-            return tagName;
-          }).filter(Boolean) : [],
-          rating: post.rating === "e" ? "explicit" : post.rating === "q" ? "questionable" : "safe",
-          score: post.total_score || 0,
-          sourceUrl: `https://chan.sankakucomplex.com/post/${post.id}`,
-          createdAt: post.created_at ? new Date(post.created_at.s ? post.created_at.s * 1000 : post.created_at).getTime() : Date.now(),
-          mediaType: this.getMediaType(post.file_url),
-          isLocal: false
-        };
+          const allTags: string[] = [];
+          const artistTags: string[] = [];
+          const seriesTags: string[] = [];
+          const characterTags: string[] = [];
+          const metaTags: string[] = [];
+          const generalTags: string[] = [];
+
+          if (post.tags) {
+            post.tags.forEach((t: any) => {
+              const tagName = (t.name_en || t.name || "").trim().replace(/ /g, "_");
+              if (!tagName) return;
+              allTags.push(tagName);
+              
+              if (t.type === 1) artistTags.push(tagName);
+              else if (t.type === 3) seriesTags.push(tagName);
+              else if (t.type === 4) characterTags.push(tagName);
+              else if (t.type === 5) metaTags.push(tagName);
+              else generalTags.push(tagName);
+            });
+          }
+
+          return {
+            id: `${this.id}-${post.id}`,
+            sourceId: post.id.toString(),
+            providerId: this.id,
+            thumbnailUrl: post.preview_url || post.sample_url || post.file_url,
+            sampleUrl: post.sample_url || post.file_url,
+            fullUrl: post.file_url,
+            width: post.width,
+            height: post.height,
+            aspectRatio: post.width / post.height,
+            tags: [...new Set(allTags)],
+            artistTags: [...new Set(artistTags)],
+            characterTags: [...new Set(characterTags)],
+            copyrightTags: [...new Set(seriesTags)],
+            generalTags: [...new Set(generalTags)],
+            metaTags: [...new Set(metaTags)],
+            rating: post.rating === "e" ? "explicit" : post.rating === "q" ? "questionable" : "safe",
+            score: post.total_score || 0,
+            sourceUrl: `https://chan.sankakucomplex.com/post/${post.id}`,
+            createdAt: post.created_at ? new Date(post.created_at.s ? post.created_at.s * 1000 : post.created_at).getTime() : Date.now(),
+            mediaType: this.getMediaType(post.file_url),
+            isLocal: false
+          } as any;
       });
     } catch (e: any) {
       console.warn(`[${this.name}] Search gracefully timed out or failed: ${e.message}`);
@@ -125,6 +142,27 @@ export class SankakuProvider extends BaseProvider {
       if (!data || !data.id) return null;
       
       const posts = [data].map((post: any) => {
+          const allTags: string[] = [];
+          const artistTags: string[] = [];
+          const seriesTags: string[] = [];
+          const characterTags: string[] = [];
+          const metaTags: string[] = [];
+          const generalTags: string[] = [];
+
+          if (post.tags) {
+            post.tags.forEach((t: any) => {
+              const tagName = (t.name_en || t.name || "").trim().replace(/ /g, "_");
+              if (!tagName) return;
+              allTags.push(tagName);
+              
+              if (t.type === 1) artistTags.push(tagName);
+              else if (t.type === 3) seriesTags.push(tagName);
+              else if (t.type === 4) characterTags.push(tagName);
+              else if (t.type === 5) metaTags.push(tagName);
+              else generalTags.push(tagName);
+            });
+          }
+
         return {
           id: `${this.id}-${post.id}`,
           sourceId: post.id.toString(),
@@ -135,20 +173,19 @@ export class SankakuProvider extends BaseProvider {
           width: post.width,
           height: post.height,
           aspectRatio: post.width / post.height,
-          tags: post.tags ? post.tags.map((t: any) => {
-            const tagName = (t.name_en || t.name || "").trim().replace(/ /g, "_");
-            if (t.type === 1) return `artist:${tagName}`;
-            if (t.type === 3) return `series:${tagName}`;
-            if (t.type === 4) return `character:${tagName}`;
-            return tagName;
-          }).filter(Boolean) : [],
+          tags: [...new Set(allTags)],
+          artistTags: [...new Set(artistTags)],
+          characterTags: [...new Set(characterTags)],
+          copyrightTags: [...new Set(seriesTags)],
+          generalTags: [...new Set(generalTags)],
+          metaTags: [...new Set(metaTags)],
           rating: post.rating === "e" ? "explicit" : post.rating === "q" ? "questionable" : "safe",
           score: post.total_score || 0,
           sourceUrl: `https://chan.sankakucomplex.com/post/${post.id}`,
           createdAt: post.created_at ? new Date(post.created_at.s ? post.created_at.s * 1000 : post.created_at).getTime() : Date.now(),
           mediaType: this.getMediaType(post.file_url),
           isLocal: false
-        };
+        } as any;
       });
       return posts.length > 0 ? posts[0] : null;
     } catch (e) {

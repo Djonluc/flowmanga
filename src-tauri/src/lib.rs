@@ -1013,9 +1013,18 @@ async fn fetch_json(
     method: String,
     body: Option<serde_json::Value>,
     headers: Option<HashMap<String, String>>,
+    proxy_url: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let client_builder = reqwest::Client::builder()
+    let mut client_builder = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+
+    if let Some(proxy) = proxy_url {
+        if !proxy.is_empty() {
+            if let Ok(reqwest_proxy) = reqwest::Proxy::all(&proxy) {
+                client_builder = client_builder.proxy(reqwest_proxy);
+            }
+        }
+    }
 
     let client = client_builder.build().map_err(|e| e.to_string())?;
 
@@ -1058,12 +1067,21 @@ async fn fetch_json(
 async fn fetch_html(
     url: String,
     headers: Option<HashMap<String, String>>,
+    proxy_url: Option<String>,
 ) -> Result<String, String> {
-    let client_builder = reqwest::Client::builder()
+    let mut client_builder = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         .gzip(true)
         .deflate(true)
         .redirect(reqwest::redirect::Policy::limited(10));
+
+    if let Some(proxy) = proxy_url {
+        if !proxy.is_empty() {
+            if let Ok(reqwest_proxy) = reqwest::Proxy::all(&proxy) {
+                client_builder = client_builder.proxy(reqwest_proxy);
+            }
+        }
+    }
 
     let client = client_builder.build().map_err(|e| e.to_string())?;
 
@@ -1362,6 +1380,50 @@ async fn fetch_html_headless(url: String) -> Result<String, String> {
             .unwrap_or_default();
             
         Ok(html)
+    }).await.map_err(|e| e.to_string())?
+}
+
+#[command]
+async fn fetch_json_headless(url: String) -> Result<String, String> {
+    println!("[Rust] Fetching JSON headless for: {}", url);
+    tauri::async_runtime::spawn_blocking(move || {
+        let browser = Browser::new(LaunchOptions {
+            headless: true,
+            args: vec![
+                std::ffi::OsStr::new("--no-sandbox"),
+                std::ffi::OsStr::new("--disable-setuid-sandbox"),
+                std::ffi::OsStr::new("--disable-blink-features=AutomationControlled"),
+                std::ffi::OsStr::new("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"),
+            ],
+            ..Default::default()
+        }).map_err(|e| format!("Failed to launch browser: {}", e))?;
+
+        let tab = browser.new_tab().map_err(|e| format!("Failed to create tab: {}", e))?;
+        tab.navigate_to(&url).map_err(|e| format!("Nav failed: {}", e))?;
+        let _ = tab.wait_until_navigated();
+        
+        // Wait for potential Cloudflare challenge to pass
+        std::thread::sleep(std::time::Duration::from_millis(5000));
+        
+        // Booru JSON APIs typically just output raw JSON in the body or wrapped in a <pre> tag.
+        let script = r#"
+            (function() {
+                let pre = document.querySelector('pre');
+                if (pre) {
+                    return pre.innerText;
+                }
+                return document.body.innerText;
+            })()
+        "#;
+
+        let json_obj = tab.evaluate(script, true)
+            .map_err(|e| format!("Eval failed: {}", e))?;
+            
+        let json = json_obj.value
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .unwrap_or_default();
+            
+        Ok(json)
     }).await.map_err(|e| e.to_string())?
 }
 
@@ -2437,6 +2499,7 @@ pub fn run() {
             fetch_html,
             fetch_html_headless,
             fetch_json,
+            fetch_json_headless,
             scrape_images_headless,
             scrape_comix_chapter_headless,
             scrape_series_headless,

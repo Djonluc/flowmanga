@@ -113,10 +113,12 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
           get().markAsSeen(newUnique);
+          const newImages = [...s.feeds[mode].images, ...newUnique];
+          newImages.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
           return {
             feeds: {
               ...s.feeds,
-              [mode]: { ...s.feeds[mode], images: [...s.feeds[mode].images, ...newUnique] }
+              [mode]: { ...s.feeds[mode], images: newImages }
             }
           };
         });
@@ -225,12 +227,16 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
           get().markAsSeen(newUnique);
+          const newImages = [...s.feeds[mode].images, ...newUnique];
+          if (mode === 'latest') {
+            newImages.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          }
           return {
             feeds: {
               ...s.feeds,
               [mode]: {
                 ...s.feeds[mode],
-                images: [...s.feeds[mode].images, ...newUnique]
+                images: newImages
               }
             }
           };

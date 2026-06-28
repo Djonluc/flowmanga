@@ -64,44 +64,114 @@ export class Rule34Client extends BaseProvider {
       return [];
     }
 
-    const apiTags = [...query.positiveTags, ...query.negativeTags.map(n => `-${n}`)];
+    const allowance = this.capabilities.maxTagsPerRequest || 4;
+    const apiTags: string[] = [];
+    const localFilterNegativeTags: string[] = [];
+    const localFilterPositiveTags: string[] = [];
 
-    // When adult content is off, restrict to safe posts only
+    // Prioritize safe/explicit tag if adult content is off
     if (!showAdultContent || options.ratingFilter === "sfw") {
       apiTags.push("rating:safe");
+    }
+
+    for (const p of query.positiveTags) {
+      if (apiTags.length < allowance) apiTags.push(p);
+      else localFilterPositiveTags.push(p);
+    }
+    for (const n of query.negativeTags) {
+      if (apiTags.length < allowance) apiTags.push(`-${n}`);
+      else localFilterNegativeTags.push(n);
     }
 
     // Rule34 API does not support sort: tags — strip them
     const cleanTags = apiTags.filter(t => !t.startsWith("sort:"));
     const tagsQueryString = cleanTags.map(TagParser.normalizeBooruTag).join(" ");
 
-    try {
-      console.log(`[Rule34Client] Requesting tags: ${tagsQueryString}`);
-      const data = await this.fetchJson<any>("/index.php", {
-        page: "dapi",
-        s: "post",
-        q: "index",
-        json: "1",
-        tags: tagsQueryString,
-        pid: String((options.page || 1) - 1), // 0-indexed
-        limit: String(options.limit || 40),
-        ...auth
-      });
+    const hasLocalFilters = localFilterNegativeTags.length > 0 || localFilterPositiveTags.length > 0;
+    const targetLimit = options.limit || 40;
+    const limit = hasLocalFilters ? 100 : targetLimit;
 
-      if (!Array.isArray(data)) {
-        console.warn("[Rule34Client] Unexpected response (not an array):", data);
-        if (typeof data === "string") {
-          console.error(`[Rule34Client] API Error Message: ${data}`);
+    let accumulatedResults: ImageMedia[] = [];
+    const requestedPage = options.page || 1;
+    
+    // If we have local filters, one logical "page" maps to up to 5 API pages
+    const maxApiPages = hasLocalFilters ? 5 : 1;
+    let currentApiPage = hasLocalFilters ? ((requestedPage - 1) * maxApiPages) + 1 : requestedPage;
+    let attempts = 0;
+
+    while (attempts < maxApiPages && accumulatedResults.length < targetLimit) {
+      attempts++;
+      try {
+        console.log(`[Rule34Client] Requesting tags: ${tagsQueryString}`);
+        const data = await this.fetchJson<any>("/index.php", {
+          page: "dapi",
+          s: "post",
+          q: "index",
+          json: "1",
+          tags: tagsQueryString,
+          pid: String(currentApiPage - 1), // 0-indexed
+          limit: String(limit),
+          ...auth
+        });
+
+        if (!Array.isArray(data)) {
+          console.warn("[Rule34Client] Unexpected response (not an array):", data);
+          if (typeof data === "string") {
+            console.error(`[Rule34Client] API Error Message: ${data}`);
+          }
+          break;
         }
-        return [];
-      }
 
-      console.log(`[Rule34Client] Success: Received ${data.length} images.`);
-      return this.mapPosts(data);
-    } catch (e) {
-      console.error("[Rule34Client] API request failed:", e);
-      return [];
+        if (data.length === 0) {
+          break; // End of API feed
+        }
+
+        console.log(`[Rule34Client] Success: Received ${data.length} images.`);
+
+        // Gather all unique tags from the entire result set
+        const allUniqueTags = new Set<string>();
+        data.forEach(post => {
+          (post.tags || "").split(" ").forEach((t: string) => {
+            if (t) allUniqueTags.add(t);
+          });
+        });
+
+        // Bulk resolve tags
+        const tagTypes = await this.resolveTags(Array.from(allUniqueTags));
+
+        let results = this.mapPosts(data, tagTypes);
+
+        if (hasLocalFilters) {
+          results = results.filter(post => {
+            const postTags = new Set(post.tags.map(t => t.toLowerCase()));
+            for (const pt of localFilterPositiveTags) {
+              if (!postTags.has(TagParser.normalizeBooruTag(pt))) return false;
+            }
+            for (const nt of localFilterNegativeTags) {
+              if (postTags.has(TagParser.normalizeBooruTag(nt))) return false;
+            }
+            return true;
+          });
+        }
+
+        accumulatedResults = accumulatedResults.concat(results);
+        
+        if (accumulatedResults.length >= targetLimit) {
+          break;
+        }
+
+        currentApiPage++;
+      } catch (e) {
+        console.error("[Rule34Client] API request failed on page " + currentApiPage + ":", e);
+        break;
+      }
     }
+
+    if (hasLocalFilters && accumulatedResults.length > targetLimit) {
+      accumulatedResults = accumulatedResults.slice(0, targetLimit);
+    }
+
+    return accumulatedResults;
   }
 
   async getDiscovery(options: EngineSearchOptions): Promise<ImageMedia[]> {
@@ -119,7 +189,7 @@ export class Rule34Client extends BaseProvider {
     return [];
   }
 
-  private mapPosts(posts: Rule34Post[]): ImageMedia[] {
+  private mapPosts(posts: Rule34Post[], tagTypes: Map<string, string>): ImageMedia[] {
     if (!Array.isArray(posts)) return [];
     
     return posts
@@ -144,10 +214,32 @@ export class Rule34Client extends BaseProvider {
         const allTags = (post.tags || "").split(" ").filter(Boolean);
         const generalTags: string[] = [];
         const metaTags: string[] = [];
+        const characterTags: string[] = [];
+        const artistTags: string[] = [];
+        const copyrightTags: string[] = [];
 
         allTags.forEach(t => {
-          if (metaTagKeywords.has(t.toLowerCase())) {
+          const lowerTag = t.toLowerCase();
+          const type = tagTypes.get(lowerTag);
+          
+          if (type === "1") {
+            artistTags.push(t);
+          } else if (type === "3") {
+            copyrightTags.push(t);
+          } else if (type === "4") {
+            characterTags.push(t);
+          } else if (type === "5") {
             metaTags.push(t);
+          } else if (type === "0") {
+            generalTags.push(t);
+          } else if (lowerTag.endsWith("_(artist)")) {
+            artistTags.push(t);
+          } else if (metaTagKeywords.has(lowerTag)) {
+            metaTags.push(t);
+          } else if (lowerTag.endsWith("_(character)")) {
+            characterTags.push(t);
+          } else if (lowerTag.endsWith("_(series)") || lowerTag.endsWith("_(copyright)")) {
+            copyrightTags.push(t);
           } else {
             generalTags.push(t);
           }
@@ -173,12 +265,12 @@ export class Rule34Client extends BaseProvider {
           fullUrl: this.ensureAbsoluteUrl(full),
           width: post.width || 0,
           height: post.height || 0,
-          tags: allTags,
-          generalTags: generalTags,
-          characterTags: [],
-          artistTags: [],
-          copyrightTags: [],
-          metaTags: metaTags,
+          tags: [...new Set(allTags)],
+          generalTags: [...new Set(generalTags)],
+          characterTags: [...new Set(characterTags)],
+          artistTags: [...new Set(artistTags)],
+          copyrightTags: [...new Set(copyrightTags)],
+          metaTags: [...new Set(metaTags)],
           rating: ratingMap[post.rating] || "explicit", // Default to explicit for rule34
           score: post.score || 0,
           createdAt: new Date().toISOString(), // Rule34 JSON doesn't always provide created_at easily

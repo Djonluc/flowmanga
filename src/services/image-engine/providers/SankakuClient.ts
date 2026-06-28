@@ -100,7 +100,7 @@ export class SankakuClient extends BaseProvider {
     while (attempts < maxApiPages && accumulatedResults.length < targetLimit) {
       attempts++;
       try {
-        const data = await this.fetchJson<SankakuPost[] | { data?: SankakuPost[] }>("/post/index.json", {
+        const data = await this.fetchJson<SankakuPost[] | { data?: SankakuPost[] }>("https://sankakuapi.com/posts", {
           tags: tagsQueryString,
           page: currentApiPage,
           limit,
@@ -113,7 +113,20 @@ export class SankakuClient extends BaseProvider {
           break; // End of API feed
         }
         
-        let results = this.mapPosts(posts);
+        // Gather all unique tags
+        const allUniqueTags = new Set<string>();
+        posts.forEach(post => {
+          if (Array.isArray(post.tags)) {
+            post.tags.forEach(t => {
+              const name = t.name_en || t.name;
+              if (name) allUniqueTags.add(name);
+            });
+          }
+        });
+
+        const tagTypes = await this.resolveTags(Array.from(allUniqueTags));
+
+        let results = this.mapPosts(posts, tagTypes);
 
         if (hasLocalFilters) {
           results = results.filter(post => {
@@ -165,7 +178,7 @@ export class SankakuClient extends BaseProvider {
     return [];
   }
 
-  private mapPosts(posts: SankakuPost[]): ImageMedia[] {
+  private mapPosts(posts: SankakuPost[], tagTypes: Map<string, string>): ImageMedia[] {
     if (!Array.isArray(posts)) return [];
     
     return posts
@@ -195,11 +208,16 @@ export class SankakuClient extends BaseProvider {
           post.tags.forEach(t => {
             const name = t.name_en || t.name;
             allTags.push(name);
-            switch (t.type) {
+            
+            // Allow resolved type to override local if needed, although local is usually right
+            const typeValue = tagTypes.has(name.toLowerCase()) ? parseInt(tagTypes.get(name.toLowerCase())!) : t.type;
+            
+            switch (typeValue) {
               case 1: artistTags.push(name); break;
               case 3: copyrightTags.push(name); break;
               case 4: characterTags.push(name); break;
               case 5: metaTags.push(name); break;
+              case 0: generalTags.push(name); break;
               default: generalTags.push(name); break;
             }
           });

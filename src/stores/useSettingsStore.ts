@@ -23,6 +23,9 @@ export interface BooruAuth {
   userId?: string;
   sessionCookies?: string;
   localStorage?: Record<string, string>;
+  artistTagApiUrl?: string;
+  artistTagKeyPath?: string;
+  artistTypeValue?: string;
 }
 
 interface SettingsState {
@@ -175,6 +178,9 @@ interface SettingsState {
 
   booruAuth: Record<string, BooruAuth>;
   setBooruAuth: (providerId: string, auth: BooruAuth) => void;
+
+  networkProxy: string;
+  setNetworkProxy: (proxyUrl: string) => void;
 
   // Source Toggles
   disabledSources: string[];
@@ -354,6 +360,9 @@ export const useSettingsStore = create<SettingsState>()(
       setMaxConcurrentPages: (val) => set({ maxConcurrentPages: val }),
 
       // Content Filtering
+      networkProxy: "",
+      setNetworkProxy: (proxyUrl) => set({ networkProxy: proxyUrl }),
+      
       showAdultContent: false,
       setShowAdultContent: (show) => {
         set({ showAdultContent: show });

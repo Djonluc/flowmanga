@@ -1,5 +1,6 @@
 import type { ImageProvider, PlatformImage, SearchQuery } from "../types";
 import { fetch } from "@tauri-apps/plugin-http";
+import { invoke } from "@tauri-apps/api/core";
 
 export abstract class BaseProvider implements ImageProvider {
   abstract id: string;
@@ -23,41 +24,102 @@ export abstract class BaseProvider implements ImageProvider {
    * This bypasses CORS issues since the request is made from the Rust backend.
    */
   protected async fetchJson<T>(url: string, headers: Record<string, string> = {}): Promise<T> {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "User-Agent": "FlowManga/3.0",
-        ...headers
+    let retries = 3;
+    let delay = 1000;
+    
+    while (retries > 0) {
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: {
+            "User-Agent": "FlowManga/3.0",
+            ...headers
+          }
+        });
+
+        if ((response.status === 429 || response.status === 403)) {
+          console.warn(`[${this.id}] Rate limited/Blocked (${response.status}). Falling back to Headless Webview...`);
+          try {
+            const rawJson = await invoke<string>("fetch_json_headless", { url: url.toString() });
+            return JSON.parse(rawJson) as T;
+          } catch (headlessErr) {
+            console.error(`[${this.id}] Headless fallback failed:`, headlessErr);
+            // continue to standard retry loop
+          }
+
+          if (retries > 1) {
+            console.warn(`[${this.id}] Retrying standard fetch in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            delay *= 2;
+            retries--;
+            continue;
+          }
+        }
+
+        if (!response.ok) {
+          throw new Error(`[${this.id}] HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+      } catch (error: any) {
+        if (retries > 1) {
+          console.warn(`[${this.id}] Fetch/Parse error: ${error.message}. Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2;
+          retries--;
+          continue;
+        }
+        throw error;
       }
-    });
-
-    if (!response.ok) {
-      throw new Error(`[${this.id}] HTTP error! status: ${response.status}`);
-      // return [] as any;
     }
-
-    return await response.json();
+    
+    throw new Error(`[${this.id}] Max retries reached.`);
   }
 
   /**
    * Helper function to fetch HTML via Tauri's HTTP plugin.
    */
   protected async fetchHtml(url: string, headers: Record<string, string> = {}): Promise<string> {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "User-Agent": "FlowManga/3.0",
-        "Accept": "text/html",
-        ...headers
+    let retries = 3;
+    let delay = 1000;
+    
+    while (retries > 0) {
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: {
+            "User-Agent": "FlowManga/3.0",
+            "Accept": "text/html",
+            ...headers
+          }
+        });
+
+        if (response.status === 429 && retries > 1) {
+          console.warn(`[${this.id}] Rate limited (429). Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2;
+          retries--;
+          continue;
+        }
+
+        if (!response.ok) {
+          throw new Error(`[${this.id}] HTTP error! status: ${response.status}`);
+        }
+
+        return await response.text();
+      } catch (error: any) {
+        if (retries > 1) {
+          console.warn(`[${this.id}] Fetch/Parse error: ${error.message}. Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2;
+          retries--;
+          continue;
+        }
+        throw error;
       }
-    });
-
-    if (!response.ok) {
-      throw new Error(`[${this.id}] HTTP error! status: ${response.status}`);
-      // return "" as any;
     }
-
-    return await response.text();
+    
+    throw new Error(`[${this.id}] Max retries reached.`);
   }
 
   abstract search(query: SearchQuery, page: number): Promise<PlatformImage[]>;
@@ -90,5 +152,58 @@ export abstract class BaseProvider implements ImageProvider {
     }
     // Fallback default
     return 'image';
+  }
+
+  /**
+   * Performs a bulk tag API lookup to resolve the actual types of tags.
+   * Relies on the user's custom `Artist Tag API URL` configured in Settings.
+   * Returns a Map of lowercased tag name → type string (e.g. "0", "1", "3", "4", "5").
+   */
+  protected async resolveTags(uniqueTags: string[]): Promise<Map<string, string>> {
+    if (uniqueTags.length === 0) return new Map();
+
+    const { useSettingsStore } = await import("../../stores/useSettingsStore");
+    const authConfig = useSettingsStore.getState().booruAuth?.[this.id];
+    if (!authConfig?.artistTagApiUrl || !authConfig?.artistTagKeyPath) {
+      return new Map(); // Not configured
+    }
+
+    const apiUrlPattern = authConfig.artistTagApiUrl;
+    const keyPath = authConfig.artistTagKeyPath;
+
+    try {
+      const chunkSize = 50;
+      const tagTypes = new Map<string, string>();
+
+      for (let i = 0; i < uniqueTags.length; i += chunkSize) {
+        const chunk = uniqueTags.slice(i, i + chunkSize);
+        const tagsString = encodeURIComponent(chunk.join(","));
+        const finalUrl = apiUrlPattern.replace("{tags}", tagsString);
+
+        const response = await this.fetchJson<any>(finalUrl);
+
+        const items = Array.isArray(response) ? response : (response?.tag || response?.tags || []);
+        if (Array.isArray(items)) {
+          items.forEach((item: any) => {
+            const keys = keyPath.split(".");
+            let val = item;
+            for (const k of keys) {
+              if (val === undefined || val === null) break;
+              val = val[k];
+            }
+
+            const name = item.name || item.tag;
+            if (name && val !== undefined) {
+              tagTypes.set(name.toLowerCase(), String(val));
+            }
+          });
+        }
+      }
+
+      return tagTypes;
+    } catch (e) {
+      console.warn(`[BaseProvider][${this.id}] resolveTags failed:`, e);
+      return new Map();
+    }
   }
 }

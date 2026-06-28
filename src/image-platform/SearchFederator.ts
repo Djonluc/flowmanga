@@ -161,9 +161,8 @@ export class SearchFederator {
         .then(async res => {
           const filtered = this.filterAdult(res);
           const blockFiltered = await this.filterBlocked(filtered);
-          const prioritized = await this.filterExclusions(blockFiltered);
-          if (onChunk && prioritized.length > 0) onChunk(prioritized);
-          return prioritized;
+          if (onChunk && blockFiltered.length > 0) onChunk(blockFiltered);
+          return blockFiltered;
         })
         .catch((e: any) => {
           console.warn(`[SearchFederator] Latest provider ${p.id} timed out or failed gracefully: ${e.message}`);

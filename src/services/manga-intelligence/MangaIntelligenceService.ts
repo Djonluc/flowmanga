@@ -95,12 +95,16 @@ export class MangaIntelligenceService {
           [catId, categoryName]
         );
 
-        // Batch insert relationships (tag belongs_to category)
-        for (const tag of tags) {
-          const relId = crypto.randomUUID();
+        if (tags.length > 0) {
+          const values: any[] = [];
+          const placeholders: string[] = [];
+          for (const tag of tags) {
+            placeholders.push("(?, ?, ?, 'belongs_to')");
+            values.push(crypto.randomUUID(), categoryName, tag);
+          }
           await db.execute(
-            "INSERT INTO MangaTagRelationships (id, parentTag, childTag, type) VALUES (?, ?, ?, 'belongs_to')",
-            [relId, categoryName, tag]
+            `INSERT INTO MangaTagRelationships (id, parentTag, childTag, type) VALUES ${placeholders.join(',')}`,
+            values
           );
         }
       }
@@ -208,14 +212,19 @@ export class MangaIntelligenceService {
 
     const tagFrequencies: Record<string, number> = {};
     const normalizedTagCache = new Map<string, string>();
+    
+    const followedValues: any[] = [];
+    const followedPlaceholders: string[] = [];
 
     for (const series of seriesList) {
-      // Follow the series
-      await this.followEntity("series", series.title, series.id);
+      // Prepare batch for series
+      followedPlaceholders.push("(?, ?, ?, ?)");
+      followedValues.push(crypto.randomUUID(), "series", series.title, series.id);
 
-      // Follow the author if available
+      // Prepare batch for author if available
       if (series.author && series.author !== "Unknown") {
-        await this.followEntity("author", series.author);
+        followedPlaceholders.push("(?, ?, ?, ?)");
+        followedValues.push(crypto.randomUUID(), "author", series.author, null);
       }
 
       // Tally up tags
@@ -242,23 +251,48 @@ export class MangaIntelligenceService {
         }
       }
     }
+    
+    // Execute Followed Entities batch in chunks of 100 to respect SQLite parameter limits
+    const CHUNK_SIZE = 100 * 4; // 100 rows * 4 params
+    for (let i = 0; i < followedValues.length; i += CHUNK_SIZE) {
+      const valChunk = followedValues.slice(i, i + CHUNK_SIZE);
+      const placeChunk = followedPlaceholders.slice(i / 4, (i + CHUNK_SIZE) / 4);
+      if (placeChunk.length > 0) {
+          await db.execute(
+            `INSERT INTO MangaFollowedEntities (id, type, name, entityId) VALUES ${placeChunk.join(',')} ON CONFLICT(type, name) DO NOTHING`,
+            valChunk
+          );
+      }
+    }
 
     // 2. Clear old interest profiles to start fresh
     await db.execute("DELETE FROM MangaInterestProfiles");
 
     // 3. Sort tags by frequency to determine Dominant vs Supporting
     const sortedTags = Object.entries(tagFrequencies).sort((a, b) => b[1] - a[1]);
+    
+    const interestValues: any[] = [];
+    const interestPlaceholders: string[] = [];
 
     // Top 3 tags become "dominant" (weight 2.0)
     for (let i = 0; i < Math.min(3, sortedTags.length); i++) {
       const [tag] = sortedTags[i];
-      await this.setInterest("dominant", tag, 2.0);
+      interestPlaceholders.push("(?, ?, ?, ?)");
+      interestValues.push(crypto.randomUUID(), "dominant", tag, 2.0);
     }
 
     // Next 10 tags become "supporting" (weight 1.0)
     for (let i = 3; i < Math.min(13, sortedTags.length); i++) {
       const [tag] = sortedTags[i];
-      await this.setInterest("supporting", tag, 1.0);
+      interestPlaceholders.push("(?, ?, ?, ?)");
+      interestValues.push(crypto.randomUUID(), "supporting", tag, 1.0);
+    }
+    
+    if (interestPlaceholders.length > 0) {
+        await db.execute(
+          `INSERT INTO MangaInterestProfiles (id, type, name, weight) VALUES ${interestPlaceholders.join(',')} ON CONFLICT(type, name) DO UPDATE SET weight = excluded.weight`,
+          interestValues
+        );
     }
 
     console.log("[MangaIntelligence] Historical mapping complete!");
