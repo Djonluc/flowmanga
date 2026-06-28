@@ -177,7 +177,7 @@ export const MusicPlayer = ({ isExpanded }: { isExpanded: boolean }) => {
                         <motion.div
                             initial={{ opacity: 0, y: 8, scale: 0.9 }}
                             whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                            className="absolute bottom-9 left-1/2 -translate-x-1/2 hidden group-hover/vol:flex w-7 h-20 bg-surface border border-white/10 rounded-xl items-center justify-center py-3 shadow-xl z-50"
+                            className="absolute bottom-9 left-1/2 -translate-x-1/2 hidden group-hover/vol:flex w-7 h-20 bg-surface border border-white/10 rounded-xl items-center justify-center py-3 shadow-xl z-50 after:content-[''] after:absolute after:-bottom-4 after:left-0 after:w-full after:h-4"
                         >
                             <input
                                 type="range" min="0" max="1" step="0.05"
