@@ -2,11 +2,17 @@
 
 ![DjonStNix Watermark](https://img.shields.io/badge/Created%20by-DjonStNix-5B8CFF?style=for-the-badge&logo=github&logoColor=white)
 
-<img src="public/banner.jpg" alt="FlowManga Banner" width="420" />
+<img src="public/banner-horizontal.jpg" alt="FlowManga Banner" width="100%" />
 
 # FlowManga
 
 **Read. Discover. Flow.**
+
+<div style="display: flex; gap: 10px; margin-bottom: 20px;">
+  <img src="public/screenshot-3.png" alt="FlowManga Home" width="32%" />
+  <img src="public/screenshot-1.png" alt="FlowManga Library" width="32%" />
+  <img src="public/screenshot-2.png" alt="FlowManga Discovery" width="32%" />
+</div>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![React](https://img.shields.io/badge/React-19.2-61DAFB?style=flat-square&logo=react)](https://react.dev/)
