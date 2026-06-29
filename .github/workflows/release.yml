@@ -49,19 +49,14 @@ jobs:
           releaseBody: |
             ## What's new in FlowManga v__VERSION__ 🎉
 
-            This release introduces dynamic shuffling for recommendation engines and resolves update version mapping checks.
+            This release focuses on UI performance, usability, and bug fixes for a smoother experience.
 
             ### 🚀 Features & Improvements
-            - **Dynamic For You Image Shuffling** — The "For You" image recommendations feed is now completely fresh and randomized on every refresh, using dynamic interest shuffling and high-quality fallback tags.
-            - **Manga For You Recommendation Pipeline** — The Manga "For You" feed now dynamically fetches and ranks candidate series from active discovery streams (trending, latest, random) against your reading profile.
+            - **Instant Feed Loading** — Added Stale-While-Revalidate caching to the Discover Feed and Home View. The app now instantly displays cached content while seamlessly fetching fresh updates in the background, eliminating blank loading screens!
+            - **Simplified Settings** — Removed the complex "Advanced Artist Tag Resolution" feature from Source Settings to keep the UI clean and accessible.
 
             ### 🐛 Bug Fixes
-            - **Version Check Fixes** — Fixed version check mappings so the app correctly reports its current installed version on download and startup.
-            - **Library Navigation Fixes** — Fixed a bug that caused the app to crash or go completely blank when clicking around and moving back and forth through your libraries.
-            - **No More Duplicate Images** — Fixed an issue where the same images would repeat endlessly when scrolling through the Image Collections or User tabs.
-            - **Reader & Slideshow Stability** — Fixed a severe crash (infinite loading loop) that occurred when reading manga or using the Slideshow feature.
-            - **Ambient Backgrounds** — Fixed a bug where the ambient lighting background could crash the app when you opened a chapter.
-            - **First-Time Setup Automation** — If your Windows PC is missing the required WebView2 runtime to run the app, FlowManga will now help you automatically install it.
+            - **Music Player Volume Fix** — Fixed an annoying issue where the volume control popover would close prematurely when moving the mouse to adjust the slider.
 
             ---
             👇 **Download the latest installer below — just run the `.exe` file!**

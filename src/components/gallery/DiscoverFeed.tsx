@@ -198,8 +198,8 @@ export const DiscoverFeed: React.FC = () => {
   // Phase 5.1: Lazy loading logic. Only load top sections eagerly.
   useEffect(() => {
     const loadTopSections = async () => {
-      if (!popularImages || popularImages.length === 0) await fetchPopular();
-      if (!latestImages || latestImages.length === 0) await fetchLatest();
+      fetchPopular();
+      fetchLatest();
     };
     loadTopSections();
   }, []); // Only first-time mount for top sections
@@ -270,7 +270,7 @@ export const DiscoverFeed: React.FC = () => {
         openViewer={openViewer}
         saveImage={saveImage}
         onInView={() => {
-          if (!randomVisions || randomVisions.length === 0) fetchRandomVisions();
+          fetchRandomVisions();
         }}
       />
 
@@ -288,7 +288,7 @@ export const DiscoverFeed: React.FC = () => {
         openViewer={openViewer}
         saveImage={saveImage}
         onInView={() => {
-          if (!recommendedAesthetics || recommendedAesthetics.length === 0) fetchRecommendedAesthetics();
+          fetchRecommendedAesthetics();
         }}
       />
 
@@ -305,7 +305,7 @@ export const DiscoverFeed: React.FC = () => {
         openViewer={openViewer}
         saveImage={saveImage}
         onInView={() => {
-          if (!recentPopular || recentPopular.length === 0) fetchRecentPopular();
+          fetchRecentPopular();
         }}
       />
 
@@ -322,7 +322,7 @@ export const DiscoverFeed: React.FC = () => {
         openViewer={openViewer}
         saveImage={saveImage}
         onInView={() => {
-          if (!continueExploring || continueExploring.length === 0) fetchContinueExploring();
+          fetchContinueExploring();
         }}
       />
 
@@ -339,7 +339,7 @@ export const DiscoverFeed: React.FC = () => {
         openViewer={openViewer}
         saveImage={saveImage}
         onInView={() => {
-          if (!likedDiscovery || likedDiscovery.length === 0) fetchLikedDiscovery();
+          fetchLikedDiscovery();
         }}
       />
 

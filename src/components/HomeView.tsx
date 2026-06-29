@@ -69,8 +69,22 @@ export const HomeView = () => {
   const [continueReading, setContinueReading] = useState<any[]>([]);
   const [recentlyAdded, setRecentlyAdded] = useState<any[]>([]);
   const [recentlyUpdatedLocal, setRecentlyUpdatedLocal] = useState<any[]>([]);
-  const [trending, setTrending] = useState<any[]>([]);
-  const [personalized, setPersonalized] = useState<any[]>([]);
+  const [trending, setTrending] = useState<any[]>(() => {
+    try {
+      const cache = localStorage.getItem("home-trending-cache");
+      return cache ? JSON.parse(cache) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [personalized, setPersonalized] = useState<any[]>(() => {
+    try {
+      const cache = localStorage.getItem("home-personalized-cache");
+      return cache ? JSON.parse(cache) : [];
+    } catch {
+      return [];
+    }
+  });
   const [stats, setStats] = useState<any>({});
   const [activity, setActivity] = useState<any[]>([]);
   const [activeMenu, setActiveMenu] = useState<{
@@ -137,6 +151,12 @@ export const HomeView = () => {
 
       setTrending(trend);
       setPersonalized(person);
+      try {
+        localStorage.setItem("home-trending-cache", JSON.stringify(trend));
+        localStorage.setItem("home-personalized-cache", JSON.stringify(person));
+      } catch (e) {
+        console.error("Home: Failed to cache external data", e);
+      }
     } catch (e) {
       console.error("Home: Failed to fetch external data", e);
     }

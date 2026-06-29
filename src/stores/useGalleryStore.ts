@@ -5,6 +5,7 @@
  */
 
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { getDb } from "../services/db";
 import { toast } from "../components/Toast";
 import { useSettingsStore } from "./useSettingsStore";
@@ -334,7 +335,7 @@ interface GalleryState {
   viewerPrev: () => void;
 }
 
-export const useGalleryStore = create<GalleryState>((set, get) => ({
+export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
   // ─── Initial State ───────────────────────────────────────────────
 
   savedImages: [],
@@ -1678,5 +1679,16 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       get().trackInteraction(tags as string[]);
     }
   },
+}), {
+  name: "gallery-store-cache",
+  partialize: (state) => ({
+    popularImages: state.popularImages,
+    latestImages: state.latestImages,
+    randomVisions: state.randomVisions,
+    picksForYou: state.picksForYou,
+    recommendedAesthetics: state.recommendedAesthetics,
+    recentPopular: state.recentPopular,
+    likedDiscovery: state.likedDiscovery,
+    continueExploring: state.continueExploring,
+  }),
 }));
-
