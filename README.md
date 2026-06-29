@@ -2,11 +2,12 @@
 
 ![DjonStNix Watermark](https://img.shields.io/badge/Created%20by-DjonStNix-5B8CFF?style=for-the-badge&logo=github&logoColor=white)
 
+<img src="public/banner.jpg" alt="FlowManga Banner" width="420" />
+
 # FlowManga
 
-**Desktop manga library, reader, and discovery**
+**Read. Discover. Flow.**
 
-![FlowManga UI](public/screenshot.png)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![React](https://img.shields.io/badge/React-19.2-61DAFB?style=flat-square&logo=react)](https://react.dev/)
 [![Tauri](https://img.shields.io/badge/Tauri-2.x-24C8DB?style=flat-square&logo=tauri)](https://tauri.app/)
@@ -175,6 +176,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Issues and PRs are welcome.
 [![YouTube](https://img.shields.io/badge/YouTube-@Djonluc-FF0000?style=flat-square&logo=youtube)](https://www.youtube.com/@Djonluc)
 [![Email](https://img.shields.io/badge/Email-djonstnix@gmail.com-5B8CFF?style=flat-square&logo=gmail)](mailto:djonstnix@gmail.com)
 
-**Version:** 2.3.1 (see `package.json` and `src-tauri/tauri.conf.json`) · **Status:** active development
+**Version:** 2.4.4 (see `package.json` and `src-tauri/tauri.conf.json`) · **Status:** active development
 
 </div>
