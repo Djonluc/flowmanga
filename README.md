@@ -2,7 +2,7 @@
 
 ![DjonStNix Watermark](https://img.shields.io/badge/Created%20by-DjonStNix-5B8CFF?style=for-the-badge&logo=github&logoColor=white)
 
-<img src="public/banner-horizontal.jpg" alt="FlowManga Banner" width="100%" />
+<img src="public/flowani.gif" alt="FlowManga Banner" width="100%" />
 
 # FlowManga
 
@@ -67,13 +67,13 @@ FlowManga is a **Tauri 2** desktop app: a local-first library with multiple read
 
 ## Tech stack
 
-| Layer | Stack |
-|--------|--------|
-| UI | React 19, Framer Motion, Tailwind CSS 4, Lucide icons |
-| State | Zustand |
-| Charts / lists | Recharts, react-window (where used) |
-| Desktop | Tauri 2 (Rust), Vite 7 |
-| Validation | Zod |
+| Layer          | Stack                                                 |
+| -------------- | ----------------------------------------------------- |
+| UI             | React 19, Framer Motion, Tailwind CSS 4, Lucide icons |
+| State          | Zustand                                               |
+| Charts / lists | Recharts, react-window (where used)                   |
+| Desktop        | Tauri 2 (Rust), Vite 7                                |
+| Validation     | Zod                                                   |
 
 ---
 
@@ -131,12 +131,12 @@ flowmamga/
 
 ## Documentation
 
-| Doc | Purpose |
-|-----|---------|
-| [FEATURES.md](FEATURES.md) | **Authoritative** behavior notes for the desktop app (synced to the codebase) |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | Builds, updates, and ops |
-| [WINDOW_ARCHITECTURE.md](WINDOW_ARCHITECTURE.md) | Windows-specific layout notes |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
+| Doc                                              | Purpose                                                                       |
+| ------------------------------------------------ | ----------------------------------------------------------------------------- |
+| [FEATURES.md](FEATURES.md)                       | **Authoritative** behavior notes for the desktop app (synced to the codebase) |
+| [DEPLOYMENT.md](DEPLOYMENT.md)                   | Builds, updates, and ops                                                      |
+| [WINDOW_ARCHITECTURE.md](WINDOW_ARCHITECTURE.md) | Windows-specific layout notes                                                 |
+| [CONTRIBUTING.md](CONTRIBUTING.md)               | How to contribute                                                             |
 
 ---
 
@@ -144,21 +144,21 @@ flowmamga/
 
 ### Done (high level)
 
-- Local library, scanning, 3D shelf, multiple reader modes  
-- Adaptive color, ambient audio, keyboard shortcuts  
+- Local library, scanning, 3D shelf, multiple reader modes
+- Adaptive color, ambient audio, keyboard shortcuts
 - MangaDex and extended source registry; download queue and native image descrambling
-- Discover home rails, video library, analytics and history surfaces  
+- Discover home rails, video library, analytics and history surfaces
 - Booru & gallery ecosystem integration with native tag intelligence and playlists
 
 ### In progress / next
 
-- Reader polish (e.g. long-strip performance, advanced spread / gap options)  
-- Broader gesture and touch tuning on supported devices  
+- Reader polish (e.g. long-strip performance, advanced spread / gap options)
+- Broader gesture and touch tuning on supported devices
 
 ### Ideas
 
-- Optional self-hosted sync  
-- Companion / plugin-style source extensions  
+- Optional self-hosted sync
+- Companion / plugin-style source extensions
 
 ---
 
