@@ -125,13 +125,15 @@ export const PicksForYou: React.FC = () => {
               <GalleryImageCard
                 key={`${item.id}-${index}`}
                 id={item.id}
-                imageUrl={item.sampleUrl || item.fullUrl || ''}
-                previewUrl={item.previewUrl || item.thumbnailUrl}
+                imageUrl={item.imageUrl || item.sample_url || item.file_url || item.coverUrl || ''}
+                previewUrl={item.previewUrl || item.preview_url || item.coverUrl}
                 title={item.title}
                 tags={item.tags}
+                mediaType={item.mediaType}
+                relatedGroupId={item.relatedGroupId}
                 saved={savedIds.has(item.id)}
                 onView={() => {
-                  if (item.contentCategory === "gallery" || item.contentCategory === "album" || item.contentCategory === "doujin") {
+                  if (item.contentType === "gallery" || item.contentType === "album" || item.contentType === "doujin") {
                      import("../../stores/useModalStore").then(({ useModalStore }) => {
                         useModalStore.getState().openQuickView(item);
                      });

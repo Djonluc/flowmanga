@@ -26,6 +26,7 @@ export abstract class BaseProvider implements ImageProvider {
   protected async fetchJson<T>(url: string, headers: Record<string, string> = {}): Promise<T> {
     let retries = 3;
     let delay = 1000;
+    let headlessAttempted = false;
     
     while (retries > 0) {
       try {
@@ -37,14 +38,28 @@ export abstract class BaseProvider implements ImageProvider {
           }
         });
 
-        if ((response.status === 429 || response.status === 403)) {
+        if (response.status === 401 || response.status === 403 || response.status === 429) {
           console.warn(`[${this.id}] Rate limited/Blocked (${response.status}). Falling back to Headless Webview...`);
-          try {
-            const rawJson = await invoke<string>("fetch_json_headless", { url: url.toString() });
-            return JSON.parse(rawJson) as T;
-          } catch (headlessErr) {
-            console.error(`[${this.id}] Headless fallback failed:`, headlessErr);
-            // continue to standard retry loop
+          if (!headlessAttempted) {
+            headlessAttempted = true;
+            try {
+              const rawJson = await invoke<string>("fetch_json_headless", { url: url.toString(), headers });
+              try {
+                return JSON.parse(rawJson.trim()) as T;
+              } catch {
+                const preview = rawJson.trim().replace(/\s+/g, " ").slice(0, 160);
+                throw new Error(`Headless response was not JSON${preview ? `: ${preview}` : ""}`);
+              }
+            } catch (headlessErr) {
+              console.warn(`[${this.id}] Headless fallback unavailable:`, headlessErr);
+            }
+          }
+
+          // Authentication failures and hard blocks will not recover by
+          // repeating the same request. Let the federator move on to other
+          // sources immediately after the one headless attempt.
+          if (response.status === 401 || response.status === 403) {
+            throw new Error(`[${this.id}] HTTP error! status: ${response.status}`);
           }
 
           if (retries > 1) {

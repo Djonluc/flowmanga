@@ -6,7 +6,7 @@
  * Caches results and persists dismissal state to localStorage.
  */
 
-const CURRENT_VERSION = "2.4.3";
+const CURRENT_VERSION = import.meta.env.VITE_APP_VERSION || "0.0.0";
 const GITHUB_RELEASES_URL =
   "https://api.github.com/repos/Djonluc/flowmamga/releases/latest";
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -40,18 +40,35 @@ interface PersistedState {
   previousVersion: string | null;
 }
 
+interface GitHubReleaseAsset {
+  name?: string;
+  browser_download_url?: string;
+}
+
+interface GitHubRelease {
+  tag_name?: string;
+  body?: string;
+  published_at?: string;
+  html_url?: string;
+  assets?: GitHubReleaseAsset[];
+}
+
 function loadPersistedState(): PersistedState {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) return JSON.parse(raw);
-  } catch (_) {}
+  } catch {
+    // Browser storage can be unavailable in restricted or private contexts.
+  }
   return { dismissedVersion: null, lastChecked: null, previousVersion: null };
 }
 
 function savePersistedState(state: PersistedState) {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify(state));
-  } catch (_) {}
+  } catch {
+    // Update checks remain non-blocking when browser storage is unavailable.
+  }
 }
 
 /**
@@ -147,7 +164,7 @@ class AppVersionServiceClass {
         throw new Error(`GitHub API returned ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as GitHubRelease;
       const latestVersion = (data.tag_name || "").replace(/^v/, "");
       const notes = parseReleaseNotes(data.body || "");
       const releaseDate = data.published_at
@@ -159,9 +176,9 @@ class AppVersionServiceClass {
         : "";
 
       // Find the Windows installer asset
-      const assets: any[] = data.assets || [];
+      const assets = data.assets || [];
       const windowsAsset = assets.find(
-        (a: any) =>
+        (a) =>
           a.name?.toLowerCase().includes("setup") ||
           a.name?.toLowerCase().endsWith(".exe") ||
           a.name?.toLowerCase().endsWith(".msi"),

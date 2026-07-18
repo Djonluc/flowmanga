@@ -110,10 +110,17 @@ export const ImageCollectionDashboard = () => {
   const activeFeed = store.feeds[store.fetchMode];
   const { globalMediaFilter, setGlobalMediaFilter } = useSettingsStore();
 
-  const images = activeFeed.images.filter(img => {
+  const filterImages = (feedImages: PlatformImage[]) => feedImages.filter(img => {
     if (globalMediaFilter === 'all') return true;
+    if (globalMediaFilter === 'image') return !img.mediaType || img.mediaType === 'image';
     return img.mediaType === globalMediaFilter;
   });
+
+  const latestImages = filterImages(store.feeds.latest.images);
+  const curatedImages = filterImages(store.feeds.curated.images);
+  const discoverImages = filterImages(store.feeds.discover.images);
+  const searchImages = filterImages(store.feeds.search.images);
+  const images = filterImages(activeFeed.images);
 
   const currentQuery = store.fetchMode === 'search' ? store.feeds.search.query : "";
   
@@ -139,6 +146,7 @@ export const ImageCollectionDashboard = () => {
 
   // Handle Tab changes
   useEffect(() => {
+    setRefreshKey(prev => prev + 1);
     loadFavorites();
     if (activeTab === "new") store.fetchLatest();
     if (activeTab === "foryou") store.fetchCurated();
@@ -163,6 +171,7 @@ export const ImageCollectionDashboard = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    setRefreshKey(prev => prev + 1);
     setActiveTab("search");
     store.search(searchInput);
   };
@@ -334,6 +343,7 @@ export const ImageCollectionDashboard = () => {
               onClick={() => {
                 if (activeTab === tab.id) {
                   // Force refresh if clicking the active tab again
+                  setRefreshKey(prev => prev + 1);
                   if (tab.id === "new") store.fetchLatest(true);
                   if (tab.id === "foryou") store.fetchCurated(true);
                   if (tab.id === "discover") store.fetchDiscover(true);
@@ -367,10 +377,11 @@ export const ImageCollectionDashboard = () => {
         <div className={clsx("flex-1 overflow-hidden", activeTab === "new" ? "block" : "hidden")}>
           <MasonryGrid 
             feedType="latest"
-            images={store.feeds.latest.images} 
+            images={latestImages}
             columns={5}
+            resetScrollKey={refreshKey}
             onImageClick={(_, index) => {
-              setModalImages(store.feeds.latest.images);
+              setModalImages(latestImages);
               setSelectedImageIndex(index);
             }}
           />
@@ -379,10 +390,11 @@ export const ImageCollectionDashboard = () => {
         <div className={clsx("flex-1 overflow-hidden", activeTab === "foryou" ? "block" : "hidden")}>
           <MasonryGrid 
             feedType="curated"
-            images={store.feeds.curated.images} 
+            images={curatedImages}
             columns={5}
+            resetScrollKey={refreshKey}
             onImageClick={(_, index) => {
-              setModalImages(store.feeds.curated.images);
+              setModalImages(curatedImages);
               setSelectedImageIndex(index);
             }}
           />
@@ -391,10 +403,11 @@ export const ImageCollectionDashboard = () => {
         <div className={clsx("flex-1 overflow-hidden", activeTab === "discover" ? "block" : "hidden")}>
           <MasonryGrid 
             feedType="discover"
-            images={store.feeds.discover.images} 
+            images={discoverImages}
             columns={5}
+            resetScrollKey={refreshKey}
             onImageClick={(_, index) => {
-              setModalImages(store.feeds.discover.images);
+              setModalImages(discoverImages);
               setSelectedImageIndex(index);
             }}
           />
@@ -404,10 +417,11 @@ export const ImageCollectionDashboard = () => {
           <MasonryGrid 
             feedType="search"
             header={currentQuery ? <TagDescription query={currentQuery} /> : undefined}
-            images={store.feeds.search.images} 
+            images={searchImages}
             columns={5}
+            resetScrollKey={refreshKey}
             onImageClick={(_, index) => {
-              setModalImages(store.feeds.search.images);
+              setModalImages(searchImages);
               setSelectedImageIndex(index);
             }}
           />

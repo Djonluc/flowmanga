@@ -1,12 +1,10 @@
 import { useSettingsStore } from "../stores/useSettingsStore";
+import { hasExcludedTag, hasExcludedText, mergeExcludedTags } from "./TagExclusions";
 import type { SourceSearchResult } from "./sources/types";
 
 export class ContentFilter {
-  static filterResults(items: SourceSearchResult[]): SourceSearchResult[] {
-    const { showAdultContent } = useSettingsStore.getState();
-    if (showAdultContent) return items;
-
-    return items.filter((item) => !this.isAdult(item));
+  static filterResults(items: SourceSearchResult[], additionalExcludedTags: string[] = []): SourceSearchResult[] {
+    return items.filter((item) => !this.isAdult(item, additionalExcludedTags));
   }
 
   static isAdultTag(tag: string): boolean {
@@ -52,30 +50,13 @@ export class ContentFilter {
     t.includes("erotic");
   }
 
-  static isAdult(item: any): boolean {
+  static isAdult(item: any, additionalExcludedTags: string[] = []): boolean {
     const { showAdultContent, excludedTags = [] } = useSettingsStore.getState();
     if (showAdultContent) return false;
 
     const titleLower = (item.title || "").toLowerCase();
     const source = (item.source || "").toLowerCase();
     const rating = (item.rating || "").toLowerCase();
-
-    // 0. Provider Rating Metadata
-    if (rating === "explicit" || rating === "questionable" || rating === "e" || rating === "q") {
-      return true;
-    }
-
-    // 1. Adult Content Filter
-    const isAdultSite =
-      source.includes("nhentai") ||
-      source.includes("rule34") ||
-      source.includes("luscious") ||
-      source.includes("kemono") ||
-      source.includes("hentai") ||
-      source.includes("danbooru") ||
-      source.includes("gelbooru") ||
-      source.includes("konachan") ||
-      source.includes("yandere");
 
     const allItemTags = [
       ...(item.tags || []),
@@ -86,41 +67,49 @@ export class ContentFilter {
       ...(item.metaTags || []),
     ].map((tag) => tag.toLowerCase().trim());
 
-    const hasAdultTag = allItemTags.some((t) => this.isAdultTag(t));
+    if (!showAdultContent) {
+      // 0. Provider Rating Metadata
+      if (rating === "explicit" || rating === "questionable" || rating === "e" || rating === "q") {
+        return true;
+      }
 
-    const adultKeywords = [
-      "hentai",
-      "smut",
-      "18+",
-      "yuri",
-      "yaoi",
-      "bara",
-      "boys love",
-      "girls love",
-      "bl",
-      "gl",
-    ];
-    const hasAdultTitle = adultKeywords.some((keyword) =>
-      titleLower.includes(keyword),
-    );
+      // 1. Adult Content Filter
+      const isAdultSite =
+        source.includes("nhentai") ||
+        source.includes("rule34") ||
+        source.includes("luscious") ||
+        source.includes("kemono") ||
+        source.includes("hentai") ||
+        source.includes("danbooru") ||
+        source.includes("gelbooru") ||
+        source.includes("konachan") ||
+        source.includes("yandere");
 
-    if (isAdultSite || hasAdultTag || hasAdultTitle) return true;
+      const hasAdultTag = allItemTags.some((t) => this.isAdultTag(t));
+      const adultKeywords = [
+        "hentai",
+        "smut",
+        "18+",
+        "yuri",
+        "yaoi",
+        "bara",
+        "boys love",
+        "girls love",
+        "bl",
+        "gl",
+      ];
+      const hasAdultTitle = adultKeywords.some((keyword) => titleLower.includes(keyword));
+
+      if (isAdultSite || hasAdultTag || hasAdultTitle) return true;
+    }
 
     // 2. Custom Excluded Tags
-    const excludedTagsLower = excludedTags
-      .map((t) => t.toLowerCase().trim())
-      .filter(Boolean);
+    const excludedTagsLower = mergeExcludedTags(excludedTags, additionalExcludedTags);
 
     if (excludedTagsLower.length > 0) {
-      const hasExcludedTag = allItemTags.some((tag) =>
-        excludedTagsLower.some((excluded) => tag.includes(excluded)),
-      );
-      if (hasExcludedTag) return true;
+      if (hasExcludedTag(allItemTags, excludedTagsLower)) return true;
 
-      const hasExcludedWordInTitle = excludedTagsLower.some((excluded) =>
-        titleLower.includes(excluded),
-      );
-      if (hasExcludedWordInTitle) return true;
+      if (hasExcludedText(titleLower, excludedTagsLower)) return true;
     }
 
     // 3. Global Hard Exclusions

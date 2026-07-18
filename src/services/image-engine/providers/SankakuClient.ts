@@ -1,251 +1,200 @@
-import { BaseProvider } from "./BaseProvider";
-import { TagParser } from "../parser/TagParser";
-import type { 
-  ImageMedia, 
-  StructuredQuery, 
-  EngineSearchOptions,
-  SourceCapabilities,
-  ContentRating
-} from "../types";
-import { useSettingsStore } from "../../../stores/useSettingsStore";
-
-interface SankakuPost {
-  id?: number;
-  created_at?: string; // e.g. JSON struct or string
-  rating?: string;
-  file_url?: string;
-  sample_url?: string;
-  preview_url?: string;
-  tags?: Array<{ name: string; type: number; name_en?: string }>;
-  width?: number;
-  height?: number;
-  file_type?: string; // e.g. "video/mp4", "image/jpeg"
-}
+import { BaseProvider } from './BaseProvider';
+import { TagParser } from '../parser/TagParser';
+import type { ImageMedia, StructuredQuery, EngineSearchOptions, SourceCapabilities } from '../types';
+import {
+  getSankakuAuthHeaders,
+  getSankakuGroupInfo,
+  getSankakuMediaType,
+  getSankakuMediaStatus,
+  getSankakuSourceUrl,
+  mapSankakuRating,
+  mapSankakuTags,
+  parseSankakuCreatedAtIso,
+  SANKAKU_LOGIN_URL,
+  sankakuApiUrls,
+  unwrapSankakuPosts,
+  type SankakuPost,
+} from '../../../services/Sankaku';
 
 export class SankakuClient extends BaseProvider {
-  readonly id = "sankaku";
-  readonly name = "Sankaku Complex";
-  readonly baseUrl = "https://chan.sankakucomplex.com";
-  
+  readonly id = 'sankaku';
+  readonly name = 'Sankaku Complex';
+  readonly baseUrl = 'https://chan.sankakucomplex.com';
+
   readonly capabilities: SourceCapabilities = {
     supportsNegativeTags: true,
-    maxTagsPerRequest: 4, // Typical anonymous limit for Sankaku
+    maxTagsPerRequest: 8,
     supportsSort: true,
     supportsScore: true,
     nativeRecommendations: true,
-    status: "auth_required",
+    status: 'auth_required',
     authentication: true,
     requiresCookies: true,
-    authUrl: "https://chan.sankakucomplex.com/en/user/login"
+    authUrl: SANKAKU_LOGIN_URL,
   };
 
-  private getAuthHeaders(): Record<string, string> {
-    const auth = useSettingsStore.getState().booruAuth?.[this.id];
-    const headers: Record<string, string> = {};
-    
-    if (auth?.sessionCookies) {
-      headers["Cookie"] = auth.sessionCookies;
-    }
-    
-    if (auth?.localStorage) {
-      const token = auth.localStorage["access_token"];
-      if (token && token.length > 10) {
-        // Remove quotes if JSON stringified
-        headers["Authorization"] = `Bearer ${token.replace(/^"|"$/g, '')}`;
+  private async fetchSankakuJson<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
+    const headers = getSankakuAuthHeaders();
+    let lastError: unknown;
+    for (const endpoint of sankakuApiUrls(path)) {
+      try {
+        return await this.fetchJson<T>(endpoint, params, headers);
+      } catch (error) {
+        lastError = error;
+        console.warn(`[SankakuClient] Endpoint failed, trying fallback: ${endpoint}`);
       }
     }
-    
-    return headers;
+    throw lastError || new Error('Sankaku request failed');
   }
 
   async search(query: StructuredQuery, options: EngineSearchOptions): Promise<ImageMedia[]> {
-    const allowance = 4;
+    const allowance = this.capabilities.maxTagsPerRequest;
     const apiTags: string[] = [];
     const localFilterNegativeTags: string[] = [];
     const localFilterPositiveTags: string[] = [];
-    
-    for (const p of query.positiveTags) {
-      if (apiTags.length < allowance) apiTags.push(p);
-      else localFilterPositiveTags.push(p);
+
+    for (const tag of query.positiveTags) {
+      if (apiTags.length < allowance) apiTags.push(tag);
+      else localFilterPositiveTags.push(tag);
     }
-    for (const n of query.negativeTags) {
-      if (apiTags.length < allowance) apiTags.push(`-${n}`);
-      else localFilterNegativeTags.push(n);
-    }
-    
-    if (options.ratingFilter === "sfw") {
-      apiTags.push("rating:safe");
+    for (const tag of query.negativeTags) {
+      if (apiTags.length < allowance) apiTags.push(`-${tag}`);
+      else localFilterNegativeTags.push(tag);
     }
 
-    const tagsQueryString = apiTags.map(TagParser.normalizeBooruTag).join(" ");
-    
-    const hasLocalFilters = localFilterNegativeTags.length > 0 || localFilterPositiveTags.length > 0;
+    if (options.ratingFilter === 'sfw' && !apiTags.some(tag => /^rating:/i.test(tag))) {
+      apiTags.push('rating:safe');
+    }
+
+    const tagsQueryString = apiTags.map(TagParser.normalizeBooruTag).join(' ');
     const targetLimit = options.limit || 20;
-    const limit = hasLocalFilters ? 100 : targetLimit;
-
-    const headers = this.getAuthHeaders();
-    if (!headers["Cookie"] && !headers["Authorization"]) {
-      console.warn(`[SankakuClient] Missing session credentials. Aborting to avoid ban.`);
-      return [];
-    }
-    
-    let accumulatedResults: ImageMedia[] = [];
-    const requestedPage = options.page || 1;
-    
-    // If we have local filters, one logical "page" maps to up to 5 API pages
+    const hasLocalFilters = localFilterNegativeTags.length > 0 || localFilterPositiveTags.length > 0;
+    const limit = hasLocalFilters ? 100 : Math.min(100, targetLimit);
+    const requestedPage = Math.max(1, options.page || 1);
     const maxApiPages = hasLocalFilters ? 5 : 1;
     let currentApiPage = hasLocalFilters ? ((requestedPage - 1) * maxApiPages) + 1 : requestedPage;
-    let attempts = 0;
+    let accumulatedResults: ImageMedia[] = [];
 
-    while (attempts < maxApiPages && accumulatedResults.length < targetLimit) {
-      attempts++;
+    for (let attempt = 0; attempt < maxApiPages && accumulatedResults.length < targetLimit; attempt++) {
       try {
-        const data = await this.fetchJson<SankakuPost[] | { data?: SankakuPost[] }>("https://sankakuapi.com/posts", {
+        const data = await this.fetchSankakuJson<unknown>('/posts', {
           tags: tagsQueryString,
           page: currentApiPage,
           limit,
-        }, headers);
-
-        // Handle both array and paginated object responses
-        const posts = Array.isArray(data) ? data : (data as { data?: SankakuPost[] })?.data || [];
-        
-        if (posts.length === 0) {
-          break; // End of API feed
-        }
-        
-        // Gather all unique tags
-        const allUniqueTags = new Set<string>();
-        posts.forEach(post => {
-          if (Array.isArray(post.tags)) {
-            post.tags.forEach(t => {
-              const name = t.name_en || t.name;
-              if (name) allUniqueTags.add(name);
-            });
-          }
+          lang: 'en',
         });
+        const posts = unwrapSankakuPosts(data);
+        if (posts.length === 0) break;
 
-        const tagTypes = await this.resolveTags(Array.from(allUniqueTags));
-
-        let results = this.mapPosts(posts, tagTypes);
-
+        let results = this.mapPosts(posts);
         if (hasLocalFilters) {
           results = results.filter(post => {
-            const postTags = new Set(post.tags.map(t => t.toLowerCase()));
-            for (const pt of localFilterPositiveTags) {
-              if (!postTags.has(TagParser.normalizeBooruTag(pt))) return false;
-            }
-            for (const nt of localFilterNegativeTags) {
-              if (postTags.has(TagParser.normalizeBooruTag(nt))) return false;
-            }
-            return true;
+            const postTags = new Set(post.tags.map(TagParser.normalizeBooruTag));
+            return localFilterPositiveTags.every(tag => postTags.has(TagParser.normalizeBooruTag(tag)))
+              && localFilterNegativeTags.every(tag => !postTags.has(TagParser.normalizeBooruTag(tag)));
           });
         }
 
-        accumulatedResults = accumulatedResults.concat(results);
-        
-        if (accumulatedResults.length >= targetLimit) {
-          break;
-        }
-
-        currentApiPage++;
-      } catch (e) {
-        console.warn(`[SankakuClient] API fetch failed on page ${currentApiPage}`, e);
+        accumulatedResults = [
+          ...accumulatedResults,
+          ...results.filter(result => !accumulatedResults.some(existing => existing.id === result.id)),
+        ];
+        currentApiPage += 1;
+      } catch (error) {
+        console.warn(`[SankakuClient] API fetch failed on page ${currentApiPage}:`, error);
         break;
       }
     }
 
-    if (hasLocalFilters && accumulatedResults.length > targetLimit) {
-      accumulatedResults = accumulatedResults.slice(0, targetLimit);
-    }
-
-    return accumulatedResults;
+    return accumulatedResults.slice(0, targetLimit);
   }
 
   async getDiscovery(options: EngineSearchOptions): Promise<ImageMedia[]> {
-    const headers = this.getAuthHeaders();
-    if (!headers["Cookie"] && !headers["Authorization"]) return [];
-
     return this.search({
-      raw: "",
-      positiveTags: ["order:quality"],
+      raw: 'order:random',
+      positiveTags: ['order:random'],
       negativeTags: [],
-      ratingFilter: options.ratingFilter
+      ratingFilter: options.ratingFilter,
     }, { ...options, limit: options.limit || 40 });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async getRecommendations(_image: ImageMedia): Promise<ImageMedia[]> {
-    return [];
+  async getLatest(options: EngineSearchOptions): Promise<ImageMedia[]> {
+    return this.search({
+      raw: 'order:recent',
+      positiveTags: ['order:recent'],
+      negativeTags: [],
+      ratingFilter: options.ratingFilter,
+    }, options);
   }
 
-  private mapPosts(posts: SankakuPost[], tagTypes: Map<string, string>): ImageMedia[] {
-    if (!Array.isArray(posts)) return [];
-    
+  async getRecommendations(image: ImageMedia): Promise<ImageMedia[]> {
+    const tags = [
+      ...(image.characterTags || []),
+      ...(image.artistTags || []),
+      ...(image.copyrightTags || []),
+      ...(image.generalTags || []),
+    ].filter(Boolean).slice(0, 4);
+    if (tags.length === 0) return [];
+
+    const related = await this.search({
+      raw: tags.join(' '),
+      positiveTags: tags,
+      negativeTags: [],
+      ratingFilter: 'all',
+    }, { limit: 24, page: 1, ratingFilter: 'all' });
+    return related.filter(candidate => candidate.id !== image.id);
+  }
+
+  private mapPosts(posts: SankakuPost[]): ImageMedia[] {
     return posts
-      .filter(p => p.id && (p.file_url || p.sample_url || p.preview_url))
+      .filter(post => post.id !== undefined)
       .map(post => {
-        const preview = post.preview_url || post.sample_url || post.file_url || "";
+        const preview = post.preview_url || post.sample_url || post.file_url || '';
         const sample = post.sample_url || post.file_url || preview;
         const full = post.file_url || sample;
-
-        const ratingMap: Record<string, ContentRating> = {
-          "s": "safe",
-          "q": "questionable",
-          "e": "explicit",
-        };
-
-        const isVideo = post.file_type?.startsWith("video/") || full.match(/\.(mp4|webm)$/i);
-        const isGif = post.file_type === "image/gif" || full.match(/\.(gif)$/i);
-
-        const allTags: string[] = [];
-        const artistTags: string[] = [];
-        const characterTags: string[] = [];
-        const copyrightTags: string[] = [];
-        const generalTags: string[] = [];
-        const metaTags: string[] = [];
-
-        if (Array.isArray(post.tags)) {
-          post.tags.forEach(t => {
-            const name = t.name_en || t.name;
-            allTags.push(name);
-            
-            // Allow resolved type to override local if needed, although local is usually right
-            const typeValue = tagTypes.has(name.toLowerCase()) ? parseInt(tagTypes.get(name.toLowerCase())!) : t.type;
-            
-            switch (typeValue) {
-              case 1: artistTags.push(name); break;
-              case 3: copyrightTags.push(name); break;
-              case 4: characterTags.push(name); break;
-              case 5: metaTags.push(name); break;
-              case 0: generalTags.push(name); break;
-              default: generalTags.push(name); break;
-            }
-          });
-        }
+        const tags = mapSankakuTags(post.tags);
+        const group = getSankakuGroupInfo(post);
+        const width = post.width || post.sample_width || post.preview_width;
+        const height = post.height || post.sample_height || post.preview_height;
 
         return {
           id: `${this.id}-${post.id}`,
           sourceId: String(post.id),
           providerId: this.id,
           title: `Sankaku ${post.id}`,
-          thumbnailUrl: this.ensureAbsoluteUrl(preview),
+          thumbnailUrl: this.ensureAbsoluteUrl(sample),
           previewUrl: this.ensureAbsoluteUrl(preview),
           sampleUrl: this.ensureAbsoluteUrl(sample),
           fullUrl: this.ensureAbsoluteUrl(full),
-          width: post.width,
-          height: post.height,
-          tags: allTags,
-          generalTags,
-          characterTags,
-          artistTags,
-          copyrightTags,
-          metaTags,
-          rating: ratingMap[post.rating || ""] || "unknown",
-          score: 0,
-          createdAt: typeof post.created_at === "string" ? post.created_at : new Date().toISOString(),
-          mediaType: isVideo ? "video" : isGif ? "gif" : "image",
-          contentCategory: "image",
-          sourceUrl: `https://chan.sankakucomplex.com/post/show/${post.id}`,
+          mediaStatus: getSankakuMediaStatus(post),
+          width,
+          height,
+          tags: tags.all,
+          generalTags: tags.general,
+          characterTags: tags.character,
+          artistTags: tags.artist,
+          copyrightTags: tags.copyright,
+          metaTags: tags.meta,
+          rating: mapSankakuRating(post.rating),
+          score: post.total_score ?? post.score ?? 0,
+          createdAt: parseSankakuCreatedAtIso(post.created_at),
+          mediaType: getSankakuMediaType(post),
+          contentCategory: 'image',
+          sourceUrl: getSankakuSourceUrl(String(post.id)),
+          relatedGroupId: group.relatedGroupId,
+          relatedIndex: group.relatedIndex,
+          parentId: group.parentId,
+          poolIds: group.poolIds,
+          bookIds: group.bookIds,
+          sequence: group.relatedIndex,
+          isPremium: post.is_premium,
+          redirectToSignup: post.redirect_to_signup,
+          hasChildren: post.has_children,
+          fileType: post.file_type,
+          fileSize: post.file_size,
+          videoDuration: post.video_duration,
+          source: post.source,
+          author: typeof post.author === 'string' ? post.author : post.author?.name,
         };
       });
   }

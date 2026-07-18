@@ -1,5 +1,6 @@
 import type { ImageProvider, PlatformImage, SearchQuery } from "./types";
 import { useSettingsStore } from "../stores/useSettingsStore";
+import { hasExcludedTag, mergeExcludedTags } from "../services/TagExclusions";
 
 export class SearchFederator {
   private providers: Map<string, ImageProvider> = new Map();
@@ -24,14 +25,15 @@ export class SearchFederator {
     if (images.length === 0) return [];
     try {
       const { useGalleryStore } = await import("../stores/useGalleryStore");
-      const blockedTags = useGalleryStore.getState().blockedTags.map((t: string) => t.toLowerCase().trim());
+      const blockedTags = mergeExcludedTags(
+        useGalleryStore.getState().blockedTags,
+        useSettingsStore.getState().excludedTags,
+      );
       
       if (blockedTags.length === 0) return images;
 
       return images.filter(img => {
-        const imgTags = (img.tags || []).map(t => t.toLowerCase().trim());
-        const hasBlockedTag = imgTags.some(t => blockedTags.some(b => t.includes(b)));
-        return !hasBlockedTag;
+        return !hasExcludedTag(img.tags || [], blockedTags);
       });
     } catch (e) {
       console.warn("[SearchFederator] Failed to filter blocked tags", e);
@@ -49,7 +51,7 @@ export class SearchFederator {
       const placeholders = ids.map(() => '?').join(',');
       
       // 1. Strictly exclude saved images
-      const savedRows = await db.select<{id: string}>(`SELECT id FROM FlowSavedImages WHERE id IN (${placeholders})`, ids);
+      const savedRows = await db.select<{id: string}[]>(`SELECT id FROM FlowSavedImages WHERE id IN (${placeholders})`, ids);
       const savedSet = new Set(savedRows.map(r => r.id));
       
       const notSavedImages = images.filter(img => !savedSet.has(img.id));
@@ -58,7 +60,7 @@ export class SearchFederator {
       // 2. Strictly exclude images seen in the last 24 hours
       const notSavedIds = notSavedImages.map(img => img.id);
       const nsPlaceholders = notSavedIds.map(() => '?').join(',');
-      const seenRows = await db.select<{id: string}>(`
+      const seenRows = await db.select<{id: string}[]>(`
         SELECT id FROM FlowSeenImages 
         WHERE id IN (${nsPlaceholders})
         AND seenAt >= datetime('now', '-1 day')
@@ -101,6 +103,36 @@ export class SearchFederator {
   }
 
   /**
+   * Resolves provider requests concurrently while forwarding each completed
+   * provider batch immediately. The returned array keeps provider order for
+   * the final merge, but the UI no longer waits for the slowest source.
+   */
+  private async resolveProviderRequests(
+    requests: Array<{ providerId: string; request: Promise<PlatformImage[]> }>,
+    onChunk?: (images: PlatformImage[]) => void,
+  ): Promise<PlatformImage[][]> {
+    const results: PlatformImage[][] = Array.from({ length: requests.length }, () => []);
+
+    await Promise.all(requests.map(({ providerId, request }, index) =>
+      request
+        .then((images) => {
+          results[index] = images;
+          const grouped = this.groupRelatedResults(images);
+          if (onChunk && grouped.length > 0) onChunk(grouped);
+          return images;
+        })
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          console.warn(`[SearchFederator] Provider ${providerId} failed; continuing with other sources: ${message}`);
+          results[index] = [];
+          return [];
+        }),
+    ));
+
+    return results;
+  }
+
+  /**
    * Executes a search query. 
    * If the query has a `source` predicate (e.g., `source:danbooru`), it routes only to that provider.
    * Otherwise, it queries all registered providers in parallel and interleaves the results.
@@ -125,24 +157,22 @@ export class SearchFederator {
 
     const finalQuery = this.getMediaFilterQuery(query);
 
-    // Fetch from all active providers concurrently
-    const promises = activeProviders.map(p => 
-      p.search(finalQuery, page)
+    // Fetch from all active providers concurrently. Each completed provider
+    // is emitted immediately; the final merge still preserves grouping.
+    const requests = activeProviders.map(p => ({
+      providerId: p.id,
+      request: p.search(finalQuery, page)
         .then(async res => {
           const filtered = this.filterAdult(res);
           const blockFiltered = await this.filterBlocked(filtered);
           const prioritized = await this.filterExclusions(blockFiltered);
-          if (onChunk && prioritized.length > 0) onChunk(prioritized);
           return prioritized;
-        })
-        .catch((e: any) => {
-          console.warn(`[SearchFederator] Provider ${p.id} timed out or failed gracefully: ${e.message}`);
-          return []; // Fail gracefully for individual providers
-        })
-    );
+        }),
+    }));
 
-    const resultsArray = await Promise.all(promises);
-    return onChunk ? resultsArray.flat() : this.interleaveResults(resultsArray);
+    const resultsArray = await this.resolveProviderRequests(requests, onChunk);
+    const grouped = this.groupRelatedResults(resultsArray.flat());
+    return onChunk ? grouped : this.groupRelatedResults(this.interleaveResults(resultsArray));
   }
 
   async getLatest(page: number, onChunk?: (images: PlatformImage[]) => void): Promise<PlatformImage[]> {
@@ -152,26 +182,25 @@ export class SearchFederator {
     const { globalMediaFilter } = useSettingsStore.getState();
     const isAnimatedFilter = globalMediaFilter === 'video' || globalMediaFilter === 'gif';
 
-    const promises = activeProviders.map(p => {
+    const requests = activeProviders.map(p => {
       const fetchPromise = isAnimatedFilter 
         ? p.search(this.getMediaFilterQuery(), page)
         : p.getLatest(page);
 
-      return fetchPromise
+      return {
+        providerId: p.id,
+        request: fetchPromise
         .then(async res => {
           const filtered = this.filterAdult(res);
           const blockFiltered = await this.filterBlocked(filtered);
-          if (onChunk && blockFiltered.length > 0) onChunk(blockFiltered);
           return blockFiltered;
-        })
-        .catch((e: any) => {
-          console.warn(`[SearchFederator] Latest provider ${p.id} timed out or failed gracefully: ${e.message}`);
-          return [];
-        })
+        }),
+      };
     });
 
-    const resultsArray = await Promise.all(promises);
-    return onChunk ? resultsArray.flat() : this.interleaveResults(resultsArray);
+    const resultsArray = await this.resolveProviderRequests(requests, onChunk);
+    const grouped = this.groupRelatedResults(resultsArray.flat());
+    return onChunk ? grouped : this.groupRelatedResults(this.interleaveResults(resultsArray));
   }
 
   async getCurated(page: number, onChunk?: (images: PlatformImage[]) => void): Promise<PlatformImage[]> {
@@ -187,14 +216,15 @@ export class SearchFederator {
       const mode = useSettingsStore.getState().recommendationMode;
 
       // Pull implicit interests (tags the engine thinks you like based on viewing habits)
-      const interests = await db.select<{name: string}>(`
-        SELECT name FROM UserInterests 
+      const interests = await db.select<{name: string}[]>(`
+        SELECT name FROM UserInterests
+        WHERE type IN ('dominant_tag', 'supporting_tag', 'artist', 'character', 'series')
         ORDER BY isPinned DESC, score DESC, RANDOM() 
         LIMIT 20
       `);
       
       // Pull explicit favorites (tags you've explicitly starred)
-      const favs = await db.select<{tag: string}>(`
+      const favs = await db.select<{tag: string}[]>(`
         SELECT tag FROM FavoriteTags 
         ORDER BY RANDOM() 
         LIMIT 20
@@ -237,7 +267,10 @@ export class SearchFederator {
         }
       }
       const { useGalleryStore } = await import("../stores/useGalleryStore");
-      blockedTags = useGalleryStore.getState().blockedTags;
+      blockedTags = mergeExcludedTags(
+        useGalleryStore.getState().blockedTags,
+        useSettingsStore.getState().excludedTags,
+      );
     } catch (e) {
       console.warn("Failed to load interests for curation", e);
     }
@@ -247,9 +280,9 @@ export class SearchFederator {
     }
 
     // for each tag across all providers, then interleave the results.
-    const allPromises: Promise<PlatformImage[]>[] = [];
+    const requests: Array<{ providerId: string; request: Promise<PlatformImage[]> }> = [];
     const { RecommendationEngine } = await import('./services/RecommendationEngine');
-    const isStrict = useSettingsStore.getState().strictForYouMode;
+    const recommendationContext = await RecommendationEngine.loadContext();
 
     discoveryTags.forEach(tag => {
       activeProviders.forEach(p => {
@@ -259,40 +292,76 @@ export class SearchFederator {
         const jitter = Math.floor(Math.random() * 10);
         const fetchPage = page + jitter;
 
-        allPromises.push(
-          p.search(query, fetchPage)
+        requests.push({
+          providerId: p.id,
+          request: p.search(query, fetchPage)
             .then(async res => {
               const filtered = this.filterAdult(res);
               const blockFiltered = await this.filterBlocked(filtered);
               const prioritized = await this.filterExclusions(blockFiltered);
               
-              const scored = await RecommendationEngine.scoreAndFilter(prioritized, isStrict);
-              const finalChunk = scored.map(s => {
-                 const img = { ...s };
-                 delete (img as any).recommendation;
-                 return img;
-              });
-
-              if (onChunk && finalChunk.length > 0) onChunk(finalChunk);
-              return finalChunk;
-            })
-            .catch((e: any) => {
-              console.warn(`[SearchFederator] Curated provider ${p.id} timed out or failed gracefully: ${e.message}`);
-              return [];
-            })
-        );
+              return prioritized;
+            }),
+        });
       });
     });
 
-    const resultsArray = await Promise.all(allPromises);
-    const finalResults = onChunk ? resultsArray.flat() : this.interleaveResults(resultsArray);
+    const candidatePool: PlatformImage[] = [];
+    const emittedCuratedIds = new Set<string>();
+    let curationQueue = Promise.resolve();
+    const streamedRequests = requests.map(({ providerId, request }) => ({
+      providerId,
+      request: request.then(async (prioritized) => {
+        candidatePool.push(...prioritized);
+
+        if (onChunk && prioritized.length > 0) {
+          const currentCuration = curationQueue.then(async () => {
+            const partial = await RecommendationEngine.curate(candidatePool, {
+              context: recommendationContext,
+              limit: 48,
+            });
+            const partialResults = this.groupRelatedResults(partial)
+              .map(({ recommendation, ...image }) => {
+                void recommendation;
+                return image;
+              })
+              .filter(image => !emittedCuratedIds.has(image.id));
+
+            partialResults.forEach(image => emittedCuratedIds.add(image.id));
+            if (partialResults.length > 0) onChunk(partialResults);
+          });
+          curationQueue = currentCuration.catch(() => undefined);
+          await currentCuration;
+        }
+
+        return prioritized;
+      }),
+    }));
+
+    const resultsArray = await this.resolveProviderRequests(streamedRequests);
+    candidatePool.splice(0, candidatePool.length, ...resultsArray.flat());
+    const curated = await RecommendationEngine.curate(candidatePool, {
+      context: recommendationContext,
+      // Keep the first batch useful without allowing one source or creator to
+      // occupy the whole viewport. More candidates arrive on the next page.
+      limit: 48,
+    });
+    const finalResults = this.groupRelatedResults(curated).map(({ recommendation, ...image }) => {
+      void recommendation;
+      return image;
+    });
+    if (onChunk) {
+      const newFinalResults = finalResults.filter(image => !emittedCuratedIds.has(image.id));
+      newFinalResults.forEach(image => emittedCuratedIds.add(image.id));
+      if (newFinalResults.length > 0) onChunk(newFinalResults);
+    }
     
     if (finalResults.length > 0) {
       return finalResults;
     }
 
     // Fallback if somehow everything fails (Only if not in Strict Mode)
-    return isStrict ? [] : this.getLatest(page, onChunk);
+    return recommendationContext.qualityMode === 'strict' ? [] : this.getLatest(page, onChunk);
   }
 
   async getDiscovery(page: number, onChunk?: (images: PlatformImage[]) => void): Promise<PlatformImage[]> {
@@ -302,27 +371,26 @@ export class SearchFederator {
     const { globalMediaFilter } = useSettingsStore.getState();
     const isAnimatedFilter = globalMediaFilter === 'video' || globalMediaFilter === 'gif';
 
-    const promises = activeProviders.map(p => {
+    const requests = activeProviders.map(p => {
       const fetchPromise = isAnimatedFilter
         ? p.search(this.getMediaFilterQuery(), page)
         : p.getDiscovery(page);
 
-      return fetchPromise
+      return {
+        providerId: p.id,
+        request: fetchPromise
         .then(async res => {
           const filtered = this.filterAdult(res);
           const blockFiltered = await this.filterBlocked(filtered);
           const prioritized = await this.filterExclusions(blockFiltered);
-          if (onChunk && prioritized.length > 0) onChunk(prioritized);
           return prioritized;
-        })
-        .catch(e => {
-          console.warn(`[SearchFederator] Discovery provider ${p.id} timed out or failed gracefully:`, e);
-          return [];
-        })
+        }),
+      };
     });
 
-    const resultsArray = await Promise.all(promises);
-    return onChunk ? resultsArray.flat() : this.interleaveResults(resultsArray);
+    const resultsArray = await this.resolveProviderRequests(requests, onChunk);
+    const grouped = this.groupRelatedResults(resultsArray.flat());
+    return onChunk ? grouped : this.groupRelatedResults(this.interleaveResults(resultsArray));
   }
 
   /**
@@ -355,7 +423,7 @@ export class SearchFederator {
     if (!lastTerm || lastTerm.includes(':')) return [];
 
     const promises = activeProviders.map(p => 
-      p.autocompleteTags(lastTerm)
+      (p.autocompleteTags ? p.autocompleteTags(lastTerm) : Promise.resolve([]))
         .catch((e: any) => {
           console.warn(`[SearchFederator] Autocomplete failed for ${p.id}:`, e);
           return [] as string[];
@@ -387,6 +455,35 @@ export class SearchFederator {
 
     return interleaved;
   }
+
+  /** Keep parent, pool, and book members adjacent in the legacy image feed. */
+  private groupRelatedResults(items: PlatformImage[]): PlatformImage[] {
+    const groups = new Map<string, PlatformImage[]>();
+    for (const item of items) {
+      if (!item.relatedGroupId) continue;
+      const group = groups.get(item.relatedGroupId) || [];
+      group.push(item);
+      groups.set(item.relatedGroupId, group);
+    }
+
+    for (const group of groups.values()) {
+      group.sort((a, b) => (a.relatedIndex ?? Number.MAX_SAFE_INTEGER) - (b.relatedIndex ?? Number.MAX_SAFE_INTEGER));
+    }
+
+    const emitted = new Set<string>();
+    const output: PlatformImage[] = [];
+    for (const item of items) {
+      if (emitted.has(item.id)) continue;
+      const group = item.relatedGroupId ? groups.get(item.relatedGroupId) : undefined;
+      for (const member of group || [item]) {
+        if (!emitted.has(member.id)) {
+          output.push(member);
+          emitted.add(member.id);
+        }
+      }
+    }
+    return output;
+  }
 }
 
 import { DanbooruProvider } from "./providers/DanbooruProvider";
@@ -406,4 +503,3 @@ federator.registerProvider(new SankakuProvider());
 federator.registerProvider(new NekosProvider());
 federator.registerProvider(new KonachanProvider());
 federator.registerProvider(new ZerochanProvider());
-

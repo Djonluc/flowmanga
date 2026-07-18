@@ -15,6 +15,7 @@ export interface ImageMedia {
   previewUrl: string;
   sampleUrl: string; // Web-friendly size
   fullUrl: string; // Original, highest resolution
+  mediaStatus?: 'available' | 'login_required' | 'premium_required' | 'unavailable';
   
   // Metadata
   width?: number;
@@ -34,9 +35,28 @@ export interface ImageMedia {
   mediaType: MediaType;
   contentCategory: ContentCategory;
   sourceUrl: string; // Link to original post
+
+  // Posts from the same pool, parent/child set, or source-defined sequence.
+  // Used to keep related images adjacent in discovery and viewer navigation.
+  relatedGroupId?: string;
+  relatedIndex?: number;
   
   // Extended gallery/manga info
   pageCount?: number;
+
+  // Source relationships and access metadata.
+  parentId?: string;
+  poolIds?: string[];
+  bookIds?: string[];
+  sequence?: number;
+  isPremium?: boolean;
+  redirectToSignup?: boolean;
+  hasChildren?: boolean;
+  fileType?: string;
+  fileSize?: number;
+  videoDuration?: number;
+  source?: string;
+  author?: string;
 }
 
 export interface StructuredQuery {

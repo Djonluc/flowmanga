@@ -151,9 +151,15 @@ export const initDatabase = async () => {
       rating TEXT,
       score INTEGER,
       sourceUrl TEXT,
+      artistTags TEXT,
+      characterTags TEXT,
+      copyrightTags TEXT,
+      generalTags TEXT,
+      metaTags TEXT,
       isLocal BOOLEAN DEFAULT 0,
       localPath TEXT,
       mediaType TEXT,
+      sourceMetadata TEXT,
       savedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (folderId) REFERENCES FlowSavedFolders(id) ON DELETE SET NULL
     );
@@ -359,6 +365,30 @@ export const initDatabase = async () => {
 
   try {
     await db.execute("ALTER TABLE GalleryImages ADD COLUMN metaTags TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE FlowSavedImages ADD COLUMN artistTags TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE FlowSavedImages ADD COLUMN characterTags TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE FlowSavedImages ADD COLUMN copyrightTags TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE FlowSavedImages ADD COLUMN generalTags TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE FlowSavedImages ADD COLUMN metaTags TEXT");
+  } catch (e) {}
+
+  try {
+    await db.execute("ALTER TABLE FlowSavedImages ADD COLUMN sourceMetadata TEXT");
   } catch (e) {}
 
   try {

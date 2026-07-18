@@ -1,66 +1,58 @@
-name: "Publish Release"
+name: Publish Release
 
 on:
   push:
     tags:
-      - "v*" # Trigger on tags like v1.0.0
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish-tauri:
-    permissions:
-      contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: "windows-latest"
-            args: ""
-
-    runs-on: ${{ matrix.platform }}
+    runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out source
+        uses: actions/checkout@v4
 
-      - name: Install dependencies (Ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
+          cache: npm
 
-      - name: Install Rust stable
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Build and release Tauri app
-        uses: tauri-apps/tauri-action@v0
+      - name: Verify TypeScript
+        run: npm run typecheck
+
+      - name: Verify web production build
+        run: npm run vite-build
+
+      - name: Load plain-language release notes
+        id: release-notes
+        shell: pwsh
+        run: |
+          $body = Get-Content -Raw RELEASE_NOTES.md
+          "body<<RELEASE_NOTES" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          $body | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "RELEASE_NOTES" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Build and publish FlowManga
+        uses: tauri-apps/tauri-action@v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: v__VERSION__
-          releaseName: "FlowManga v__VERSION__"
-          releaseBody: |
-            ## What's new in FlowManga v__VERSION__ 🎉
-
-            This release focuses on UI performance, usability, and bug fixes for a smoother experience.
-
-            ### 🚀 Features & Improvements
-            - **Instant Feed Loading** — Added Stale-While-Revalidate caching to the Discover Feed and Home View. The app now instantly displays cached content while seamlessly fetching fresh updates in the background, eliminating blank loading screens!
-            - **Simplified Settings** — Removed the complex "Advanced Artist Tag Resolution" feature from Source Settings to keep the UI clean and accessible.
-
-            ### 🐛 Bug Fixes
-            - **Music Player Volume Fix** — Fixed an annoying issue where the volume control popover would close prematurely when moving the mouse to adjust the slider.
-
-            ---
-            👇 **Download the latest installer below — just run the `.exe` file!**
-
+          releaseName: FlowManga v__VERSION__
+          releaseBody: ${{ steps.release-notes.outputs.body }}
           releaseDraft: false
           prerelease: false
-          args: ${{ matrix.args }}

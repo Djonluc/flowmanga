@@ -1,7 +1,7 @@
 import { HealthMonitor } from "./HealthMonitor";
 import { TagParser } from "./parser/TagParser";
 import type { BaseProvider } from "./providers/BaseProvider";
-import type { ImageMedia, EngineSearchOptions } from "./types";
+import type { ImageMedia, EngineSearchOptions, StructuredQuery } from "./types";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 
 export class DiscoveryEngine {
@@ -107,6 +107,39 @@ export class DiscoveryEngine {
     return this.interleaveResults(resultsArray, activeProviders);
   }
 
+  /** Fetch newest content from every active provider and merge it fairly. */
+  async getLatest(options: EngineSearchOptions): Promise<ImageMedia[]> {
+    const activeProviders = this.getActiveProviders();
+    if (activeProviders.length === 0) return [];
+
+    const resultsArray = await Promise.all(
+      activeProviders.map((provider) =>
+        Promise.race([
+          provider.getLatest(options),
+          new Promise<ImageMedia[]>((resolve) => setTimeout(() => resolve([]), 15000)),
+        ]).catch((error) => {
+          console.warn(`[DiscoveryEngine] Latest provider ${provider.id} failed:`, error);
+          return [] as ImageMedia[];
+        }),
+      ),
+    );
+
+    return this.interleaveResults(resultsArray, activeProviders)
+      .sort((a, b) => this.toTimestamp(b.createdAt) - this.toTimestamp(a.createdAt));
+  }
+
+  /** Fetch a broad, shuffled page from every active provider. */
+  async getRandom(options: EngineSearchOptions): Promise<ImageMedia[]> {
+    const page = Math.max(1, (options.page || 1) + Math.floor(Math.random() * 5));
+    const results = await this.getDiscovery({ ...options, page });
+
+    for (let i = results.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [results[i], results[j]] = [results[j], results[i]];
+    }
+    return results;
+  }
+
   private async fetchWithFallback(
     provider: BaseProvider,
     method: "search" | "discovery",
@@ -167,6 +200,7 @@ export class DiscoveryEngine {
   private interleaveResults(resultsArray: ImageMedia[][], providers: BaseProvider[]): ImageMedia[] {
     const interleaved: ImageMedia[] = [];
     const pointers = new Array(resultsArray.length).fill(0);
+    const seen = new Set<string>();
     
     // Create a weighted pool
     const weights = providers.map(p => this.monitor.getWeight(p.id));
@@ -183,13 +217,50 @@ export class DiscoveryEngine {
         for (let c = 0; c < pullCount; c++) {
           const ptr = pointers[pIdx];
           if (ptr < results.length) {
-            interleaved.push(results[ptr]);
+            const item = results[ptr];
+            if (!seen.has(item.id)) {
+              interleaved.push(item);
+              seen.add(item.id);
+            }
             pointers[pIdx]++;
           }
         }
       }
     }
 
-    return interleaved;
+    return this.groupRelatedResults(interleaved);
+  }
+
+  private groupRelatedResults(items: ImageMedia[]): ImageMedia[] {
+    const groups = new Map<string, ImageMedia[]>();
+    for (const item of items) {
+      if (!item.relatedGroupId) continue;
+      const group = groups.get(item.relatedGroupId) || [];
+      group.push(item);
+      groups.set(item.relatedGroupId, group);
+    }
+
+    for (const group of groups.values()) {
+      group.sort((a, b) => (a.relatedIndex ?? 0) - (b.relatedIndex ?? 0));
+    }
+
+    const emitted = new Set<string>();
+    const output: ImageMedia[] = [];
+    for (const item of items) {
+      if (emitted.has(item.id)) continue;
+      const group = item.relatedGroupId ? groups.get(item.relatedGroupId) : undefined;
+      for (const member of group || [item]) {
+        if (!emitted.has(member.id)) {
+          output.push(member);
+          emitted.add(member.id);
+        }
+      }
+    }
+    return output;
+  }
+
+  private toTimestamp(value: string): number {
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp) ? timestamp : 0;
   }
 }

@@ -1,6 +1,7 @@
 import { useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ReliabilityTracker } from '../services/DiscoveryService';
+import { getSankakuAuthHeaders } from '../services/Sankaku';
 
 const MAX_CACHE_SIZE = 50;
 
@@ -19,6 +20,17 @@ const PROXY_DOMAINS = [
 
 const proxyCache = new Map<string, string>();
 const MAX_PROXY_CACHE = 100;
+
+function cacheProxyBlob(url: string, blobUrl: string): string {
+  proxyCache.set(url, blobUrl);
+  if (proxyCache.size > MAX_PROXY_CACHE) {
+    const oldestKey = proxyCache.keys().next().value;
+    const oldestUrl = oldestKey ? proxyCache.get(oldestKey) : undefined;
+    if (oldestUrl?.startsWith('blob:')) URL.revokeObjectURL(oldestUrl);
+    if (oldestKey) proxyCache.delete(oldestKey);
+  }
+  return blobUrl;
+}
 
 export function needsProxy(url: string): boolean {
   try {
@@ -39,26 +51,36 @@ async function proxyViaTauri(url: string): Promise<string | null> {
     if (proxyCache.has(url)) {
       return proxyCache.get(url)!;
     }
+    const sankakuHeaders = {
+      ...getSankakuAuthHeaders(),
+      Referer: 'https://chan.sankakucomplex.com/',
+    };
+
     try {
+      // Protected Sankaku media needs the same session as the metadata request.
+      // Use the Rust binary command so Cookie/Authorization headers are retained.
+      if (sankakuHeaders.Cookie || sankakuHeaders.Authorization) {
+        const bytes = await invoke<number[]>('fetch_binary', {
+          url,
+          headers: sankakuHeaders,
+        });
+        const extension = url.match(/\.(mp4|webm|gif|png|jpg|jpeg)(?:\?|$)/i)?.[1]?.toLowerCase();
+        const mime = extension === 'mp4' ? 'video/mp4' : extension === 'webm' ? 'video/webm' : extension === 'gif' ? 'image/gif' : 'image/*';
+        const blobUrl = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: mime }));
+        return cacheProxyBlob(url, blobUrl);
+      }
+
       const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
       const response = await tauriFetch(url, {
         method: 'GET',
+        headers: sankakuHeaders,
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
       
-      proxyCache.set(url, blobUrl);
-      if (proxyCache.size > MAX_PROXY_CACHE) {
-        const oldestKey = proxyCache.keys().next().value;
-        const oldestUrl = proxyCache.get(oldestKey);
-        if (oldestUrl && oldestUrl.startsWith('blob:')) {
-          URL.revokeObjectURL(oldestUrl);
-        }
-        proxyCache.delete(oldestKey);
-      }
-      return blobUrl;
+      return cacheProxyBlob(url, blobUrl);
     } catch (e) {
       console.warn('[useMediaLoader] tauriFetch fallback failed for sankaku:', e);
       return null;

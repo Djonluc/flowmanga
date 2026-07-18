@@ -9,14 +9,12 @@
 import React, { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Flame,
   Compass,
   Sparkles,
   FolderOpen,
   Film,
   Search,
   Tag,
-  Image as ImageIcon,
 } from "lucide-react";
 import { useGalleryStore, type GalleryTab } from "../../stores/useGalleryStore";
 import { DiscoverFeed } from "./DiscoverFeed";
@@ -47,7 +45,7 @@ export const GalleryHub: React.FC = () => {
     if (activeTab === ("wallpapers" as any)) {
       setActiveTab("discover");
     }
-  }, [activeTab]);
+  }, []);
 
   const missingAuthProviders = imageDiscovery.getProvidersMissingAuth();
 

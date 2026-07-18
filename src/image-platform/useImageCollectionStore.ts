@@ -24,11 +24,11 @@ interface ImageCollectionState {
   setAutoOrganizeMode: (mode: "disabled" | "series_only" | "character_only" | "series_character") => void;
   loadFolders: () => Promise<void>;
   loadSavedImages: (folderId?: string | null) => Promise<void>;
-  createFolder: (name: string, description?: string) => Promise<void>;
+  createFolder: (name: string, description?: string | null) => Promise<void>;
   updateFolder: (id: string, updates: Partial<FlowImageFolder>) => Promise<void>;
   deleteFolder: (id: string) => Promise<void>;
   saveImage: (image: PlatformImage, folderId?: string | null) => Promise<void>;
-  updateLocalPath: (id: string, localPath: string) => Promise<void>;
+  updateLocalPath: (id: string, localPath: string | null) => Promise<void>;
   removeSavedImage: (id: string) => Promise<void>;
   refreshMetadata: (id: string) => Promise<boolean>;
   refreshAllMetadata: () => Promise<void>;
@@ -37,6 +37,34 @@ interface ImageCollectionState {
   batchSaveImages: (images: PlatformImage[], folderId: string) => Promise<number>;
   reorderImage: (draggedId: string, dropId: string) => Promise<void>;
 }
+
+const serializeSourceMetadata = (image: PlatformImage): string => JSON.stringify({
+  mediaStatus: image.mediaStatus,
+  title: image.title,
+  relatedGroupId: image.relatedGroupId,
+  relatedIndex: image.relatedIndex,
+  parentId: image.parentId,
+  poolIds: image.poolIds,
+  bookIds: image.bookIds,
+  sequence: image.sequence,
+  isPremium: image.isPremium,
+  redirectToSignup: image.redirectToSignup,
+  hasChildren: image.hasChildren,
+  fileType: image.fileType,
+  fileSize: image.fileSize,
+  videoDuration: image.videoDuration,
+  source: image.source,
+  author: image.author,
+});
+
+const parseSourceMetadata = (value: unknown): Partial<PlatformImage> => {
+  if (typeof value !== 'string' || !value) return {};
+  try {
+    return JSON.parse(value) as Partial<PlatformImage>;
+  } catch {
+    return {};
+  }
+};
 
 export const useImageCollectionStore = create<ImageCollectionState>((set, get) => ({
   folders: [],
@@ -71,6 +99,7 @@ export const useImageCollectionStore = create<ImageCollectionState>((set, get) =
       }
       
       const parsedImages: PlatformImage[] = rows.map(row => ({
+        ...parseSourceMetadata(row.sourceMetadata),
         id: row.id,
         sourceId: row.sourceId,
         providerId: row.providerId,
@@ -81,7 +110,12 @@ export const useImageCollectionStore = create<ImageCollectionState>((set, get) =
         height: row.height,
         aspectRatio: (row.width && row.height) ? (row.width / row.height) : 1,
         tags: row.tags ? JSON.parse(row.tags) : [],
-        rating: row.rating,
+        artistTags: row.artistTags ? JSON.parse(row.artistTags) : undefined,
+        characterTags: row.characterTags ? JSON.parse(row.characterTags) : undefined,
+        copyrightTags: row.copyrightTags ? JSON.parse(row.copyrightTags) : undefined,
+        generalTags: row.generalTags ? JSON.parse(row.generalTags) : undefined,
+        metaTags: row.metaTags ? JSON.parse(row.metaTags) : undefined,
+        rating: row.rating || 'unknown',
         score: row.score,
         sourceUrl: row.sourceUrl,
         createdAt: new Date(row.savedAt).getTime(),
@@ -180,8 +214,8 @@ export const useImageCollectionStore = create<ImageCollectionState>((set, get) =
 
       await db.execute(
         `INSERT OR REPLACE INTO FlowSavedImages 
-        (id, folderId, sourceId, providerId, fullUrl, sampleUrl, thumbnailUrl, width, height, tags, rating, score, sourceUrl, isLocal, localPath, mediaType) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (id, folderId, sourceId, providerId, fullUrl, sampleUrl, thumbnailUrl, width, height, tags, rating, score, sourceUrl, artistTags, characterTags, copyrightTags, generalTags, metaTags, isLocal, localPath, mediaType, sourceMetadata)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           image.id,
           folderId,
@@ -196,9 +230,15 @@ export const useImageCollectionStore = create<ImageCollectionState>((set, get) =
           image.rating,
           image.score,
           image.sourceUrl,
+          JSON.stringify(image.artistTags || []),
+          JSON.stringify(image.characterTags || []),
+          JSON.stringify(image.copyrightTags || []),
+          JSON.stringify(image.generalTags || []),
+          JSON.stringify(image.metaTags || []),
           image.isLocal ? 1 : 0,
           image.localPath || null,
-          image.mediaType || null
+          image.mediaType || null,
+          serializeSourceMetadata(image)
         ]
       );
       // Update cover url of the folder if it's the first image
@@ -285,7 +325,7 @@ export const useImageCollectionStore = create<ImageCollectionState>((set, get) =
       const db = getDb();
       
       // Get tags before deleting so we can decrement user interests
-      const existing = await db.select<{tags: string, mediaType: string}>("SELECT tags, mediaType FROM FlowSavedImages WHERE id = ?", [id]);
+      const existing = await db.select<{tags: string, mediaType: string}[]>("SELECT tags, mediaType FROM FlowSavedImages WHERE id = ?", [id]);
       if (existing.length > 0) {
         const tags = JSON.parse(existing[0].tags || "[]");
         if (existing[0].mediaType) {
@@ -313,13 +353,50 @@ export const useImageCollectionStore = create<ImageCollectionState>((set, get) =
       if (freshImage && freshImage.tags.length > 0) {
         const db = getDb();
         await db.execute(
-          "UPDATE FlowSavedImages SET tags = ?, rating = ?, score = ? WHERE id = ?",
-          [JSON.stringify(freshImage.tags), freshImage.rating, freshImage.score, image.id]
+          "UPDATE FlowSavedImages SET tags = ?, artistTags = ?, characterTags = ?, copyrightTags = ?, generalTags = ?, metaTags = ?, rating = ?, score = ?, sourceMetadata = ? WHERE id = ?",
+          [
+            JSON.stringify(freshImage.tags),
+            JSON.stringify(freshImage.artistTags || []),
+            JSON.stringify(freshImage.characterTags || []),
+            JSON.stringify(freshImage.copyrightTags || []),
+            JSON.stringify(freshImage.generalTags || []),
+            JSON.stringify(freshImage.metaTags || []),
+            freshImage.rating,
+            freshImage.score,
+            serializeSourceMetadata(freshImage),
+            image.id,
+          ]
         );
         
         // Update local state without full reload
         const updatedImages = state.savedImages.map(img => 
-          img.id === id ? { ...img, tags: freshImage.tags, rating: freshImage.rating, score: freshImage.score } : img
+          img.id === id ? {
+            ...img,
+            tags: freshImage.tags,
+            artistTags: freshImage.artistTags,
+            characterTags: freshImage.characterTags,
+            copyrightTags: freshImage.copyrightTags,
+            generalTags: freshImage.generalTags,
+            metaTags: freshImage.metaTags,
+            rating: freshImage.rating,
+            score: freshImage.score,
+            title: freshImage.title,
+            relatedGroupId: freshImage.relatedGroupId,
+            relatedIndex: freshImage.relatedIndex,
+            parentId: freshImage.parentId,
+            poolIds: freshImage.poolIds,
+            bookIds: freshImage.bookIds,
+            sequence: freshImage.sequence,
+            isPremium: freshImage.isPremium,
+            redirectToSignup: freshImage.redirectToSignup,
+            hasChildren: freshImage.hasChildren,
+            fileType: freshImage.fileType,
+            fileSize: freshImage.fileSize,
+            videoDuration: freshImage.videoDuration,
+            source: freshImage.source,
+            author: freshImage.author,
+            mediaStatus: freshImage.mediaStatus,
+          } : img
         );
         set({ savedImages: updatedImages });
         return true;
@@ -352,10 +429,47 @@ export const useImageCollectionStore = create<ImageCollectionState>((set, get) =
         
         if (freshImage && freshImage.tags.length > 0) {
           await db.execute(
-            "UPDATE FlowSavedImages SET tags = ?, rating = ?, score = ? WHERE id = ?",
-            [JSON.stringify(freshImage.tags), freshImage.rating, freshImage.score, image.id]
+            "UPDATE FlowSavedImages SET tags = ?, artistTags = ?, characterTags = ?, copyrightTags = ?, generalTags = ?, metaTags = ?, rating = ?, score = ?, sourceMetadata = ? WHERE id = ?",
+            [
+              JSON.stringify(freshImage.tags),
+              JSON.stringify(freshImage.artistTags || []),
+              JSON.stringify(freshImage.characterTags || []),
+              JSON.stringify(freshImage.copyrightTags || []),
+              JSON.stringify(freshImage.generalTags || []),
+              JSON.stringify(freshImage.metaTags || []),
+              freshImage.rating,
+              freshImage.score,
+              serializeSourceMetadata(freshImage),
+              image.id,
+            ]
           );
-          updatedImages[i] = { ...image, tags: freshImage.tags, rating: freshImage.rating, score: freshImage.score };
+          updatedImages[i] = {
+            ...image,
+            tags: freshImage.tags,
+            artistTags: freshImage.artistTags,
+            characterTags: freshImage.characterTags,
+            copyrightTags: freshImage.copyrightTags,
+            generalTags: freshImage.generalTags,
+            metaTags: freshImage.metaTags,
+            rating: freshImage.rating,
+            score: freshImage.score,
+            title: freshImage.title,
+            relatedGroupId: freshImage.relatedGroupId,
+            relatedIndex: freshImage.relatedIndex,
+            parentId: freshImage.parentId,
+            poolIds: freshImage.poolIds,
+            bookIds: freshImage.bookIds,
+            sequence: freshImage.sequence,
+            isPremium: freshImage.isPremium,
+            redirectToSignup: freshImage.redirectToSignup,
+            hasChildren: freshImage.hasChildren,
+            fileType: freshImage.fileType,
+            fileSize: freshImage.fileSize,
+            videoDuration: freshImage.videoDuration,
+            source: freshImage.source,
+            author: freshImage.author,
+            mediaStatus: freshImage.mediaStatus,
+          };
           updatedCount++;
         }
         
@@ -463,8 +577,8 @@ export const useImageCollectionStore = create<ImageCollectionState>((set, get) =
         try {
           await db.execute(
             `INSERT OR IGNORE INTO FlowSavedImages 
-            (id, folderId, sourceId, providerId, fullUrl, sampleUrl, thumbnailUrl, width, height, tags, rating, score, sourceUrl, isLocal) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (id, folderId, sourceId, providerId, fullUrl, sampleUrl, thumbnailUrl, width, height, tags, rating, score, sourceUrl, artistTags, characterTags, copyrightTags, generalTags, metaTags, isLocal, mediaType, sourceMetadata)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               image.id,
               folderId,
@@ -479,7 +593,14 @@ export const useImageCollectionStore = create<ImageCollectionState>((set, get) =
               image.rating,
               image.score,
               image.sourceUrl,
-              image.isLocal ? 1 : 0
+              JSON.stringify(image.artistTags || []),
+              JSON.stringify(image.characterTags || []),
+              JSON.stringify(image.copyrightTags || []),
+              JSON.stringify(image.generalTags || []),
+              JSON.stringify(image.metaTags || []),
+              image.isLocal ? 1 : 0,
+              image.mediaType || null,
+              serializeSourceMetadata(image)
             ]
           );
           savedCount++;

@@ -1,3 +1,22 @@
+# FlowManga v2.5.0 Release Notes
+
+This update improves image discovery, source reliability, Sankaku support, and downloading.
+
+### New Features
+- Image feeds refresh more smoothly and keep your scroll position while loading more results.
+- Discovery recommendations are more varied and avoid letting one source, artist, or character dominate.
+- Sankaku image and book sessions now share one login, including protected book covers and pages.
+- Sankaku Books downloads now use the normal manga download flow and appear in the manga library.
+- Search exclusions are applied consistently across image discovery, collections, and federated search.
+
+### Bug Fixes
+- Fixed refreshes that left tabs scrolled away from the newest results.
+- Fixed continuous loading that could move the page or leave masonry gaps around tall images.
+- Fixed Sankaku book links with alphanumeric IDs.
+- Failed download pages now retry and report a failed job instead of silently completing.
+
+---
+
 # FlowManga v2.4.3 Release Notes
 
 This release introduces dynamic shuffling for recommendation engines and resolves update version mapping checks.

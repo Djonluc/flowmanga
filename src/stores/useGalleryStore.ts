@@ -10,6 +10,7 @@ import { getDb } from "../services/db";
 import { toast } from "../components/Toast";
 import { useSettingsStore } from "./useSettingsStore";
 import { ContentFilter } from "../services/ContentFilter";
+import { hasExcludedTag, mergeExcludedTags } from "../services/TagExclusions";
 import { imageDiscovery, imageAutocomplete, mapImageMediaToSearchResult } from "../services/image-engine";
 import type {
   SourceSearchResult,
@@ -21,7 +22,9 @@ import type { SourceProvider } from "../services/sources/types";
 // Module-level timers and controllers for request management
 let _suggestionDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let _searchAbortController: AbortController | null = null;
+let _searchGeneration = 0;
 let _discoveryAbortController: AbortController | null = null;
+let _discoveryGeneration = 0;
 let _suggestionAbortController: AbortController | null = null;
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -149,7 +152,10 @@ function dedupeResults(
   let blockedTags: string[] = [];
   try {
     // We get the blocked tags dynamically to avoid circular issues
-    blockedTags = useGalleryStore.getState().blockedTags || [];
+    blockedTags = mergeExcludedTags(
+      useGalleryStore.getState().blockedTags || [],
+      useSettingsStore.getState().excludedTags || [],
+    );
   } catch(e) {}
 
   return items.filter((item) => {
@@ -157,12 +163,7 @@ function dedupeResults(
     if (seen.has(key)) return false;
     
     // Filter out items that contain any blocked tag
-    if (blockedTags.length > 0 && item.tags) {
-      const hasBlockedTag = item.tags.some(tag => 
-        blockedTags.includes(tag.toLowerCase().trim())
-      );
-      if (hasBlockedTag) return false;
-    }
+    if (blockedTags.length > 0 && hasExcludedTag(item.tags || [], blockedTags)) return false;
     
     seen.add(key);
     return true;
@@ -259,6 +260,7 @@ interface GalleryState {
   fetchRecentPopular: () => Promise<void>;
   fetchLikedDiscovery: () => Promise<void>;
   fetchContinueExploring: () => Promise<void>;
+  preloadMoreContent: () => Promise<void>;
 
   searchByTags: (query: string, page?: number) => Promise<void>;
   fetchSuggestions: (query: string) => Promise<void>;
@@ -411,7 +413,25 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
   setContentFilter: async (filter: "sfw" | "all") => {
     try {
       useSettingsStore.getState().setShowAdultContent(filter === "all");
-      set({ contentFilter: filter });
+      set({
+        contentFilter: filter,
+        popularImages: [],
+        latestImages: [],
+        randomVisions: [],
+        picksForYou: [],
+        recommendedAesthetics: [],
+        recentPopular: [],
+        likedDiscovery: [],
+        continueExploring: [],
+        isLoadingPopular: false,
+        isLoadingLatest: false,
+        isLoadingRandom: false,
+        isLoadingPicks: false,
+        isLoadingRecommended: false,
+        isLoadingRecentPopular: false,
+        isLoadingLikedDiscovery: false,
+        isLoadingContinueExploring: false,
+      });
       
       get().cancelDiscovery(); 
       await get().fetchAllDiscovery();
@@ -421,6 +441,7 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
   },
 
   cancelDiscovery: () => {
+    _discoveryGeneration += 1;
     if (_discoveryAbortController) {
       _discoveryAbortController.abort();
     }
@@ -582,14 +603,15 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
   fetchPopular: async (page = 1) => {
     if (get().isLoadingPopular) return;
     set({ isLoadingPopular: true });
+    const generation = _discoveryGeneration;
     try {
       // Use randomized page for refresh to ensure variety
       const fetchPage = page === 1 ? Math.floor(Math.random() * 5) + 1 : page;
-      if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
-      const rawResults = await imageDiscovery.search("masterpiece highres", { limit: 48, page: fetchPage, ratingFilter: get().contentFilter });
+      const rawResults = await imageDiscovery.getDiscovery({ limit: 48, page: fetchPage, ratingFilter: get().contentFilter });
       const results = rawResults.map(mapImageMediaToSearchResult);
+      if (generation !== _discoveryGeneration) return;
       const unique = dedupeResults(results, [
-        get().popularImages,
+        ...(page > 1 ? [get().popularImages] : []),
         get().latestImages,
         get().randomVisions,
         get().recommendedAesthetics,
@@ -602,18 +624,20 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
     } catch (e) {
       console.error("[GalleryStore] Failed to fetch popular:", e);
     } finally {
-      set({ isLoadingPopular: false });
+      if (generation === _discoveryGeneration) set({ isLoadingPopular: false });
     }
   },
 
   fetchLatest: async (page = 1) => {
     if (get().isLoadingLatest) return;
     set({ isLoadingLatest: true });
-    if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
+    const generation = _discoveryGeneration;
     try {
-      const rawResults = await imageDiscovery.search("", { limit: 48, page, ratingFilter: get().contentFilter });
+      const rawResults = await imageDiscovery.getLatest({ limit: 48, page, ratingFilter: get().contentFilter });
       const results = rawResults.map(mapImageMediaToSearchResult);
+      if (generation !== _discoveryGeneration) return;
       const unique = dedupeResults(results, [
+        ...(page > 1 ? [get().latestImages] : []),
         get().popularImages,
         get().randomVisions,
         get().recommendedAesthetics,
@@ -626,19 +650,20 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
     } catch (e) {
       console.error("[GalleryStore] Failed to fetch latest:", e);
     } finally {
-      set({ isLoadingLatest: false });
+      if (generation === _discoveryGeneration) set({ isLoadingLatest: false });
     }
   },
 
   fetchRandomVisions: async () => {
     if (get().isLoadingRandom) return;
     set({ isLoadingRandom: true });
+    const generation = _discoveryGeneration;
     try {
-      // Use higher limit for random to increase pool size
-      if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
-      const rawResults = await imageDiscovery.search("random", { limit: 64, page: 1, ratingFilter: get().contentFilter });
+      const rawResults = await imageDiscovery.getRandom({ limit: 64, page: 1, ratingFilter: get().contentFilter });
       const results = rawResults.map(mapImageMediaToSearchResult);
+      if (generation !== _discoveryGeneration) return;
       const unique = dedupeResults(results, [
+        get().randomVisions,
         get().popularImages,
         get().latestImages,
         get().recommendedAesthetics,
@@ -650,13 +675,14 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
     } catch (e) {
       console.error("[GalleryStore] Failed to fetch random visions:", e);
     } finally {
-      set({ isLoadingRandom: false });
+      if (generation === _discoveryGeneration) set({ isLoadingRandom: false });
     }
   },
 
   generatePicksForYou: async (page = 1) => {
     if (get().isLoadingPicks) return;
     set({ isLoadingPicks: true });
+    const generation = _discoveryGeneration;
     if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
     try {
       const { viewHistory, favoriteTags, savedImages } = get();
@@ -671,29 +697,25 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
       let results: SourceSearchResult[] = [];
 
       if (!hasHistory) {
-        const aesthetics = [...CURATED_AESTHETICS]
-          .sort(() => 0.5 - Math.random())
-          .slice(0, 2);
-        const raw = await imageDiscovery.search(aesthetics.join(" "), { limit: 64, page: 1, ratingFilter: contentFilter });
-          results = raw.map(mapImageMediaToSearchResult);
+        const raw = await imageDiscovery.getRandom({ limit: 64, page, ratingFilter: contentFilter });
+        results = raw.map(mapImageMediaToSearchResult);
       } else {
         const allSeeds = Array.from(
           new Set([...likedTags, ...favoriteTags]),
         );
-        // Pick up to 2 random tags to combine for precise matching
+        // Search several independent taste seeds so one overly-specific
+        // combination cannot collapse the entire feed to one provider/page.
         const selectedSeeds = allSeeds
           .sort(() => 0.5 - Math.random())
-          .slice(0, 2);
+          .slice(0, 3);
           
         if (selectedSeeds.length > 0) {
-          const raw1 = await imageDiscovery.search(selectedSeeds.join(" "), { limit: 64, page, ratingFilter: contentFilter });
-          results = raw1.map(mapImageMediaToSearchResult);
-          
-          // If the combination of 2 random tags yielded no results (too niche), fallback to just the first tag
-          if (results.length === 0 && selectedSeeds.length > 1) {
-            const raw2 = await imageDiscovery.search(selectedSeeds[0], { limit: 64, page, ratingFilter: contentFilter });
-              results = raw2.map(mapImageMediaToSearchResult);
-          }
+          const rawBySeed = await Promise.all(
+            selectedSeeds.map((seed) =>
+              imageDiscovery.search(seed, { limit: 24, page, ratingFilter: contentFilter }),
+            ),
+          );
+          results = rawBySeed.flat().map(mapImageMediaToSearchResult);
         } else {
           // Fallback if seeds ended up empty somehow
           const raw = await imageDiscovery.search(CURATED_AESTHETICS[Math.floor(Math.random() * CURATED_AESTHETICS.length)], { limit: 64, page, ratingFilter: contentFilter });
@@ -716,6 +738,8 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
       const filtered = results.filter(
         (res) => !savedIds.has(res.id) && !historyIds.has(res.id),
       );
+
+      if (generation !== _discoveryGeneration) return;
 
       const unique = dedupeResults(filtered, [
         get().latestImages,
@@ -758,13 +782,14 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
     } catch (e) {
       console.error("[GalleryStore] Failed to refresh picks:", e);
     } finally {
-      set({ isLoadingPicks: false });
+      if (generation === _discoveryGeneration) set({ isLoadingPicks: false });
     }
   },
 
   fetchRecommendedAesthetics: async () => {
     if (get().isLoadingRecommended) return;
     set({ isLoadingRecommended: true });
+    const generation = _discoveryGeneration;
     if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
     try {
       const randomAesthetic =
@@ -778,6 +803,8 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
       const filtered = results.filter(
         (res) => !savedIds.has(res.id) && !historyIds.has(res.id),
       );
+
+      if (generation !== _discoveryGeneration) return;
 
       set({
         recommendedAesthetics: dedupeResults(filtered, [
@@ -798,13 +825,14 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
         e,
       );
     } finally {
-      set({ isLoadingRecommended: false });
+      if (generation === _discoveryGeneration) set({ isLoadingRecommended: false });
     }
   },
 
   fetchRecentPopular: async () => {
     if (get().isLoadingRecentPopular) return;
     set({ isLoadingRecentPopular: true });
+    const generation = _discoveryGeneration;
     if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
     try {
       const rawResults = await imageDiscovery.search("", { limit: 48, page: 1, ratingFilter: get().contentFilter });
@@ -814,6 +842,8 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
       const filtered = results.filter(
         (res) => !savedIds.has(res.id) && !historyIds.has(res.id),
       );
+
+      if (generation !== _discoveryGeneration) return;
 
       set({
         recentPopular: dedupeResults(filtered, [
@@ -828,13 +858,14 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
     } catch (e) {
       console.error("[GalleryStore] Failed to fetch recent popular:", e);
     } finally {
-      set({ isLoadingRecentPopular: false });
+      if (generation === _discoveryGeneration) set({ isLoadingRecentPopular: false });
     }
   },
 
   fetchLikedDiscovery: async () => {
     if (get().isLoadingLikedDiscovery) return;
     set({ isLoadingLikedDiscovery: true });
+    const generation = _discoveryGeneration;
     if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
     const liked = get().savedImages.filter((i) => i.liked);
     if (liked.length === 0) {
@@ -852,6 +883,8 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
         (res) => !savedIds.has(res.id) && !historyIds.has(res.id),
       );
 
+      if (generation !== _discoveryGeneration) return;
+
       set({
         likedDiscovery: dedupeResults(filtered, [
           get().latestImages,
@@ -865,13 +898,14 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
     } catch (e) {
       console.error("[GalleryStore] Failed to fetch liked discovery:", e);
     } finally {
-      set({ isLoadingLikedDiscovery: false });
+      if (generation === _discoveryGeneration) set({ isLoadingLikedDiscovery: false });
     }
   },
 
   fetchContinueExploring: async () => {
     if (get().isLoadingContinueExploring) return;
     set({ isLoadingContinueExploring: true });
+    const generation = _discoveryGeneration;
     if (!_discoveryAbortController) _discoveryAbortController = new AbortController();
     const history = get().viewHistory;
     if (history.length === 0) {
@@ -888,6 +922,8 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
         (res) => !savedIds.has(res.id) && !historyIds.has(res.id),
       );
 
+      if (generation !== _discoveryGeneration) return;
+
       set({
         continueExploring: dedupeResults(filtered, [
           get().latestImages,
@@ -901,7 +937,7 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
     } catch (e) {
       console.error("[GalleryStore] Failed to fetch continue exploring:", e);
     } finally {
-      set({ isLoadingContinueExploring: false });
+      if (generation === _discoveryGeneration) set({ isLoadingContinueExploring: false });
     }
   },
 
@@ -914,14 +950,18 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
     set({ isSearching: true, searchQuery: query, currentSearchPage: page });
 
     if (page === 1) {
+      _searchGeneration += 1;
       if (_searchAbortController) _searchAbortController.abort();
       _searchAbortController = new AbortController();
     }
+
+    const generation = _searchGeneration;
 
     try {
       const tags = query.split(/[ ,+]+/).filter(Boolean);
       const rawResults = await imageDiscovery.search(tags.join(" "), { limit: 48, page, ratingFilter: get().contentFilter });
       const results = rawResults.map(mapImageMediaToSearchResult);
+      if (generation !== _searchGeneration) return;
 
       set((state) => {
         const newItems = page === 1 ? results : dedupeResults(results, [state.searchResults]);
@@ -971,7 +1011,7 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
         console.error("[GalleryStore] Tag search failed:", e);
       }
     } finally {
-      set({ isSearching: false });
+      if (generation === _searchGeneration) set({ isSearching: false });
     }
   },
 
@@ -987,9 +1027,13 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
       _suggestionAbortController = new AbortController();
 
       try {
-        const { federator } = await import("../image-platform/SearchFederator");
-        const suggestions = await federator.autocompleteTags(query);
-        set({ searchSuggestions: suggestions });
+        const sourceMatch = query.match(/(?:^|\s)source:([a-z0-9_-]+)/i);
+        const lastToken = query.split(/[\s,+]+/).filter(Boolean).pop() || query;
+        const suggestions = await imageAutocomplete.getSuggestions(
+          lastToken.replace(/^[-+]/, ""),
+          sourceMatch?.[1]?.toLowerCase(),
+        );
+        set({ searchSuggestions: suggestions.map((suggestion) => suggestion.tag) });
       } catch (e) {
         console.error("[GalleryStore] Autocomplete failed:", e);
       }

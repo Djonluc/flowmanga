@@ -50,19 +50,37 @@ export function mapImageMediaToSearchResult(media: import("./types").ImageMedia)
     mediaDomain: "image",
     tags: media.tags || [],
     rating: media.rating,
+    mediaType: media.mediaType,
+    mediaStatus: media.mediaStatus,
+    relatedGroupId: media.relatedGroupId,
+    relatedIndex: media.relatedIndex,
+    parentId: media.parentId,
+    poolIds: media.poolIds,
+    bookIds: media.bookIds,
+    sequence: media.sequence,
+    isPremium: media.isPremium,
+    redirectToSignup: media.redirectToSignup,
+    hasChildren: media.hasChildren,
+    fileType: media.fileType,
+    fileSize: media.fileSize,
+    videoDuration: media.videoDuration,
+    sourceText: media.source,
+    author: media.author,
   };
 }
 
 export async function getRecommendations(media: import("../sources/types").SourceSearchResult): Promise<import("../sources/types").SourceSearchResult[]> {
   const target: import("./types").ImageMedia = {
     id: media.id,
-    sourceUrl: media.url,
-    fullUrl: media.imageUrl,
-    previewUrl: media.previewUrl,
-    thumbnailUrl: media.previewUrl,
-    providerId: media.source,
+    sourceUrl: media.url || "",
+    fullUrl: media.imageUrl || "",
+    previewUrl: media.previewUrl || "",
+    thumbnailUrl: media.previewUrl || "",
+    providerId: media.source || "unknown",
     tags: media.tags || [],
-    rating: media.rating || "safe",
+    rating: media.rating === "explicit" || media.rating === "questionable" || media.rating === "safe"
+      ? media.rating
+      : "safe",
     mediaType: "image",
     contentCategory: "gallery"
   };

@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { readTextFile, writeTextFile, mkdir } from '@tauri-apps/plugin-fs';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import { getSankakuAuthHeaders } from './Sankaku';
 import { type DownloadJob } from '../types';
 
 export class DownloadService {
@@ -65,11 +66,13 @@ export class DownloadService {
                         metadata.sourceUrl && typeof metadata.sourceUrl === 'string'
                             ? metadata.sourceUrl
                             : null;
+                    const isSankaku = this.isSankakuSource(metadata, coverUrl);
                     await invoke('download_image', {
                         url: coverUrl,
                         filePath: coverPath,
                         headers: {
                             ...(metadata.source !== 'mangadex' && coverReferer ? { Referer: coverReferer } : {}),
+                            ...(isSankaku ? getSankakuAuthHeaders() : {}),
                             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                         },
                     });
@@ -186,6 +189,7 @@ export class DownloadService {
                             store.updateJobProgress(job.id, Math.min(100, Math.round((totalDownloaded / job.totalChapters) * 100)), totalDownloaded);
                         } catch (err) {
                             console.error(`[Download] Failed to download pages for ch ${task.chNum}`, err);
+                            throw err;
                         }
                     }));
                 }
@@ -336,24 +340,45 @@ export class DownloadService {
                     const referer =
                         metadata.source === 'mangadex'
                             ? null
-                            : pageReferer || metadata.sourceUrl || null;
-                    await invoke('download_image', {
-                        url: img.url,
-                        filePath: filePath,
-                        headers: {
-                            ...(referer ? { Referer: referer } : {}),
-                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                        },
-                        encryptionKey: img.encryptionKey || null
-                    });
+                        : pageReferer || metadata.sourceUrl || null;
+                    const isSankaku = this.isSankakuSource(metadata, img.url);
+                    let lastError: unknown;
+                    for (let attempt = 1; attempt <= 3; attempt++) {
+                        try {
+                            await invoke('download_image', {
+                                url: img.url,
+                                filePath: filePath,
+                                headers: {
+                                    ...(referer ? { Referer: referer } : {}),
+                                    ...(isSankaku ? getSankakuAuthHeaders() : {}),
+                                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                                },
+                                encryptionKey: img.encryptionKey || null
+                            });
+                            lastError = undefined;
+                            break;
+                        } catch (error) {
+                            lastError = error;
+                            if (attempt < 3) {
+                                await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+                            }
+                        }
+                    }
+                    if (lastError) throw lastError;
 
                 } catch (e) {
                     console.error(`Failed to download ${fileName}`, e);
+                    throw e;
                 }
             }));
         }
 
         return thumbFileName;
+    }
+
+    private static isSankakuSource(metadata: any, url?: string): boolean {
+        return [metadata?.source, metadata?.sourceUrl, url]
+            .some(value => typeof value === 'string' && value.toLowerCase().includes('sankaku'));
     }
 
     static async repairChapter(seriesId: string, chapterId: string) {

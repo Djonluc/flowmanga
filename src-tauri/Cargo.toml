@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "2.4.3"
+version = "2.5.0"
 description = "A Tauri App"
 authors = ["you"]
 license = ""
@@ -40,4 +40,3 @@ tauri-plugin-http = "2"
 image = "0.25.6"
 url = "2.5"
 rookie = "0.5.6"
-

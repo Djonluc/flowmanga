@@ -1,6 +1,7 @@
 import { BaseProvider } from "./BaseProvider";
 import { TagParser } from "../parser/TagParser";
 import { useSettingsStore } from "../../../stores/useSettingsStore";
+import { parseRule34TagInfo } from "../../Rule34TagMetadata";
 import type { 
   ImageMedia, 
   StructuredQuery, 
@@ -11,6 +12,8 @@ import type {
 
 export interface Rule34Post {
   id: number;
+  parent_id?: number;
+  pool_id?: number;
   score: number;
   directory: number;
   image: string;
@@ -21,6 +24,7 @@ export interface Rule34Post {
   file_url: string;
   sample_url: string;
   preview_url: string;
+  tag_info?: unknown;
 }
 
 export class Rule34Client extends BaseProvider {
@@ -109,6 +113,7 @@ export class Rule34Client extends BaseProvider {
           q: "index",
           json: "1",
           tags: tagsQueryString,
+          fields: "tag_info",
           pid: String(currentApiPage - 1), // 0-indexed
           limit: String(limit),
           ...auth
@@ -217,20 +222,21 @@ export class Rule34Client extends BaseProvider {
         const characterTags: string[] = [];
         const artistTags: string[] = [];
         const copyrightTags: string[] = [];
+        const postTagTypes = parseRule34TagInfo(post.tag_info);
 
         allTags.forEach(t => {
           const lowerTag = t.toLowerCase();
-          const type = tagTypes.get(lowerTag);
+          const type = postTagTypes.get(lowerTag) || tagTypes.get(lowerTag);
           
-          if (type === "1") {
+          if (type === "1" || type === "artist") {
             artistTags.push(t);
-          } else if (type === "3") {
+          } else if (type === "3" || type === "copyright") {
             copyrightTags.push(t);
-          } else if (type === "4") {
+          } else if (type === "4" || type === "character") {
             characterTags.push(t);
-          } else if (type === "5") {
+          } else if (type === "5" || type === "meta") {
             metaTags.push(t);
-          } else if (type === "0") {
+          } else if (type === "0" || type === "general") {
             generalTags.push(t);
           } else if (lowerTag.endsWith("_(artist)")) {
             artistTags.push(t);
@@ -259,7 +265,7 @@ export class Rule34Client extends BaseProvider {
           sourceId: String(post.id),
           providerId: this.id,
           title: `Rule34 ${post.id}`,
-          thumbnailUrl: this.ensureAbsoluteUrl(preview),
+          thumbnailUrl: this.ensureAbsoluteUrl(sample),
           previewUrl: this.ensureAbsoluteUrl(preview),
           sampleUrl: this.ensureAbsoluteUrl(sample),
           fullUrl: this.ensureAbsoluteUrl(full),
@@ -277,6 +283,11 @@ export class Rule34Client extends BaseProvider {
           mediaType: isVideo ? "video" : isGif ? "gif" : "image",
           contentCategory: "image",
           sourceUrl: `https://rule34.xxx/index.php?page=post&s=view&id=${post.id}`,
+          relatedGroupId: post.pool_id
+            ? `${this.id}-pool-${post.pool_id}`
+            : post.parent_id
+              ? `${this.id}-parent-${post.parent_id}`
+              : undefined,
         };
       });
   }

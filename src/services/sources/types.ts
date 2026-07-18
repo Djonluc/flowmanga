@@ -174,6 +174,7 @@ export interface SourceImage {
   url: string;
   pageNumber: number;
   mediaType?: MediaType;
+  mediaStatus?: 'available' | 'login_required' | 'premium_required' | 'unavailable';
   encryptionKey?: string;
 }
 
@@ -235,4 +236,19 @@ export interface SourceSearchResult {
   mediaDomain?: MediaDomain;
   url: string;
   dominantColor?: string;
+  mediaType?: MediaType;
+  relatedGroupId?: string;
+  relatedIndex?: number;
+  parentId?: string;
+  poolIds?: string[];
+  bookIds?: string[];
+  sequence?: number;
+  isPremium?: boolean;
+  redirectToSignup?: boolean;
+  hasChildren?: boolean;
+  fileType?: string;
+  fileSize?: number;
+  videoDuration?: number;
+  sourceText?: string;
+  author?: string;
 }

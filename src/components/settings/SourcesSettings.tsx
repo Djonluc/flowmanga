@@ -24,28 +24,44 @@ export const SourcesSettings = () => {
     const [tagInput, setTagInput] = useState(excludedTags?.join(', ') || '');
     const [isExtracting, setIsExtracting] = useState<Record<string, boolean>>({});
 
+    const getAuthProviderId = (providerId: string) =>
+        providerId === 'sankaku-books' ? 'sankaku' : providerId;
+
     const handleAutoExtract = async (providerId: string, domains: string[]) => {
-        setIsExtracting(prev => ({ ...prev, [providerId]: true }));
+        const authProviderId = getAuthProviderId(providerId);
+        const extractionKey = authProviderId;
+        setIsExtracting(prev => ({ ...prev, [extractionKey]: true }));
         try {
-            const cookies = await invoke<string>('auto_extract_cookies', { domains });
+            const extractionDomains = authProviderId === 'sankaku'
+                ? Array.from(new Set([
+                    ...domains,
+                    'sankakucomplex.com',
+                    'www.sankakucomplex.com',
+                    'chan.sankakucomplex.com',
+                    'login.sankakucomplex.com',
+                ]))
+                : domains;
+            const cookies = await invoke<string>('auto_extract_cookies', { domains: extractionDomains });
             if (cookies) {
                 const currentAuth = useSettingsStore.getState().booruAuth;
-                useSettingsStore.getState().setBooruAuth(providerId, {
-                    ...currentAuth?.[providerId],
+                useSettingsStore.getState().setBooruAuth(authProviderId, {
+                    ...currentAuth?.[authProviderId],
                     sessionCookies: cookies
                 });
             }
         } catch (e) {
             console.error("Failed to auto-extract cookies:", e);
         } finally {
-            setIsExtracting(prev => ({ ...prev, [providerId]: false }));
+            setIsExtracting(prev => ({ ...prev, [extractionKey]: false }));
         }
     };
     
     const getAuthInstructions = (providerId: string, requiresCookies?: boolean) => {
         switch (providerId) {
             case 'sankaku':
-                return "Automatic: Click 'Launch Authenticator', log in, and the window will close once it extracts your token.\nManual: Click 'Open in Browser', log in, open DevTools (F12) -> Application -> Cookies, and copy the '_sankakuchannel_session' cookie below.";
+                return "One shared login powers Sankaku images and Books. Use the authenticator or extract the session from Chrome after signing in at the Sankaku login page.";
+            case 'sankaku-books':
+                return "Books uses the same Sankaku session as image search. Authenticate once under Sankaku Image + Books access.";
             case 'e-hentai':
                 return "Automatic: Click 'Launch Authenticator', log in, bypass Cloudflare, and the window will close automatically.\nManual: Click 'Open in Browser', log in, open DevTools (F12) -> Application -> Cookies, and copy 'ipb_member_id' and 'ipb_pass_hash' below.";
             case 'webnovel':
@@ -74,6 +90,7 @@ export const SourcesSettings = () => {
                 const lsStr = url.searchParams.get('ls');
                 
                 if (providerId && (cookie || lsStr)) {
+                    const authProviderId = getAuthProviderId(providerId);
                     const currentAuth = useSettingsStore.getState().booruAuth;
                     let parsedLs: Record<string, string> | undefined = undefined;
                     
@@ -83,10 +100,10 @@ export const SourcesSettings = () => {
                         } catch(e) {}
                     }
                     
-                    useSettingsStore.getState().setBooruAuth(providerId, {
-                        ...currentAuth?.[providerId],
-                        sessionCookies: cookie || currentAuth?.[providerId]?.sessionCookies,
-                        localStorage: parsedLs || currentAuth?.[providerId]?.localStorage
+                    useSettingsStore.getState().setBooruAuth(authProviderId, {
+                        ...currentAuth?.[authProviderId],
+                        sessionCookies: cookie || currentAuth?.[authProviderId]?.sessionCookies,
+                        localStorage: parsedLs || currentAuth?.[authProviderId]?.localStorage
                     });
                 }
             } catch (e) {
@@ -108,6 +125,11 @@ export const SourcesSettings = () => {
     const galleryProviders = imageProviders;
     // For capabilities/auth display, show only enabled
     const enabledProviders = sourceRegistry.list();
+    // Sankaku image search and Sankaku Books share one SSO session. Keep one
+    // authentication card so users do not accidentally create two credentials.
+    const authenticationProviders = Array.from(new Map(
+        [...allProviders, ...imageProviders].map(p => [getAuthProviderId(p.id), p]),
+    ).values()).filter(p => p.capabilities?.authentication);
 
     const handleOpenSite = async (url: string) => {
         const { open } = await import('@tauri-apps/plugin-shell');
@@ -442,7 +464,7 @@ export const SourcesSettings = () => {
                     </h4>
                 </div>
 
-                {Array.from(new Map([...allProviders, ...imageProviders].map(p => [p.id, p])).values()).filter(p => p.capabilities?.authentication).map(p => (
+                {authenticationProviders.map(p => (
                     <div key={`auth-${p.id}`} className="group bg-surface/40 backdrop-blur-xl p-6 rounded-[32px] border border-border-subtle flex flex-col gap-6 hover:border-amber-500/30 hover:shadow-2xl hover:shadow-amber-500/5 hover:-translate-y-1 transition-all duration-500">
                         <div className="flex items-center gap-5">
                             <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500">
@@ -451,7 +473,9 @@ export const SourcesSettings = () => {
                             <div className="flex flex-col">
                                 <span className="text-amber-500 text-[10px] font-black uppercase tracking-widest mb-1">Secure Protocol</span>
                                 <div className="flex items-center gap-3">
-                                    <span className="text-foreground text-base font-bold tracking-tight">{p.name} {p.capabilities.requiresCookies ? "Session" : "API"} Access</span>
+                                    <span className="text-foreground text-base font-bold tracking-tight">
+                                        {p.id === 'sankaku' ? 'Sankaku Image + Books Session Access' : `${p.name} ${p.capabilities.requiresCookies ? "Session" : "API"} Access`}
+                                    </span>
                                     
                                     {p.capabilities.requiresCookies ? (
                                         <>
@@ -477,12 +501,12 @@ export const SourcesSettings = () => {
                                             </button>
                                             <button 
                                                 onClick={() => handleAutoExtract(p.id, p.domains)}
-                                                disabled={isExtracting[p.id]}
+                                                disabled={isExtracting[getAuthProviderId(p.id)]}
                                                 className="text-[10px] font-black text-emerald-500 hover:text-emerald-400 uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded-md flex items-center gap-1 group/link transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                                 title="Extract cookies automatically from your real system browser"
                                             >
-                                                {isExtracting[p.id] ? "Extracting..." : "Auto-Extract from Chrome"}
-                                                <Zap size={10} className={isExtracting[p.id] ? "animate-pulse" : "group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-transform"} />
+                                                {isExtracting[getAuthProviderId(p.id)] ? "Extracting..." : "Auto-Extract from Chrome"}
+                                                <Zap size={10} className={isExtracting[getAuthProviderId(p.id)] ? "animate-pulse" : "group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-transform"} />
                                             </button>
                                         </>
                                     ) : (
@@ -505,11 +529,12 @@ export const SourcesSettings = () => {
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-foreground/40 uppercase tracking-widest ml-2">Session Cookies</label>
                                 <textarea
-                                    value={booruAuth?.[p.id]?.sessionCookies || ''}
+                                    value={booruAuth?.[getAuthProviderId(p.id)]?.sessionCookies || booruAuth?.['sankaku-books']?.sessionCookies || ''}
                                     onChange={(e) => {
                                         const val = e.target.value;
-                                        setBooruAuth(p.id, {
-                                            ...booruAuth?.[p.id],
+                                        const authProviderId = getAuthProviderId(p.id);
+                                        setBooruAuth(authProviderId, {
+                                            ...booruAuth?.[authProviderId],
                                             sessionCookies: val
                                         });
                                     }}

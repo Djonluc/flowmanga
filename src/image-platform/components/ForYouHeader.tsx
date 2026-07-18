@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronRight, ChevronDown, Settings2 } from 'lucide-react';
 import { TagIntelligenceService, type UserInterest } from '../services/TagIntelligenceService';
 import { useImageEngineStore } from '../useImageEngineStore';
@@ -47,32 +47,43 @@ export const ForYouHeader = () => {
   const [series, setSeries] = useState<UserInterest[]>([]);
 
   useEffect(() => {
-    const loadInterests = async () => {
-      const dom = await TagIntelligenceService.getInterests('dominant_tag');
-      const sup = await TagIntelligenceService.getInterests('supporting_tag');
-      const art = await TagIntelligenceService.getInterests('artist');
-      const chars = await TagIntelligenceService.getInterests('character');
-      const ser = await TagIntelligenceService.getInterests('series');
+    let cancelled = false;
 
-      setDominantTags(dom);
-      setSupportingTags(sup);
-      setArtists(art);
-      setCharacters(chars);
-      setSeries(ser);
+    const loadInterests = async () => {
+      try {
+        const [dom, sup, art, chars, ser] = await Promise.all([
+          TagIntelligenceService.getInterests('dominant_tag'),
+          TagIntelligenceService.getInterests('supporting_tag'),
+          TagIntelligenceService.getInterests('artist'),
+          TagIntelligenceService.getInterests('character'),
+          TagIntelligenceService.getInterests('series'),
+        ]);
+
+        if (cancelled) return;
+        setDominantTags(dom);
+        setSupportingTags(sup);
+        setArtists(art);
+        setCharacters(chars);
+        setSeries(ser);
+      } catch (error) {
+        console.warn('[ForYouHeader] Failed to load interests', error);
+      }
     };
     loadInterests();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleSearch = (query: string) => {
-    useImageEngineStore.setState({ fetchMode: 'search' });
+    store.setActiveTab('search');
     store.search(query);
   };
 
   const allTags = [...dominantTags, ...supportingTags];
 
-  if (allTags.length === 0 && artists.length === 0 && characters.length === 0 && series.length === 0) {
-    return null;
-  }
+  const hasInterests = allTags.length > 0 || artists.length > 0 || characters.length > 0 || series.length > 0;
 
   return (
     <div className="flex flex-col gap-0 w-full px-6 py-4 bg-background z-10 border-b border-border-subtle">
@@ -91,8 +102,14 @@ export const ForYouHeader = () => {
           <Settings2 size={14} /> Manage Interests
         </button>
       </div>
+
+      {!hasInterests && (
+        <p className="pl-8 text-sm text-foreground-muted">
+          Add a few interests to make this feed personal.
+        </p>
+      )}
       
-      {isGlobalExpanded && (
+      {isGlobalExpanded && hasInterests && (
         <div className="animate-fade-in pl-8 mt-2">
           <CollapsibleRow title="Recommended Tags" items={allTags} onClickItem={handleSearch} />
           <CollapsibleRow title="Recommended Artists" items={artists} onClickItem={handleSearch} />

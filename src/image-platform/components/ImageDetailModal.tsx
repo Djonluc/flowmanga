@@ -3,10 +3,9 @@ import { createPortal } from 'react-dom';
 import type { PlatformImage } from '../types';
 import { useSlideshowStore } from '../useSlideshowStore';
 import { useImageCollectionStore } from '../useImageCollectionStore';
-import { Download, Heart, FolderPlus, ListPlus, Play, ExternalLink, X, Tag, Loader2, Star, RefreshCw, Folder, Trash2, Search, ShieldAlert, ZoomIn, ZoomOut, Maximize, Minimize, Move, Pin } from 'lucide-react';
+import { Download, Heart, FolderPlus, Play, ExternalLink, X, Tag, Loader2, Star, RefreshCw, Folder, Trash2, Search, ShieldAlert, ZoomIn, ZoomOut, Maximize, Minimize, Move, Pin } from 'lucide-react';
 import clsx from 'clsx';
 import { useGalleryStore } from '../../stores/useGalleryStore';
-import { getDb } from '../../services/db';
 import { toast } from '../../components/Toast';
 import { writeFile, mkdir, remove } from '@tauri-apps/plugin-fs';
 import { pictureDir, join } from '@tauri-apps/api/path';
@@ -16,6 +15,7 @@ import { useSettingsStore } from '../../stores/useSettingsStore';
 import { useMediaLoader } from '../../hooks/useMediaLoader';
 import { TagWikiService } from '../../services/TagWikiService';
 import type { TagWiki } from '../../services/TagWikiService';
+import { getSankakuAuthHeaders } from '../../services/Sankaku';
 
 interface ImageDetailModalProps {
   image: PlatformImage;
@@ -39,7 +39,7 @@ const ClickableTag = ({ tag, type, onSearch, onClose, isInterest }: { tag: strin
   const [loading, setLoading] = React.useState(false);
   const [tooltipPos, setTooltipPos] = React.useState({ top: 0, left: 0 });
   const buttonRef = React.useRef<HTMLDivElement>(null);
-  const hoverTimeoutRef = React.useRef<NodeJS.Timeout>();
+  const hoverTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleMouseEnter = () => {
     hoverTimeoutRef.current = setTimeout(() => {
@@ -156,7 +156,7 @@ const ClickableTag = ({ tag, type, onSearch, onClose, isInterest }: { tag: strin
   );
 };
 
-export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, images, index, onClose, onNavigate, onSearchTag, favoriteTags = [], onToggleFavorite }) => {
+export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, images, index, onClose, onNavigate, onSearchTag }) => {
   const slideshow = useSlideshowStore();
   const { savedImages, saveImage, removeSavedImage, folders, loadFolders, refreshMetadata, updateLocalPath } = useImageCollectionStore();
   const imageDownloadPath = useSettingsStore(state => state.imageDownloadPath);
@@ -185,7 +185,34 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
   const [pan, setPan] = React.useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = React.useState(false);
   const [dragStart, setDragStart] = React.useState({ x: 0, y: 0 });
-  const isImageTall = image.height && image.width && (image.height / image.width > 1.5);
+  const isImageTall = Boolean(image.height && image.width && (image.height / image.width > 1.5));
+  const isVideo = Boolean(image.fullUrl?.match(/\.(mp4|webm)(?:\?|$)/i) || image.sampleUrl?.match(/\.(mp4|webm)(?:\?|$)/i));
+
+  const getContainedImageSize = React.useCallback(() => {
+    const container = containerRef.current;
+    if (!container || !image.width || !image.height) return null;
+
+    const rect = container.getBoundingClientRect();
+    const imageAspectRatio = image.width / image.height;
+    const containerAspectRatio = rect.width / rect.height;
+    const width = imageAspectRatio > containerAspectRatio
+      ? rect.width
+      : rect.height * imageAspectRatio;
+
+    return { width, height: width / imageAspectRatio, container: rect };
+  }, [image.width, image.height]);
+
+  const clampPanForScale = React.useCallback((nextScale: number, x: number, y: number) => {
+    const contained = getContainedImageSize();
+    if (!contained || nextScale <= 1) return { x: 0, y: 0 };
+
+    const maxX = Math.max(0, (contained.width * nextScale - contained.container.width) / 2);
+    const maxY = Math.max(0, (contained.height * nextScale - contained.container.height) / 2);
+    return {
+      x: Math.max(-maxX, Math.min(maxX, x)),
+      y: Math.max(-maxY, Math.min(maxY, y)),
+    };
+  }, [getContainedImageSize]);
 
   const resetZoom = () => {
     setScale(1);
@@ -193,48 +220,21 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
   };
 
   const fitToWidth = () => {
-    if (!containerRef.current || !image.width || !image.height) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const imageAspectRatio = image.width / image.height;
-    const containerAspectRatio = rect.width / rect.height;
+    const contained = getContainedImageSize();
+    if (!contained) return;
 
-    let renderedW, renderedH;
-    if (imageAspectRatio > containerAspectRatio) {
-      renderedW = rect.width;
-      renderedH = rect.width / imageAspectRatio;
-    } else {
-      renderedH = rect.height;
-      renderedW = rect.height * imageAspectRatio;
-    }
-
-    const newScale = rect.width / renderedW;
+    const newScale = Math.max(1, contained.container.width / contained.width);
     setScale(newScale);
-    setPan({ x: 0, y: (renderedH * newScale / 2) - (rect.height / 2) });
+    setPan(clampPanForScale(newScale, 0, isImageTall ? contained.container.height : 0));
   };
 
   const actualSize = () => {
-    if (!containerRef.current || !image.width || !image.height) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const imageAspectRatio = image.width / image.height;
-    const containerAspectRatio = rect.width / rect.height;
+    const contained = getContainedImageSize();
+    if (!contained) return;
 
-    let renderedW;
-    if (imageAspectRatio > containerAspectRatio) {
-      renderedW = rect.width;
-    } else {
-      renderedW = rect.height * imageAspectRatio;
-    }
-
-    const newScale = image.width / renderedW;
+    const newScale = Math.max(1, image.width / contained.width);
     setScale(newScale);
-    
-    // If the image is taller than the container when displayed at actual size, pan to the top
-    const scaledHeight = (rect.width / imageAspectRatio > rect.height ? rect.height : rect.width / imageAspectRatio) * newScale;
-    if (scaledHeight > rect.height) {
-      setPan({ x: 0, y: (scaledHeight / 2) - (rect.height / 2) });
-    } else {
-      setPan({ x: 0, y: 0 });
-    }
+    setPan(clampPanForScale(newScale, 0, isImageTall ? contained.container.height : 0));
   };
 
   React.useEffect(() => {
@@ -312,10 +312,11 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
           const xRatio = (cursorX - rect.width / 2) / prevScale;
           const yRatio = (cursorY - rect.height / 2) / prevScale;
 
-          setPan(prevPan => ({
-            x: prevPan.x - xRatio * (newScale - prevScale),
-            y: prevPan.y - yRatio * (newScale - prevScale)
-          }));
+          setPan(prevPan => clampPanForScale(
+            newScale,
+            prevPan.x - xRatio * (newScale - prevScale),
+            prevPan.y - yRatio * (newScale - prevScale),
+          ));
         }
         return newScale;
       });
@@ -329,7 +330,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
         container.removeEventListener('wheel', handleWheelNative);
       }
     };
-  }, []);
+  }, [isVideo, clampPanForScale]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0 || isVideo) return; 
@@ -344,7 +345,11 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging) return;
-    setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+    setPan(clampPanForScale(
+      scale,
+      e.clientX - dragStart.x,
+      e.clientY - dragStart.y,
+    ));
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -367,10 +372,11 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
       const xRatio = (cursorX - rect.width / 2) / scale;
       const yRatio = (cursorY - rect.height / 2) / scale;
 
-      setPan({
-        x: pan.x - xRatio * (newScale - scale),
-        y: pan.y - yRatio * (newScale - scale)
-      });
+      setPan(clampPanForScale(
+        newScale,
+        pan.x - xRatio * (newScale - scale),
+        pan.y - yRatio * (newScale - scale),
+      ));
       setScale(newScale);
     }
   };
@@ -429,7 +435,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
         method: "GET",
         headers: {
           "User-Agent": "FlowManga/3.0",
-          "Referer": "no-referrer"
+          "Referer": image.sourceUrl || "https://chan.sankakucomplex.com/",
+          ...(urlToDownload.includes("sankaku") ? getSankakuAuthHeaders() : {}),
         }
       });
       
@@ -484,33 +491,79 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
     setIsRefreshingMeta(false);
   };
 
-  const isVideo = image.fullUrl?.match(/\.(mp4|webm)(?:\?|$)/i) || image.sampleUrl?.match(/\.(mp4|webm)(?:\?|$)/i);
-
   // Use structured tag fields from providers when available, fall back to prefix-based parsing
-  const imgAny = image as any;
-  const characterTags = (imgAny.characterTags && imgAny.characterTags.length > 0) 
-    ? imgAny.characterTags 
+  const characterTags: string[] = (image.characterTags && image.characterTags.length > 0)
+    ? image.characterTags
     : image.tags.filter(t => typeof t === 'string' && t.startsWith("character:"));
-  const artistTags = (imgAny.artistTags && imgAny.artistTags.length > 0) 
-    ? imgAny.artistTags 
+  const artistTags: string[] = (image.artistTags && image.artistTags.length > 0)
+    ? image.artistTags
     : image.tags.filter(t => typeof t === 'string' && t.startsWith("artist:"));
-  const seriesTags = (imgAny.copyrightTags && imgAny.copyrightTags.length > 0) 
-    ? imgAny.copyrightTags 
+  const seriesTags: string[] = (image.copyrightTags && image.copyrightTags.length > 0)
+    ? image.copyrightTags
     : image.tags.filter(t => typeof t === 'string' && t.startsWith("series:"));
-  const generalTags = (imgAny.generalTags && imgAny.generalTags.length > 0) 
-    ? imgAny.generalTags 
+  const generalTags: string[] = (image.generalTags && image.generalTags.length > 0)
+    ? image.generalTags
     : image.tags.filter(t => typeof t === 'string' && !t.startsWith("character:") && !t.startsWith("artist:") && !t.startsWith("series:"));
 
   const [thumbnailSrc, setThumbnailSrc] = React.useState<string | null>(null);
   const [fullSrc, setFullSrc] = React.useState<string | null>(null);
   const [isFullLoaded, setIsFullLoaded] = React.useState(false);
   const [isThumbLoaded, setIsThumbLoaded] = React.useState(false);
+  const [thumbnailRetries, setThumbnailRetries] = React.useState(0);
+  const [fullRetries, setFullRetries] = React.useState(0);
+  const [sankakuRefreshAttempted, setSankakuRefreshAttempted] = React.useState(false);
+  const thumbnailSource = image.thumbnailUrl || image.sampleUrl || image.previewUrl || "";
+  const fullSource = image.fullUrl || image.sampleUrl || "";
+
+  const loadRemoteSource = React.useCallback(async (url: string, attempt = 0) => {
+    if (!url) return null;
+    let candidate = url;
+    if (attempt > 0) {
+      try {
+        const retryUrl = new URL(url);
+        retryUrl.searchParams.set("flowmanga_retry", String(attempt));
+        candidate = retryUrl.toString();
+      } catch {
+        // Keep the original URL when it is not a standard URL.
+      }
+    }
+    return needsProxy(candidate) ? proxyViaTauri(candidate) : candidate;
+  }, [needsProxy, proxyViaTauri]);
+
+  const refreshSankakuMedia = React.useCallback(async (kind: "thumbnail" | "full") => {
+    if (image.providerId !== "sankaku" || sankakuRefreshAttempted) return;
+    setSankakuRefreshAttempted(true);
+    try {
+      const { federator } = await import("../SearchFederator");
+      const fresh = await federator.getById(image.providerId, image.sourceId);
+      const freshUrl = kind === "thumbnail"
+        ? (fresh?.thumbnailUrl || fresh?.sampleUrl || fresh?.previewUrl)
+        : (fresh?.fullUrl || fresh?.sampleUrl || fresh?.thumbnailUrl);
+      if (freshUrl) {
+        const resolved = await loadRemoteSource(freshUrl);
+        if (kind === "thumbnail") {
+          setThumbnailRetries(0);
+          setIsThumbLoaded(false);
+          setThumbnailSrc(resolved);
+        } else {
+          setFullRetries(0);
+          setIsFullLoaded(false);
+          setFullSrc(resolved);
+        }
+      }
+    } catch (error) {
+      console.warn("[ImageDetailModal] Failed to refresh Sankaku media URL:", error);
+    }
+  }, [image.providerId, image.sourceId, loadRemoteSource, sankakuRefreshAttempted]);
 
   React.useEffect(() => {
     setIsFullLoaded(false);
     setIsThumbLoaded(false);
     setThumbnailSrc(null);
     setFullSrc(null);
+    setThumbnailRetries(0);
+    setFullRetries(0);
+    setSankakuRefreshAttempted(false);
 
     const loadImages = async () => {
       // 0. Instantly load local file if we have it downloaded
@@ -522,24 +575,14 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
       }
 
       // 1. Instantly load the thumbnail
-      const thumbUrl = image.thumbnailUrl || image.sampleUrl || "";
-      if (needsProxy(thumbUrl)) {
-         proxyViaTauri(thumbUrl).then(setThumbnailSrc);
-      } else {
-         setThumbnailSrc(thumbUrl);
-      }
+      loadRemoteSource(thumbnailSource).then(setThumbnailSrc);
 
       // 2. Load the full image in the background
-      const targetUrl = image.fullUrl || image.sampleUrl || "";
-      if (needsProxy(targetUrl)) {
-         proxyViaTauri(targetUrl).then(setFullSrc);
-      } else {
-         setFullSrc(targetUrl);
-      }
+      loadRemoteSource(fullSource).then(setFullSrc);
     };
     
     loadImages();
-  }, [currentLocalPath, image.thumbnailUrl, image.sampleUrl, image.fullUrl, needsProxy, proxyViaTauri]);
+  }, [currentLocalPath, thumbnailSource, fullSource, loadRemoteSource]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-6 bg-black/80 backdrop-blur-sm" onClick={onClose}>
@@ -571,8 +614,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
                 loop
                 controls
                 className="w-full h-full object-contain relative z-10"
-                referrerPolicy="no-referrer"
-                onLoadedData={() => setIsFullLoaded(true)}
+                 onLoadedData={() => setIsFullLoaded(true)}
               />
             </>
           ) : (
@@ -595,7 +637,20 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
                     className={`absolute inset-0 w-full h-full object-contain blur-md transition-opacity duration-300 z-10 ${isFullLoaded ? 'opacity-0' : (isThumbLoaded ? 'opacity-100' : 'opacity-0')}`}
                     referrerPolicy="no-referrer"
                     onLoad={() => setIsThumbLoaded(true)}
-                    onError={() => setIsThumbLoaded(true)}
+                    onError={async () => {
+                      if (thumbnailRetries < 2) {
+                        const nextAttempt = thumbnailRetries + 1;
+                        setThumbnailRetries(nextAttempt);
+                        const retryUrl = await loadRemoteSource(thumbnailSource, nextAttempt);
+                        if (retryUrl) {
+                          setIsThumbLoaded(false);
+                          setThumbnailSrc(retryUrl);
+                        }
+                      } else {
+                        setIsThumbLoaded(true);
+                        void refreshSankakuMedia("thumbnail");
+                      }
+                    }}
                   />
                 )}
                 {fullSrc && (
@@ -605,7 +660,20 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
                     className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 z-20 ${isFullLoaded ? 'opacity-100' : 'opacity-0'}`}
                     referrerPolicy="no-referrer"
                     onLoad={() => setIsFullLoaded(true)}
-                    onError={() => setIsFullLoaded(true)}
+                    onError={async () => {
+                      if (fullRetries < 2) {
+                        const nextAttempt = fullRetries + 1;
+                        setFullRetries(nextAttempt);
+                        const retryUrl = await loadRemoteSource(fullSource, nextAttempt);
+                        if (retryUrl) {
+                          setIsFullLoaded(false);
+                          setFullSrc(retryUrl);
+                        }
+                      } else {
+                        setIsFullLoaded(true);
+                        void refreshSankakuMedia("full");
+                      }
+                    }}
                   />
                 )}
               </div>
@@ -674,7 +742,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
                 {image.providerId}
               </span>
               <span className="text-xs text-foreground-muted font-bold">
-                {new Date(image.createdAt).toLocaleDateString()}
+                 {image.createdAt ? new Date(image.createdAt).toLocaleDateString() : ""}
               </span>
             </div>
             
@@ -754,7 +822,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
             <button 
               onClick={async () => {
                 const { open } = await import('@tauri-apps/plugin-shell');
-                await open(image.sourceUrl);
+                 if (image.sourceUrl) await open(image.sourceUrl);
               }}
               className="h-10 bg-surface hover:bg-surface-raised border border-border-subtle rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-foreground transition-all"
             >
@@ -769,6 +837,27 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
               Refresh Meta
             </button>
           </div>
+
+          {(image.author || image.source || image.relatedGroupId || image.parentId || image.poolIds?.length || image.bookIds?.length || image.isPremium || image.redirectToSignup || image.videoDuration) && (
+            <div className="p-6 border-b border-border-subtle space-y-3">
+              <h3 className="text-xs font-black uppercase tracking-widest text-foreground-muted">Source Metadata</h3>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-foreground-muted">
+                {image.author && <span>Author: <strong className="text-foreground">{image.author}</strong></span>}
+                {image.source && <span>Source: <strong className="text-foreground">{image.source}</strong></span>}
+                {image.sequence !== undefined && <span>Sequence: <strong className="text-foreground">{image.sequence}</strong></span>}
+                {image.videoDuration !== undefined && <span>Duration: <strong className="text-foreground">{Math.round(image.videoDuration)}s</strong></span>}
+                {image.isPremium && <span className="text-amber-400">Premium content</span>}
+                {image.redirectToSignup && <span className="text-amber-400">Sign-in required</span>}
+              </div>
+              {(image.parentId || image.poolIds?.length || image.bookIds?.length || image.relatedGroupId) && (
+                <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-widest">
+                  {image.parentId && <span className="px-2 py-1 rounded bg-surface border border-border-subtle">Parent {image.parentId}</span>}
+                  {image.poolIds?.map(poolId => <span key={`pool-${poolId}`} className="px-2 py-1 rounded bg-surface border border-border-subtle">Pool {poolId}</span>)}
+                  {image.bookIds?.map(bookId => <span key={`book-${bookId}`} className="px-2 py-1 rounded bg-surface border border-border-subtle">Book {bookId}</span>)}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Tags */}
           <div className="p-6 flex flex-col gap-6">

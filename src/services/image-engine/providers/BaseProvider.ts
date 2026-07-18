@@ -27,6 +27,14 @@ export abstract class BaseProvider {
   abstract getDiscovery(options: EngineSearchOptions): Promise<ImageMedia[]>;
 
   /**
+   * Fetches the newest content. Providers without a distinct endpoint can
+   * safely use their discovery endpoint as a fallback.
+   */
+  async getLatest(options: EngineSearchOptions): Promise<ImageMedia[]> {
+    return this.getDiscovery(options);
+  }
+
+  /**
    * Fetches recommendations based on a reference image.
    * May return empty if not natively supported.
    */
@@ -63,6 +71,7 @@ export abstract class BaseProvider {
 
     let retries = 3;
     let delay = 1000;
+    let headlessAttempted = false;
 
     while (retries > 0) {
       try {
@@ -76,14 +85,29 @@ export abstract class BaseProvider {
       } catch (error: any) {
         const errMsg = typeof error === 'string' ? error : error.message || String(error);
         
-        if (errMsg.includes('429') || errMsg.includes('403') || errMsg.includes('Too Many Requests') || errMsg.includes('Forbidden') || errMsg.includes('Cloudflare')) {
+        const isUnauthorized = errMsg.includes('401') || errMsg.includes('Unauthorized');
+        const isForbidden = errMsg.includes('403') || errMsg.includes('Forbidden') || errMsg.includes('Cloudflare');
+        const isRateLimited = errMsg.includes('429') || errMsg.includes('Too Many Requests');
+
+        if (isUnauthorized || isForbidden || isRateLimited) {
           console.warn(`[BaseProvider][${this.id}] Rate limited/Blocked (${errMsg}). Falling back to Headless Webview...`);
-          try {
-            const rawJson = await invoke<string>("fetch_json_headless", { url: url.toString() });
-            return JSON.parse(rawJson) as T;
-          } catch (headlessErr) {
-            console.error(`[BaseProvider][${this.id}] Headless fallback failed:`, headlessErr);
-            // If headless fails, let it fall through to the standard retry
+          if (!headlessAttempted) {
+            headlessAttempted = true;
+            try {
+              const rawJson = await invoke<string>("fetch_json_headless", { url: url.toString(), headers });
+              try {
+                return JSON.parse(rawJson.trim()) as T;
+              } catch {
+                const preview = rawJson.trim().replace(/\s+/g, ' ').slice(0, 160);
+                throw new Error(`Headless response was not JSON${preview ? `: ${preview}` : ''}`);
+              }
+            } catch (headlessErr) {
+              console.warn(`[BaseProvider][${this.id}] Headless fallback unavailable:`, headlessErr);
+            }
+          }
+
+          if (isUnauthorized || isForbidden) {
+            throw new Error(`[${this.id}] Request blocked or unauthorized`);
           }
         }
 

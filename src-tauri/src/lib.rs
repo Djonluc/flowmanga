@@ -1384,7 +1384,7 @@ async fn fetch_html_headless(url: String) -> Result<String, String> {
 }
 
 #[command]
-async fn fetch_json_headless(url: String) -> Result<String, String> {
+async fn fetch_json_headless(url: String, headers: Option<HashMap<String, String>>) -> Result<String, String> {
     println!("[Rust] Fetching JSON headless for: {}", url);
     tauri::async_runtime::spawn_blocking(move || {
         let browser = Browser::new(LaunchOptions {
@@ -1399,6 +1399,14 @@ async fn fetch_json_headless(url: String) -> Result<String, String> {
         }).map_err(|e| format!("Failed to launch browser: {}", e))?;
 
         let tab = browser.new_tab().map_err(|e| format!("Failed to create tab: {}", e))?;
+        if let Some(header_map) = headers.as_ref() {
+            let header_refs: HashMap<&str, &str> = header_map
+                .iter()
+                .map(|(key, value)| (key.as_str(), value.as_str()))
+                .collect();
+            tab.set_extra_http_headers(header_refs)
+                .map_err(|e| format!("Failed to set request headers: {}", e))?;
+        }
         tab.navigate_to(&url).map_err(|e| format!("Nav failed: {}", e))?;
         let _ = tab.wait_until_navigated();
         

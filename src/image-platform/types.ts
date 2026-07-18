@@ -9,9 +9,11 @@ export interface PlatformImage {
   providerId: string; // e.g., "danbooru", "gelbooru"
   
   // URLs
-  thumbnailUrl: string; // Smallest version, highly compressed
+  thumbnailUrl: string; // Preferred grid image; providers may use their sharp sample URL
+  previewUrl?: string; // Lower-resolution fallback when the preferred URL fails
   sampleUrl: string; // Medium version, suitable for grid view or slideshow
   fullUrl: string; // Original, uncompressed version
+  mediaStatus?: 'available' | 'login_required' | 'premium_required' | 'unavailable';
   
   // Dimensions
   width: number;
@@ -20,10 +22,32 @@ export interface PlatformImage {
   
   // Metadata
   tags: string[]; // Flat list of all tags for easy searching
-  rating: 'safe' | 'questionable' | 'explicit';
+  artistTags?: string[];
+  characterTags?: string[];
+  copyrightTags?: string[];
+  generalTags?: string[];
+  metaTags?: string[];
+  rating: 'safe' | 'questionable' | 'explicit' | 'unknown';
   score: number;
   sourceUrl?: string; // Optional URL back to the source post
   createdAt?: number; // timestamp
+
+  // Optional source relationships and access metadata.
+  title?: string;
+  relatedGroupId?: string;
+  relatedIndex?: number;
+  parentId?: string;
+  poolIds?: string[];
+  bookIds?: string[];
+  sequence?: number;
+  isPremium?: boolean;
+  redirectToSignup?: boolean;
+  hasChildren?: boolean;
+  fileType?: string;
+  fileSize?: number;
+  videoDuration?: number;
+  source?: string;
+  author?: string;
   
   // Local State
   isLocal?: boolean; // Whether the image was ingested locally instead of from a remote provider
@@ -48,6 +72,7 @@ export interface ImageProvider {
   getLatest(page: number): Promise<PlatformImage[]>;
   getDiscovery(page: number): Promise<PlatformImage[]>;
   getById?(id: string): Promise<PlatformImage | null>;
+  autocompleteTags?(query: string): Promise<string[]>;
   
   // Capabilities
   capabilities: {

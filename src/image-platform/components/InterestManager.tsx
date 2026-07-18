@@ -2,16 +2,17 @@ import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { TagIntelligenceService, type UserInterest } from '../services/TagIntelligenceService';
 import { getDb } from '../../services/db';
-import { X, Pin, Plus, Trash2, Clock, ShieldAlert, Loader2, Info } from 'lucide-react';
+import { X, Pin, Plus, Trash2, Clock, Loader2, Info } from 'lucide-react';
 import { useGalleryStore } from '../../stores/useGalleryStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
+import { useImageEngineStore } from '../useImageEngineStore';
 
 type TagType = 'dominant_tag' | 'supporting_tag' | 'artist' | 'character' | 'series' | 'blocked_tag';
 
 export const InterestManager = ({ onClose }: { onClose: () => void }) => {
   const [interests, setInterests] = useState<UserInterest[]>([]);
   const { blockedTags, blockTag, unblockTag, clearBlockedTags, clearViewHistory } = useGalleryStore();
-  const { strictForYouMode, setStrictForYouMode } = useSettingsStore();
+  const { forYouQualityMode, setForYouQualityMode } = useSettingsStore();
 
   // Autocomplete State per input
   const [activeInputType, setActiveInputType] = useState<TagType | null>(null);
@@ -25,6 +26,11 @@ export const InterestManager = ({ onClose }: { onClose: () => void }) => {
     setInterests(data);
   };
 
+  const handleQualityChange = (mode: 'broad' | 'strict') => {
+    setForYouQualityMode(mode);
+    void useImageEngineStore.getState().fetchCurated(true);
+  };
+
   useEffect(() => {
     loadInterests();
   }, []);
@@ -32,12 +38,14 @@ export const InterestManager = ({ onClose }: { onClose: () => void }) => {
   const handleTogglePin = async (id: string, isPinned: boolean) => {
     await TagIntelligenceService.togglePinInterest(id, !isPinned);
     loadInterests();
+    void useImageEngineStore.getState().fetchCurated(true);
   };
 
   const handleRemove = async (id: string) => {
     const db = getDb();
     await db.execute("DELETE FROM UserInterests WHERE id = ?", [id]);
     loadInterests();
+    void useImageEngineStore.getState().fetchCurated(true);
   };
 
   const handleMassWipe = async (type: string) => {
@@ -45,12 +53,14 @@ export const InterestManager = ({ onClose }: { onClose: () => void }) => {
     
     if (type === 'blocked_tag') {
       await clearBlockedTags();
+      void useImageEngineStore.getState().fetchCurated(true);
       return;
     }
 
     const db = getDb();
     await db.execute("DELETE FROM UserInterests WHERE type = ?", [type]);
     loadInterests();
+    void useImageEngineStore.getState().fetchCurated(true);
   };
 
   const handleTagChange = (type: TagType, val: string) => {
@@ -70,7 +80,7 @@ export const InterestManager = ({ onClose }: { onClose: () => void }) => {
         const { federator } = await import('../SearchFederator');
         const results = await federator.autocompleteTags(val);
         setSuggestions(results);
-      } catch (err) {
+      } catch {
         setSuggestions([]);
       } finally {
         setIsFetchingSuggestions(false);
@@ -108,6 +118,7 @@ export const InterestManager = ({ onClose }: { onClose: () => void }) => {
     setSuggestions([]);
     setActiveInputType(null);
     loadInterests();
+    void useImageEngineStore.getState().fetchCurated(true);
   };
 
   const renderCard = (
@@ -242,22 +253,29 @@ export const InterestManager = ({ onClose }: { onClose: () => void }) => {
                   <Info size={20} />
                 </div>
                 <div>
-                  <h3 className="font-black text-sm text-foreground">Strict For You Curation</h3>
+                  <h3 className="font-black text-sm text-foreground">Recommendation Quality</h3>
                   <p className="text-xs text-foreground-muted mt-1 leading-relaxed max-w-md">
-                    When enabled, the For You feed will strictly filter out any images that do not contain your Dominant Tags. Use this if you only want to see exact matches.
+                    Broad keeps strong secondary matches and discovery in the mix. Strict only keeps images that match a core interest.
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setStrictForYouMode(!strictForYouMode)}
-                className={`px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-widest transition-all ${
-                  strictForYouMode 
-                    ? 'bg-indigo-600 text-white shadow-[0_0_15px_rgba(79,70,229,0.5)]' 
-                    : 'bg-surface border border-border-subtle text-foreground-muted hover:text-foreground'
-                }`}
-              >
-                {strictForYouMode ? 'Enabled' : 'Disabled'}
-              </button>
+              <div className="flex items-center gap-1 p-1 rounded-lg bg-surface border border-border-subtle shrink-0" role="group" aria-label="Recommendation quality">
+                {(['broad', 'strict'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => handleQualityChange(mode)}
+                    aria-pressed={forYouQualityMode === mode}
+                    className={`px-3 py-2 rounded-md font-bold text-xs uppercase tracking-widest transition-all ${
+                      forYouQualityMode === mode
+                        ? 'bg-indigo-600 text-white shadow-[0_0_15px_rgba(79,70,229,0.35)]'
+                        : 'text-foreground-muted hover:text-foreground'
+                    }`}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="bg-surface-elevated border border-border-subtle rounded-xl p-4 mt-2">

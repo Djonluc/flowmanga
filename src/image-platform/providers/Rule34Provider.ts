@@ -1,5 +1,10 @@
 import { BaseProvider } from "./BaseProvider";
 import type { PlatformImage, SearchQuery } from "../types";
+import {
+  normalizeRule34TagCategory,
+  parseRule34TagInfo,
+  type Rule34TagCategory,
+} from "../../services/Rule34TagMetadata";
 
 export class Rule34Provider extends BaseProvider {
   id = "rule34";
@@ -52,7 +57,7 @@ export class Rule34Provider extends BaseProvider {
     const tagStr = filteredTags.join(" ");
     const pid = page - 1; // 0-indexed pages
     
-    const url = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tagStr)}&pid=${pid}&limit=40&user_id=${encodeURIComponent(auth.userId)}&api_key=${encodeURIComponent(auth.apiKey)}`;
+    const url = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&fields=tag_info&tags=${encodeURIComponent(tagStr)}&pid=${pid}&limit=40&user_id=${encodeURIComponent(auth.userId)}&api_key=${encodeURIComponent(auth.apiKey)}`;
     
     try {
       console.log(`[Rule34Provider] Requesting: ${url.replace(/api_key=[^&]*/, "api_key=***")}`);
@@ -84,11 +89,14 @@ export class Rule34Provider extends BaseProvider {
         const previewUrl = post.preview_url || sampleUrl;
 
         const allTags = (post.tags || "").split(" ").filter(Boolean);
-        const generalTags: string[] = [];
-        const metaTags: string[] = [];
-        const characterTags: string[] = [];
-        const artistTags: string[] = [];
-        const copyrightTags: string[] = [];
+        const buckets: Record<Rule34TagCategory, string[]> = {
+          artist: [],
+          character: [],
+          copyright: [],
+          general: [],
+          meta: [],
+        };
+        const postTagTypes = parseRule34TagInfo(post.tag_info);
 
         const metaTagKeywords = new Set([
           "video", "animated", "sound", "webm", "mp4", "gif", "3d", "highres", 
@@ -100,28 +108,30 @@ export class Rule34Provider extends BaseProvider {
 
         allTags.forEach((t: string) => {
           const lowerTag = t.toLowerCase();
-          const type = tagTypes.get(lowerTag);
+          const type = postTagTypes.get(lowerTag) || tagTypes.get(lowerTag);
           
           if (type === "1") {
-            artistTags.push(t);
+            buckets.artist.push(t);
           } else if (type === "3") {
-            copyrightTags.push(t);
+            buckets.copyright.push(t);
           } else if (type === "4") {
-            characterTags.push(t);
+            buckets.character.push(t);
           } else if (type === "5") {
-            metaTags.push(t);
+            buckets.meta.push(t);
           } else if (type === "0") {
-            generalTags.push(t);
+            buckets.general.push(t);
+          } else if (normalizeRule34TagCategory(type)) {
+            buckets[normalizeRule34TagCategory(type)!].push(t);
           } else if (lowerTag.endsWith("_(artist)")) {
-            artistTags.push(t);
+            buckets.artist.push(t);
           } else if (metaTagKeywords.has(lowerTag)) {
-            metaTags.push(t);
+            buckets.meta.push(t);
           } else if (lowerTag.endsWith("_(character)")) {
-            characterTags.push(t);
+            buckets.character.push(t);
           } else if (lowerTag.endsWith("_(series)") || lowerTag.endsWith("_(copyright)")) {
-            copyrightTags.push(t);
+            buckets.copyright.push(t);
           } else {
-            generalTags.push(t);
+            buckets.general.push(t);
           }
         });
 
@@ -129,19 +139,26 @@ export class Rule34Provider extends BaseProvider {
           id: `${this.id}-${post.id}`,
           sourceId: post.id.toString(),
           providerId: this.id,
-          thumbnailUrl: sampleUrl, // Use sampleUrl instead of previewUrl for sharper thumbnails
+          thumbnailUrl: sampleUrl,
+          previewUrl,
           sampleUrl: sampleUrl,
           fullUrl: fileUrl,
           width: post.width,
           height: post.height,
           aspectRatio: post.width / post.height,
           tags: [...new Set(allTags)],
-          artistTags: [...new Set(artistTags)],
-          characterTags: [...new Set(characterTags)],
-          copyrightTags: [...new Set(copyrightTags)],
-          generalTags: [...new Set(generalTags)],
-          metaTags: [...new Set(metaTags)],
-          rating: post.rating === "e" ? "explicit" : post.rating === "q" ? "questionable" : "safe",
+          artistTags: [...new Set(buckets.artist)],
+          characterTags: [...new Set(buckets.character)],
+          copyrightTags: [...new Set(buckets.copyright)],
+          generalTags: [...new Set(buckets.general)],
+          metaTags: [...new Set(buckets.meta)],
+          // Treat unknown/missing Rule34 ratings as explicit. The source data
+          // is occasionally incomplete, and defaulting it to safe is unsafe.
+          rating: ["s", "safe"].includes(String(post.rating).toLowerCase())
+            ? "safe"
+            : ["q", "questionable"].includes(String(post.rating).toLowerCase())
+              ? "questionable"
+              : "explicit",
           score: post.score,
           sourceUrl: `https://rule34.xxx/index.php?page=post&s=view&id=${post.id}`,
           createdAt: post.created_at ? new Date(post.created_at * 1000).getTime() : Date.now(),

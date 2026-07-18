@@ -10,6 +10,8 @@ import type {
 
 interface DanbooruPost {
   id?: number;
+  parent_id?: number;
+  pool_ids?: number[];
   created_at?: string;
   score?: number;
   rating?: string;
@@ -146,6 +148,15 @@ export class DanbooruClient extends BaseProvider {
     }, { ...options, limit: options.limit || 40 });
   }
 
+  async getLatest(options: EngineSearchOptions): Promise<ImageMedia[]> {
+    return this.search({
+      raw: "order:id_desc",
+      positiveTags: ["order:id_desc"],
+      negativeTags: [],
+      ratingFilter: options.ratingFilter,
+    }, options);
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async getRecommendations(_image: ImageMedia): Promise<ImageMedia[]> {
     // Danbooru doesn't have a great unauthenticated recommendations endpoint
@@ -205,7 +216,7 @@ export class DanbooruClient extends BaseProvider {
           sourceId: String(post.id),
           providerId: this.id,
           title: `Danbooru ${post.id}`,
-          thumbnailUrl: this.ensureAbsoluteUrl(preview),
+          thumbnailUrl: this.ensureAbsoluteUrl(sample),
           previewUrl: this.ensureAbsoluteUrl(preview),
           sampleUrl: this.ensureAbsoluteUrl(sample),
           fullUrl: this.ensureAbsoluteUrl(full),
@@ -223,6 +234,11 @@ export class DanbooruClient extends BaseProvider {
           mediaType: full.match(/\.(mp4|webm)$/i) ? "video" : full.match(/\.(gif)$/i) ? "gif" : "image",
           contentCategory: "image",
           sourceUrl: `${this.baseUrl}/posts/${post.id}`,
+          relatedGroupId: post.pool_ids?.length
+            ? `${this.id}-pool-${post.pool_ids[0]}`
+            : post.parent_id
+              ? `${this.id}-parent-${post.parent_id}`
+              : undefined,
         };
       });
   }

@@ -68,7 +68,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
 
     try {
       const mode = 'search';
-      const results = await federator.search(QueryParser.parse(rawQuery), 1, (chunk) => {
+      await federator.search(QueryParser.parse(rawQuery), 1, (chunk) => {
         set(s => {
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
@@ -108,7 +108,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const mode = 'latest';
-      const results = await federator.getLatest(1, (chunk) => {
+      await federator.getLatest(1, (chunk) => {
         set(s => {
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
@@ -147,7 +147,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const mode = 'curated';
-      const results = await federator.getCurated(1, (chunk) => {
+      await federator.getCurated(1, (chunk) => {
         set(s => {
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
@@ -184,7 +184,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const mode = 'discover';
-      const results = await federator.getDiscovery(1, (chunk) => {
+      await federator.getDiscovery(1, (chunk) => {
         set(s => {
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
@@ -220,8 +220,6 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
 
     try {
       const nextPage = activeFeed.currentPage + 1;
-      let newResults: PlatformImage[] = [];
-
       const handleChunk = (chunk: PlatformImage[]) => {
         set(s => {
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
@@ -243,10 +241,10 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
         });
       };
 
-      if (mode === 'search') newResults = await federator.search(QueryParser.parse(state.feeds.search.query), nextPage, handleChunk);
-      else if (mode === 'latest') newResults = await federator.getLatest(nextPage, handleChunk);
-      else if (mode === 'curated') newResults = await federator.getCurated(nextPage, handleChunk);
-      else if (mode === 'discover') newResults = await federator.getDiscovery(nextPage, handleChunk);
+      if (mode === 'search') await federator.search(QueryParser.parse(state.feeds.search.query), nextPage, handleChunk);
+      else if (mode === 'latest') await federator.getLatest(nextPage, handleChunk);
+      else if (mode === 'curated') await federator.getCurated(nextPage, handleChunk);
+      else if (mode === 'discover') await federator.getDiscovery(nextPage, handleChunk);
 
       // Don't kill the feed just because a page returned 0 items (they might have all been filtered out as 'seen')
       const shouldKillFeed = false;

@@ -7,8 +7,8 @@
 
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Heart, Download, FolderPlus, Eye, Play, Trash2, Film } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
+import { AlertTriangle, Download, Film, FolderPlus, Heart, Play, RefreshCw, Trash2 } from "lucide-react";
+import type { MediaType } from "../../services/sources/types";
 
 interface GalleryImageCardProps {
   id: string;
@@ -16,6 +16,8 @@ interface GalleryImageCardProps {
   previewUrl?: string;
   title?: string;
   tags?: string[];
+  mediaType?: MediaType;
+  relatedGroupId?: string;
   liked?: boolean;
   saved?: boolean;
   onView?: () => void;
@@ -32,6 +34,8 @@ export const GalleryImageCard: React.FC<GalleryImageCardProps> = ({
   previewUrl,
   title,
   tags = [],
+  mediaType,
+  relatedGroupId,
   liked = false,
   saved = false,
   onView,
@@ -48,8 +52,18 @@ export const GalleryImageCard: React.FC<GalleryImageCardProps> = ({
   const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
   const [proxyBlobUrl, setProxyBlobUrl] = useState<string | null>(null);
   const [localFileUrl, setLocalFileUrl] = useState<string | null>(null);
+  const [hasError, setHasError] = useState(false);
+  const [proxyAttempted, setProxyAttempted] = useState(false);
   const displayUrl =
     localFileUrl || proxyBlobUrl || urls[currentUrlIndex] || "";
+
+  useEffect(() => {
+    setIsLoaded(false);
+    setHasError(false);
+    setProxyAttempted(false);
+    setCurrentUrlIndex(0);
+    setProxyBlobUrl(null);
+  }, [id, imageUrl, previewUrl]);
 
   useEffect(() => {
     let ignore = false;
@@ -101,7 +115,7 @@ export const GalleryImageCard: React.FC<GalleryImageCardProps> = ({
   const needsRustProxy = (url: string): boolean => {
     try {
       const hostname = new URL(url).hostname;
-      return ["sankakucomplex.com", "donmai.us", "sankakuapi.com"].some((d) =>
+      return ["sankakucomplex.com", "donmai.us", "sankakuapi.com", "gelbooru.com", "rule34.xxx"].some((d) =>
         hostname.includes(d),
       );
     } catch {
@@ -121,16 +135,15 @@ export const GalleryImageCard: React.FC<GalleryImageCardProps> = ({
             setProxyBlobUrl(URL.createObjectURL(blob));
           })
           .catch(() => {
-            /* Proxy also failed, leave broken */
+            setHasError(true);
           });
       })
       .catch(() => {
-        /* HTTP plugin failed to load */
+        setHasError(true);
       });
   };
 
   const handleError = () => {
-    const currentUrl = urls[currentUrlIndex] || "";
     const nextUrl = urls[currentUrlIndex + 1];
 
     if (nextUrl) {
@@ -143,10 +156,11 @@ export const GalleryImageCard: React.FC<GalleryImageCardProps> = ({
     }
 
     // Try Rust proxy for the first static image URL we have to prevent OOM
-    if (!proxyBlobUrl) {
+    if (!proxyBlobUrl && !proxyAttempted) {
       const staticUrl =
         urls.find((u) => !u.match(/\.(mp4|webm|mov)(\?.*)?$/i)) || urls[0];
       if (needsRustProxy(staticUrl)) {
+        setProxyAttempted(true);
         proxyViaRust(staticUrl);
         return;
       }
@@ -154,7 +168,10 @@ export const GalleryImageCard: React.FC<GalleryImageCardProps> = ({
 
     if (currentUrlIndex < urls.length - 1) {
       setCurrentUrlIndex((prev) => prev + 1);
+      return;
     }
+
+    setHasError(true);
   };
 
   // Cleanup blob URL on unmount
@@ -165,7 +182,7 @@ export const GalleryImageCard: React.FC<GalleryImageCardProps> = ({
   }, [proxyBlobUrl]);
 
   const displayTitle = title || tags[0] || "Untitled";
-  const isVideo = Boolean(displayUrl?.match(/\.(mp4|webm|mov)(\?.*)?$/i));
+  const isVideo = mediaType === "video" || Boolean(displayUrl?.match(/\.(mp4|webm|mov)(\?.*)?$/i));
 
   if (!displayUrl) {
     return (
@@ -184,6 +201,33 @@ export const GalleryImageCard: React.FC<GalleryImageCardProps> = ({
           <br />
           to view this content
         </p>
+      </div>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <div
+        className="relative overflow-hidden rounded-2xl bg-[#050505] border border-red-500/20 flex items-center justify-center flex-col gap-3 p-4 text-center"
+        style={{ aspectRatio: "3/4" }}
+      >
+        <AlertTriangle size={26} className="text-red-400" />
+        <p className="text-white text-[10px] font-black uppercase tracking-widest">Media unavailable</p>
+        <p className="text-white/40 text-[9px] leading-relaxed">The source did not return a readable preview.</p>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setHasError(false);
+            setIsLoaded(false);
+            setCurrentUrlIndex(0);
+            setProxyAttempted(false);
+            setProxyBlobUrl(null);
+          }}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 text-white text-[9px] font-black uppercase tracking-widest hover:bg-white/20"
+        >
+          <RefreshCw size={12} /> Retry
+        </button>
       </div>
     );
   }
@@ -220,7 +264,6 @@ export const GalleryImageCard: React.FC<GalleryImageCardProps> = ({
           loop
           muted
           playsInline
-          referrerPolicy="no-referrer"
           onLoadedData={() => setIsLoaded(true)}
           onError={handleError}
           className={`w-full h-full object-cover transition-all duration-700 ${
@@ -365,6 +408,11 @@ export const GalleryImageCard: React.FC<GalleryImageCardProps> = ({
             <span className="text-[8px] font-black text-white uppercase tracking-widest">
               Video
             </span>
+          </div>
+        )}
+        {relatedGroupId && (
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-600/90 backdrop-blur-xl border border-emerald-400/50 shadow-lg w-fit">
+            <span className="text-[8px] font-black text-white uppercase tracking-widest">Related set</span>
           </div>
         )}
       </div>

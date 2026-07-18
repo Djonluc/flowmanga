@@ -11,7 +11,6 @@ import {
   Compass,
   Shuffle,
   Sparkles,
-  Image as ImageIcon,
   Flame,
   History,
   Heart,
@@ -113,6 +112,8 @@ const DiscoverySection: React.FC<DiscoverySectionProps> = ({
                 previewUrl={item.previewUrl || item.thumbnailUrl}
                 title={item.title}
                 tags={item.tags}
+                mediaType={item.mediaType}
+                relatedGroupId={item.relatedGroupId}
                 saved={savedIds.has(item.id)}
                 onView={() => openViewer(item, images, index)}
                 onSave={() => saveImage(item)}
@@ -160,7 +161,6 @@ export const DiscoverFeed: React.FC = () => {
     recentPopular,
     likedDiscovery,
     continueExploring,
-    picksForYou,
     isLoadingLatest,
     isLoadingRandom,
     isLoadingPopular,
@@ -168,7 +168,6 @@ export const DiscoverFeed: React.FC = () => {
     isLoadingRecentPopular,
     isLoadingLikedDiscovery,
     isLoadingContinueExploring,
-    isLoadingPicks,
     fetchLatest,
     fetchRandomVisions,
     fetchPopular,
@@ -176,7 +175,6 @@ export const DiscoverFeed: React.FC = () => {
     fetchRecentPopular,
     fetchLikedDiscovery,
     fetchContinueExploring,
-    generatePicksForYou,
     savedImages,
     saveImage,
     openViewer,
@@ -230,8 +228,8 @@ export const DiscoverFeed: React.FC = () => {
   return (
     <div className="space-y-16 pb-12">
       <DiscoverySection
-        title="Evergreen Popular"
-        subtitle="Consistently high engagement across sources"
+        title="Source Mix"
+        subtitle="A balanced sample from every active source"
         icon={<Sparkles size={20} />}
         iconColor="bg-amber-500"
         images={popularImages}

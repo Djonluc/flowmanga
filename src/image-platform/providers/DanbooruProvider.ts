@@ -107,7 +107,9 @@ export class DanbooruProvider extends BaseProvider {
       .map(p => {
         const fullUrl = p.file_url || p.large_file_url || p.preview_file_url || "";
         const sampleUrl = p.large_file_url || p.file_url || p.preview_file_url || "";
-        // Use sampleUrl (850px) instead of preview_file_url (180px) for crisp thumbnails
+        const preview = p.preview_file_url || sampleUrl;
+        // Keep the sharper sample as the primary grid image. The preview URL is
+        // retained separately as a reliable fallback for restricted posts.
         const thumbnailUrl = sampleUrl;
 
         let rating: "safe" | "questionable" | "explicit" = "safe";
@@ -119,6 +121,7 @@ export class DanbooruProvider extends BaseProvider {
           sourceId: String(p.id),
           providerId: this.id,
           thumbnailUrl,
+          previewUrl: preview,
           sampleUrl,
           fullUrl,
           width: p.image_width,

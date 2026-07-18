@@ -1,7 +1,7 @@
 {
   "name": "flowmanga",
   "private": true,
-  "version": "2.4.4",
+  "version": "2.5.0",
   "type": "module",
   "scripts": {
     "start": "npm run tauri dev",
@@ -10,6 +10,7 @@
     "tauri": "tauri",
     "vite": "vite",
     "vite-build": "vite build",
+    "typecheck": "tsc --noEmit --pretty false",
     "lint": "eslint .",
     "preview": "vite preview"
   },

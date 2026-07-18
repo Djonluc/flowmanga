@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import type { PlatformImage } from "../types";
 import { useImageEngineStore } from "../useImageEngineStore";
 import { useMediaLoader } from "../../hooks/useMediaLoader";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import clsx from "clsx";
+import { RefreshCw } from "lucide-react";
 
 interface MasonryGridProps {
   images: PlatformImage[];
@@ -13,6 +14,7 @@ interface MasonryGridProps {
   columns?: number;
   feedType?: 'latest' | 'curated' | 'discover' | 'search';
   header?: React.ReactNode;
+  resetScrollKey?: number;
 }
 
 export const MasonryGrid: React.FC<MasonryGridProps> = ({
@@ -22,7 +24,8 @@ export const MasonryGrid: React.FC<MasonryGridProps> = ({
   onReorder,
   columns = 4,
   feedType,
-  header
+  header,
+  resetScrollKey = 0,
 }) => {
   const store = useImageEngineStore();
   
@@ -36,6 +39,73 @@ export const MasonryGrid: React.FC<MasonryGridProps> = ({
   
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [measuredRatios, setMeasuredRatios] = useState<Record<string, number>>({});
+  const previousImagesRef = useRef(images);
+  const scrollAnchorRef = useRef<{ id: string; offset: number } | null>(null);
+  const skipScrollAnchorRef = useRef(false);
+
+  const captureScrollAnchor = () => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+
+    const scrollerRect = scroller.getBoundingClientRect();
+    const visibleCards = Array.from(
+      scroller.querySelectorAll<HTMLElement>("[data-masonry-image-id]"),
+    ).filter((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.bottom > scrollerRect.top + 16 && rect.top < scrollerRect.bottom;
+    });
+
+    const anchor = visibleCards.reduce<HTMLElement | null>((closest, element) => {
+      if (!closest) return element;
+      return element.getBoundingClientRect().top < closest.getBoundingClientRect().top
+        ? element
+        : closest;
+    }, null);
+
+    if (anchor?.dataset.masonryImageId) {
+      scrollAnchorRef.current = {
+        id: anchor.dataset.masonryImageId,
+        offset: anchor.getBoundingClientRect().top - scrollerRect.top,
+      };
+    }
+  };
+
+  // A tab change or explicit refresh intentionally starts at the top. Appending
+  // another page is handled separately so it cannot reset the current viewport.
+  useLayoutEffect(() => {
+    skipScrollAnchorRef.current = true;
+    previousImagesRef.current = images;
+    scrollAnchorRef.current = null;
+    scrollRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [resetScrollKey]);
+
+  // Masonry placement can change when a newly loaded image reveals its real
+  // dimensions. Restore the visible card's offset after each append or reflow.
+  useLayoutEffect(() => {
+    const previousImages = previousImagesRef.current;
+    const didAppend = images.length > previousImages.length;
+    previousImagesRef.current = images;
+
+    if (!didAppend || skipScrollAnchorRef.current) {
+      skipScrollAnchorRef.current = false;
+      return;
+    }
+
+    const anchor = scrollAnchorRef.current;
+    const scroller = scrollRef.current;
+    if (!anchor || !scroller) return;
+
+    const nextAnchor = Array.from(
+      scroller.querySelectorAll<HTMLElement>("[data-masonry-image-id]"),
+    ).find((element) => element.dataset.masonryImageId === anchor.id);
+
+    if (nextAnchor) {
+      const scrollerRect = scroller.getBoundingClientRect();
+      const nextOffset = nextAnchor.getBoundingClientRect().top - scrollerRect.top;
+      scroller.scrollTop += nextOffset - anchor.offset;
+    }
+  }, [images, measuredRatios]);
 
   // Keep track of latest state without triggering re-renders of the observer
   const fetchStateRef = useRef({ isFetchingNextPage, hasMore, loadNextPage });
@@ -45,32 +115,37 @@ export const MasonryGrid: React.FC<MasonryGridProps> = ({
 
   // True Masonry Algorithm: Place each image in the shortest column
   const columnData = useMemo(() => {
-    const cols: PlatformImage[][] = Array.from({ length: columns }, () => []);
-    const colHeights = Array(columns).fill(0);
+    const columnCount = Math.max(1, Math.floor(columns));
+    const cols: PlatformImage[][] = Array.from({ length: columnCount }, () => []);
+    const colHeights = Array(columnCount).fill(0);
 
     images.forEach((img) => {
       // Find the shortest column
       let minColIndex = 0;
       let minHeight = colHeights[0];
-      for (let i = 1; i < columns; i++) {
+      for (let i = 1; i < columnCount; i++) {
         if (colHeights[i] < minHeight) {
           minHeight = colHeights[i];
           minColIndex = i;
         }
       }
 
-      // Calculate relative height contribution
-      // Cap at a max height multiplier of 3x width (aspectRatio >= 0.33) 
-      // to avoid extreme gaps from long webtoon strips
-      const effectiveRatio = img.aspectRatio && img.aspectRatio > 0 ? Math.max(img.aspectRatio, 0.33) : 1;
-      const heightContribution = 1 / effectiveRatio;
+      // Match the real card height. Capping tall images here makes the
+      // placement algorithm think a column is free while the card still
+      // occupies that space visually.
+      const aspectRatio = measuredRatios[img.id] || (img.aspectRatio > 0
+        ? img.aspectRatio
+        : img.width > 0 && img.height > 0
+          ? img.width / img.height
+          : 1);
+      const heightContribution = 1 / aspectRatio;
 
       cols[minColIndex].push(img);
       // Add a small constant to account for the grid gap between items
       colHeights[minColIndex] += heightContribution + 0.05; 
     });
     return cols;
-  }, [images, columns]);
+  }, [images, columns, measuredRatios]);
 
   // Infinite Scroll Trigger
   useEffect(() => {
@@ -82,6 +157,7 @@ export const MasonryGrid: React.FC<MasonryGridProps> = ({
           !state.isFetchingNextPage &&
           state.hasMore
         ) {
+          captureScrollAnchor();
           state.loadNextPage();
         }
       },
@@ -104,11 +180,16 @@ export const MasonryGrid: React.FC<MasonryGridProps> = ({
   }
 
   return (
-    <div ref={scrollRef} className="w-full h-full overflow-y-auto custom-scrollbar px-4 pb-20">
+    <div
+      ref={scrollRef}
+      onScroll={captureScrollAnchor}
+      className="w-full h-full overflow-y-auto custom-scrollbar px-4 pb-20"
+      style={{ overflowAnchor: "none" }}
+    >
       {header && <div className="mb-4">{header}</div>}
       <div
         className="grid gap-4"
-        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.floor(columns))}, minmax(0, 1fr))` }}
       >
         {columnData.map((col, colIndex) => (
           <div key={colIndex} className="flex flex-col gap-4">
@@ -123,6 +204,12 @@ export const MasonryGrid: React.FC<MasonryGridProps> = ({
                   onClick={() => onImageClick?.(image, globalIndex)}
                   onDoubleClick={() => onImageDoubleClick?.(image, globalIndex)}
                   onReorder={onReorder}
+                  onAspectRatioChange={(ratio) => {
+                    setMeasuredRatios((current) => {
+                      if (Math.abs((current[image.id] || 0) - ratio) < 0.01) return current;
+                      return { ...current, [image.id]: ratio };
+                    });
+                  }}
                 />
               );
             })}
@@ -152,17 +239,22 @@ const ImageCard = ({
   image,
   onClick,
   onDoubleClick,
-  onReorder
+  onReorder,
+  onAspectRatioChange,
 }: {
   image: PlatformImage;
   onClick: () => void;
   onDoubleClick?: () => void;
   onReorder?: (draggedId: string, dropId: string) => void;
+  onAspectRatioChange?: (ratio: number) => void;
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [proxySrc, setProxySrc] = useState<string | null>(null);
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const [hasError, setHasError] = useState(false);
   const { proxyViaTauri, needsProxy } = useMediaLoader();
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -184,10 +276,17 @@ const ImageCard = ({
     return () => observer.disconnect();
   }, []);
 
-  let targetUrl = image.thumbnailUrl || image.sampleUrl || "";
+  const mediaUrls = Array.from(new Set([
+    image.thumbnailUrl,
+    image.sampleUrl,
+    image.previewUrl,
+    image.fullUrl,
+  ].filter(Boolean)));
+  let targetUrl = mediaUrls[sourceIndex] || mediaUrls[0] || "";
   let shouldWaitForProxy = false;
-  let finalSrc = targetUrl;
+  let finalSrc: string | null = targetUrl;
   let isVideo = targetUrl?.match(/\.(mp4|webm)(?:\?|$)/i);
+  const hasMedia = mediaUrls.length > 0;
 
   if (image.localPath) {
     // If the file exists locally, bypass everything and load straight from disk
@@ -198,31 +297,84 @@ const ImageCard = ({
   } else {
     shouldWaitForProxy = needsProxy(targetUrl);
     finalSrc = shouldWaitForProxy ? proxySrc : targetUrl;
+    if (finalSrc && retryAttempt > 0 && !shouldWaitForProxy) {
+      try {
+        const retryUrl = new URL(finalSrc);
+        retryUrl.searchParams.set("flowmanga_retry", String(retryAttempt));
+        finalSrc = retryUrl.toString();
+      } catch {
+        // Keep the original URL when it is not a standard URL.
+      }
+    }
   }
+
+  useEffect(() => {
+    setIsLoaded(false);
+    setProxySrc(null);
+    setSourceIndex(0);
+    setRetryAttempt(0);
+    setHasError(false);
+  }, [image.id, image.thumbnailUrl, image.previewUrl, image.sampleUrl, image.fullUrl]);
 
   // Fetch proxy URL if needed when visible
   useEffect(() => {
     if (!isVisible || !shouldWaitForProxy || image.localPath) return;
 
+    let active = true;
+    setProxySrc(null);
     proxyViaTauri(targetUrl).then((blobUrl) => {
-      if (blobUrl) setProxySrc(blobUrl);
+      if (active && blobUrl) setProxySrc(blobUrl);
     });
+    return () => {
+      active = false;
+    };
   }, [
     isVisible,
     targetUrl,
     shouldWaitForProxy,
     proxyViaTauri,
     image.localPath,
+    retryAttempt,
   ]);
 
-  // Pre-calculate container height based on aspect ratio to prevent layout shifting
-  const paddingBottom = `${(1 / image.aspectRatio) * 100}%`;
+  // Use the same fallback as the column placer so missing metadata cannot
+  // create an invalid or misleading placeholder height.
+  const aspectRatio = image.aspectRatio > 0
+    ? image.aspectRatio
+    : image.width > 0 && image.height > 0
+      ? image.width / image.height
+      : 1;
+  const paddingBottom = `${(1 / aspectRatio) * 100}%`;
 
-  const showSkeleton = !isLoaded || (shouldWaitForProxy && !proxySrc);
+  const showSkeleton = hasMedia && (!isLoaded || (shouldWaitForProxy && !proxySrc));
+  const handleMediaLoad = (width: number, height: number) => {
+    setIsLoaded(true);
+    setHasError(false);
+    if (width > 0 && height > 0) onAspectRatioChange?.(width / height);
+  };
+  const handleMediaError = () => {
+    setIsLoaded(false);
+    setProxySrc(null);
+
+    if (retryAttempt < 2) {
+      setRetryAttempt((attempt) => attempt + 1);
+      return;
+    }
+
+    if (sourceIndex < mediaUrls.length - 1) {
+      setSourceIndex((index) => index + 1);
+      setRetryAttempt(0);
+      return;
+    }
+
+    setHasError(true);
+    setIsLoaded(true);
+  };
 
   return (
     <div
       ref={cardRef}
+      data-masonry-image-id={image.id}
       draggable={!!onReorder}
       onDragStart={(e) => {
         if (!onReorder) return;
@@ -288,8 +440,8 @@ const ImageCard = ({
               loop
               muted
               playsInline
-              referrerPolicy="no-referrer"
-              onLoadedData={() => setIsLoaded(true)}
+              onLoadedData={(event) => handleMediaLoad(event.currentTarget.videoWidth, event.currentTarget.videoHeight)}
+              onError={handleMediaError}
               className={clsx(
                 "absolute inset-0 w-full h-full object-cover transition-all duration-700 z-10",
                 isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-105",
@@ -301,19 +453,8 @@ const ImageCard = ({
               src={finalSrc}
               alt={image.tags.slice(0, 5).join(" ")}
               referrerPolicy="no-referrer"
-              onLoad={() => setIsLoaded(true)}
-              onError={(e) => {
-                const img = e.currentTarget;
-                if (
-                  !shouldWaitForProxy &&
-                  img.src !== image.sampleUrl &&
-                  image.sampleUrl
-                ) {
-                  img.src = image.sampleUrl; // Fallback to sampleUrl
-                } else {
-                  setIsLoaded(true); // Force show broken image if both fail
-                }
-              }}
+              onLoad={(event) => handleMediaLoad(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)}
+              onError={handleMediaError}
               className={clsx(
                 "absolute inset-0 w-full h-full object-cover transition-all duration-700 z-10",
                 isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-105",
@@ -352,6 +493,33 @@ const ImageCard = ({
             </div>
           </div>
         </>
+      )}
+      {isVisible && !hasMedia && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 bg-surface text-center p-4">
+          <span className="text-xs font-black uppercase tracking-widest text-foreground-muted">
+            {image.mediaStatus === 'login_required' ? 'Sign in to view' : image.mediaStatus === 'premium_required' ? 'Premium content' : 'Media unavailable'}
+          </span>
+          {image.sourceUrl && <span className="text-[10px] text-foreground-muted">Open the original source for access.</span>}
+        </div>
+      )}
+      {hasError && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 bg-surface text-center p-4">
+          <span className="text-xs font-black uppercase tracking-widest text-foreground-muted">Preview unavailable</span>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setHasError(false);
+              setIsLoaded(false);
+              setSourceIndex(0);
+              setRetryAttempt(0);
+              setProxySrc(null);
+            }}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-raised text-foreground text-[10px] font-black uppercase tracking-widest hover:bg-accent hover:text-white"
+          >
+            <RefreshCw size={12} /> Retry
+          </button>
+        </div>
       )}
     </div>
   );

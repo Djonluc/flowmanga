@@ -17,6 +17,7 @@ export type AmbientMode =
   | "oled"
   | "adaptive-vibrant";
 export type SidebarMode = "expanded" | "collapsed" | "hover";
+export type ForYouQualityMode = "broad" | "strict";
 
 export interface BooruAuth {
   apiKey?: string;
@@ -166,6 +167,9 @@ interface SettingsState {
   recommendationMode: "dynamic" | "strict_favorites" | "strict_interests";
   setRecommendationMode: (mode: "dynamic" | "strict_favorites" | "strict_interests") => void;
 
+  forYouQualityMode: ForYouQualityMode;
+  setForYouQualityMode: (mode: ForYouQualityMode) => void;
+
   strictForYouMode: boolean;
   setStrictForYouMode: (strict: boolean) => void;
   
@@ -268,8 +272,18 @@ export const useSettingsStore = create<SettingsState>()(
       recommendationMode: "dynamic",
       setRecommendationMode: (mode) => set({ recommendationMode: mode }),
 
+      forYouQualityMode: "broad",
+      setForYouQualityMode: (mode) => set({
+        forYouQualityMode: mode,
+        // Keep the older persisted flag synchronized for existing callers.
+        strictForYouMode: mode === "strict",
+      }),
+
       strictForYouMode: false,
-      setStrictForYouMode: (strict) => set({ strictForYouMode: strict }),
+      setStrictForYouMode: (strict) => set({
+        strictForYouMode: strict,
+        forYouQualityMode: strict ? "strict" : "broad",
+      }),
 
       isScreenshotMode: false,
       toggleScreenshotMode: () =>
@@ -414,6 +428,9 @@ export const useSettingsStore = create<SettingsState>()(
           // Clear discovery cache when sources change
           import("../services/DiscoveryService").then(({ DiscoveryService }) => {
             DiscoveryService.clearAllCache();
+          });
+          import("./useGalleryStore").then(({ useGalleryStore }) => {
+            useGalleryStore.getState().setContentFilter(state.showAdultContent ? "all" : "sfw");
           });
           return { disabledSources: disabled };
         }),
