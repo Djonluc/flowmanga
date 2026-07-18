@@ -15,6 +15,7 @@ concurrency:
 jobs:
   publish-tauri:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -27,6 +28,13 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
 
       - name: Install frontend dependencies
         run: npm ci
@@ -36,6 +44,21 @@ jobs:
 
       - name: Verify web production build
         run: npm run vite-build
+
+      - name: Verify Rust backend
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Verify tag matches application version
+        shell: pwsh
+        run: |
+          $package = Get-Content -Raw package.json | ConvertFrom-Json
+          $expectedTag = "v$($package.version)"
+          if ("${{ github.ref_name }}" -ne $expectedTag) {
+            throw "Release tag '${{ github.ref_name }}' does not match package version '$expectedTag'."
+          }
 
       - name: Load plain-language release notes
         id: release-notes
