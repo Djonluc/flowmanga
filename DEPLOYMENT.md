@@ -27,7 +27,7 @@ git tag v2.5.0
 git push origin main --follow-tags
 ```
 
-The tag starts `.github/workflows/release.yml`. GitHub Actions builds the Windows NSIS installer, uses the Tauri icon files from `src-tauri/icons`, and publishes the installer to the GitHub release Assets section.
+The tag starts `.github/workflows/release.yml`. GitHub Actions builds the Windows NSIS installer, uses the Tauri icon files from `src-tauri/icons`, and publishes the installer to the [FlowManga GitHub release](https://github.com/Djonluc/flowmanga/releases) Assets section.
 
 ## Installer identity
 

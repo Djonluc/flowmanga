@@ -63,7 +63,7 @@ export abstract class BaseProvider {
 
     const headers = {
       "Accept": "application/json",
-      "User-Agent": "FlowManga/3.0.0 (djonstnix; https://github.com/djonstnix/flowmanga)",
+      "User-Agent": "FlowManga/2.5.0 (Djonluc; https://github.com/Djonluc/flowmanga)",
       ...customHeaders
     };
 
@@ -139,7 +139,7 @@ export abstract class BaseProvider {
 
     const headers = {
       "Accept": "text/html",
-      "User-Agent": "FlowManga/3.0.0 (djonstnix; https://github.com/djonstnix/flowmanga)",
+      "User-Agent": "FlowManga/2.5.0 (Djonluc; https://github.com/Djonluc/flowmanga)",
       ...customHeaders
     };
 

@@ -88,8 +88,8 @@ FlowManga is a **Tauri 2** desktop app: a local-first library with multiple read
 ### Clone and run
 
 ```bash
-git clone https://github.com/Djonluc/flowmamga.git
-cd flowmamga
+git clone https://github.com/Djonluc/flowmanga.git
+cd flowmanga
 npm install
 npm run tauri dev
 ```
@@ -111,7 +111,7 @@ Copy `.env.example` to `.env` if you need non-default behavior. The app runs wit
 ## Project structure
 
 ```
-flowmamga/
+flowmanga/
 ├── src-tauri/           # Tauri 2 Rust crate, capabilities, icons, tauri.conf.json
 ├── src/
 │   ├── components/      # UI (reader, library, modals, settings, video, home, …)

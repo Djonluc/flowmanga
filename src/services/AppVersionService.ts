@@ -8,7 +8,7 @@
 
 const CURRENT_VERSION = import.meta.env.VITE_APP_VERSION || "0.0.0";
 const GITHUB_RELEASES_URL =
-  "https://api.github.com/repos/Djonluc/flowmamga/releases/latest";
+  "https://api.github.com/repos/Djonluc/flowmanga/releases/latest";
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const LS_KEY = "flowmanga_update_state";
 
@@ -191,7 +191,7 @@ class AppVersionServiceClass {
         downloadUrl: windowsAsset?.browser_download_url || data.html_url || "",
         releaseUrl:
           data.html_url ||
-          `https://github.com/Djonluc/flowmamga/releases/latest`,
+          `https://github.com/Djonluc/flowmanga/releases/latest`,
         notes,
         isNewer: isNewerVersion(CURRENT_VERSION, latestVersion),
       };
@@ -243,7 +243,7 @@ class AppVersionServiceClass {
   async openDownloadPage(url?: string) {
     try {
       const { open } = await import("@tauri-apps/plugin-shell");
-      await open(url || `https://github.com/Djonluc/flowmamga/releases/latest`);
+      await open(url || `https://github.com/Djonluc/flowmanga/releases/latest`);
     } catch (err) {
       console.error("[AppVersionService] Failed to open browser:", err);
     }
