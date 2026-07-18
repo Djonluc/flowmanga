@@ -1,10 +1,10 @@
 [package]
 name = "app"
-version = "2.5.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+version = "2.6.0"
+description = "A local-first manga reader, library, downloader, and visual discovery desktop app."
+authors = ["DjonStNix"]
+license = "MIT"
+repository = "https://github.com/Djonluc/flowmanga"
 edition = "2021"
 rust-version = "1.77.2"
 

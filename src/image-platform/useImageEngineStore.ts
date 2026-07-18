@@ -2,6 +2,9 @@ import { create } from "zustand";
 import type { PlatformImage } from "./types";
 import { federator } from "./SearchFederator";
 import { QueryParser } from "./QueryParser";
+import { getSankakuCooldownUntil } from "../services/Sankaku";
+
+let deferredPageRetryTimer: ReturnType<typeof setTimeout> | undefined;
 
 interface FeedState {
   images: PlatformImage[];
@@ -68,7 +71,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
 
     try {
       const mode = 'search';
-      await federator.search(QueryParser.parse(rawQuery), 1, (chunk) => {
+      const results = await federator.search(QueryParser.parse(rawQuery), 1, (chunk) => {
         set(s => {
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
@@ -83,6 +86,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
           };
         });
       });
+      console.info(`[ImageEngineStore] search page=1 query=${rawQuery || '(empty)'} returned=${results.length} visible=${get().feeds.search.images.length}`);
       set(state => ({ 
         isLoading: false,
         feeds: {
@@ -108,7 +112,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const mode = 'latest';
-      await federator.getLatest(1, (chunk) => {
+      const results = await federator.getLatest(1, (chunk) => {
         set(s => {
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
@@ -123,6 +127,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
           };
         });
       });
+      console.info(`[ImageEngineStore] latest page=1 returned=${results.length} visible=${get().feeds.latest.images.length} forceRefresh=${forceRefresh}`);
       set(state => ({ 
         isLoading: false,
         feeds: {
@@ -147,7 +152,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const mode = 'curated';
-      await federator.getCurated(1, (chunk) => {
+      const results = await federator.getCurated(1, (chunk) => {
         set(s => {
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
@@ -160,6 +165,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
           };
         });
       });
+      console.info(`[ImageEngineStore] curated page=1 returned=${results.length} visible=${get().feeds.curated.images.length} forceRefresh=${forceRefresh}`);
       set(state => ({ 
         isLoading: false,
         feeds: {
@@ -184,7 +190,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const mode = 'discover';
-      await federator.getDiscovery(1, (chunk) => {
+      const results = await federator.getDiscovery(1, (chunk) => {
         set(s => {
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
@@ -197,6 +203,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
           };
         });
       });
+      console.info(`[ImageEngineStore] discover page=1 returned=${results.length} visible=${get().feeds.discover.images.length} forceRefresh=${forceRefresh}`);
       set(state => ({ 
         isLoading: false,
         feeds: {
@@ -220,10 +227,12 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
 
     try {
       const nextPage = activeFeed.currentPage + 1;
+      let appendedCount = 0;
       const handleChunk = (chunk: PlatformImage[]) => {
         set(s => {
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
+          appendedCount += newUnique.length;
           get().markAsSeen(newUnique);
           const newImages = [...s.feeds[mode].images, ...newUnique];
           if (mode === 'latest') {
@@ -241,22 +250,44 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
         });
       };
 
-      if (mode === 'search') await federator.search(QueryParser.parse(state.feeds.search.query), nextPage, handleChunk);
-      else if (mode === 'latest') await federator.getLatest(nextPage, handleChunk);
-      else if (mode === 'curated') await federator.getCurated(nextPage, handleChunk);
-      else if (mode === 'discover') await federator.getDiscovery(nextPage, handleChunk);
+      let pageResults: PlatformImage[] = [];
+      if (mode === 'search') pageResults = await federator.search(QueryParser.parse(state.feeds.search.query), nextPage, handleChunk);
+      else if (mode === 'latest') pageResults = await federator.getLatest(nextPage, handleChunk);
+      else if (mode === 'curated') pageResults = await federator.getCurated(nextPage, handleChunk);
+      else if (mode === 'discover') pageResults = await federator.getDiscovery(nextPage, handleChunk);
 
-      // Don't kill the feed just because a page returned 0 items (they might have all been filtered out as 'seen')
-      const shouldKillFeed = false;
+      // Do not skip a cursor page when every provider deferred or failed. In
+      // particular, Sankaku must retry this page after its cooldown rather
+      // than moving to a cursor that was never fetched.
+      if (pageResults.length === 0 && appendedCount === 0) {
+        set({ isFetchingNextPage: false });
+        const cooldownUntil = getSankakuCooldownUntil();
+        if (cooldownUntil && !deferredPageRetryTimer) {
+          const expectedPage = activeFeed.currentPage;
+          const retryDelay = Math.max(500, cooldownUntil - Date.now() + 100);
+          deferredPageRetryTimer = setTimeout(() => {
+            deferredPageRetryTimer = undefined;
+            const latestState = get();
+            if (
+              latestState.fetchMode === mode
+              && latestState.feeds[mode].currentPage === expectedPage
+              && latestState.feeds[mode].hasMore
+            ) {
+              void latestState.loadNextPage();
+            }
+          }, retryDelay);
+        }
+        return;
+      }
 
       set(s => ({
         isFetchingNextPage: false,
         feeds: {
           ...s.feeds,
-          [mode]: {
-            ...s.feeds[mode],
-            currentPage: nextPage,
-            hasMore: !shouldKillFeed
+            [mode]: {
+              ...s.feeds[mode],
+              currentPage: nextPage,
+              hasMore: true
           }
         }
       }));
@@ -267,6 +298,10 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
   },
 
   reset: () => {
+    if (deferredPageRetryTimer) {
+      clearTimeout(deferredPageRetryTimer);
+      deferredPageRetryTimer = undefined;
+    }
     set({
       feeds: {
         latest: { ...initialFeedState },

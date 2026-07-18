@@ -9,6 +9,7 @@ export class ContentFilter {
 
   static isAdultTag(tag: string): boolean {
     const t = tag.toLowerCase().trim();
+    const normalized = t.replace(/[\s/-]+/g, "_");
     return [
       "hentai",
       "smut",
@@ -28,6 +29,18 @@ export class ContentFilter {
       "cross-gender",
       "cross-dressing",
       "crossdressing",
+      "trap",
+      "femboy",
+      "sissy",
+      "gay",
+      "lesbian",
+      "homosexual",
+      "bisexual",
+      "transgender",
+      "male/male",
+      "female/female",
+      "boys_love",
+      "girls_love",
       "gender swap",
       "genderswap",
       "gender transformation",
@@ -45,6 +58,7 @@ export class ContentFilter {
       "bl",
       "gl"
     ].includes(t) ||
+    /(^|_)(trap|femboy|sissy|gay|lesbian|homosexual|bisexual|transgender|yaoi|yuri|bara)(_|$)/.test(normalized) ||
     t.includes("fetish") ||
     t.includes("explicit sexual") ||
     t.includes("erotic");
@@ -141,7 +155,7 @@ export class ContentFilter {
 
   static normalizeTags(tags: string[] = []): string[] {
     return tags.map((tag) => {
-      let t = tag
+      const t = tag
         .toLowerCase()
         .replace(/[-_]/g, " ")
         .replace(/\s+/g, " ")

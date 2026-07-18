@@ -1,366 +1,419 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { TagIntelligenceService, type UserInterest } from '../services/TagIntelligenceService';
+import { Clock, Pin, Plus, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
 import { getDb } from '../../services/db';
-import { X, Pin, Plus, Trash2, Clock, Loader2, Info } from 'lucide-react';
 import { useGalleryStore } from '../../stores/useGalleryStore';
-import { useSettingsStore } from '../../stores/useSettingsStore';
+import { useSettingsStore, type ForYouQualityMode } from '../../stores/useSettingsStore';
 import { useImageEngineStore } from '../useImageEngineStore';
+import { getActiveForYouProfile, getProfileSuggestions } from '../forYouProfiles';
+import { TagIntelligenceService, type UserInterest } from '../services/TagIntelligenceService';
+import { ContentFilter } from '../../services/ContentFilter';
 
-type TagType = 'dominant_tag' | 'supporting_tag' | 'artist' | 'character' | 'series' | 'blocked_tag';
+type TagBucket = 'core' | 'supporting' | 'excluded' | 'artist' | 'character' | 'series' | 'blocked';
+type EditableBucket = Exclude<TagBucket, 'blocked'>;
+
+const MODE_COPY: Record<ForYouQualityMode, { label: string; description: string }> = {
+  broad: {
+    label: 'Broad',
+    description: 'Core tags are required. Secondary tags improve ranking but do not block discovery.',
+  },
+  strict: {
+    label: 'Strict',
+    description: 'An image must match at least one core tag and one secondary tag when secondary tags exist.',
+  },
+  themed: {
+    label: 'Themed',
+    description: 'Uses the selected theme with the same core-plus-secondary rule as Strict mode.',
+  },
+};
+
+const bucketLabels: Record<EditableBucket, string> = {
+  core: 'Core tags',
+  supporting: 'Secondary tags',
+  excluded: 'Excluded tags',
+  artist: 'Artist tags',
+  character: 'Character tags',
+  series: 'Series tags',
+};
 
 export const InterestManager = ({ onClose }: { onClose: () => void }) => {
   const [interests, setInterests] = useState<UserInterest[]>([]);
-  const { blockedTags, blockTag, unblockTag, clearBlockedTags, clearViewHistory } = useGalleryStore();
-  const { forYouQualityMode, setForYouQualityMode } = useSettingsStore();
+  const [favoriteTags, setFavoriteTags] = useState<string[]>([]);
+  const [inputValues, setInputValues] = useState<Record<TagBucket, string>>({
+    core: '',
+    supporting: '',
+    excluded: '',
+    artist: '',
+    character: '',
+    series: '',
+    blocked: '',
+  });
+  const {
+    blockedTags,
+    blockTag,
+    unblockTag,
+    clearBlockedTags,
+    clearViewHistory,
+  } = useGalleryStore();
+  const {
+    forYouQualityMode,
+    setForYouQualityMode,
+    forYouProfiles,
+    activeForYouProfileId,
+    setActiveForYouProfile,
+    addForYouProfileTag,
+    removeForYouProfileTag,
+    toggleForYouProfileRequiredTag,
+    updateForYouProfile,
+    showAdultContent,
+    suppressedFavoriteSupportTags,
+    suppressFavoriteSupportTag,
+  } = useSettingsStore();
 
-  // Autocomplete State per input
-  const [activeInputType, setActiveInputType] = useState<TagType | null>(null);
-  const [tagInputs, setTagInputs] = useState<Record<string, string>>({});
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false);
-  const suggestionsTimeoutRef = useRef<NodeJS.Timeout>();
+  const storedProfile = forYouProfiles.find(profile => profile.id === activeForYouProfileId);
+  const activeProfile = storedProfile && (!storedProfile.adultOnly || showAdultContent)
+    ? getActiveForYouProfile(storedProfile, showAdultContent)
+    : undefined;
+  const favoriteSupportTags = favoriteTags
+    .map(tag => tag.trim().toLowerCase())
+    .filter(tag => tag && !suppressedFavoriteSupportTags.includes(tag));
+  const displayedProfile = activeProfile
+    ? {
+        ...activeProfile,
+        supportingTags: Array.from(new Set([...activeProfile.supportingTags, ...favoriteSupportTags])),
+      }
+    : undefined;
 
-  const loadInterests = async () => {
-    const data = await TagIntelligenceService.getInterests();
-    setInterests(data);
-  };
-
-  const handleQualityChange = (mode: 'broad' | 'strict') => {
-    setForYouQualityMode(mode);
-    void useImageEngineStore.getState().fetchCurated(true);
-  };
+  const refreshCurated = () => void useImageEngineStore.getState().fetchCurated(true);
 
   useEffect(() => {
-    loadInterests();
+    void TagIntelligenceService.getInterests().then(setInterests);
+    void getDb().select<{ tag: string }[]>('SELECT tag FROM FavoriteTags').then(rows => setFavoriteTags(rows.map(row => row.tag)));
   }, []);
 
-  const handleTogglePin = async (id: string, isPinned: boolean) => {
-    await TagIntelligenceService.togglePinInterest(id, !isPinned);
-    loadInterests();
-    void useImageEngineStore.getState().fetchCurated(true);
+  useEffect(() => {
+    if (storedProfile?.adultOnly && !showAdultContent) setActiveForYouProfile(null);
+  }, [setActiveForYouProfile, showAdultContent, storedProfile]);
+
+  const learnedSuggestions = useMemo(() => {
+    const profileSuggestions = activeProfile
+      ? getProfileSuggestions(activeProfile, showAdultContent)
+      : [];
+    const learned = interests.map(interest => interest.name);
+    const used = new Set([
+      ...(activeProfile?.coreTags || []),
+      ...(activeProfile?.supportingTags || []),
+      ...(activeProfile?.excludedTags || []),
+    ]);
+    return Array.from(new Set([...profileSuggestions, ...learned]))
+      .filter(tag => showAdultContent || !ContentFilter.isAdultTag(tag))
+      .filter(tag => !used.has(tag))
+      .slice(0, 16);
+  }, [activeProfile, interests, showAdultContent]);
+
+  const selectProfile = (profileId: string | null) => {
+    setActiveForYouProfile(profileId);
+    refreshCurated();
   };
 
-  const handleRemove = async (id: string) => {
-    const db = getDb();
-    await db.execute("DELETE FROM UserInterests WHERE id = ?", [id]);
-    loadInterests();
-    void useImageEngineStore.getState().fetchCurated(true);
-  };
+  const addTag = (bucket: TagBucket, rawTag = inputValues[bucket]) => {
+    const typedPrefix = bucket === 'artist' || bucket === 'character' || bucket === 'series'
+      ? `${bucket}:`
+      : '';
+    const tag = rawTag.trim().toLowerCase().replace(new RegExp(`^${typedPrefix}`), '');
+    if (!tag) return;
 
-  const handleMassWipe = async (type: string) => {
-    if (!confirm(`Are you sure you want to mass wipe all tags in this category?`)) return;
-    
-    if (type === 'blocked_tag') {
-      await clearBlockedTags();
-      void useImageEngineStore.getState().fetchCurated(true);
-      return;
+    if (bucket === 'blocked') {
+      void blockTag(tag);
+    } else if (activeProfile) {
+      addForYouProfileTag(activeProfile.id, bucket, tag);
     }
 
-    const db = getDb();
-    await db.execute("DELETE FROM UserInterests WHERE type = ?", [type]);
-    loadInterests();
-    void useImageEngineStore.getState().fetchCurated(true);
+    setInputValues(previous => ({ ...previous, [bucket]: '' }));
+    refreshCurated();
   };
 
-  const handleTagChange = (type: TagType, val: string) => {
-    setTagInputs(prev => ({ ...prev, [type]: val }));
-    setActiveInputType(type);
-
-    if (suggestionsTimeoutRef.current) clearTimeout(suggestionsTimeoutRef.current);
-    
-    if (val.trim().length < 2) {
-      setSuggestions([]);
-      return;
+  const removeTag = (bucket: EditableBucket, tag: string) => {
+    if (!activeProfile) return;
+    if (bucket === 'supporting' && favoriteSupportTags.includes(tag)) {
+      suppressFavoriteSupportTag(tag);
     }
-
-    setIsFetchingSuggestions(true);
-    suggestionsTimeoutRef.current = setTimeout(async () => {
-      try {
-        const { federator } = await import('../SearchFederator');
-        const results = await federator.autocompleteTags(val);
-        setSuggestions(results);
-      } catch {
-        setSuggestions([]);
-      } finally {
-        setIsFetchingSuggestions(false);
-      }
-    }, 400);
+    removeForYouProfileTag(activeProfile.id, bucket, tag);
+    refreshCurated();
   };
 
-  const handleAdd = async (type: TagType, tag: string) => {
-    if (!tag.trim()) return;
-
-    if (type === 'blocked_tag') {
-      await blockTag(tag.trim());
-      setTagInputs(prev => ({ ...prev, [type]: '' }));
-      setSuggestions([]);
-      setActiveInputType(null);
-      return;
+  const clearInterestSetup = async () => {
+    if (!confirm('Clear learned interests and reset the Custom Theme tags?')) return;
+    await getDb().execute('DELETE FROM UserInterests');
+    const custom = forYouProfiles.find(profile => profile.id === 'custom');
+    if (custom) {
+      updateForYouProfile(custom.id, {
+        coreTags: [],
+        supportingTags: [],
+        excludedTags: [],
+        adultCoreTags: [],
+        adultSupportingTags: [],
+        adultExcludedTags: [],
+      });
+      setActiveForYouProfile(custom.id);
+    } else {
+      setActiveForYouProfile(null);
     }
-
-    const db = getDb();
-    try {
-      await db.execute(
-        "INSERT INTO UserInterests (id, type, name, score, isPinned) VALUES (?, ?, ?, 100, 1)",
-        [crypto.randomUUID(), type, tag.trim()]
-      );
-    } catch (err) {
-      console.error("Failed to add interest", err);
-      // Could be a unique constraint failure, just update it
-      await db.execute(
-        "UPDATE UserInterests SET isPinned = 1 WHERE type = ? AND name = ?",
-        [type, tag.trim()]
-      );
-    }
-    
-    setTagInputs(prev => ({ ...prev, [type]: '' }));
-    setSuggestions([]);
-    setActiveInputType(null);
-    loadInterests();
-    void useImageEngineStore.getState().fetchCurated(true);
+    setInterests([]);
+    refreshCurated();
   };
 
-  const renderCard = (
-    type: TagType, 
-    title: string, 
-    description: string, 
-    items: { id: string; name: string; isPinned: boolean }[],
-    isBlockedType = false
-  ) => {
-    const val = tagInputs[type] || '';
-    const isAutocompleteActive = activeInputType === type && suggestions.length > 0 && val.length > 0;
-    
+  const renderTagBucket = (bucket: EditableBucket, tags: string[]) => {
+    const requiredKey = bucket === 'core'
+      ? 'requiredCoreTags'
+      : bucket === 'supporting'
+        ? 'requiredSupportingTags'
+        : bucket === 'artist'
+          ? 'requiredArtistTags'
+          : bucket === 'character'
+            ? 'requiredCharacterTags'
+            : bucket === 'series'
+              ? 'requiredSeriesTags'
+              : null;
+    const requiredTags = requiredKey ? ((activeProfile?.[requiredKey] || []) as string[]) : [];
+
     return (
-      <div className={`bg-surface/50 border rounded-xl p-4 sm:p-5 flex flex-col shadow-sm ${isBlockedType ? 'border-red-500/30' : 'border-border-subtle'}`}>
-        <div className="flex items-start justify-between mb-2">
-          <div>
-            <h3 className={`font-black uppercase tracking-widest text-sm ${isBlockedType ? 'text-red-500' : 'text-foreground'}`}>
-              {title}
-            </h3>
-            <p className="text-xs text-foreground-muted mt-1 leading-relaxed max-w-[90%]">
-              {description}
-            </p>
-          </div>
-          {items.length > 0 && (
-            <button 
-              onClick={() => handleMassWipe(type)}
-              className="p-2 rounded-lg text-red-500/60 hover:text-red-500 hover:bg-red-500/10 transition-colors"
-              title="Wipe Category"
-            >
-              <Trash2 size={16} />
-            </button>
-          )}
+    <section className="border-t border-border-subtle pt-4" aria-labelledby={`${bucket}-tags-heading`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 id={`${bucket}-tags-heading`} className="text-sm font-semibold text-foreground">
+            {bucketLabels[bucket]}
+          </h3>
+          <p className="mt-1 text-xs text-foreground-muted">
+            {bucket === 'core'
+              ? 'The subject must match at least one of these tags.'
+              : bucket === 'supporting'
+                ? forYouQualityMode === 'broad'
+                  ? 'Optional in Broad mode; used to rank compatible results higher.'
+                  : 'At least one must match alongside a core tag.'
+                : bucket === 'excluded'
+                  ? 'Results with any of these tags are removed.'
+                  : 'Optional typed filters that boost matching results.'}
+          </p>
         </div>
-
-        {/* Input Box */}
-        <div className="mt-4 flex gap-2 relative">
-          <div className="relative flex-1">
-            <input 
-              type="text" 
-              value={val}
-              onChange={(e) => handleTagChange(type, e.target.value)}
-              onFocus={() => setActiveInputType(type)}
-              placeholder="Type to add a tag..."
-              className={`w-full h-10 px-4 rounded-lg bg-black/40 border text-sm outline-none ${isBlockedType ? 'focus:border-red-500 border-red-500/20' : 'focus:border-indigo-500 border-border-subtle'}`}
-            />
-            {isFetchingSuggestions && activeInputType === type && (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                <Loader2 size={16} className="animate-spin text-foreground-muted" />
-              </div>
-            )}
-            
-            {/* Autocomplete Dropdown */}
-            {isAutocompleteActive && (
-              <div className="absolute z-[100] top-full mt-2 w-full bg-black border border-border-subtle rounded-xl shadow-2xl overflow-hidden animate-fade-in pointer-events-auto max-h-48 overflow-y-auto">
-                {suggestions.map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    onClick={() => handleAdd(type, suggestion)}
-                    className="w-full text-left px-4 py-2 hover:bg-white/10 transition-colors text-sm font-medium border-b border-white/5 last:border-0 truncate bg-black"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <button 
-            onClick={() => handleAdd(type, val)}
-            disabled={!val.trim()}
-            className={`h-10 px-4 text-white font-black uppercase tracking-widest text-xs rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 shrink-0 ${isBlockedType ? 'bg-red-600 hover:bg-red-500' : 'bg-indigo-600 hover:bg-indigo-500'}`}
-          >
-            <Plus size={16} /> Add
-          </button>
-        </div>
-
-        {/* Tag List */}
-        <div className="mt-4 flex flex-wrap gap-2">
-          {items.length === 0 ? (
-            <p className="text-xs text-foreground-muted/50 italic py-2">No tags added yet.</p>
-          ) : (
-            items.map(item => (
-              <div key={item.id || item.name} className={`flex items-center gap-1 px-3 py-1 border rounded-lg text-sm group ${isBlockedType ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-surface border-border-subtle'}`}>
-                <button 
-                  onClick={() => isBlockedType ? unblockTag(item.name) : handleRemove(item.id)}
-                  className="p-1 rounded-md text-red-500/50 hover:text-red-500 hover:bg-red-500/20 transition-colors opacity-0 group-hover:opacity-100"
-                  title="Remove"
-                >
-                  <X size={14} />
-                </button>
-                <span className="font-bold">{item.name}</span>
-                {!isBlockedType && (
-                  <button 
-                    onClick={() => handleTogglePin(item.id, item.isPinned)}
-                    className={`p-1 rounded-md transition-colors ${item.isPinned ? 'text-indigo-400' : 'text-foreground-muted hover:text-white'}`}
-                    title={item.isPinned ? 'Unpin' : 'Pin manually'}
-                  >
-                    <Pin size={14} />
-                  </button>
-                )}
-              </div>
-            ))
-          )}
-        </div>
+        <span className="text-[10px] font-medium uppercase tracking-wider text-foreground-muted">
+          {tags.length} {tags.length === 1 ? 'tag' : 'tags'}
+        </span>
       </div>
+
+      <div className="mt-3 flex gap-2">
+        <input
+          value={inputValues[bucket]}
+          onChange={event => setInputValues(previous => ({ ...previous, [bucket]: event.target.value }))}
+          onKeyDown={event => { if (event.key === 'Enter') addTag(bucket); }}
+          placeholder={`Add ${bucket === 'supporting' ? 'a secondary' : `an ${bucket}`} tag`}
+          className="min-w-0 flex-1 rounded-md border border-border-subtle bg-black/20 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+        />
+        <button
+          type="button"
+          onClick={() => addTag(bucket)}
+          disabled={!activeProfile || !inputValues[bucket].trim()}
+          className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Plus size={14} /> Add
+        </button>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {tags.length === 0 ? (
+          <span className="text-xs italic text-foreground-muted">None added.</span>
+        ) : tags.map(tag => (
+          <span
+            key={`${bucket}-${tag}`}
+            className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${bucket === 'excluded' ? 'border-red-500/30 bg-red-500/10 text-red-300' : 'border-indigo-500/25 bg-indigo-500/10 text-indigo-200'}`}
+          >
+            {bucket !== 'excluded' && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeProfile) {
+                    toggleForYouProfileRequiredTag(activeProfile.id, bucket, tag);
+                    refreshCurated();
+                  }
+                }}
+                aria-pressed={requiredTags.includes(tag)}
+                aria-label={`${requiredTags.includes(tag) ? 'Stop always matching' : 'Always match'} ${tag}`}
+                title={requiredTags.includes(tag) ? 'Always match: on' : 'Always match this tag'}
+                className={requiredTags.includes(tag) ? 'text-amber-300' : 'text-foreground-muted/60 hover:text-amber-300'}
+              >
+                <Pin size={12} className={requiredTags.includes(tag) ? 'fill-current' : ''} />
+              </button>
+            )}
+            {tag}
+            <button
+              type="button"
+              onClick={() => removeTag(bucket, tag)}
+              aria-label={`Remove ${tag}`}
+              title={`Remove ${tag}`}
+              className="text-current opacity-70 hover:opacity-100"
+            >
+              <X size={12} />
+            </button>
+          </span>
+        ))}
+      </div>
+    </section>
     );
   };
 
   return createPortal(
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex justify-center p-4 sm:p-6 overflow-hidden items-start pt-10 sm:pt-20">
-      <div className="bg-background border border-border-subtle rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-border-subtle shrink-0">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 pt-8 backdrop-blur-sm sm:pt-16">
+      <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-border-subtle bg-background shadow-2xl">
+        <header className="flex items-start justify-between gap-4 border-b border-border-subtle p-5">
           <div>
-            <h2 className="text-xl font-black uppercase tracking-widest text-foreground">Interest Manager</h2>
-            <p className="text-sm text-foreground-muted mt-1">Configure exactly what the recommendation engine looks for when curating your feed.</p>
+            <h2 className="text-lg font-semibold text-foreground">Interest Manager</h2>
+            <p className="mt-1 max-w-xl text-sm text-foreground-muted">
+              Set the subject first, then refine it with compatible secondary tags.
+            </p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-surface rounded-full text-foreground-muted hover:text-white transition-colors shrink-0">
-            <X size={24} />
+          <button type="button" onClick={onClose} aria-label="Close Interest Manager" title="Close" className="text-foreground-muted hover:text-foreground">
+            <X size={22} />
           </button>
-        </div>
+        </header>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 min-h-0 space-y-6">
-          {/* Global Controls Banner */}
-          <div className="p-4 sm:p-5 border border-indigo-500/20 rounded-xl bg-indigo-500/5 flex flex-col gap-4 shrink-0 shadow-sm">
-            
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400 mt-0.5">
-                  <Info size={20} />
-                </div>
-                <div>
-                  <h3 className="font-black text-sm text-foreground">Recommendation Quality</h3>
-                  <p className="text-xs text-foreground-muted mt-1 leading-relaxed max-w-md">
-                    Broad keeps strong secondary matches and discovery in the mix. Strict only keeps images that match a core interest.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1 p-1 rounded-lg bg-surface border border-border-subtle shrink-0" role="group" aria-label="Recommendation quality">
-                {(['broad', 'strict'] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => handleQualityChange(mode)}
-                    aria-pressed={forYouQualityMode === mode}
-                    className={`px-3 py-2 rounded-md font-bold text-xs uppercase tracking-widest transition-all ${
-                      forYouQualityMode === mode
-                        ? 'bg-indigo-600 text-white shadow-[0_0_15px_rgba(79,70,229,0.35)]'
-                        : 'text-foreground-muted hover:text-foreground'
-                    }`}
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
+        <div className="space-y-5 p-5">
+          <section>
+            <div className="flex items-center gap-2">
+              <Sparkles size={16} className="text-indigo-400" />
+              <h3 className="text-sm font-semibold text-foreground">Recommendation mode</h3>
             </div>
+            <div className="mt-3 grid grid-cols-3 gap-2" role="group" aria-label="Recommendation mode">
+              {(Object.keys(MODE_COPY) as ForYouQualityMode[]).map(mode => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => { setForYouQualityMode(mode); refreshCurated(); }}
+                  aria-pressed={forYouQualityMode === mode}
+                  className={`rounded-md border px-2 py-2 text-sm font-semibold transition-colors ${forYouQualityMode === mode ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-border-subtle bg-surface text-foreground-muted hover:text-foreground'}`}
+                >
+                  {MODE_COPY[mode].label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-foreground-muted">{MODE_COPY[forYouQualityMode].description}</p>
+          </section>
 
-            <div className="bg-surface-elevated border border-border-subtle rounded-xl p-4 mt-2">
-              <h4 className="text-xs font-black uppercase tracking-widest text-foreground mb-1">💡 Pro-Tip: Smart Root Matching</h4>
-              <p className="text-xs text-foreground-muted leading-relaxed">
-                You do not need to add every single variation of a tag. The engine uses <strong>Smart Root Matching</strong>. 
-                For example, if you add the tag <span className="text-purple-400 font-bold">poke</span>, the engine will automatically match 
-                <span className="text-purple-400 font-bold px-1">pokemon</span>, 
-                <span className="text-purple-400 font-bold px-1">pokemon_sun</span>, and 
-                <span className="text-purple-400 font-bold px-1">pokemon_moon</span>. 
-                Add short root words to cast a wide net!
+          <section className="border-t border-border-subtle pt-4">
+            <label htmlFor="interest-theme" className="text-sm font-semibold text-foreground">Theme</label>
+            <select
+              id="interest-theme"
+              value={activeForYouProfileId || ''}
+              onChange={event => selectProfile(event.target.value || null)}
+              className="mt-2 w-full rounded-md border border-border-subtle bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-indigo-500"
+            >
+              <option value="">Automatic recommendations</option>
+              {forYouProfiles
+                .filter(profile => !profile.adultOnly || showAdultContent)
+                .map(profile => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
+            </select>
+            <p className="mt-2 text-xs text-foreground-muted">
+              {activeProfile?.description || 'Choose Custom Theme to define your own core and secondary tags.'}
+            </p>
+            {storedProfile && (storedProfile.adultCoreTags?.length || storedProfile.adultSupportingTags?.length) ? (
+              <p className="mt-2 text-xs text-amber-300/80">
+                {showAdultContent ? 'Adult-only tags are active for this theme.' : 'Adult-only tags stay hidden while Adult Content is off.'}
               </p>
+            ) : null}
+          </section>
+
+          {activeProfile ? (
+            <>
+              <section className="border-t border-border-subtle pt-4">
+                <label htmlFor="sankaku-profile-tag" className="text-sm font-semibold text-foreground">Sankaku For You tag</label>
+                <p className="mt-1 text-xs text-foreground-muted">Optional. Sankaku searches only this one tag; other sources continue using the full theme.</p>
+                <div className="mt-3 flex gap-2">
+                  <input
+                    id="sankaku-profile-tag"
+                    value={storedProfile?.sankakuTag || ''}
+                    onChange={event => {
+                      if (storedProfile) updateForYouProfile(storedProfile.id, { sankakuTag: event.target.value.trim().toLowerCase().replace(/\s+/g, '_') });
+                    }}
+                    onBlur={refreshCurated}
+                    placeholder={showAdultContent ? 'Example: animated' : 'Example: landscape'}
+                    className="min-w-0 flex-1 rounded-md border border-border-subtle bg-black/20 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </section>
+              {renderTagBucket('core', displayedProfile?.coreTags || [])}
+              {renderTagBucket('supporting', displayedProfile?.supportingTags || [])}
+              {renderTagBucket('excluded', displayedProfile?.excludedTags || [])}
+              {renderTagBucket('artist', displayedProfile?.artistTags || [])}
+              {renderTagBucket('character', displayedProfile?.characterTags || [])}
+              {renderTagBucket('series', displayedProfile?.seriesTags || [])}
+
+              {learnedSuggestions.length > 0 && (
+                <section className="border-t border-border-subtle pt-4">
+                  <h3 className="text-sm font-semibold text-foreground">Suggested refinements</h3>
+                  <p className="mt-1 text-xs text-foreground-muted">Add a suggestion as a secondary tag when it fits your theme.</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {learnedSuggestions.map(tag => (
+                      <button key={tag} type="button" onClick={() => addTag('supporting', tag)} className="inline-flex items-center gap-1 rounded-md border border-border-subtle bg-surface px-2 py-1 text-xs text-foreground-muted hover:text-foreground">
+                        <Plus size={12} /> {tag}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+            </>
+          ) : (
+            <div className="rounded-md border border-dashed border-border-subtle px-4 py-5 text-center text-sm text-foreground-muted">
+              Select a theme to edit its core, secondary, and excluded tags.
             </div>
-          </div>
+          )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {renderCard(
-              'dominant_tag',
-              'Core Interests (Dominant)',
-              'Tags here get massive priority. If Strict Mode is on, images MUST contain one of these to appear in your feed.',
-              interests.filter(i => i.type === 'dominant_tag')
-            )}
-            
-            {renderCard(
-              'supporting_tag',
-              'Secondary Interests',
-              'Tags here act as bonuses. They help refine your feed and boost images that also match your Core Interests.',
-              interests.filter(i => i.type === 'supporting_tag')
-            )}
+          <section className="border-t border-border-subtle pt-4">
+            <h3 className="text-sm font-semibold text-foreground">Blocked tags</h3>
+            <p className="mt-1 text-xs text-foreground-muted">These are blocked throughout the app, regardless of the selected theme.</p>
+            <div className="mt-3 flex gap-2">
+              <input
+                value={inputValues.blocked}
+                onChange={event => setInputValues(previous => ({ ...previous, blocked: event.target.value }))}
+                onKeyDown={event => { if (event.key === 'Enter') addTag('blocked'); }}
+                placeholder="Add a blocked tag"
+                className="min-w-0 flex-1 rounded-md border border-border-subtle bg-black/20 px-3 py-2 text-sm outline-none focus:border-red-500"
+              />
+              <button type="button" onClick={() => addTag('blocked')} disabled={!inputValues.blocked.trim()} className="inline-flex items-center gap-1 rounded-md bg-red-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">
+                <Plus size={14} /> Block
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {blockedTags.map(tag => (
+                <span key={tag} className="inline-flex items-center gap-1 rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-xs text-red-300">
+                  {tag}
+                  <button type="button" onClick={() => { void unblockTag(tag); refreshCurated(); }} aria-label={`Unblock ${tag}`} title={`Unblock ${tag}`}><X size={12} /></button>
+                </span>
+              ))}
+              {blockedTags.length > 0 && <button type="button" onClick={() => { void clearBlockedTags(); refreshCurated(); }} className="text-xs text-red-300 underline">Clear blocked tags</button>}
+            </div>
+          </section>
 
-            {renderCard(
-              'artist',
-              'Favorite Artists',
-              'Boosts images created by these specific artists.',
-              interests.filter(i => i.type === 'artist')
-            )}
-
-            {renderCard(
-              'character',
-              'Favorite Characters',
-              'Boosts images containing these specific characters.',
-              interests.filter(i => i.type === 'character')
-            )}
-            
-            {renderCard(
-              'series',
-              'Favorite Series',
-              'Boosts images from these specific franchises.',
-              interests.filter(i => i.type === 'series')
-            )}
-
-            {renderCard(
-              'blocked_tag',
-              'Blacklist (Blocked)',
-              'Tags you absolutely never want to see anywhere in the app.',
-              blockedTags.map(t => ({ id: t, name: t, isPinned: true })),
-              true
-            )}
-          </div>
+          <section className="flex flex-col gap-3 border-t border-border-subtle pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-2">
+              <Clock size={16} className="mt-0.5 text-indigo-400" />
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Browsing history</h3>
+                <p className="mt-1 text-xs text-foreground-muted">History helps the automatic feed learn what you view.</p>
+              </div>
+            </div>
+            <button type="button" onClick={() => { if (confirm('Clear browsing history?')) void clearViewHistory(); }} className="inline-flex items-center justify-center gap-2 rounded-md border border-red-500/30 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-500/10">
+              <Trash2 size={14} /> Clear history
+            </button>
+          </section>
         </div>
 
-        {/* Footer */}
-        <div className="p-4 sm:p-6 shrink-0 flex justify-between items-center bg-surface/30 border-t border-border-subtle">
-          <div>
-            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-              <Clock size={16} className="text-indigo-400" />
-              Browsing History
-            </h3>
-            <p className="text-xs text-foreground-muted mt-1">Clear your tracked history used for dynamic recommendations.</p>
-          </div>
-          <button 
-            onClick={() => {
-              if (confirm("Are you sure you want to wipe all view history?")) {
-                clearViewHistory();
-              }
-            }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white transition-all text-sm font-bold"
-          >
-            <Trash2 size={16} />
-            Wipe History
+        <footer className="flex flex-col gap-3 border-t border-border-subtle bg-surface/30 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <button type="button" onClick={() => void clearInterestSetup()} className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-500/30 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500/10">
+            <RotateCcw size={14} /> Reset learned interests
           </button>
-        </div>
-
+          <span className="text-xs text-foreground-muted">Changes apply to the next feed refresh.</span>
+        </footer>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 };

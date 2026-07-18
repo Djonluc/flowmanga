@@ -1,3 +1,34 @@
+# FlowManga v2.6.0 Release Notes
+
+This release overhauls Sankaku discovery and pagination, adds provider-aware video streaming, expands For You themes and safety controls, and improves release diagnostics.
+
+### New Features
+
+- Added byte-range video streaming with fallback for Sankaku and Rule34.
+- Added configurable For You profiles with core, secondary, excluded, artist, character, series, and source-specific Sankaku tags.
+- Added Broad, Strict, and Themed recommendation modes.
+- Added a 10% recent and 90% random Sankaku For You content mix.
+- Added Sankaku session verification and shared image/Books authentication.
+
+### Improvements
+
+- Sankaku Latest now follows the live keyset cursor feed with continuous pagination.
+- Video-only and GIF-only filters now enforce the selected mapped media type.
+- Rule34 and Sankaku video cards prioritize playable files over static posters.
+- Adult themes, examples, autocomplete, and learned suggestions respect the Adult Content setting.
+- Network diagnostics redact credentials and explain blocked-tag and inaccessible-media filtering.
+
+### Bug Fixes
+
+- Fixed stale Sankaku Latest batches and pagination stopping early.
+- Fixed Sankaku searches returning empty results for valid single tags.
+- Fixed access-gated Sankaku records appearing as broken images or videos.
+- Fixed Danbooru playback regressions introduced while separating Sankaku streaming.
+- Fixed Rule34 thumbnails and detail videos failing to use the actual video URL.
+- Fixed several Rust Clippy findings and confirmed unused frontend declarations.
+
+---
+
 # FlowManga v2.5.0 Release Notes
 
 This update improves image discovery, source reliability, Sankaku support, and downloading.

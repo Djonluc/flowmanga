@@ -22,8 +22,8 @@ The full ESLint pass is currently too noisy for release gating because older fil
 
 ```bash
 git add .
-git commit -m "chore: release v2.5.0"
-git tag v2.5.0
+git commit -m "chore: release v2.6.0"
+git tag v2.6.0
 git push origin main --follow-tags
 ```
 

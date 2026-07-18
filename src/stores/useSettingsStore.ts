@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { UpdateInfo } from '../services/AppVersionService';
+import { DEFAULT_FOR_YOU_PROFILES, type ForYouProfile, type ForYouProfileTagType } from '../image-platform/forYouProfiles';
 
 export type ReadingMode =
   | "vertical"
@@ -17,7 +18,7 @@ export type AmbientMode =
   | "oled"
   | "adaptive-vibrant";
 export type SidebarMode = "expanded" | "collapsed" | "hover";
-export type ForYouQualityMode = "broad" | "strict";
+export type ForYouQualityMode = "broad" | "strict" | "themed";
 
 export interface BooruAuth {
   apiKey?: string;
@@ -170,6 +171,17 @@ interface SettingsState {
   forYouQualityMode: ForYouQualityMode;
   setForYouQualityMode: (mode: ForYouQualityMode) => void;
 
+  forYouProfiles: ForYouProfile[];
+  activeForYouProfileId: string | null;
+  setActiveForYouProfile: (profileId: string | null) => void;
+  updateForYouProfile: (profileId: string, changes: Partial<ForYouProfile>) => void;
+  addForYouProfileTag: (profileId: string, type: ForYouProfileTagType, tag: string) => void;
+  removeForYouProfileTag: (profileId: string, type: ForYouProfileTagType, tag: string) => void;
+  toggleForYouProfileRequiredTag: (profileId: string, type: 'core' | 'supporting' | 'artist' | 'character' | 'series', tag: string) => void;
+  suppressedFavoriteSupportTags: string[];
+  suppressFavoriteSupportTag: (tag: string) => void;
+  restoreFavoriteSupportTag: (tag: string) => void;
+
   strictForYouMode: boolean;
   setStrictForYouMode: (strict: boolean) => void;
   
@@ -276,8 +288,131 @@ export const useSettingsStore = create<SettingsState>()(
       setForYouQualityMode: (mode) => set({
         forYouQualityMode: mode,
         // Keep the older persisted flag synchronized for existing callers.
-        strictForYouMode: mode === "strict",
+        strictForYouMode: mode !== "broad",
       }),
+
+      forYouProfiles: DEFAULT_FOR_YOU_PROFILES,
+      activeForYouProfileId: null,
+      setActiveForYouProfile: (profileId) => set({ activeForYouProfileId: profileId }),
+      suppressedFavoriteSupportTags: [],
+      suppressFavoriteSupportTag: (tag) => set((state) => ({
+        suppressedFavoriteSupportTags: Array.from(new Set([
+          ...state.suppressedFavoriteSupportTags,
+          tag.trim().toLowerCase(),
+        ].filter(Boolean))),
+      })),
+      restoreFavoriteSupportTag: (tag) => set((state) => ({
+        suppressedFavoriteSupportTags: state.suppressedFavoriteSupportTags.filter(item => item !== tag.trim().toLowerCase()),
+      })),
+      updateForYouProfile: (profileId, changes) => set((state) => ({
+        forYouProfiles: state.forYouProfiles.map(profile =>
+          profile.id === profileId ? { ...profile, ...changes } : profile
+        ),
+      })),
+      addForYouProfileTag: (profileId, type, tag) => set((state) => ({
+        forYouProfiles: state.forYouProfiles.map(profile => {
+          if (profile.id !== profileId) return profile;
+          const key = type === 'core'
+            ? 'coreTags'
+            : type === 'supporting'
+              ? 'supportingTags'
+              : type === 'excluded'
+                ? 'excludedTags'
+                : type === 'artist'
+                  ? 'artistTags'
+                  : type === 'character'
+                    ? 'characterTags'
+                    : 'seriesTags';
+          const cleanTag = tag.trim().toLowerCase();
+          const current = (profile[key] || []) as string[];
+          if (!cleanTag || current.includes(cleanTag)) return profile;
+          return { ...profile, [key]: [...current, cleanTag] };
+        }),
+      })),
+      removeForYouProfileTag: (profileId, type, tag) => set((state) => ({
+        forYouProfiles: state.forYouProfiles.map(profile => {
+          if (profile.id !== profileId) return profile;
+          const key = type === 'core'
+            ? 'coreTags'
+            : type === 'supporting'
+              ? 'supportingTags'
+              : type === 'excluded'
+                ? 'excludedTags'
+                : type === 'artist'
+                  ? 'artistTags'
+                  : type === 'character'
+                    ? 'characterTags'
+                    : 'seriesTags';
+          const adultKey = type === 'core'
+            ? 'adultCoreTags'
+            : type === 'supporting'
+              ? 'adultSupportingTags'
+              : type === 'excluded'
+                ? 'adultExcludedTags'
+                : undefined;
+          const requiredKey = type === 'core'
+            ? 'requiredCoreTags'
+            : type === 'supporting'
+              ? 'requiredSupportingTags'
+              : type === 'artist'
+                ? 'requiredArtistTags'
+                : type === 'character'
+                  ? 'requiredCharacterTags'
+                  : type === 'series'
+                    ? 'requiredSeriesTags'
+                    : undefined;
+          const adultRequiredKey = type === 'core'
+            ? 'adultRequiredCoreTags'
+            : type === 'supporting'
+              ? 'adultRequiredSupportingTags'
+              : type === 'artist'
+                ? 'adultRequiredArtistTags'
+                : type === 'character'
+                  ? 'adultRequiredCharacterTags'
+                  : type === 'series'
+                    ? 'adultRequiredSeriesTags'
+                    : undefined;
+          return {
+            ...profile,
+            [key]: ((profile[key] || []) as string[]).filter(item => item !== tag),
+            ...(adultKey ? { [adultKey]: profile[adultKey]?.filter(item => item !== tag) } : {}),
+            ...(requiredKey ? { [requiredKey]: profile[requiredKey]?.filter(item => item !== tag) } : {}),
+            ...(adultRequiredKey ? { [adultRequiredKey]: profile[adultRequiredKey]?.filter(item => item !== tag) } : {}),
+          };
+        }),
+      })),
+      toggleForYouProfileRequiredTag: (profileId, type, tag) => set((state) => ({
+        forYouProfiles: state.forYouProfiles.map(profile => {
+          if (profile.id !== profileId) return profile;
+          const key = type === 'core'
+            ? 'coreTags'
+            : type === 'supporting'
+              ? 'supportingTags'
+              : type === 'artist'
+                ? 'artistTags'
+                : type === 'character'
+                  ? 'characterTags'
+                  : 'seriesTags';
+          const requiredKey = type === 'core'
+            ? 'requiredCoreTags'
+            : type === 'supporting'
+              ? 'requiredSupportingTags'
+              : type === 'artist'
+                ? 'requiredArtistTags'
+                : type === 'character'
+                  ? 'requiredCharacterTags'
+                  : 'requiredSeriesTags';
+          const tags = ((profile[key] || []) as string[]);
+          const required = ((profile[requiredKey] || []) as string[]);
+          if (!tags.includes(tag)) return profile;
+          return {
+            ...profile,
+            [requiredKey]: required.includes(tag)
+              ? required.filter(item => item !== tag)
+              : [...required, tag],
+          };
+        }),
+      })),
 
       strictForYouMode: false,
       setStrictForYouMode: (strict) => set({
@@ -363,7 +498,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       availableSounds: [],
       loadAvailableSounds: async () => {},
-      importSound: async (_path: string) => {},
+      importSound: async () => {},
 
       // Download Concurrency Defaults
       maxConcurrentJobs: 2,
@@ -447,8 +582,39 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: "flowmanga-settings",
+      merge: (persisted, current) => {
+        const restored = persisted as Partial<SettingsState>;
+        const savedProfiles = Array.isArray(restored.forYouProfiles) ? restored.forYouProfiles : [];
+        const savedIds = new Set(savedProfiles.map(profile => profile.id));
+        const defaultsById = new Map(DEFAULT_FOR_YOU_PROFILES.map(profile => [profile.id, profile]));
+        const upgradedProfiles = savedProfiles.map(profile => {
+          const defaults = defaultsById.get(profile.id);
+          return defaults
+            ? {
+                ...defaults,
+                ...profile,
+                adultCoreTags: profile.adultCoreTags ?? defaults.adultCoreTags,
+                adultSupportingTags: profile.adultSupportingTags ?? defaults.adultSupportingTags,
+                adultExcludedTags: profile.adultExcludedTags ?? defaults.adultExcludedTags,
+              }
+            : profile;
+        });
+        return {
+          ...current,
+          ...restored,
+          forYouProfiles: [
+            ...upgradedProfiles,
+            ...DEFAULT_FOR_YOU_PROFILES.filter(profile => !savedIds.has(profile.id)),
+          ],
+        };
+      },
       partialize: (state) => {
         const { isInitializing, isSettingsOpen, isDownloadPanelOpen, updateInfo, updateStatus, ...rest } = state;
+        void isInitializing;
+        void isSettingsOpen;
+        void isDownloadPanelOpen;
+        void updateInfo;
+        void updateStatus;
         return rest;
       },
     },

@@ -1,7 +1,8 @@
 import { useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ReliabilityTracker } from '../services/DiscoveryService';
-import { getSankakuAuthHeaders } from '../services/Sankaku';
+import { getSankakuRequestHeaders } from '../services/Sankaku';
+import { useSettingsStore } from '../stores/useSettingsStore';
 
 const MAX_CACHE_SIZE = 50;
 
@@ -41,8 +42,48 @@ export function needsProxy(url: string): boolean {
   }
 }
 
+function isTauriRuntime(): boolean {
+  if (typeof window === 'undefined') return false;
+
+  // Tauri v2 exposes its bridge on the window only inside the desktop app.
+  return Boolean((window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
+}
+
+/** Stream protected media through the desktop protocol with byte-range support. */
+export function streamViaTauri(url: string): string {
+  if (!url || !isTauriRuntime()) return url;
+  return `flowmanga://localhost/image-proxy?stream=1&url=${encodeURIComponent(url)}`;
+}
+
+function mediaMimeType(url: string): string {
+  const extension = url.match(/\.(mp4|webm|gif|png|jpg|jpeg|avif|webp)(?:\?|$)/i)?.[1]?.toLowerCase();
+  if (extension === 'mp4') return 'video/mp4';
+  if (extension === 'webm') return 'video/webm';
+  if (extension === 'gif') return 'image/gif';
+  if (extension === 'png') return 'image/png';
+  if (extension === 'avif') return 'image/avif';
+  if (extension === 'webp') return 'image/webp';
+  return 'image/jpeg';
+}
+
+function mediaReferer(url: string): string | undefined {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    if (hostname.includes('donmai.us')) return 'https://danbooru.donmai.us/';
+    if (hostname.includes('rule34')) return 'https://rule34.xxx/';
+    if (hostname.includes('gelbooru')) return 'https://gelbooru.com/';
+    if (hostname.includes('pixiv') || hostname.includes('pximg')) return 'https://www.pixiv.net/';
+    if (hostname.includes('ehgt.org')) return 'https://e-hentai.org/';
+    return `https://${hostname}/`;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
- * Translate a media URL to the custom Tauri flowmanga:// scheme to bypass CORS/CBR/hotlinking.
+ * Load protected media through Rust when running in Tauri. Returning a blob
+ * avoids relying on a custom URL scheme, which is not accepted by every
+ * WebView/dev environment. Plain browser mode uses the original CDN URL.
  */
 async function proxyViaTauri(url: string): Promise<string | null> {
   if (!url) return null;
@@ -52,29 +93,59 @@ async function proxyViaTauri(url: string): Promise<string | null> {
       return proxyCache.get(url)!;
     }
     const sankakuHeaders = {
-      ...getSankakuAuthHeaders(),
-      Referer: 'https://chan.sankakucomplex.com/',
+      ...getSankakuRequestHeaders(),
+      Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Sec-Fetch-Dest': 'image',
+      'Sec-Fetch-Mode': 'no-cors',
+      'Sec-Fetch-Site': 'cross-site',
     };
 
     try {
       // Protected Sankaku media needs the same session as the metadata request.
       // Use the Rust binary command so Cookie/Authorization headers are retained.
       if (sankakuHeaders.Cookie || sankakuHeaders.Authorization) {
-        const bytes = await invoke<number[]>('fetch_binary', {
-          url,
-          headers: sankakuHeaders,
-        });
-        const extension = url.match(/\.(mp4|webm|gif|png|jpg|jpeg)(?:\?|$)/i)?.[1]?.toLowerCase();
-        const mime = extension === 'mp4' ? 'video/mp4' : extension === 'webm' ? 'video/webm' : extension === 'gif' ? 'image/gif' : 'image/*';
-        const blobUrl = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: mime }));
-        return cacheProxyBlob(url, blobUrl);
+        try {
+          let bytes: number[] | null = null;
+          let binaryError: unknown;
+          for (let attempt = 0; attempt < 3 && !bytes; attempt += 1) {
+            try {
+              bytes = await invoke<number[]>('fetch_binary', {
+                url,
+                headers: {
+                  ...sankakuHeaders,
+                },
+                proxyUrl: useSettingsStore.getState().networkProxy || null,
+              });
+            } catch (error) {
+              binaryError = error;
+              if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+            }
+          }
+          if (!bytes) throw binaryError || new Error('Sankaku media request failed');
+          const extension = url.match(/\.(mp4|webm|gif|png|jpg|jpeg)(?:\?|$)/i)?.[1]?.toLowerCase();
+          const mime = extension === 'mp4' ? 'video/mp4' : extension === 'webm' ? 'video/webm' : extension === 'gif' ? 'image/gif' : 'image/*';
+          const blobUrl = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: mime }));
+          return cacheProxyBlob(url, blobUrl);
+        } catch (binaryError) {
+          // Some CDN edges reject the Rust binary client while allowing the
+          // Tauri HTTP client with the same session headers.
+          console.warn('[useMediaLoader] Sankaku binary fetch failed; trying HTTP fallback:', binaryError);
+        }
       }
 
       const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
-      const response = await tauriFetch(url, {
+      let response = await tauriFetch(url, {
         method: 'GET',
         headers: sankakuHeaders,
       });
+      if (response.status === 503) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        response = await tauriFetch(url, {
+          method: 'GET',
+          headers: sankakuHeaders,
+        });
+      }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       
       const blob = await response.blob();
@@ -88,7 +159,41 @@ async function proxyViaTauri(url: string): Promise<string | null> {
   }
 
   if (needsProxy(url)) {
-    return `http://flowmanga.localhost/image-proxy?url=${encodeURIComponent(url)}`;
+    if (!isTauriRuntime()) return url;
+
+    const mediaHeaders = {
+      Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+      ...(mediaReferer(url) ? { Referer: mediaReferer(url)! } : {}),
+    };
+
+    try {
+      const bytes = await invoke<number[]>('fetch_binary', {
+        url,
+        headers: mediaHeaders,
+        proxyUrl: useSettingsStore.getState().networkProxy || null,
+      });
+      const blobUrl = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: mediaMimeType(url) }));
+      return cacheProxyBlob(url, blobUrl);
+    } catch (error) {
+      try {
+        // Some CDN edges reject the Rust request when a configured network
+        // proxy or its request fingerprint is present. Retry through the
+        // Tauri HTTP plugin before exposing a direct, possibly hotlink-blocked URL.
+        const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
+        const response = await tauriFetch(url, { method: 'GET', headers: mediaHeaders });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const blobUrl = URL.createObjectURL(await response.blob());
+        return cacheProxyBlob(url, blobUrl);
+      } catch (fallbackError) {
+        // A direct URL is still useful as a final fallback for CDNs that allow
+        // image embedding even when both desktop proxy paths are unavailable.
+        console.warn('[useMediaLoader] Protected media fetch failed; using direct URL:', {
+          binaryError: error,
+          fallbackError,
+        });
+        return url;
+      }
+    }
   }
   return url;
 }
@@ -122,7 +227,7 @@ export const useMediaLoader = () => {
       }
 
       return new Promise((resolve) => {
-        let timeoutId: any;
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
         let hasResolved = false;
 
         const attemptLoad = (index: number) => {
@@ -221,5 +326,5 @@ export const useMediaLoader = () => {
     [evictOldest]
   );
 
-  return { preloadHighResImage, proxyViaTauri, highResCache: highResCache.current, needsProxy };
+  return { preloadHighResImage, proxyViaTauri, needsProxy };
 };

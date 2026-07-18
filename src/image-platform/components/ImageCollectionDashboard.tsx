@@ -9,12 +9,13 @@ import { MyCollectionTab } from './MyCollectionTab';
 import { PlaylistsTab } from './PlaylistsTab';
 import { ForYouHeader } from './ForYouHeader';
 import { TagDescription } from './TagDescription';
-import { Search, Play, Pause, FastForward, Rewind, Shuffle, Repeat, Loader2, ChevronDown } from 'lucide-react';
+import { Search, Play, Pause, FastForward, Rewind, Shuffle, Repeat, Loader2, ChevronDown, X } from 'lucide-react';
 import { getDb } from '../../services/db';
 import { useMediaLoader } from '../../hooks/useMediaLoader';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { PlatformImage } from '../types';
+import { getSankakuTagSuggestions, type SankakuTagSuggestion } from '../../services/Sankaku';
 
 const SlideshowMedia = ({ image, isPaused }: { image: PlatformImage; isPaused: boolean }) => {
   const { proxyViaTauri, needsProxy } = useMediaLoader();
@@ -124,7 +125,10 @@ export const ImageCollectionDashboard = () => {
 
   const currentQuery = store.fetchMode === 'search' ? store.feeds.search.query : "";
   
-  const [searchInput, setSearchInput] = useState("");
+  const [searchTags, setSearchTags] = useState<string[]>([]);
+  const [searchDraft, setSearchDraft] = useState("");
+  const searchInput = [...searchTags, searchDraft.trim()].filter(Boolean).join(' ');
+  const [sankakuSuggestions, setSankakuSuggestions] = useState<SankakuTagSuggestion[]>([]);
   const [favoriteTags, setFavoriteTags] = useState<string[]>([]);
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
   const [modalImages, setModalImages] = useState<any[] | null>(null);
@@ -133,6 +137,44 @@ export const ImageCollectionDashboard = () => {
   const activeTab = store.activeTab;
   const setActiveTab = store.setActiveTab;
   const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const lastTerm = searchDraft.trim();
+    if (lastTerm.replace(/^-?(?:artist|studio|character|series|copyright|genre|meta):/i, '').length < 2 || !useSettingsStore.getState().isSourceEnabled('sankaku')) {
+      setSankakuSuggestions([]);
+      return;
+    }
+
+    let active = true;
+    const timer = setTimeout(() => {
+      getSankakuTagSuggestions(lastTerm).then((suggestions) => {
+        if (active) setSankakuSuggestions(suggestions);
+      });
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [searchDraft]);
+
+  const setSearchQuery = (query: string) => {
+    setSearchTags(query.trim().split(/\s+/).filter(Boolean));
+    setSearchDraft('');
+    setSankakuSuggestions([]);
+  };
+
+  const commitSearchTag = (rawTag: string) => {
+    const tag = rawTag.trim();
+    if (!tag) return;
+    setSearchTags(current => current.includes(tag) ? current : [...current, tag]);
+    setSearchDraft('');
+    setSankakuSuggestions([]);
+  };
+
+  const applySankakuSuggestion = (suggestion: SankakuTagSuggestion) => {
+    const prefix = searchDraft.match(/^(-?)(?:(artist|studio|character|series|copyright|genre|meta):)?/i);
+    commitSearchTag(`${prefix?.[1] || ''}${prefix?.[2] ? `${prefix[2]}:` : ''}${suggestion.tag}`);
+  };
 
   const loadFavorites = async () => {
     try {
@@ -171,9 +213,12 @@ export const ImageCollectionDashboard = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    const query = [...searchTags, searchDraft.trim()].filter(Boolean).join(' ');
+    if (!query) return;
+    if (searchDraft.trim()) commitSearchTag(searchDraft);
     setRefreshKey(prev => prev + 1);
     setActiveTab("search");
-    store.search(searchInput);
+    store.search(query);
   };
 
   const handleSavePlaylist = async () => {
@@ -254,14 +299,59 @@ export const ImageCollectionDashboard = () => {
       <div className="flex-none p-6 flex flex-col gap-4 border-b border-border-subtle bg-surface-elevated/50 backdrop-blur-xl z-20">
         <div className="flex items-center gap-4">
           <form onSubmit={handleSearch} className="flex-1 relative group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted group-focus-within:text-accent transition-colors" size={20} />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search images... try: boy castle -gun source:danbooru"
-              className="w-full h-12 pl-12 pr-4 rounded-xl bg-black/20 border border-white/5 focus:border-accent/50 focus:bg-black/40 text-foreground transition-all outline-none"
-            />
+            <div className="min-h-12 w-full pl-11 pr-3 py-2 rounded-xl bg-black/20 border border-white/5 focus-within:border-accent/50 focus-within:bg-black/40 text-foreground transition-all flex flex-wrap items-center gap-2">
+              <Search className="absolute left-4 top-6 -translate-y-1/2 text-foreground-muted group-focus-within:text-accent transition-colors" size={20} />
+              {searchTags.map(tag => (
+                <span key={tag} className="inline-flex items-center gap-1 rounded-lg border border-accent/30 bg-accent/15 px-2 py-1 text-xs font-semibold text-accent">
+                  {tag}
+                  <button type="button" onClick={() => setSearchTags(current => current.filter(item => item !== tag))} aria-label={`Remove ${tag}`} className="hover:text-white"><X size={12} /></button>
+                </span>
+              ))}
+              <input
+                type="text"
+                value={searchDraft}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (/\s/.test(value)) {
+                    const parts = value.split(/\s+/).filter(Boolean);
+                    const endsWithSpace = /\s$/.test(value);
+                    const completed = endsWithSpace ? parts : parts.slice(0, -1);
+                    completed.forEach(commitSearchTag);
+                    setSearchDraft(endsWithSpace ? '' : parts.at(-1) || '');
+                  } else {
+                    setSearchDraft(value);
+                  }
+                }}
+                onKeyDown={(event) => {
+                  if ((event.key === ',' || event.key === 'Tab') && searchDraft.trim()) {
+                    event.preventDefault();
+                    commitSearchTag(searchDraft);
+                  } else if (event.key === 'Backspace' && !searchDraft && searchTags.length > 0) {
+                    setSearchTags(current => current.slice(0, -1));
+                  }
+                }}
+                onBlur={() => setSankakuSuggestions([])}
+                placeholder={searchTags.length === 0 ? "Search images... type a tag and press Space" : "Add another tag..."}
+                className="min-w-[180px] flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-foreground-muted"
+              />
+            </div>
+            {sankakuSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-72 overflow-y-auto rounded-xl border border-white/15 bg-[#111318] shadow-2xl ring-1 ring-black/80 divide-y divide-white/5">
+                {sankakuSuggestions.map((suggestion) => (
+                  <button
+                    key={suggestion.tag}
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => applySankakuSuggestion(suggestion)}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left bg-[#111318] hover:bg-[#20232b]"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">{suggestion.tag}</span>
+                    <span className="text-xs text-foreground-muted">{suggestion.type}</span>
+                    <span className="text-xs tabular-nums text-foreground-muted">{suggestion.postCount.toLocaleString()}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </form>
 
           <select
@@ -417,6 +507,12 @@ export const ImageCollectionDashboard = () => {
           <MasonryGrid 
             feedType="search"
             header={currentQuery ? <TagDescription query={currentQuery} /> : undefined}
+            emptyState={
+              <div className="space-y-1">
+                <p>No visible matches.</p>
+                {!useSettingsStore.getState().showAdultContent && <p className="text-xs">Safe mode may be filtering valid Sankaku results.</p>}
+              </div>
+            }
             images={searchImages}
             columns={5}
             resetScrollKey={refreshKey}
@@ -442,7 +538,7 @@ export const ImageCollectionDashboard = () => {
             key={refreshKey}
             onPlay={(query) => {
               setActiveTab("search");
-              setSearchInput(query);
+              setSearchQuery(query);
               store.search(query);
             }} 
           />
@@ -463,7 +559,7 @@ export const ImageCollectionDashboard = () => {
             }
           }}
           onSearchTag={(tag) => {
-            setSearchInput(tag);
+            setSearchQuery(tag);
             setActiveTab("search");
             store.search(tag);
             setSelectedImageIndex(null);

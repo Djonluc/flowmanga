@@ -1,10 +1,10 @@
 import React, { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import type { PlatformImage } from "../types";
 import { useImageEngineStore } from "../useImageEngineStore";
-import { useMediaLoader } from "../../hooks/useMediaLoader";
+import { streamViaTauri, useMediaLoader } from "../../hooks/useMediaLoader";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import clsx from "clsx";
-import { RefreshCw } from "lucide-react";
+import { Play, RefreshCw } from "lucide-react";
 
 interface MasonryGridProps {
   images: PlatformImage[];
@@ -14,6 +14,7 @@ interface MasonryGridProps {
   columns?: number;
   feedType?: 'latest' | 'curated' | 'discover' | 'search';
   header?: React.ReactNode;
+  emptyState?: React.ReactNode;
   resetScrollKey?: number;
 }
 
@@ -25,6 +26,7 @@ export const MasonryGrid: React.FC<MasonryGridProps> = ({
   columns = 4,
   feedType,
   header,
+  emptyState,
   resetScrollKey = 0,
 }) => {
   const store = useImageEngineStore();
@@ -161,7 +163,7 @@ export const MasonryGrid: React.FC<MasonryGridProps> = ({
           state.loadNextPage();
         }
       },
-      { rootMargin: "100px", threshold: 0.1 },
+      { root: scrollRef.current, rootMargin: "240px", threshold: 0.01 },
     );
 
     if (loadMoreRef.current) {
@@ -171,10 +173,10 @@ export const MasonryGrid: React.FC<MasonryGridProps> = ({
     return () => observer.disconnect();
   }, [images.length]);
 
-  if (images.length === 0 && !hasMore) {
+  if (images.length === 0 && !store.isLoading && !isFetchingNextPage) {
     return (
       <div className="p-8 text-center text-foreground-muted">
-        No images found.
+        {emptyState || (hasMore ? 'No visible images yet.' : 'No images found.')}
       </div>
     );
   }
@@ -255,6 +257,7 @@ const ImageCard = ({
   const [sourceIndex, setSourceIndex] = useState(0);
   const [retryAttempt, setRetryAttempt] = useState(0);
   const [hasError, setHasError] = useState(false);
+  const [forceVideoBlobProxy, setForceVideoBlobProxy] = useState(false);
   const { proxyViaTauri, needsProxy } = useMediaLoader();
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -276,16 +279,18 @@ const ImageCard = ({
     return () => observer.disconnect();
   }, []);
 
-  const mediaUrls = Array.from(new Set([
-    image.thumbnailUrl,
-    image.sampleUrl,
-    image.previewUrl,
-    image.fullUrl,
-  ].filter(Boolean)));
+  // Video samples are often static JPEG posters (notably on Rule34). Prefer
+  // the actual video file; images retain the bandwidth-friendly sample order.
+  const mediaUrls = Array.from(new Set((image.mediaType === 'video'
+    ? [image.fullUrl, image.sampleUrl, image.thumbnailUrl, image.previewUrl]
+    : [image.thumbnailUrl, image.sampleUrl, image.previewUrl, image.fullUrl]
+  ).filter(Boolean)));
   let targetUrl = mediaUrls[sourceIndex] || mediaUrls[0] || "";
   let shouldWaitForProxy = false;
   let finalSrc: string | null = targetUrl;
-  let isVideo = targetUrl?.match(/\.(mp4|webm)(?:\?|$)/i);
+  let isVideo = Boolean(targetUrl?.match(/\.(mp4|webm)(?:\?|$)/i));
+  let isRangeStreamVideo = false;
+  const isDeclaredVideo = image.mediaType === 'video';
   const hasMedia = mediaUrls.length > 0;
 
   if (image.localPath) {
@@ -293,10 +298,14 @@ const ImageCard = ({
     const localSrc = convertFileSrc(image.localPath);
     targetUrl = localSrc;
     finalSrc = localSrc;
-    isVideo = localSrc.match(/\.(mp4|webm)(?:\?|$)/i);
+    isVideo = Boolean(localSrc.match(/\.(mp4|webm)(?:\?|$)/i));
   } else {
-    shouldWaitForProxy = needsProxy(targetUrl);
-    finalSrc = shouldWaitForProxy ? proxySrc : targetUrl;
+    // Signed Sankaku video URLs support browser streaming/range requests. A
+    // blob proxy must download the entire clip before playback can begin,
+    // which makes longer thumbnail previews appear permanently frozen.
+    isRangeStreamVideo = isVideo && (image.providerId === 'sankaku' || image.providerId === 'rule34');
+    shouldWaitForProxy = (!isRangeStreamVideo || forceVideoBlobProxy) && needsProxy(targetUrl);
+    finalSrc = shouldWaitForProxy ? proxySrc : (isRangeStreamVideo ? streamViaTauri(targetUrl) : targetUrl);
     if (finalSrc && retryAttempt > 0 && !shouldWaitForProxy) {
       try {
         const retryUrl = new URL(finalSrc);
@@ -314,6 +323,7 @@ const ImageCard = ({
     setSourceIndex(0);
     setRetryAttempt(0);
     setHasError(false);
+    setForceVideoBlobProxy(false);
   }, [image.id, image.thumbnailUrl, image.previewUrl, image.sampleUrl, image.fullUrl]);
 
   // Fetch proxy URL if needed when visible
@@ -355,6 +365,13 @@ const ImageCard = ({
   const handleMediaError = () => {
     setIsLoaded(false);
     setProxySrc(null);
+
+    if (isRangeStreamVideo && !forceVideoBlobProxy) {
+      console.warn(`[MasonryGrid] ${image.providerId} range preview failed for ${image.sourceId}; trying blob fallback.`);
+      setForceVideoBlobProxy(true);
+      setRetryAttempt(0);
+      return;
+    }
 
     if (retryAttempt < 2) {
       setRetryAttempt((attempt) => attempt + 1);
@@ -492,6 +509,11 @@ const ImageCard = ({
               ))}
             </div>
           </div>
+          {isDeclaredVideo && (
+            <div aria-label="Video" title="Video" className="absolute left-3 top-3 z-30 inline-flex items-center rounded-full bg-black/75 p-2 text-white shadow-lg backdrop-blur-sm pointer-events-none">
+              <Play size={12} fill="currentColor" />
+            </div>
+          )}
         </>
       )}
       {isVisible && !hasMedia && (

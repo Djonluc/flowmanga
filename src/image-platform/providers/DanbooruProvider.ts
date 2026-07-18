@@ -103,7 +103,10 @@ export class DanbooruProvider extends BaseProvider {
   private mapPosts(posts: any[]): PlatformImage[] {
     return posts
       .filter(p => p.id && (p.file_url || p.large_file_url || p.preview_file_url))
-      .filter(p => !p.file_url?.includes("download-preview.png")) // Ignore restricted Gold posts
+      .filter(p => {
+        const urls = [p.file_url, p.large_file_url, p.preview_file_url].filter(Boolean).join(' ');
+        return !/(?:download-preview|flash-preview)\.png/i.test(urls);
+      }) // Ignore restricted posts and Danbooru's missing-media placeholders
       .map(p => {
         const fullUrl = p.file_url || p.large_file_url || p.preview_file_url || "";
         const sampleUrl = p.large_file_url || p.file_url || p.preview_file_url || "";

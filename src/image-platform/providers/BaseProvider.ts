@@ -2,6 +2,68 @@ import type { ImageProvider, PlatformImage, SearchQuery } from "../types";
 import { fetch } from "@tauri-apps/plugin-http";
 import { invoke } from "@tauri-apps/api/core";
 
+interface ProviderRequestGate {
+  tail: Promise<void>;
+  nextRequestAt: number;
+  cooldownUntil: number;
+}
+
+const providerRequestGates = new Map<string, ProviderRequestGate>();
+
+function redactNetworkError(value: string): string {
+  return value.replace(/([?&](?:api_key|access_token|token|password|user_id)=)[^&\s)]+/gi, '$1***');
+}
+
+async function runWithProviderGate<T>(providerId: string, request: () => Promise<T>): Promise<T> {
+  const gate = providerRequestGates.get(providerId) ?? {
+    tail: Promise.resolve(),
+    nextRequestAt: 0,
+    cooldownUntil: 0,
+  };
+  providerRequestGates.set(providerId, gate);
+
+  let release!: () => void;
+  const turn = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const previous = gate.tail;
+  gate.tail = previous.then(() => turn);
+  await previous;
+
+  try {
+    const waitUntil = Math.max(gate.nextRequestAt, gate.cooldownUntil);
+    const waitMs = waitUntil - Date.now();
+    if (waitMs > 0) await new Promise(resolve => setTimeout(resolve, waitMs));
+
+    // Rule34 needs conservative spacing between requests; other providers retain their
+    // existing throughput while still getting serialized request ownership.
+    gate.nextRequestAt = Date.now() + (providerId === 'rule34' ? 1_000 : 0);
+    return await request();
+  } catch (error) {
+    const message = typeof error === 'string'
+      ? error
+      : error instanceof Error
+        ? error.message
+        : String(error);
+    if (providerId === 'rule34' && /429|too many requests|rate.?limit/i.test(message)) {
+      gate.cooldownUntil = Date.now() + 15_000;
+    } else if (providerId === 'rule34' && /EOF|empty response|unexpected end/i.test(message)) {
+      // Rule34 sometimes closes a throttled response without a status code.
+      gate.cooldownUntil = Date.now() + 8_000;
+    }
+    throw error;
+  } finally {
+    release();
+  }
+}
+
+export interface ProviderFetchOptions {
+  retries?: number;
+  timeoutMs?: number;
+  headlessFallback?: boolean;
+  transport?: 'plugin' | 'rust';
+}
+
 export abstract class BaseProvider implements ImageProvider {
   abstract id: string;
   abstract name: string;
@@ -23,24 +85,48 @@ export abstract class BaseProvider implements ImageProvider {
    * Helper function to fetch JSON via Tauri's HTTP plugin.
    * This bypasses CORS issues since the request is made from the Rust backend.
    */
-  protected async fetchJson<T>(url: string, headers: Record<string, string> = {}): Promise<T> {
-    let retries = 3;
+  protected async fetchJson<T>(url: string, headers: Record<string, string> = {}, options: ProviderFetchOptions = {}): Promise<T> {
+    let retries = options.retries ?? 3;
     let delay = 1000;
     let headlessAttempted = false;
     
     while (retries > 0) {
       try {
-        const response = await fetch(url, {
-          method: "GET",
-          headers: {
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const requestHeaders = {
             "User-Agent": "FlowManga/3.0",
-            ...headers
+            ...headers,
+          };
+
+          if (options.transport === 'rust') {
+            const { useSettingsStore } = await import("../../stores/useSettingsStore");
+            const response = await runWithProviderGate(this.id, () => Promise.race([
+              invoke<T>("fetch_json", {
+                url: url.toString(),
+                method: "GET",
+                body: null,
+                headers: requestHeaders,
+                proxyUrl: useSettingsStore.getState().networkProxy || null,
+              }),
+              new Promise<T>((_, reject) => {
+                timeoutId = setTimeout(() => reject(new Error(`Request timed out after ${options.timeoutMs ?? 30000}ms`)), options.timeoutMs ?? 30000);
+              }),
+            ]));
+            return response;
           }
-        });
+
+          const response = await runWithProviderGate(this.id, () => Promise.race([
+            fetch(url, { method: "GET", headers: requestHeaders }),
+            new Promise<Response>((_, reject) => {
+              timeoutId = setTimeout(() => reject(new Error(`Request timed out after ${options.timeoutMs ?? 30000}ms`)), options.timeoutMs ?? 30000);
+            }),
+          ]));
 
         if (response.status === 401 || response.status === 403 || response.status === 429) {
-          console.warn(`[${this.id}] Rate limited/Blocked (${response.status}). Falling back to Headless Webview...`);
-          if (!headlessAttempted) {
+          const fallbackDisabled = options.headlessFallback === false;
+          console.warn(`[${this.id}] Rate limited/Blocked (${response.status}). ${fallbackDisabled ? 'Headless fallback is disabled for this provider.' : 'Trying Headless Webview fallback.'}`);
+          if (!headlessAttempted && options.headlessFallback !== false) {
             headlessAttempted = true;
             try {
               const rawJson = await invoke<string>("fetch_json_headless", { url: url.toString(), headers });
@@ -76,9 +162,17 @@ export abstract class BaseProvider implements ImageProvider {
         }
 
         return await response.json();
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
+        }
       } catch (error: any) {
+        const errorMessage = redactNetworkError(typeof error === 'string'
+          ? error
+          : error instanceof Error
+            ? error.message
+            : String(error));
         if (retries > 1) {
-          console.warn(`[${this.id}] Fetch/Parse error: ${error.message}. Retrying in ${delay}ms...`);
+          console.warn(`[${this.id}] Fetch/Parse error: ${errorMessage}. Retrying in ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           delay *= 2;
           retries--;
@@ -151,6 +245,7 @@ export abstract class BaseProvider implements ImageProvider {
   async getById(id: string): Promise<PlatformImage | null> {
     // Default implementation falls back to returning null
     // Providers should override this if they support explicit ID fetching
+    void id;
     return null;
   }
   
@@ -195,7 +290,11 @@ export abstract class BaseProvider implements ImageProvider {
         const tagsString = encodeURIComponent(chunk.join(","));
         const finalUrl = apiUrlPattern.replace("{tags}", tagsString);
 
-        const response = await this.fetchJson<any>(finalUrl);
+        const response = await this.fetchJson<any>(
+          finalUrl,
+          {},
+          this.id === 'rule34' ? { transport: 'rust' } : {},
+        );
 
         const items = Array.isArray(response) ? response : (response?.tag || response?.tags || []);
         if (Array.isArray(items)) {

@@ -1,5 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore } from "../../../stores/useSettingsStore";
+
+interface ProviderFetchOptions {
+  retries?: number;
+  timeoutMs?: number;
+  headlessFallback?: boolean;
+}
+
+function redactNetworkError(value: string): string {
+  return value.replace(/([?&](?:api_key|access_token|token|password|user_id)=)[^&\s)]+/gi, '$1***');
+}
 import type { 
   ImageMedia, 
   StructuredQuery, 
@@ -52,7 +62,7 @@ export abstract class BaseProvider {
    * Helper utility to cleanly execute HTTP GET requests via Tauri proxy.
    * By using Rust, we bypass CORS and hotlinking restrictions.
    */
-  protected async fetchJson<T>(endpoint: string, params: Record<string, string | number | boolean> = {}, customHeaders: Record<string, string> = {}): Promise<T> {
+  protected async fetchJson<T>(endpoint: string, params: Record<string, string | number | boolean> = {}, customHeaders: Record<string, string> = {}, options: ProviderFetchOptions = {}): Promise<T> {
     const url = new URL(endpoint.startsWith("http") ? endpoint : `${this.baseUrl}${endpoint}`);
     
     Object.entries(params).forEach(([key, value]) => {
@@ -69,29 +79,40 @@ export abstract class BaseProvider {
 
     const { networkProxy } = useSettingsStore.getState();
 
-    let retries = 3;
+    let retries = options.retries ?? 3;
     let delay = 1000;
     let headlessAttempted = false;
 
     while (retries > 0) {
       try {
-        const response = await invoke<T>("fetch_json", {
-          url: url.toString(),
-          method: "GET",
-          headers,
-          proxyUrl: networkProxy || null
-        });
-        return response;
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const response = await Promise.race([
+            invoke<T>("fetch_json", {
+              url: url.toString(),
+              method: "GET",
+              headers,
+              proxyUrl: networkProxy || null
+            }),
+            new Promise<T>((_, reject) => {
+              timeoutId = setTimeout(() => reject(new Error(`Request timed out after ${options.timeoutMs ?? 30000}ms`)), options.timeoutMs ?? 30000);
+            }),
+          ]);
+          return response;
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
+        }
       } catch (error: any) {
-        const errMsg = typeof error === 'string' ? error : error.message || String(error);
+        const errMsg = redactNetworkError(typeof error === 'string' ? error : error.message || String(error));
         
         const isUnauthorized = errMsg.includes('401') || errMsg.includes('Unauthorized');
         const isForbidden = errMsg.includes('403') || errMsg.includes('Forbidden') || errMsg.includes('Cloudflare');
         const isRateLimited = errMsg.includes('429') || errMsg.includes('Too Many Requests');
 
         if (isUnauthorized || isForbidden || isRateLimited) {
-          console.warn(`[BaseProvider][${this.id}] Rate limited/Blocked (${errMsg}). Falling back to Headless Webview...`);
-          if (!headlessAttempted) {
+          const fallbackDisabled = options.headlessFallback === false;
+          console.warn(`[BaseProvider][${this.id}] Rate limited/Blocked (${errMsg}). ${fallbackDisabled ? 'Headless fallback is disabled for this provider.' : 'Trying Headless Webview fallback.'}`);
+          if (!headlessAttempted && options.headlessFallback !== false) {
             headlessAttempted = true;
             try {
               const rawJson = await invoke<string>("fetch_json_headless", { url: url.toString(), headers });
@@ -118,7 +139,7 @@ export abstract class BaseProvider {
           retries--;
           continue;
         }
-        console.error(`[BaseProvider][${this.id}] fetchJson error for ${url.toString()}:`, error);
+        console.error(`[BaseProvider][${this.id}] fetchJson error for ${redactNetworkError(url.toString())}: ${redactNetworkError(errMsg)}`);
         throw error;
       }
     }
@@ -158,14 +179,15 @@ export abstract class BaseProvider {
         return response;
       } catch (error: any) {
         if (retries > 1) {
-          const errMsg = typeof error === 'string' ? error : error.message || String(error);
+          const errMsg = redactNetworkError(typeof error === 'string' ? error : error.message || String(error));
           console.warn(`[BaseProvider][${this.id}] Fetch error (${errMsg}). Retrying in ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           delay *= 2;
           retries--;
           continue;
         }
-        console.error(`[BaseProvider][${this.id}] fetchHtml error for ${url.toString()}:`, error);
+        const errMsg = redactNetworkError(typeof error === 'string' ? error : error?.message || String(error));
+        console.error(`[BaseProvider][${this.id}] fetchHtml error for ${redactNetworkError(url.toString())}: ${errMsg}`);
         throw error;
       }
     }

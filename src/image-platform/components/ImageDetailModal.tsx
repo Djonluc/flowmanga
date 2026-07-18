@@ -12,7 +12,7 @@ import { pictureDir, join } from '@tauri-apps/api/path';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useSettingsStore } from '../../stores/useSettingsStore';
-import { useMediaLoader } from '../../hooks/useMediaLoader';
+import { streamViaTauri, useMediaLoader } from '../../hooks/useMediaLoader';
 import { TagWikiService } from '../../services/TagWikiService';
 import type { TagWiki } from '../../services/TagWikiService';
 import { getSankakuAuthHeaders } from '../../services/Sankaku';
@@ -77,7 +77,7 @@ const ClickableTag = ({ tag, type, onSearch, onClose, isInterest }: { tag: strin
           [crypto.randomUUID(), type, cleanTag]
         );
         toast.success(`Pinned ${cleanTag} as interest!`);
-      } catch (err) {
+      } catch {
         await db.execute(
           "UPDATE UserInterests SET isPinned = 1 WHERE type = ? AND name = ?",
           [type, cleanTag]
@@ -186,7 +186,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
   const [isDragging, setIsDragging] = React.useState(false);
   const [dragStart, setDragStart] = React.useState({ x: 0, y: 0 });
   const isImageTall = Boolean(image.height && image.width && (image.height / image.width > 1.5));
-  const isVideo = Boolean(image.fullUrl?.match(/\.(mp4|webm)(?:\?|$)/i) || image.sampleUrl?.match(/\.(mp4|webm)(?:\?|$)/i));
+  const initialVideoSource = [image.fullUrl, image.sampleUrl, image.previewUrl]
+    .find(url => Boolean(url?.match(/\.(mp4|webm)(?:\?|$)/i))) || null;
+  const [videoSource, setVideoSource] = React.useState<string | null>(initialVideoSource);
+  const isVideo = image.mediaType === 'video' && Boolean(videoSource);
 
   const getContainedImageSize = React.useCallback(() => {
     const container = containerRef.current;
@@ -512,6 +515,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
   const [thumbnailRetries, setThumbnailRetries] = React.useState(0);
   const [fullRetries, setFullRetries] = React.useState(0);
   const [sankakuRefreshAttempted, setSankakuRefreshAttempted] = React.useState(false);
+  const [videoProxyFallbackAttempted, setVideoProxyFallbackAttempted] = React.useState(false);
   const thumbnailSource = image.thumbnailUrl || image.sampleUrl || image.previewUrl || "";
   const fullSource = image.fullUrl || image.sampleUrl || "";
 
@@ -564,6 +568,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
     setThumbnailRetries(0);
     setFullRetries(0);
     setSankakuRefreshAttempted(false);
+    setVideoProxyFallbackAttempted(false);
+    setVideoSource(initialVideoSource);
 
     const loadImages = async () => {
       // 0. Instantly load local file if we have it downloaded
@@ -574,15 +580,46 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
         return;
       }
 
+      // Sankaku list payloads often contain only a still preview for videos.
+      // Hydrate the richer per-post payload before deciding this is an image.
+      if (image.providerId === 'sankaku' && image.mediaType === 'video' && !initialVideoSource) {
+        try {
+          const { federator } = await import('../SearchFederator');
+          const fresh = await federator.getById(image.providerId, image.sourceId);
+          const playable = [fresh?.fullUrl, fresh?.sampleUrl, fresh?.previewUrl]
+            .find(url => Boolean(url?.match(/\.(mp4|webm)(?:\?|$)/i)));
+          if (playable) {
+            setVideoSource(playable);
+            // Keep the signed CDN URL intact so <video> can request byte
+            // ranges instead of waiting for a full-file blob download.
+            setFullSrc(streamViaTauri(playable));
+          } else {
+            console.warn(`[ImageDetailModal] Sankaku post ${image.sourceId} is marked as video but its detail payload has no playable URL.`);
+          }
+        } catch (error) {
+          console.warn(`[ImageDetailModal] Failed to hydrate Sankaku video ${image.sourceId}:`, error);
+        }
+      }
+
       // 1. Instantly load the thumbnail
       loadRemoteSource(thumbnailSource).then(setThumbnailSrc);
 
       // 2. Load the full image in the background
-      loadRemoteSource(fullSource).then(setFullSrc);
+      if (initialVideoSource) {
+        if (image.providerId === 'sankaku' || image.providerId === 'rule34') {
+          setFullSrc(streamViaTauri(initialVideoSource));
+        } else {
+          // Danbooru and the other protected CDNs still require the existing
+          // Rust media loader; only Sankaku uses the range-stream protocol.
+          setFullSrc(await loadRemoteSource(initialVideoSource));
+        }
+      } else if (image.mediaType !== 'video') {
+        loadRemoteSource(fullSource).then(setFullSrc);
+      }
     };
     
     loadImages();
-  }, [currentLocalPath, thumbnailSource, fullSource, loadRemoteSource]);
+  }, [currentLocalPath, thumbnailSource, fullSource, initialVideoSource, image.mediaType, image.providerId, image.sourceId, loadRemoteSource]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-6 bg-black/80 backdrop-blur-sm" onClick={onClose}>
@@ -614,7 +651,24 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
                 loop
                 controls
                 className="w-full h-full object-contain relative z-10"
-                 onLoadedData={() => setIsFullLoaded(true)}
+                onLoadedData={() => setIsFullLoaded(true)}
+                onError={() => {
+                  const supportsStreamFallback = image.providerId === 'sankaku' || image.providerId === 'rule34';
+                  if (!supportsStreamFallback || !videoSource || videoProxyFallbackAttempted) {
+                    console.warn(`[ImageDetailModal] Video playback failed for ${image.providerId}:${image.sourceId}.`);
+                    return;
+                  }
+                  setVideoProxyFallbackAttempted(true);
+                  console.warn(`[ImageDetailModal] ${image.providerId} range stream failed for ${image.sourceId}; trying blob fallback.`);
+                  void proxyViaTauri(videoSource).then(fallback => {
+                    if (fallback) {
+                      setIsFullLoaded(false);
+                      setFullSrc(fallback);
+                    } else {
+                      console.warn(`[ImageDetailModal] ${image.providerId} blob fallback failed for ${image.sourceId}.`);
+                    }
+                  });
+                }}
               />
             </>
           ) : (

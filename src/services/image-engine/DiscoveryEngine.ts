@@ -3,6 +3,7 @@ import { TagParser } from "./parser/TagParser";
 import type { BaseProvider } from "./providers/BaseProvider";
 import type { ImageMedia, EngineSearchOptions, StructuredQuery } from "./types";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { isSankakuCoolingDown } from "../Sankaku";
 
 export class DiscoveryEngine {
   private providers = new Map<string, BaseProvider>();
@@ -34,11 +35,13 @@ export class DiscoveryEngine {
       // 3. Is it circuit-broken / unhealthy?
       if (!this.monitor.isAvailable(p.id)) return false;
 
-      // 4. Does it require authentication?
+      // 4. Does it require authentication? Sankaku exposes public feeds; a
+      // session improves coverage but is not required to list the source.
       if (p.capabilities.authentication || p.capabilities.status === "auth_required") {
+        if (p.id === 'sankaku') return true;
         const auth = booruAuth?.[p.id];
         if (p.capabilities.requiresCookies) {
-          if (!auth?.sessionCookies) return false; // Missing cookies = disabled
+          if (!auth?.sessionCookies) return false;
         } else {
           if (!auth?.userId || !auth?.apiKey) return false; // Missing API keys = disabled
         }
@@ -61,7 +64,7 @@ export class DiscoveryEngine {
       if (p.capabilities.authentication || p.capabilities.status === "auth_required") {
         const auth = booruAuth?.[p.id];
         if (p.capabilities.requiresCookies) {
-          return !auth?.sessionCookies;
+          return p.id !== 'sankaku' && !auth?.sessionCookies;
         } else {
           return !auth?.userId || !auth?.apiKey;
         }
@@ -182,6 +185,11 @@ export class DiscoveryEngine {
 
         if (results.length === 0) {
           console.log(`[DiscoveryEngine] [${provider.id}] Returned 0 items. Falling back to page ${currentPage + 1}...`);
+        }
+
+        if (provider.id === "sankaku" && isSankakuCoolingDown()) {
+          console.info("[DiscoveryEngine] [sankaku] Cooldown active; stopping page fallback attempts.");
+          break;
         }
 
         currentPage++;

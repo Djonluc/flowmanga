@@ -1,4 +1,4 @@
-import { Globe, ExternalLink, ShieldCheck, Zap, AlertTriangle, Search, Sparkles, Activity, Clock, Power } from 'lucide-react';
+import { Globe, ExternalLink, ShieldCheck, Zap, AlertTriangle, Search, Sparkles, Activity, Clock, Power, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import { useState } from 'react';
 import { useSettingsStore } from '../../stores/useSettingsStore';
@@ -7,11 +7,11 @@ import { federator } from '../../image-platform/SearchFederator';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useEffect } from 'react';
+import { verifySankakuSession, type SankakuSessionStatus } from '../../services/Sankaku';
 
 export const SourcesSettings = () => {
     const { 
         showAdultContent, 
-        setShowAdultContent, 
         excludedTags, 
         setExcludedTags, 
         coloredOnly, 
@@ -23,6 +23,7 @@ export const SourcesSettings = () => {
     } = useSettingsStore();
     const [tagInput, setTagInput] = useState(excludedTags?.join(', ') || '');
     const [isExtracting, setIsExtracting] = useState<Record<string, boolean>>({});
+    const [sankakuSessionStatus, setSankakuSessionStatus] = useState<SankakuSessionStatus | null>(null);
 
     const getAuthProviderId = (providerId: string) =>
         providerId === 'sankaku-books' ? 'sankaku' : providerId;
@@ -48,6 +49,9 @@ export const SourcesSettings = () => {
                     ...currentAuth?.[authProviderId],
                     sessionCookies: cookies
                 });
+                if (authProviderId === 'sankaku') {
+                    setSankakuSessionStatus(await verifySankakuSession());
+                }
             }
         } catch (e) {
             console.error("Failed to auto-extract cookies:", e);
@@ -55,11 +59,21 @@ export const SourcesSettings = () => {
             setIsExtracting(prev => ({ ...prev, [extractionKey]: false }));
         }
     };
+
+    const handleVerifySankaku = async () => {
+        setSankakuSessionStatus({
+            state: 'unavailable',
+            hasCookies: Boolean(booruAuth?.sankaku?.sessionCookies),
+            hasToken: false,
+            message: 'Checking Sankaku session...',
+        });
+        setSankakuSessionStatus(await verifySankakuSession());
+    };
     
     const getAuthInstructions = (providerId: string, requiresCookies?: boolean) => {
         switch (providerId) {
             case 'sankaku':
-                return "One shared login powers Sankaku images and Books. Use the authenticator or extract the session from Chrome after signing in at the Sankaku login page.";
+                return "One shared login powers Sankaku images and Books. Log in with Chrome, choose Auto-Extract from Chrome, then choose Verify Session. The authenticator is a separate app window and may not expose HttpOnly cookies.";
             case 'sankaku-books':
                 return "Books uses the same Sankaku session as image search. Authenticate once under Sankaku Image + Books access.";
             case 'e-hentai':
@@ -97,7 +111,9 @@ export const SourcesSettings = () => {
                     if (lsStr) {
                         try {
                             parsedLs = JSON.parse(lsStr);
-                        } catch(e) {}
+                        } catch (error) {
+                            console.warn('Ignored invalid Sankaku local-storage session data:', error);
+                        }
                     }
                     
                     useSettingsStore.getState().setBooruAuth(authProviderId, {
@@ -121,10 +137,8 @@ export const SourcesSettings = () => {
     const mangaProviders = allProviders.filter(p => p.mediaDomain === 'manga');
     
     // Get image engine providers
-    const imageProviders = federator.getProviders() as any[];
+    const imageProviders = federator.getProviders();
     const galleryProviders = imageProviders;
-    // For capabilities/auth display, show only enabled
-    const enabledProviders = sourceRegistry.list();
     // Sankaku image search and Sankaku Books share one SSO session. Keep one
     // authentication card so users do not accidentally create two credentials.
     const authenticationProviders = Array.from(new Map(
@@ -522,6 +536,23 @@ export const SourcesSettings = () => {
                                 <p className="text-foreground-muted text-[10px] font-medium mt-1 leading-relaxed">
                                     {getAuthInstructions(p.id, p.capabilities.requiresCookies)}
                                 </p>
+                                {p.id === 'sankaku' && (
+                                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={handleVerifySankaku}
+                                            className="text-[10px] font-black text-cyan-400 hover:text-cyan-300 uppercase tracking-widest bg-cyan-500/10 px-2 py-1 rounded-md flex items-center gap-1"
+                                        >
+                                            <RefreshCw size={11} /> Verify Session
+                                        </button>
+                                        {sankakuSessionStatus && (
+                                            <span className={`text-[10px] font-bold flex items-center gap-1 ${sankakuSessionStatus.state === 'authenticated' ? 'text-emerald-400' : sankakuSessionStatus.state === 'unavailable' ? 'text-amber-400' : 'text-rose-400'}`}>
+                                                {sankakuSessionStatus.state === 'authenticated' ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
+                                                {sankakuSessionStatus.message}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -653,7 +684,7 @@ export const SourcesSettings = () => {
                         <span className="text-rose-500 text-[10px] font-black uppercase tracking-widest mb-1">Custom Filters</span>
                         <span className="text-foreground text-base font-bold tracking-tight">Exclude Tags & Genres</span>
                         <p className="text-foreground-muted text-[10px] font-medium mt-1">
-                            Type any tags you want to globally hide (comma separated). For example: <span className="text-foreground/40 italic">loli, horror, mecha</span>
+                            Type any tags you want to globally hide (comma separated). For example: <span className="text-foreground/40 italic">horror, mecha, spoilers</span>
                         </p>
                     </div>
                     
@@ -666,7 +697,7 @@ export const SourcesSettings = () => {
                             const tags = val.split(',').map(t => t.trim()).filter(Boolean);
                             setExcludedTags(tags);
                         }}
-                        placeholder="e.g. loli, tragedy, gore..."
+                        placeholder="e.g. horror, tragedy, mecha..."
                         className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-rose-500/50 transition-colors"
                     />
                 </div>

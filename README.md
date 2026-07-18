@@ -19,9 +19,9 @@
 [![Tauri](https://img.shields.io/badge/Tauri-2.x-24C8DB?style=flat-square&logo=tauri)](https://tauri.app/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 
-FlowManga is a **Tauri 2** desktop app: a local-first library with multiple reading layouts, a download queue, tag-based discovery, optional video library, and reading analytics. The UI is **React 19** with **Tailwind CSS 4** and **Zustand** for state.
+FlowManga is a local-first Tauri 2 desktop application for reading, organizing, downloading, and discovering manga and visual media. Its React interface combines a local library, multiple reader layouts, federated source search, image and video collections, recommendations, playlists, and reading analytics.
 
-[Features](#-features) · [Installation](#-installation) · [Tech stack](#-tech-stack) · [Documentation](#-documentation) · [Roadmap](#-roadmap)
+[Features](#features) · [Installation](#installation) · [Source access](#source-access-and-safety) · [Development](#development-and-release-checks) · [Roadmap](#roadmap)
 
 </div>
 
@@ -29,142 +29,147 @@ FlowManga is a **Tauri 2** desktop app: a local-first library with multiple read
 
 ## Features
 
-### Library and Collections
+### Library and collections
 
-- **Local folders** are scanned in place; SQLite stores paths to your existing files (see [FEATURES.md](FEATURES.md)).
-- **URL imports** download chapters into a folder you choose in settings (not the same as “moving your whole collection into an app-owned vault”).
-- **Unified Collection UI**: Grid and shelf-style views, dynamic masonry grids, smart albums, playlists, and a dedicated "For You" feed.
-- **Media Type Filtering**: Seamlessly filter out Images, Videos, or GIFs universally across search, discovery, and collections!
-- **Command palette** and keyboard-driven navigation for common actions.
+- Scan local manga and media folders without moving the original files.
+- Import supported URLs and download chapters to a user-selected location.
+- Browse grid, shelf, smart album, playlist, favorites, recent, and uncategorized views.
+- Filter federated results by image, GIF, or video media type.
+- Search and navigate quickly with the command palette and keyboard shortcuts.
 
-### Reader & Viewing
+### Reader and viewer
 
-- **Vertical** (webtoon-style scroll), **single-page** mode, and **dual-page** reading.
-- **Slideshow System**: Auto-advance, shuffle, and looping controls directly inside image collections.
-- Auto-scroll, zoom / fit modes, fullscreen, HUD toggle, and shortcut guide.
-- **Adaptive theming** from the current page; optional **ambient** soundscapes.
+- Vertical webtoon, single-page, and dual-page reading layouts.
+- Zoom, fit, fullscreen, HUD, auto-scroll, and shortcut controls.
+- Slideshows with auto-advance, shuffle, and looping.
+- Local and remote image, GIF, and video playback.
+- Optional adaptive page colors and ambient soundscapes.
 
-### Discovery, Sources, and Downloads
+### Discovery and recommendations
 
-- **Discover** view with curated rails, recommendations, and tag exploration (backed by `ScraperService` and source providers).
-- **Manga & Comic Sources**: MangaDex (API), plus scraper-backed providers such as ManhwaRead, LuaComic, BlueLock, DBM, ManhuaPlus.
-- **Booru & Gallery Ecosystem**: Deep integrations for Danbooru, Gelbooru, Rule34, E-Hentai, Sankaku Complex, and Nekos.best! Includes fuzzy tag autocomplete and advanced negations.
-- **Download manager**: queued jobs, background chunk cleanup, pause/resume, and native Rust processing to effortlessly reconstruct heavily scrambled pages.
+- Latest, Discover, Search, and configurable For You feeds.
+- Editable recommendation themes with core, secondary, excluded, artist, character, and series tags.
+- Adult-only themes and suggestions remain hidden while Adult Content is disabled.
+- Sankaku For You mixes recent and randomized matching posts to reduce repetition.
+- Seen-history ranking, blocked tags, source balancing, and related-post grouping.
 
-### Beyond Comics
+### Sources and downloads
 
-- **Video library** for local video folders and playback inside the shell, with robust filtering.
-- **Analytics** dashboard and **reading history** views.
-- **Automation** hooks (see settings and `AutomationService`) for scripted or scheduled behaviors where enabled.
+- MangaDex API support plus scraper-backed manga and comic providers.
+- Federated visual-media support for Danbooru, Gelbooru, Rule34, E-Hentai, Sankaku Complex, Nekos.best, and other configured providers.
+- Source-aware tag autocomplete, typed tags, exclusions, and media filtering.
+- Shared Sankaku image and Books authentication with session verification.
+- Download queue with pause, resume, retry reporting, cleanup, and native image processing.
 
-### Desktop Integration
+### Desktop integration
 
-- **Tauri 2** windowing, filesystem, SQL, dialogs, and shell integrations.
-- **Automatic Updates**: FlowManga checks for updates natively in the background and prompts you with a stylish popup and categorized changelog when a new version drops.
-- Native **zoom** level synced from settings when running under Tauri.
+- Tauri filesystem, SQL, dialog, shell, HTTP, and native window integrations.
+- Local SQLite metadata while original library files stay in place.
+- Windows NSIS release builds through the tagged GitHub Actions workflow.
+- Native update checks and versioned GitHub release notes.
+
+---
+
+## Source access and safety
+
+FlowManga does not bypass provider account, premium, or visibility requirements. Some providers expose public catalogs but require a valid captured session for restricted media. Source Settings contains authentication, cookie capture, and session-verification controls where supported.
+
+Adult Content is disabled by default. While disabled, FlowManga filters provider ratings, built-in adult themes, adult tag suggestions, and known adult terminology. User-defined tags remain stored when the setting changes, but safe-mode filtering controls what is requested and displayed.
+
+Only access and download material you are authorized to use. Provider availability and API behavior can change independently of FlowManga.
 
 ---
 
 ## Tech stack
 
-| Layer          | Stack                                                 |
-| -------------- | ----------------------------------------------------- |
-| UI             | React 19, Framer Motion, Tailwind CSS 4, Lucide icons |
-| State          | Zustand                                               |
-| Charts / lists | Recharts, react-window (where used)                   |
-| Desktop        | Tauri 2 (Rust), Vite 7                                |
-| Validation     | Zod                                                   |
+| Layer | Stack |
+| --- | --- |
+| UI | React 19, Framer Motion, Tailwind CSS 4, Lucide |
+| State and data | Zustand, SQLite |
+| Lists and charts | react-window, Recharts |
+| Desktop | Tauri 2, Rust, Vite 7 |
+| Validation | TypeScript, ESLint, Clippy |
 
 ---
 
 ## Installation
 
-### Prerequisites
+### Windows release
 
-- **Node.js** 18 or newer (LTS recommended)
-- **Rust** toolchain (stable), for Tauri
-- **Platform**: Windows, macOS, or Linux (Tauri targets vary by OS; see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/))
+Download the current Windows installer from [GitHub Releases](https://github.com/Djonluc/flowmanga/releases). Updating preserves the existing library database and settings.
 
-### Clone and run
+### Build from source
+
+Prerequisites:
+
+- Node.js 18 or newer (current LTS recommended)
+- Rust stable with the Tauri prerequisites for your operating system
+- Windows WebView2 when building or running on Windows
 
 ```bash
 git clone https://github.com/Djonluc/flowmanga.git
 cd flowmanga
-npm install
+npm ci
 npm run tauri dev
 ```
 
-### Production build
+Create a production build with:
 
 ```bash
 npm run tauri build
 ```
 
-Artifacts are emitted under `src-tauri/target/release/` (and bundle output per your Tauri bundle config).
+The configured release bundle target is Windows NSIS. Source builds may run on other Tauri-supported platforms, but official release artifacts depend on the configured workflow and target.
 
 ### Environment
 
-Copy `.env.example` to `.env` if you need non-default behavior. The app runs without a `.env` file. Optional variables (see `.env.example`) include display metadata and `VITE_COMIX_COOKIE` for scraper flows that send a session cookie—only use this where you are explicitly allowed to access the service, and never commit secrets.
+Copy `.env.example` to `.env` only when non-default scraper behavior is required. Never commit session cookies, API keys, or access tokens.
+
+---
+
+## Development and release checks
+
+```bash
+npm ci
+npm run typecheck
+npm run vite-build
+cargo test --manifest-path src-tauri/Cargo.toml
+cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+```
+
+The repository still contains legacy ESLint debt, primarily explicit `any` annotations and older hook patterns. TypeScript, the production Vite build, Rust tests, and Clippy are the current release gates. See [DEPLOYMENT.md](DEPLOYMENT.md) for the tag-driven Windows publishing process.
 
 ---
 
 ## Project structure
 
-```
+```text
 flowmanga/
-├── src-tauri/           # Tauri 2 Rust crate, capabilities, icons, tauri.conf.json
+├── assets/                  # Bundled audio and other application assets
+├── public/                  # Branding, screenshots, and public web assets
+├── src-tauri/               # Rust backend, capabilities, icons, and bundle config
 ├── src/
-│   ├── components/      # UI (reader, library, modals, settings, video, home, …)
-│   ├── image-platform/  # Booru/Gallery federation, tag intelligence, query parsing
-│   ├── stores/          # Zustand stores
-│   ├── services/        # Downloads, scrapers, discovery, automation, …
-│   ├── hooks/           # Reader, library, analytics, adaptive color, …
-│   ├── config/          # App config (e.g. spotlight)
-│   └── types/           # Shared TypeScript types
-├── index.html           # Vite entry
-├── vite.config.mts
-├── package.json
-└── .env.example
+│   ├── components/          # Application UI
+│   ├── hooks/               # Media, reader, library, and utility hooks
+│   ├── image-platform/      # Federated visual-media engine and collections
+│   ├── services/            # Downloads, discovery, sources, and automation
+│   ├── stores/              # Zustand application stores
+│   └── types/               # Shared TypeScript types
+├── CHANGELOG.md
+├── DEPLOYMENT.md
+├── RELEASE_NOTES.md
+└── package.json
 ```
-
----
-
-## Documentation
-
-| Doc                                              | Purpose                                                                       |
-| ------------------------------------------------ | ----------------------------------------------------------------------------- |
-| [FEATURES.md](FEATURES.md)                       | **Authoritative** behavior notes for the desktop app (synced to the codebase) |
-| [DEPLOYMENT.md](DEPLOYMENT.md)                   | Builds, updates, and ops                                                      |
-| [WINDOW_ARCHITECTURE.md](WINDOW_ARCHITECTURE.md) | Windows-specific layout notes                                                 |
-| [CONTRIBUTING.md](CONTRIBUTING.md)               | How to contribute                                                             |
 
 ---
 
 ## Roadmap
 
-### Done (high level)
-
-- Local library, scanning, 3D shelf, multiple reader modes
-- Adaptive color, ambient audio, keyboard shortcuts
-- MangaDex and extended source registry; download queue and native image descrambling
-- Discover home rails, video library, analytics and history surfaces
-- Booru & gallery ecosystem integration with native tag intelligence and playlists
-
-### In progress / next
-
-- Reader polish (e.g. long-strip performance, advanced spread / gap options)
-- Broader gesture and touch tuning on supported devices
-
-### Ideas
-
-- Optional self-hosted sync
-- Companion / plugin-style source extensions
-
----
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). Issues and PRs are welcome.
+- Continue reducing legacy ESLint and type debt.
+- Add automated tests for provider mapping, recommendation filtering, and Rust range streaming.
+- Improve reader performance for very long chapters and large local libraries.
+- Expand touch and gesture support.
+- Explore optional self-hosted synchronization and source extensions.
 
 ---
 
@@ -182,6 +187,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Issues and PRs are welcome.
 [![YouTube](https://img.shields.io/badge/YouTube-@Djonluc-FF0000?style=flat-square&logo=youtube)](https://www.youtube.com/@Djonluc)
 [![Email](https://img.shields.io/badge/Email-djonstnix@gmail.com-5B8CFF?style=flat-square&logo=gmail)](mailto:djonstnix@gmail.com)
 
-**Version:** 2.5.0 (see `package.json` and `src-tauri/tauri.conf.json`) · **Status:** active development
+**Version:** 2.6.0 · **Status:** active development
 
 </div>

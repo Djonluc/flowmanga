@@ -38,17 +38,22 @@ export class Rule34Provider extends BaseProvider {
       return [];
     }
 
-    const apiTags = [...query.positiveTags];
+    const apiTags: string[] = [];
+    const addTag = (tag: string) => {
+      if (tag && !apiTags.includes(tag)) apiTags.push(tag);
+    };
 
-    // Add negative tags using -tag syntax
-    query.negativeTags.forEach(tag => {
-      apiTags.push(`-${tag}`);
-    });
+    query.positiveTags.forEach(addTag);
 
     // If adult content is disabled, filter to safe posts only
     if (!showAdultContent) {
-      apiTags.push("rating:safe");
+      addTag("rating:safe");
     }
+
+    // Add negative tags using -tag syntax, without duplicating exclusions.
+    query.negativeTags.forEach(tag => {
+      addTag(`-${tag}`);
+    });
 
     // NOTE: Rule34 API does not support sort: tags — sort is not a valid API param
     // Remove any sort: tags that may have come from the query
@@ -61,7 +66,11 @@ export class Rule34Provider extends BaseProvider {
     
     try {
       console.log(`[Rule34Provider] Requesting: ${url.replace(/api_key=[^&]*/, "api_key=***")}`);
-      const response = await this.fetchJson<any>(url);
+      const response = await this.fetchJson<any>(url, {}, {
+        transport: 'rust',
+        headlessFallback: false,
+        retries: 1,
+      });
       
       if (!Array.isArray(response)) {
         console.warn("[Rule34Provider] Unexpected response from API (not an array):", response);
@@ -189,7 +198,11 @@ export class Rule34Provider extends BaseProvider {
     const url = `https://api.rule34.xxx/autocomplete.php?q=${encodeURIComponent(query)}`;
     
     try {
-      const data = await this.fetchJson<any>(url);
+      const data = await this.fetchJson<any>(url, {}, {
+        transport: 'rust',
+        headlessFallback: false,
+        retries: 1,
+      });
       if (!Array.isArray(data)) return [];
       
       return data.map(item => item.value).filter(Boolean);

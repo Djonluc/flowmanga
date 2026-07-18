@@ -14,10 +14,8 @@ import { hasExcludedTag, mergeExcludedTags } from "../services/TagExclusions";
 import { imageDiscovery, imageAutocomplete, mapImageMediaToSearchResult } from "../services/image-engine";
 import type {
   SourceSearchResult,
-  SourceSearchOptions,
   ContentType,
 } from "../services/sources/types";
-import type { SourceProvider } from "../services/sources/types";
 
 // Module-level timers and controllers for request management
 let _suggestionDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -118,19 +116,6 @@ const CURATED_AESTHETICS = [
   "Ocean",
 ];
 
-const AESTHETIC_COMBOS = [
-  ["Cyberpunk", "Rain"],
-  ["Fantasy", "Moonlight"],
-  ["Gothic", "Neon"],
-  ["Sunset", "Anime City"],
-  ["Dark Fantasy", "Glowing Eyes"],
-  ["Cyberpunk", "Neon"],
-  ["Fantasy", "Forest"],
-  ["Vocaloid", "Stage"],
-  ["Samurai", "Snow"],
-  ["Ocean", "Underwater"],
-];
-
 // ─── Utilities ───────────────────────────────────────────────────────
 
 function buildResultKey(item: SourceSearchResult) {
@@ -156,7 +141,9 @@ function dedupeResults(
       useGalleryStore.getState().blockedTags || [],
       useSettingsStore.getState().excludedTags || [],
     );
-  } catch(e) {}
+  } catch (error) {
+    console.warn('[GalleryStore] Failed to load blocked-tag filters:', error);
+  }
 
   return items.filter((item) => {
     const key = buildResultKey(item);
@@ -496,7 +483,9 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
         if (settings.has("blockedTags")) {
           try {
             set({ blockedTags: JSON.parse(settings.get("blockedTags")) });
-          } catch(e) {}
+          } catch (error) {
+            console.warn('[GalleryStore] Ignored invalid persisted blocked tags:', error);
+          }
         }
       } catch (settingsError) {
         console.warn(
@@ -1033,7 +1022,12 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
           lastToken.replace(/^[-+]/, ""),
           sourceMatch?.[1]?.toLowerCase(),
         );
-        set({ searchSuggestions: suggestions.map((suggestion) => suggestion.tag) });
+        const showAdultContent = useSettingsStore.getState().showAdultContent;
+        set({
+          searchSuggestions: suggestions
+            .map((suggestion) => suggestion.tag)
+            .filter(tag => showAdultContent || !ContentFilter.isAdultTag(tag)),
+        });
       } catch (e) {
         console.error("[GalleryStore] Autocomplete failed:", e);
       }
@@ -1272,7 +1266,9 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
       try {
         const db = getDb();
         await db.execute("DELETE FROM UserInterests WHERE name = ?", [cleanTag]);
-      } catch (e) {}
+      } catch (error) {
+        console.warn('[GalleryStore] Failed to remove the previous interest state:', error);
+      }
       await blockTag(cleanTag);
     } else if (blockedTags.includes(cleanTag)) {
       // 2nd -> 3rd state: un-block
@@ -1286,7 +1282,9 @@ export const useGalleryStore = create<GalleryState>()(persist((set, get) => ({
           "INSERT INTO UserInterests (id, type, name, score, isPinned) VALUES (?, ?, ?, 100, 0)",
           [crypto.randomUUID(), type, cleanTag]
         );
-      } catch (e) {}
+      } catch (error) {
+        console.warn('[GalleryStore] Failed to persist the new interest state:', error);
+      }
     }
   },
 

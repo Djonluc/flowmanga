@@ -577,7 +577,7 @@ async fn scan_chapters(path: String, series_id: String) -> Result<Vec<ChapterMet
                             };
 
                             let pages = if let (Some(si), Some(ei)) = (start_idx, end_idx) {
-                                (ei - si + 1).max(0) as i32
+                                (ei - si + 1).max(0)
                             } else {
                                 0
                             };
@@ -636,7 +636,7 @@ async fn read_folder(app: AppHandle, path: String) -> Result<Vec<String>, String
             for i in 0..archive.len() {
                 let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
                 let outpath = match file.enclosed_name() {
-                    Some(path) => extract_path.join(path.to_owned()),
+                    Some(path) => extract_path.join(path),
                     None => continue,
                 };
 
@@ -645,7 +645,7 @@ async fn read_folder(app: AppHandle, path: String) -> Result<Vec<String>, String
                 } else {
                     if let Some(p) = outpath.parent() {
                         if !p.exists() {
-                            fs::create_dir_all(&p).ok();
+                            fs::create_dir_all(p).ok();
                         }
                     }
                     let mut outfile = fs::File::create(&outpath).map_err(|e| e.to_string())?;
@@ -981,8 +981,21 @@ async fn download_image(
 async fn fetch_binary(
     url: String,
     headers: Option<HashMap<String, String>>,
+    proxy_url: Option<String>,
 ) -> Result<Vec<u8>, String> {
-    let client_builder = reqwest::Client::builder().user_agent("okhttp/4.12.0");
+    let mut client_builder = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+        .connect_timeout(std::time::Duration::from_secs(8))
+        .timeout(std::time::Duration::from_secs(45))
+        .redirect(reqwest::redirect::Policy::limited(5));
+
+    if let Some(proxy) = proxy_url {
+        if !proxy.is_empty() {
+            if let Ok(reqwest_proxy) = reqwest::Proxy::all(&proxy) {
+                client_builder = client_builder.proxy(reqwest_proxy);
+            }
+        }
+    }
 
     let client = client_builder.build().map_err(|e| e.to_string())?;
 
@@ -1016,7 +1029,12 @@ async fn fetch_json(
     proxy_url: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let mut client_builder = reqwest::Client::builder()
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .connect_timeout(std::time::Duration::from_secs(8))
+        .timeout(std::time::Duration::from_secs(20))
+        .gzip(true)
+        .deflate(true)
+        .redirect(reqwest::redirect::Policy::limited(5));
 
     if let Some(proxy) = proxy_url {
         if !proxy.is_empty() {
@@ -1050,10 +1068,49 @@ async fn fetch_json(
         .map_err(|e: reqwest::Error| e.to_string())?;
 
     if !response.status().is_success() {
-        return Err(format!(
-            "Failed to fetch JSON: status {}",
-            response.status()
-        ));
+        let status = response.status();
+        let retry_after = response
+            .headers()
+            .get("retry-after")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or("");
+        let rate_limit_reset = response
+            .headers()
+            .get("x-ratelimit-reset")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or("");
+        let response_url = response.url().clone();
+        let mut detail = format!(
+            "Failed to fetch JSON: status {} from {}",
+            status, response_url
+        );
+        if !retry_after.is_empty() {
+            detail.push_str(&format!("; retry-after={}", retry_after));
+        }
+        if !rate_limit_reset.is_empty() {
+            detail.push_str(&format!("; x-ratelimit-reset={}", rate_limit_reset));
+        }
+        let content_type = response
+            .headers()
+            .get("content-type")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or("")
+            .to_string();
+        let response_body = response.text().await.unwrap_or_default();
+        let body_preview: String = response_body
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .chars()
+            .take(240)
+            .collect();
+        if !content_type.is_empty() {
+            detail.push_str(&format!("; content-type={}", content_type));
+        }
+        if !body_preview.is_empty() {
+            detail.push_str(&format!("; body={}", body_preview));
+        }
+        return Err(detail);
     }
 
     let json = response
@@ -1301,10 +1358,9 @@ async fn scrape_images_headless(
                 }
 
                 // Broad filter for large data URLs or other image-like patterns
-                if s.len() > 40 && !s.contains("logo") && !s.contains("avatar") && !s.contains("icon") {
-                    if s.contains("/uploads/") || s.contains("/manga/") || s.contains("/chapters/") {
-                        return true;
-                    }
+                if s.len() > 40 && !s.contains("logo") && !s.contains("avatar") && !s.contains("icon")
+                    && (s.contains("/uploads/") || s.contains("/manga/") || s.contains("/chapters/")) {
+                    return true;
                 }
                 false
             })
@@ -2326,7 +2382,7 @@ async fn open_auth_window(app: tauri::AppHandle, url: String, provider_id: Strin
                 ls = JSON.stringify(window.localStorage);
             } catch (e) {}
             
-            if ((cookies && (cookies.includes('ipb_member_id') || cookies.includes('pass_hash') || cookies.includes('_sankakuchannel_session') || cookies.includes('sessionid='))) ||
+            if ((cookies && (cookies.includes('ipb_member_id') || cookies.includes('pass_hash') || cookies.includes('_sankakuchannel_session') || cookies.includes('accessToken=') || cookies.includes('access_token=') || cookies.includes('sessionid='))) ||
                 (ls && (ls.includes('access_token') || ls.includes('token') || ls.includes('user_id')))) {
                 const targetUrl = 'https://flowmanga.local/auth-callback?provider=PROVIDER_ID&cookie=' + encodeURIComponent(cookies || "") + '&ls=' + encodeURIComponent(ls);
                 window.location.replace(targetUrl);
@@ -2431,6 +2487,24 @@ pub fn run() {
                             
                             if let Ok(c) = client {
                                 let mut req = c.get(target_url);
+                                let stream_media = query_params.get("stream").map(|value| value == "1").unwrap_or(false);
+                                let requested_range = request.headers()
+                                    .get("range")
+                                    .and_then(|value| value.to_str().ok())
+                                    .map(|value| value.to_string());
+                                if stream_media {
+                                    // Bound each response so playback begins without
+                                    // buffering the complete remote video first.
+                                    let bounded_range = requested_range.as_deref()
+                                        .and_then(|value| value.strip_prefix("bytes="))
+                                        .and_then(|value| value.split('-').next())
+                                        .and_then(|value| value.parse::<u64>().ok())
+                                        .map(|start| format!("bytes={}-{}", start, start.saturating_add(4 * 1024 * 1024 - 1)))
+                                        .unwrap_or_else(|| "bytes=0-4194303".to_string());
+                                    req = req.header("Range", bounded_range);
+                                } else if let Some(range) = requested_range {
+                                    req = req.header("Range", range);
+                                }
                                 let mut referer_str = None;
                                 if let Some(referer) = query_params.get("referer") {
                                     referer_str = Some(referer.to_string());
@@ -2466,13 +2540,18 @@ pub fn run() {
                                         .and_then(|v| v.to_str().ok())
                                         .unwrap_or("application/octet-stream")
                                         .to_string();
+                                    let content_range = res.headers().get("content-range").and_then(|value| value.to_str().ok()).map(str::to_string);
+                                    let accept_ranges = res.headers().get("accept-ranges").and_then(|value| value.to_str().ok()).map(str::to_string);
+                                    let content_length = res.headers().get("content-length").and_then(|value| value.to_str().ok()).map(str::to_string);
                                     if let Ok(bytes) = res.bytes().await {
-                                        let response = tauri::http::Response::builder()
+                                        let mut builder = tauri::http::Response::builder()
                                             .status(status)
                                             .header("Content-Type", content_type)
-                                            .header("Access-Control-Allow-Origin", "*")
-                                            .body(bytes.to_vec())
-                                            .unwrap();
+                                            .header("Access-Control-Allow-Origin", "*");
+                                        if let Some(value) = content_range { builder = builder.header("Content-Range", value); }
+                                        if let Some(value) = accept_ranges { builder = builder.header("Accept-Ranges", value); }
+                                        if let Some(value) = content_length { builder = builder.header("Content-Length", value); }
+                                        let response = builder.body(bytes.to_vec()).unwrap();
                                         responder.respond(response);
                                         return;
                                     }

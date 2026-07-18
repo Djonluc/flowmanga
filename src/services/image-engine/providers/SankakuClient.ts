@@ -2,17 +2,29 @@ import { BaseProvider } from './BaseProvider';
 import { TagParser } from '../parser/TagParser';
 import type { ImageMedia, StructuredQuery, EngineSearchOptions, SourceCapabilities } from '../types';
 import {
-  getSankakuAuthHeaders,
+  getSankakuRequestHeaders,
+  getSankakuPublicRequestHeaders,
+  hasSankakuAuth,
   getSankakuGroupInfo,
   getSankakuMediaType,
   getSankakuMediaStatus,
   getSankakuSourceUrl,
   mapSankakuRating,
   mapSankakuTags,
+  isSankakuApprovedPost,
+  isSankakuAuthenticationRejected,
+  isSankakuCoolingDown,
+  isSankakuRateLimited,
+  isSankakuRequestRejected,
+  normalizeSankakuSearchTag,
   parseSankakuCreatedAtIso,
   SANKAKU_LOGIN_URL,
   sankakuApiUrls,
+  sankakuKeysetApiUrls,
+  noteSankakuRateLimit,
+  runSankakuRequest,
   unwrapSankakuPosts,
+  type SankakuKeysetResponse,
   type SankakuPost,
 } from '../../../services/Sankaku';
 
@@ -23,7 +35,7 @@ export class SankakuClient extends BaseProvider {
 
   readonly capabilities: SourceCapabilities = {
     supportsNegativeTags: true,
-    maxTagsPerRequest: 8,
+    maxTagsPerRequest: 10,
     supportsSort: true,
     supportsScore: true,
     nativeRecommendations: true,
@@ -32,39 +44,108 @@ export class SankakuClient extends BaseProvider {
     requiresCookies: true,
     authUrl: SANKAKU_LOGIN_URL,
   };
+  private readonly keysetCursors = new Map<string, string | null>();
+  private readonly keysetCache = new Map<string, { expiresAt: number; posts: SankakuPost[] }>();
+  private readonly keysetRequests = new Map<string, Promise<SankakuPost[] | null>>();
+
+  private async requestJson<T>(url: string, params: Record<string, string | number> = {}): Promise<T> {
+    const headers = getSankakuRequestHeaders();
+    try {
+      return await runSankakuRequest(() => this.fetchJson<T>(url, params, headers, { retries: 1, timeoutMs: 12000, headlessFallback: false }));
+    } catch (error) {
+      noteSankakuRateLimit(error);
+      if (hasSankakuAuth(headers) && isSankakuAuthenticationRejected(error)) {
+        console.warn(`[SankakuClient] Saved session rejected for ${new URL(url).pathname}; retrying public feed.`);
+        return runSankakuRequest(() => this.fetchJson<T>(url, params, getSankakuPublicRequestHeaders(), { retries: 1, timeoutMs: 12000, headlessFallback: false }));
+      }
+      throw error;
+    }
+  }
 
   private async fetchSankakuJson<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
-    const headers = getSankakuAuthHeaders();
     let lastError: unknown;
     for (const endpoint of sankakuApiUrls(path)) {
       try {
-        return await this.fetchJson<T>(endpoint, params, headers);
+        return await this.requestJson<T>(endpoint, params);
       } catch (error) {
         lastError = error;
+        noteSankakuRateLimit(error);
+        if (isSankakuRequestRejected(error) || isSankakuRateLimited(error)) throw error;
         console.warn(`[SankakuClient] Endpoint failed, trying fallback: ${endpoint}`);
       }
     }
     throw lastError || new Error('Sankaku request failed');
   }
 
+  private async fetchKeysetPosts(tags: string, page: number): Promise<SankakuPost[] | null> {
+    const normalizedPage = Math.max(1, page);
+    const cursorKey = `${tags}:${normalizedPage}`;
+    const cached = this.keysetCache.get(cursorKey);
+    if (cached && (cached.expiresAt > Date.now() || isSankakuCoolingDown())) return cached.posts;
+
+    const inFlight = this.keysetRequests.get(cursorKey);
+    if (inFlight) return inFlight;
+
+    const request = this.fetchKeysetPostsUncached(tags, normalizedPage, cursorKey);
+    this.keysetRequests.set(cursorKey, request);
+    try {
+      const posts = await request;
+      if (posts) {
+        const cacheMs = /(^|\s)order:recent(?:\s|$)/i.test(tags) ? 15_000 : 60_000;
+        this.keysetCache.set(cursorKey, { posts, expiresAt: Date.now() + cacheMs });
+      }
+      return posts;
+    } finally {
+      this.keysetRequests.delete(cursorKey);
+    }
+  }
+
+  private async fetchKeysetPostsUncached(tags: string, normalizedPage: number, cursorKey: string): Promise<SankakuPost[] | null> {
+    const next = normalizedPage > 1 ? this.keysetCursors.get(`${tags}:${normalizedPage - 1}`) : undefined;
+    if (normalizedPage > 1 && !next) return null;
+
+    for (const endpoint of sankakuKeysetApiUrls('/v2/posts/keyset')) {
+      const url = new URL(endpoint);
+      url.searchParams.set('tags', tags);
+      url.searchParams.set('limit', '40');
+      url.searchParams.set('page', String(normalizedPage));
+      url.searchParams.set('lang', 'en');
+      url.searchParams.set('default_threshold', '1');
+      url.searchParams.set('hide_posts_in_books', 'in-larger-tags');
+      if (/(^|\s)rating:safe(?:\s|$)/i.test(tags)) url.searchParams.set('filter_content', 'true');
+      if (next) url.searchParams.set('next', next);
+
+      try {
+        const response = await this.requestJson<SankakuKeysetResponse>(url.toString());
+        this.keysetCursors.set(cursorKey, response?.meta?.next || null);
+        return Array.isArray(response?.data) ? response.data : [];
+      } catch (error) {
+        noteSankakuRateLimit(error);
+        if (isSankakuRequestRejected(error) || isSankakuRateLimited(error)) throw error;
+        console.warn(`[SankakuClient] Keyset endpoint failed, trying fallback: ${endpoint}`, error);
+      }
+    }
+
+    return null;
+  }
+
   async search(query: StructuredQuery, options: EngineSearchOptions): Promise<ImageMedia[]> {
+    return this.searchInternal(query, options);
+  }
+
+  private async searchInternal(query: StructuredQuery, options: EngineSearchOptions): Promise<ImageMedia[]> {
     const allowance = this.capabilities.maxTagsPerRequest;
     const apiTags: string[] = [];
     const localFilterNegativeTags: string[] = [];
     const localFilterPositiveTags: string[] = [];
 
     for (const tag of query.positiveTags) {
-      if (apiTags.length < allowance) apiTags.push(tag);
+      if (apiTags.length < allowance) apiTags.push(normalizeSankakuSearchTag(tag));
       else localFilterPositiveTags.push(tag);
     }
-    for (const tag of query.negativeTags) {
-      if (apiTags.length < allowance) apiTags.push(`-${tag}`);
-      else localFilterNegativeTags.push(tag);
-    }
-
-    if (options.ratingFilter === 'sfw' && !apiTags.some(tag => /^rating:/i.test(tag))) {
-      apiTags.push('rating:safe');
-    }
+    // Safe mode is carried by `filter_content=true`, leaving the anonymous
+    // one-tag allowance available for the actual catalog term.
+    localFilterNegativeTags.push(...query.negativeTags);
 
     const tagsQueryString = apiTags.map(TagParser.normalizeBooruTag).join(' ');
     const targetLimit = options.limit || 20;
@@ -77,13 +158,15 @@ export class SankakuClient extends BaseProvider {
 
     for (let attempt = 0; attempt < maxApiPages && accumulatedResults.length < targetLimit; attempt++) {
       try {
-        const data = await this.fetchSankakuJson<unknown>('/posts', {
+        const keysetPosts = await this.fetchKeysetPosts(tagsQueryString, currentApiPage);
+        const data = keysetPosts || await this.fetchSankakuJson<unknown>('/v2/posts', {
           tags: tagsQueryString,
           page: currentApiPage,
           limit,
           lang: 'en',
+          ...(options.ratingFilter === 'sfw' ? { filter_content: 'true' } : {}),
         });
-        const posts = unwrapSankakuPosts(data);
+        const posts = keysetPosts || unwrapSankakuPosts(data);
         if (posts.length === 0) break;
 
         let results = this.mapPosts(posts);
@@ -101,6 +184,10 @@ export class SankakuClient extends BaseProvider {
         ];
         currentApiPage += 1;
       } catch (error) {
+        if (isSankakuRateLimited(error)) {
+          console.info(`[SankakuClient] Request deferred until Sankaku's rate limit resets.`);
+          break;
+        }
         console.warn(`[SankakuClient] API fetch failed on page ${currentApiPage}:`, error);
         break;
       }
@@ -147,12 +234,12 @@ export class SankakuClient extends BaseProvider {
 
   private mapPosts(posts: SankakuPost[]): ImageMedia[] {
     return posts
-      .filter(post => post.id !== undefined)
+      .filter(post => post.id !== undefined && isSankakuApprovedPost(post))
       .map(post => {
         const preview = post.preview_url || post.sample_url || post.file_url || '';
         const sample = post.sample_url || post.file_url || preview;
         const full = post.file_url || sample;
-        const tags = mapSankakuTags(post.tags);
+        const tags = mapSankakuTags(post.tags, post.tag_names);
         const group = getSankakuGroupInfo(post);
         const width = post.width || post.sample_width || post.preview_width;
         const height = post.height || post.sample_height || post.preview_height;

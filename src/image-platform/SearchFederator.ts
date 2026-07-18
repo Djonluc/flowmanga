@@ -1,6 +1,8 @@
 import type { ImageProvider, PlatformImage, SearchQuery } from "./types";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import { hasExcludedTag, mergeExcludedTags } from "../services/TagExclusions";
+import { getActiveForYouProfile } from "./forYouProfiles";
+import { ContentFilter } from "../services/ContentFilter";
 
 export class SearchFederator {
   private providers: Map<string, ImageProvider> = new Map();
@@ -31,6 +33,14 @@ export class SearchFederator {
       );
       
       if (blockedTags.length === 0) return images;
+
+      const blockedCounts = blockedTags
+        .map(tag => ({ tag, count: images.filter(image => hasExcludedTag(image.tags || [], [tag])).length }))
+        .filter(item => item.count > 0)
+        .sort((a, b) => b.count - a.count);
+      if (blockedCounts.length > 0) {
+        console.info(`[SearchFederator] blocked ${images.length - images.filter(img => !hasExcludedTag(img.tags || [], blockedTags)).length}/${images.length} images; reasons=${blockedCounts.slice(0, 12).map(item => `${item.tag}:${item.count}`).join(',')}`);
+      }
 
       return images.filter(img => {
         return !hasExcludedTag(img.tags || [], blockedTags);
@@ -68,8 +78,12 @@ export class SearchFederator {
       const seenSet = new Set(seenRows.map(r => r.id));
 
       const unseen = notSavedImages.filter(img => !seenSet.has(img.id));
-      
-      return unseen;
+      const recentlySeen = notSavedImages.filter(img => seenSet.has(img.id));
+
+      // Seen history is a ranking signal, not a reason to empty a valid feed.
+      // New material stays first; recently viewed candidates remain available
+      // when the selected tag has a small or slow-moving catalog.
+      return [...unseen, ...recentlySeen];
     } catch (e) {
       console.warn("[SearchFederator] Failed to filter exclusions", e);
       return images;
@@ -79,6 +93,8 @@ export class SearchFederator {
   async getActiveProviders(): Promise<ImageProvider[]> {
     const { useSettingsStore } = await import("../stores/useSettingsStore");
     const { isSourceEnabled } = useSettingsStore.getState();
+    // Sankaku has a public feed; a captured session unlocks additional
+    // restricted content but should not make the entire source disappear.
     return this.getProviders().filter(p => isSourceEnabled(p.id));
   }
 
@@ -100,6 +116,12 @@ export class SearchFederator {
       positiveTags: Array.from(new Set(newTags)),
       raw: query.raw ? `${query.raw} animated` : "animated"
     };
+  }
+
+  private filterMediaType(images: PlatformImage[]): PlatformImage[] {
+    const { globalMediaFilter } = useSettingsStore.getState();
+    if (globalMediaFilter === 'all') return images;
+    return images.filter(image => image.mediaType === globalMediaFilter);
   }
 
   /**
@@ -163,10 +185,12 @@ export class SearchFederator {
       providerId: p.id,
       request: p.search(finalQuery, page)
         .then(async res => {
-          const filtered = this.filterAdult(res);
+          const filtered = this.filterAdult(this.filterMediaType(res));
           const blockFiltered = await this.filterBlocked(filtered);
-          const prioritized = await this.filterExclusions(blockFiltered);
-          return prioritized;
+          // A direct search is a catalog operation. Do not hide posts solely
+          // because they were viewed in another tab; seen filtering belongs to
+          // recommendation-oriented feeds where novelty is the goal.
+          return blockFiltered;
         }),
     }));
 
@@ -191,8 +215,9 @@ export class SearchFederator {
         providerId: p.id,
         request: fetchPromise
         .then(async res => {
-          const filtered = this.filterAdult(res);
+          const filtered = this.filterAdult(this.filterMediaType(res));
           const blockFiltered = await this.filterBlocked(filtered);
+          console.info(`[SearchFederator] latest provider=${p.id} page=${page} raw=${res.length} adultVisible=${filtered.length} afterBlocked=${blockFiltered.length}`);
           return blockFiltered;
         }),
       };
@@ -209,11 +234,36 @@ export class SearchFederator {
 
     let discoveryTags: string[] = [];
     let blockedTags: string[] = [];
+    let profileExcludedTags: string[] = [];
+    let sankakuProfileTag: string | undefined;
+    let sankakuCoreTags: string[] = [];
     try {
       const { getDb } = await import("../services/db");
       const db = getDb();
       const { useSettingsStore } = await import("../stores/useSettingsStore");
-      const mode = useSettingsStore.getState().recommendationMode;
+      const settings = useSettingsStore.getState();
+      const mode = settings.recommendationMode;
+      const storedProfile = settings.forYouProfiles?.find(item => item.id === settings.activeForYouProfileId);
+      const profile = storedProfile && (!storedProfile.adultOnly || settings.showAdultContent)
+        ? getActiveForYouProfile(storedProfile, settings.showAdultContent)
+        : undefined;
+      sankakuProfileTag = profile?.sankakuTag?.trim();
+      const profileCoreTags = profile?.coreTags || [];
+      sankakuCoreTags = profileCoreTags;
+      const profileSupportingTags = [...(profile?.supportingTags || [])];
+      const profileRequiredCoreTags = profile?.requiredCoreTags || [];
+      const profileRequiredSupportingTags = profile?.requiredSupportingTags || [];
+      const profileTypedTags = [
+        ...(profile?.artistTags || []).map(tag => `artist:${tag}`),
+        ...(profile?.characterTags || []).map(tag => `character:${tag}`),
+        ...(profile?.seriesTags || []).map(tag => `series:${tag}`),
+      ];
+      const profileRequiredTypedTags = [
+        ...(profile?.requiredArtistTags || []).map(tag => `artist:${tag}`),
+        ...(profile?.requiredCharacterTags || []).map(tag => `character:${tag}`),
+        ...(profile?.requiredSeriesTags || []).map(tag => `series:${tag}`),
+      ];
+      profileExcludedTags = profile?.excludedTags || [];
 
       // Pull implicit interests (tags the engine thinks you like based on viewing habits)
       const interests = await db.select<{name: string}[]>(`
@@ -229,24 +279,63 @@ export class SearchFederator {
         ORDER BY RANDOM() 
         LIMIT 20
       `);
+      const suppressedFavoriteNames = new Set((settings.suppressedFavoriteSupportTags || []).map(tag => tag.toLowerCase()));
+      const favoriteSupportTags = favs
+        .map(favorite => favorite.tag)
+        .filter(tag => !suppressedFavoriteNames.has(tag.toLowerCase()));
+      profileSupportingTags.push(...favoriteSupportTags);
 
-      let combinedTags: string[] = [];
+      let combinedTags: string[] = [...profileCoreTags];
       if (mode === 'strict_favorites') {
-        combinedTags = favs.map(f => f.tag);
+        combinedTags = [...profileCoreTags, ...favoriteSupportTags];
       } else if (mode === 'strict_interests') {
-        combinedTags = interests.map(i => i.name);
+        combinedTags = [...profileCoreTags, ...interests.map(i => i.name)];
       } else {
         // dynamic
         combinedTags = Array.from(new Set([
-          ...favs.map(f => f.tag),
+          ...profileCoreTags,
+          ...favoriteSupportTags,
           ...interests.map(i => i.name)
         ]));
       }
       
-      // Shuffle and pick up to 4 tags to search concurrently
-      discoveryTags = combinedTags
-        .sort(() => 0.5 - Math.random())
-        .slice(0, 4);
+      // A selected profile always contributes a core query. Required tags are
+      // included in every query; unpinned tags are sampled for variety.
+      if (profile) {
+        const strictTheme = settings.forYouQualityMode === 'strict' || settings.forYouQualityMode === 'themed';
+        const optionalCore = profileCoreTags.filter(tag => !profileRequiredCoreTags.includes(tag));
+        const optionalSupporting = profileSupportingTags.filter(tag => !profileRequiredSupportingTags.includes(tag));
+        const requiredBase = Array.from(new Set([
+          ...profileRequiredCoreTags,
+          ...profileRequiredSupportingTags,
+          ...profileRequiredTypedTags,
+        ]));
+        const coreChoices = [...optionalCore].sort(() => 0.5 - Math.random());
+        const supportingChoices = [...optionalSupporting].sort(() => 0.5 - Math.random());
+        const typedChoices = [...profileTypedTags]
+          .filter(tag => !profileRequiredTypedTags.includes(tag))
+          .sort(() => 0.5 - Math.random());
+
+        if (profileCoreTags.length > 0) {
+          discoveryTags = Array.from({ length: 4 }, (_, index) => {
+            const core = coreChoices[index % Math.max(1, coreChoices.length)] || profileRequiredCoreTags[0] || profileCoreTags[0];
+            const secondary = strictTheme && profileSupportingTags.length > 0
+              ? supportingChoices[index % Math.max(1, supportingChoices.length)] || profileRequiredSupportingTags[0] || profileSupportingTags[0]
+              : undefined;
+            const typed = typedChoices[index % Math.max(1, typedChoices.length)];
+            return Array.from(new Set([
+              ...requiredBase,
+              core,
+              ...(secondary ? [secondary] : []),
+              ...(typed ? [typed] : []),
+            ])).join(' ');
+          });
+        }
+      } else {
+        discoveryTags = combinedTags
+          .sort(() => 0.5 - Math.random())
+          .slice(0, 4);
+      }
 
       const fallbacks = [
         "genshin_impact", "honkai_star_rail", "original", "anime", "landscape", 
@@ -257,7 +346,7 @@ export class SearchFederator {
         "steampunk", "cybernetic", "mecha", "space", "underwater", "concept_art"
       ];
 
-      if (discoveryTags.length < 4) {
+      if (!profile && discoveryTags.length < 4) {
         const shuffledFallbacks = [...fallbacks].sort(() => 0.5 - Math.random());
         for (const tag of shuffledFallbacks) {
           if (discoveryTags.length >= 4) break;
@@ -270,13 +359,16 @@ export class SearchFederator {
       blockedTags = mergeExcludedTags(
         useGalleryStore.getState().blockedTags,
         useSettingsStore.getState().excludedTags,
+        profileExcludedTags,
       );
     } catch (e) {
       console.warn("Failed to load interests for curation", e);
     }
 
     if (discoveryTags.length === 0) {
-      return this.getLatest(page, onChunk);
+      return useSettingsStore.getState().activeForYouProfileId
+        ? []
+        : this.getLatest(page, onChunk);
     }
 
     // for each tag across all providers, then interleave the results.
@@ -284,21 +376,45 @@ export class SearchFederator {
     const { RecommendationEngine } = await import('./services/RecommendationEngine');
     const recommendationContext = await RecommendationEngine.loadContext();
 
-    discoveryTags.forEach(tag => {
+    // Sankaku rejects some multi-tag searches for public/basic sessions with
+    // `snackbar__insufficient_privileges`. Keep its request to one core tag,
+    // rotating across feed pages so every configured core still contributes.
+    // A source-specific tag takes precedence when the profile defines one.
+    const selectedSankakuTag = sankakuProfileTag;
+    const sankakuChoices = sankakuCoreTags.length > 0 ? sankakuCoreTags : discoveryTags;
+    const sankakuChoiceIndex = (Math.max(1, page) - 1) % Math.max(1, sankakuChoices.length);
+    const sankakuSeed = selectedSankakuTag || sankakuChoices[sankakuChoiceIndex];
+
+    const providerDiscoveryTags = sankakuSeed && !discoveryTags.includes(sankakuSeed)
+      ? [...discoveryTags, sankakuSeed]
+      : discoveryTags;
+    providerDiscoveryTags.forEach(tag => {
       activeProviders.forEach(p => {
-        const query = this.getMediaFilterQuery({ raw: tag, positiveTags: [tag], negativeTags: blockedTags, predicates: {} });
+        if (p.id === 'sankaku' && tag !== sankakuSeed) return;
+        const allPositiveTags = tag.split(/\s+/).filter(Boolean);
+        // For You intentionally mixes 10% current posts with 90% randomized
+        // matching posts. Random requests stay on page one because Sankaku
+        // returns a fresh randomized set and cursor chains are order-specific.
+        const sankakuFreshPage = p.id === 'sankaku' && (Math.max(1, page) - 1) % 10 === 0;
+        const positiveTags = p.id === 'sankaku'
+          ? [...allPositiveTags, `order:${sankakuFreshPage ? 'recent' : 'random'}`]
+          : allPositiveTags;
+        const effectiveTag = positiveTags.join(' ');
+        const query = this.getMediaFilterQuery({ raw: effectiveTag, positiveTags, negativeTags: blockedTags, predicates: {} });
         
-        // Add random jitter to the page number so 'For You' feeds are always fresh on refresh
-        const jitter = Math.floor(Math.random() * 10);
-        const fetchPage = page + jitter;
+        // Sankaku rate-limits page jumps aggressively. Keep its requests
+        // sequential so a refresh reaches current results reliably.
+        const jitter = p.id === 'sankaku' ? 0 : Math.floor(Math.random() * 10);
+        const fetchPage = p.id === 'sankaku' ? 1 : page + jitter;
 
         requests.push({
           providerId: p.id,
           request: p.search(query, fetchPage)
             .then(async res => {
-              const filtered = this.filterAdult(res);
+              const filtered = this.filterAdult(this.filterMediaType(res));
               const blockFiltered = await this.filterBlocked(filtered);
               const prioritized = await this.filterExclusions(blockFiltered);
+              console.info(`[SearchFederator] curated provider=${p.id} page=${fetchPage} tag=${effectiveTag} raw=${res.length} adultVisible=${filtered.length} afterBlocked=${blockFiltered.length} ranked=${prioritized.length}`);
               
               return prioritized;
             }),
@@ -361,7 +477,11 @@ export class SearchFederator {
     }
 
     // Fallback if somehow everything fails (Only if not in Strict Mode)
-    return recommendationContext.qualityMode === 'strict' ? [] : this.getLatest(page, onChunk);
+    return recommendationContext.profile
+      || recommendationContext.qualityMode === 'strict'
+      || recommendationContext.qualityMode === 'themed'
+      ? []
+      : this.getLatest(page, onChunk);
   }
 
   async getDiscovery(page: number, onChunk?: (images: PlatformImage[]) => void): Promise<PlatformImage[]> {
@@ -380,9 +500,10 @@ export class SearchFederator {
         providerId: p.id,
         request: fetchPromise
         .then(async res => {
-          const filtered = this.filterAdult(res);
+          const filtered = this.filterAdult(this.filterMediaType(res));
           const blockFiltered = await this.filterBlocked(filtered);
           const prioritized = await this.filterExclusions(blockFiltered);
+          console.info(`[SearchFederator] discover provider=${p.id} page=${page} raw=${res.length} adultVisible=${filtered.length} afterBlocked=${blockFiltered.length} ranked=${prioritized.length}`);
           return prioritized;
         }),
       };
@@ -424,14 +545,16 @@ export class SearchFederator {
 
     const promises = activeProviders.map(p => 
       (p.autocompleteTags ? p.autocompleteTags(lastTerm) : Promise.resolve([]))
-        .catch((e: any) => {
+        .catch((e: unknown) => {
           console.warn(`[SearchFederator] Autocomplete failed for ${p.id}:`, e);
           return [] as string[];
         })
     );
 
     const resultsArray = await Promise.all(promises);
-    const allTags = resultsArray.flat();
+    const allTags = resultsArray.flat().filter(tag => (
+      useSettingsStore.getState().showAdultContent || !ContentFilter.isAdultTag(tag)
+    ));
     
     // Deduplicate and return top 10
     return [...new Set(allTags)].slice(0, 10);

@@ -9,17 +9,24 @@ export class QueryParser {
    * - System predicates: "source:danbooru", "rating:safe"
    */
   static parse(rawQuery: string): SearchQuery {
-    const tokens = rawQuery.trim().split(/\s+/).filter(Boolean);
+    // `+` is a visual AND separator in the search UI. Treat both
+    // "tag1 + tag2" and "tag1+tag2" exactly like whitespace so a bare plus
+    // is never sent to providers as an invalid tag.
+    const tokens = rawQuery.replace(/\s*\+\s*/g, ' ').trim().split(/\s+/).filter(Boolean);
     
     const positiveTags: string[] = [];
     const negativeTags: string[] = [];
     const predicates: Record<string, string> = {};
 
+    const predicateKeys = new Set(["source", "rating", "score", "order", "sort", "limit", "page"]);
+
     for (const token of tokens) {
-      if (token.includes(":") && !token.startsWith("-")) {
-        // It's a predicate (e.g., source:danbooru)
-        const [key, ...rest] = token.split(":");
-        predicates[key.toLowerCase()] = rest.join(":").toLowerCase();
+      const separator = token.indexOf(":");
+      const key = separator > 0 ? token.slice(0, separator).toLowerCase() : "";
+      if (separator > 0 && predicateKeys.has(key) && !token.startsWith("-")) {
+        // Category tags such as artist:..., character:..., and series:...
+        // remain searchable tags instead of being mistaken for controls.
+        predicates[key] = token.slice(separator + 1).toLowerCase();
       } else if (token.startsWith("-") && token.length > 1) {
         // It's a negative tag (e.g., -gun)
         negativeTags.push(token.substring(1).toLowerCase());

@@ -1,6 +1,7 @@
 import type { PlatformImage } from '../types';
 import { TagIntelligenceService, type UserInterest } from './TagIntelligenceService';
 import type { ForYouQualityMode } from '../../stores/useSettingsStore';
+import { getActiveForYouProfile, type ForYouProfile } from '../forYouProfiles';
 
 export interface RecommendationReason {
   score: number;
@@ -19,6 +20,9 @@ export interface RecommendationContext {
   series: string[];
   favorites: string[];
   qualityMode: ForYouQualityMode;
+  profile?: ForYouProfile;
+  secondaryRequired: string[];
+  excluded: string[];
 }
 
 interface CurateOptions {
@@ -28,7 +32,7 @@ interface CurateOptions {
 }
 
 const normalizeTag = (tag: string): string =>
-  tag.toLowerCase().replace(/^[^:]+:/, '').replace(/[\s_-]+/g, '').trim();
+  tag.toLowerCase().replace(/^[^:]+:/, '').replace(/[^a-z0-9]+/g, '').trim();
 
 const unique = (values: string[]): string[] => Array.from(new Set(values.filter(Boolean)));
 
@@ -70,6 +74,8 @@ const matchesForImage = (image: PlatformImage, context: RecommendationContext) =
     matchedArtists: intersect(artistTags, context.artists),
     matchedCharacters: intersect(characterTags, context.characters),
     matchedSeries: intersect(seriesTags, context.series),
+    matchedExcluded: intersect(categoryTags, context.excluded),
+    categoryTags,
   };
 };
 
@@ -90,6 +96,8 @@ export class RecommendationEngine {
     let favorites: { tag: string }[] = [];
     let qualityMode: ForYouQualityMode = 'broad';
     let recommendationMode = 'dynamic';
+    let profile: ForYouProfile | undefined;
+    let suppressedFavoriteSupportTags: string[] = [];
 
     try {
       const { getDb } = await import('../../services/db');
@@ -99,6 +107,11 @@ export class RecommendationEngine {
       const settings = useSettingsStore.getState();
       qualityMode = settings.forYouQualityMode ?? (settings.strictForYouMode ? 'strict' : 'broad');
       recommendationMode = settings.recommendationMode;
+      suppressedFavoriteSupportTags = settings.suppressedFavoriteSupportTags || [];
+      const storedProfile = settings.forYouProfiles?.find(item => item.id === settings.activeForYouProfileId);
+      profile = storedProfile && (!storedProfile.adultOnly || settings.showAdultContent)
+        ? getActiveForYouProfile(storedProfile, settings.showAdultContent)
+        : undefined;
     } catch (error) {
       console.warn('[RecommendationEngine] Could not load recommendation settings:', error);
     }
@@ -106,7 +119,13 @@ export class RecommendationEngine {
     const names = (items: UserInterest[]) => items.map(item => normalizeTag(item.name));
     const dominantNames = names(dominant);
     const supportingNames = names(supporting);
-    const favoriteNames = favorites.map(item => normalizeTag(item.tag));
+    const suppressedFavoriteNames = new Set(suppressedFavoriteSupportTags.map(normalizeTag));
+    const favoriteNames = favorites
+      .map(item => normalizeTag(item.tag))
+      .filter(tag => !suppressedFavoriteNames.has(tag));
+    const profileArtists = (profile?.artistTags || []).map(normalizeTag);
+    const profileCharacters = (profile?.characterTags || []).map(normalizeTag);
+    const profileSeries = (profile?.seriesTags || []).map(normalizeTag);
     const coreNames = recommendationMode === 'strict_favorites'
       ? favoriteNames
       : recommendationMode === 'strict_interests'
@@ -114,13 +133,23 @@ export class RecommendationEngine {
         : dominantNames;
 
     return {
-      dominant: unique(coreNames),
-      supporting: unique([...supportingNames, ...favoriteNames]).filter(tag => !dominantNames.includes(tag)),
-      artists: names(artists),
-      characters: names(characters),
-      series: names(series),
+      dominant: unique([...coreNames, ...(profile?.coreTags || [])].map(normalizeTag)),
+      supporting: unique([
+        ...supportingNames,
+        ...favoriteNames,
+        ...(profile?.supportingTags || []),
+      ].map(normalizeTag)).filter(tag => !coreNames.includes(tag)),
+      artists: unique([...names(artists), ...profileArtists]),
+      characters: unique([...names(characters), ...profileCharacters]),
+      series: unique([...names(series), ...profileSeries]),
       favorites: favoriteNames,
       qualityMode,
+      profile,
+      secondaryRequired: unique([
+        ...(profile?.supportingTags || []).map(normalizeTag),
+        ...favoriteNames,
+      ]),
+      excluded: unique((profile?.excludedTags || []).map(normalizeTag)),
     };
   }
 
@@ -145,8 +174,37 @@ export class RecommendationEngine {
         ...matches.matchedSeries,
       ]);
 
+      if (matches.matchedExcluded.length > 0) continue;
+      if (context.profile) {
+        const profileCore = unique(context.profile.coreTags.map(normalizeTag));
+        const profileCoreMatches = intersect(matches.categoryTags, profileCore);
+        if (profileCoreMatches.length < Math.max(1, context.profile.minCoreMatches)) continue;
+
+        const requiredCore = (context.profile.requiredCoreTags || []).map(normalizeTag);
+        if (requiredCore.length > 0 && requiredCore.some(tag => !matches.categoryTags.includes(tag))) continue;
+
+        const requiredArtists = (context.profile.requiredArtistTags || []).map(normalizeTag);
+        const requiredCharacters = (context.profile.requiredCharacterTags || []).map(normalizeTag);
+        const requiredSeries = (context.profile.requiredSeriesTags || []).map(normalizeTag);
+        if (requiredArtists.some(tag => !matches.matchedArtists.includes(tag))) continue;
+        if (requiredCharacters.some(tag => !matches.matchedCharacters.includes(tag))) continue;
+        if (requiredSeries.some(tag => !matches.matchedSeries.includes(tag))) continue;
+
+        // Strict and themed modes require a compatible refinement as well as
+        // the core subject. Broad mode keeps secondary tags as ranking boosts.
+        if (
+          (context.qualityMode === 'strict' || context.qualityMode === 'themed')
+          && context.secondaryRequired.length > 0
+          && (
+            (context.profile.requiredSupportingTags || []).length > 0
+              ? (context.profile.requiredSupportingTags || []).some(tag => !matches.categoryTags.includes(normalizeTag(tag)))
+              : intersect(matches.categoryTags, context.secondaryRequired).length === 0
+          )
+        ) continue;
+      }
+
       // Strict mode is a quality gate: a result needs a core-interest match.
-      if (context.qualityMode === 'strict' && (!hasCoreInterests || matchedCore.length === 0)) continue;
+      if ((context.qualityMode === 'strict' || context.qualityMode === 'themed') && (!hasCoreInterests || matchedCore.length === 0)) continue;
       // Broad mode still excludes completely unrelated content when the user has
       // enough profile data to make a meaningful recommendation.
       if (context.qualityMode === 'broad' && hasAnyInterests && totalMatches === 0) continue;

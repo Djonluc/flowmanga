@@ -15,9 +15,9 @@ function comparableTag(value: string): string {
 }
 
 export function hasExcludedTag(tags: string[] = [], excludedTags: string[] = []): boolean {
-  const normalizedTags = tags.map(comparableTag);
+  const normalizedTags = new Set(tags.map(comparableTag));
   return normalizeExcludedTags(excludedTags).map(comparableTag)
-    .some(excluded => normalizedTags.some(tag => tag.includes(excluded)));
+    .some(excluded => normalizedTags.has(excluded));
 }
 
 export function hasExcludedText(text: string | undefined, excludedTags: string[] = []): boolean {

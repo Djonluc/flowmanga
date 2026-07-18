@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { getSankakuAuthHeaders, getSankakuMediaType, mapSankakuTags, sankakuApiUrls, unwrapSankakuPosts, SANKAKU_BOOKS_URL, SANKAKU_LOGIN_URL, type SankakuPost } from '../../Sankaku';
+import { getSankakuMediaType, getSankakuRequestHeaders, mapSankakuTags, sankakuApiUrls, unwrapSankakuPosts, SANKAKU_BOOKS_URL, SANKAKU_LOGIN_URL, type SankakuPost } from '../../Sankaku';
 import type {
   ContentType,
   MediaDomain,
@@ -64,7 +64,7 @@ export class SankakuBooksProvider implements SourceProvider {
   }
 
   private async fetchJson(path: string, params: Record<string, string | number> = {}): Promise<unknown> {
-    const headers = getSankakuAuthHeaders();
+    const headers = getSankakuRequestHeaders();
     let lastError: unknown;
     for (const endpoint of sankakuApiUrls(path)) {
       const url = new URL(endpoint);
@@ -73,7 +73,7 @@ export class SankakuBooksProvider implements SourceProvider {
         return await invoke<unknown>('fetch_json', {
           url: url.toString(),
           method: 'GET',
-          headers: Object.keys(headers).length > 0 ? headers : null,
+          headers,
           proxyUrl: null,
         });
       } catch (error) {
@@ -178,7 +178,11 @@ export class SankakuBooksProvider implements SourceProvider {
 
     const resolved = await Promise.all(postIds.map(async postId => {
       try {
-        const response = await this.fetchJson(`/posts/${encodeURIComponent(postId)}`);
+        const response = await this.fetchJson('/v2/posts', {
+          tags: `id_range:${encodeURIComponent(postId)}`,
+          limit: 1,
+          lang: 'en',
+        });
         return unwrapSankakuPosts(response)[0] || null;
       } catch (error) {
         console.warn(`[SankakuBooks] Could not resolve book post ${postId}:`, error);

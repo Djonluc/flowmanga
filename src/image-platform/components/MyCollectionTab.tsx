@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useImageCollectionStore } from '../useImageCollectionStore';
 import { MasonryGrid } from './MasonryGrid';
-import { Folder, Plus, Trash2, ChevronRight, Image as ImageIcon, LayoutGrid, ChevronDown, ChevronUp, Edit2, X, Save, Play, Settings, Heart, Clock, FolderOpen, Sparkles } from 'lucide-react';
+import { Folder, Plus, Trash2, ChevronRight, Image as ImageIcon, LayoutGrid, Edit2, X, Save, Play, Settings, Heart, Clock, FolderOpen, Sparkles } from 'lucide-react';
 import { useSlideshowStore } from '../useSlideshowStore';
 import { useImageEngineStore } from '../useImageEngineStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import { SearchFederator } from '../SearchFederator';
 import { getDb } from '../../services/db';
-import type { PlatformImage } from './types';
+import type { PlatformImage } from '../types';
 
 interface MyCollectionTabProps {
   onImageClick?: (image: PlatformImage, index: number, imagesContext: PlatformImage[]) => void;
@@ -37,7 +37,9 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
         const db = getDb();
         const favs = await db.select<{tag: string}[]>("SELECT tag FROM FavoriteTags ORDER BY usageCount DESC");
         setFavoriteTags(favs.map(f => f.tag));
-      } catch (e) {}
+      } catch (error) {
+        console.warn('[MyCollectionTab] Failed to load favorite tags:', error);
+      }
     };
     loadFavs();
   }, []);
@@ -77,7 +79,7 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
           } else {
             setRecommendations([]);
           }
-        } catch (e) {
+        } catch {
           setRecommendations([]);
         }
       } else {
@@ -147,9 +149,10 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
           const tags = (img.tags || []).map(t => t.toLowerCase());
           return favoriteTags.some(fav => tags.some(tag => tag.includes(fav.toLowerCase())));
         });
-      case 'recent':
+      case 'recent': {
         const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
         return savedImages.filter(img => img.createdAt > sevenDaysAgo);
+      }
       default:
         return savedImages;
     }
@@ -182,14 +185,6 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
     }
     slideshow.start(0, filteredDisplayImages);
   };
-
-  const viewLabel = activeFolderId 
-    ? folders.find(f => f.id === activeFolderId)?.name || 'Folder'
-    : activeView === 'all' ? 'All Images'
-    : activeView === 'folders' ? 'Folders'
-    : activeView === 'favorites' ? 'Favorites'
-    : activeView === 'recent' ? 'Recently Added'
-    : 'Uncategorized';
 
   return (
     <div className="w-full h-full flex flex-col relative bg-background overflow-hidden">
@@ -240,7 +235,11 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
                     if (f) {
                       let parsed = { and: [] as string[], or: [] as string[], exclude: [] as string[] };
                       if (f.query) {
-                        try { parsed = JSON.parse(f.query); } catch(e){}
+                        try {
+                          parsed = JSON.parse(f.query);
+                        } catch (error) {
+                          console.warn('[MyCollectionTab] Ignored invalid folder query:', error);
+                        }
                       }
                       setEditingRules({
                         primary: parsed.and[0] || '',
@@ -604,7 +603,7 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
                   type="text" 
                   value={editingRules.exclude}
                   onChange={e => setEditingRules({ ...editingRules, exclude: e.target.value })}
-                  placeholder="e.g., nsfw sketch"
+                  placeholder="e.g., concept sketch"
                   className="w-full bg-surface border border-border-subtle rounded-lg px-4 py-2 text-sm text-foreground focus:outline-none focus:border-red-500/50"
                 />
               </div>

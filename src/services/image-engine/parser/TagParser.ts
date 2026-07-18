@@ -6,7 +6,9 @@ export class TagParser {
    * Extracts negative tags, source targeting, and positive tags.
    */
   static parse(query: string, ratingFilter: "sfw" | "all" = "all"): StructuredQuery {
-    const tokens = (query || "").trim().split(/\s+/).filter(Boolean);
+    // Support the same AND shorthand as the image-platform search parser.
+    // A standalone plus is not a valid booru tag.
+    const tokens = (query || "").replace(/\s*\+\s*/g, " ").trim().split(/\s+/).filter(Boolean);
     const positiveTags: string[] = [];
     const negativeTags: string[] = [];
     let targetSource: string | undefined;
