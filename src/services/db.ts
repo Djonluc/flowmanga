@@ -571,6 +571,19 @@ export const initDatabase = async () => {
   } catch (e) {}
 
   try {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS FlowMediaFingerprints (
+        imageId TEXT PRIMARY KEY,
+        providerId TEXT NOT NULL,
+        fingerprint TEXT NOT NULL,
+        computedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        seenAt DATETIME
+      );
+    `);
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_flow_fingerprint_seen ON FlowMediaFingerprints(fingerprint, seenAt);");
+  } catch (e) {}
+
+  try {
     await db.execute("ALTER TABLE FlowPlaylists ADD COLUMN coverUrl TEXT;");
   } catch (e) {}
 

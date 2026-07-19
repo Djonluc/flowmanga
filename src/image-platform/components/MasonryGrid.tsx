@@ -4,7 +4,7 @@ import { useImageEngineStore } from "../useImageEngineStore";
 import { streamViaTauri, useMediaLoader } from "../../hooks/useMediaLoader";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import clsx from "clsx";
-import { Play, RefreshCw } from "lucide-react";
+import { Check, Play, RefreshCw } from "lucide-react";
 
 interface MasonryGridProps {
   images: PlatformImage[];
@@ -16,6 +16,9 @@ interface MasonryGridProps {
   header?: React.ReactNode;
   emptyState?: React.ReactNode;
   resetScrollKey?: number;
+  selectionMode?: boolean;
+  selectedIds?: ReadonlySet<string>;
+  onToggleSelection?: (image: PlatformImage) => void;
 }
 
 export const MasonryGrid: React.FC<MasonryGridProps> = ({
@@ -28,6 +31,9 @@ export const MasonryGrid: React.FC<MasonryGridProps> = ({
   header,
   emptyState,
   resetScrollKey = 0,
+  selectionMode = false,
+  selectedIds,
+  onToggleSelection,
 }) => {
   const store = useImageEngineStore();
   
@@ -212,6 +218,9 @@ export const MasonryGrid: React.FC<MasonryGridProps> = ({
                       return { ...current, [image.id]: ratio };
                     });
                   }}
+                  selectionMode={selectionMode}
+                  isSelected={selectedIds?.has(image.id) ?? false}
+                  onToggleSelection={() => onToggleSelection?.(image)}
                 />
               );
             })}
@@ -243,12 +252,18 @@ const ImageCard = ({
   onDoubleClick,
   onReorder,
   onAspectRatioChange,
+  selectionMode,
+  isSelected,
+  onToggleSelection,
 }: {
   image: PlatformImage;
   onClick: () => void;
   onDoubleClick?: () => void;
   onReorder?: (draggedId: string, dropId: string) => void;
   onAspectRatioChange?: (ratio: number) => void;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelection?: () => void;
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -420,10 +435,15 @@ const ImageCard = ({
       }}
       className={clsx(
         "relative w-full rounded-xl overflow-hidden bg-surface-elevated border group cursor-pointer transition-all",
+        isSelected && "border-accent ring-2 ring-accent/70",
         isDragOver ? "border-accent shadow-[0_0_20px_rgba(99,102,241,0.5)] scale-[0.98] z-20" : "border-border-subtle"
       )}
       style={{ paddingBottom }}
       onClick={() => {
+        if (selectionMode) {
+          onToggleSelection?.();
+          return;
+        }
         if (clickTimer.current) {
           clearTimeout(clickTimer.current);
           clickTimer.current = null;
@@ -436,6 +456,14 @@ const ImageCard = ({
         }
       }}
     >
+      {selectionMode && (
+        <div className={clsx(
+          "absolute right-3 top-3 z-40 flex h-7 w-7 items-center justify-center rounded-full border-2 shadow-lg",
+          isSelected ? "border-accent bg-accent text-white" : "border-white/70 bg-black/60 text-transparent",
+        )} aria-hidden="true">
+          <Check size={16} strokeWidth={3} />
+        </div>
+      )}
       {/* Loading Skeleton */}
       {showSkeleton && (
         <div className="absolute inset-0 bg-surface flex flex-col justify-end p-4 z-0">

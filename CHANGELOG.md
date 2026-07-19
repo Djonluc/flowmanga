@@ -1,3 +1,37 @@
+# FlowManga v2.5.1 Release Notes
+
+This release activates E-Hentai galleries, improves Sankaku media reliability, reorganizes Collections and Playlists, and adds source-aware discovery with visual duplicate protection.
+
+### New Features
+
+- Added E-Hentai as an active gallery source with full-resolution reading, gallery tags, slideshows, favorites, and complete-gallery downloads.
+- Downloaded E-Hentai galleries now register as grouped books in My Collection and the manga library.
+- Added provider-aware tag translation and live alias resolution for booru, Sankaku, Zerochan, and E-Hentai search syntax.
+- Added perceptual image fingerprints to suppress visually repeated reposts across providers in For You and Discovery.
+- Added bulk selection, folder moves, uncategorizing, and removal to My Collection.
+- Added Collection and Playlist search, sorting, clearer matching counts, and improved empty states.
+
+### Improvements
+
+- For You and Discovery now avoid content exposed during the previous 48 hours and automatically advance past fully seen pages.
+- Latest remains a complete chronological feed: newest posts first, followed continuously by older pages without novelty filtering.
+- Search remains a complete tag catalog with newest matching posts followed by older pages.
+- Sankaku video filtering, streaming, poster fallback, and metadata hydration are more resilient.
+- Sources settings no longer display synthetic request times or randomly generated error counts.
+- E-Hentai gallery cards use the standard detail layout and preserve series grouping during download and playback.
+
+### Bug Fixes
+
+- Fixed seen timestamps not refreshing because duplicate history inserts were ignored.
+- Fixed empty novelty-filtered pages being mistaken for provider failures and retried forever.
+- Fixed provider tag prefixes and separators being sent in incompatible formats.
+- Fixed plain and namespaced E-Hentai blacklist tags not matching one another.
+- Fixed E-Hentai gallery downloads being rejected by the configured URL scope.
+- Fixed collection folder recommendations using an unregistered search federator.
+- Fixed Sankaku and Rule34 video cards falling back to static images when playable media was available.
+
+---
+
 # FlowManga v2.6.0 Release Notes
 
 This release overhauls Sankaku discovery and pagination, adds provider-aware video streaming, expands For You themes and safety controls, and improves release diagnostics.

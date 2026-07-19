@@ -1,11 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useImageCollectionStore } from '../useImageCollectionStore';
 import { MasonryGrid } from './MasonryGrid';
-import { Folder, Plus, Trash2, ChevronRight, Image as ImageIcon, LayoutGrid, Edit2, X, Save, Play, Settings, Heart, Clock, FolderOpen, Sparkles } from 'lucide-react';
+import { Folder, Plus, Trash2, ChevronRight, Image as ImageIcon, LayoutGrid, Edit2, X, Save, Play, Settings, Heart, Clock, FolderOpen, Sparkles, Search, ArrowUpDown, CheckSquare } from 'lucide-react';
 import { useSlideshowStore } from '../useSlideshowStore';
-import { useImageEngineStore } from '../useImageEngineStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
-import { SearchFederator } from '../SearchFederator';
+import { federator } from '../SearchFederator';
 import { getDb } from '../../services/db';
 import type { PlatformImage } from '../types';
 
@@ -25,6 +24,11 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
   const [showFolderRules, setShowFolderRules] = useState(false);
   const [editingRules, setEditingRules] = useState({ primary: '', include: '', exclude: '', name: '', description: '' });
   const [isRearrangeMode, setIsRearrangeMode] = useState(false);
+  const [collectionSearch, setCollectionSearch] = useState('');
+  const [sortMode, setSortMode] = useState<'newest' | 'oldest' | 'title' | 'source'>('newest');
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [recentCutoff] = useState(() => Date.now() - (7 * 24 * 60 * 60 * 1000));
   
   const [recommendations, setRecommendations] = useState<PlatformImage[]>([]);
   const [isLoadingRecs, setIsLoadingRecs] = useState(false);
@@ -65,9 +69,6 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
             // Strip prefixes for provider search
             const cleanTags = parsed.and.map((t: string) => t.replace(/^(character|series|artist|copyright):/, '').replace(/_/g, ' '));
             const rawQuery = cleanTags.join(' ');
-            
-            const state = useImageEngineStore.getState();
-            const federator = new SearchFederator(state.enabledProviders);
             
             federator.search({ raw: rawQuery, positiveTags: cleanTags, negativeTags: parsed.exclude || [], predicates: {} }, 1)
               .then(results => {
@@ -150,19 +151,30 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
           return favoriteTags.some(fav => tags.some(tag => tag.includes(fav.toLowerCase())));
         });
       case 'recent': {
-        const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-        return savedImages.filter(img => img.createdAt > sevenDaysAgo);
+        return savedImages.filter(img => img.createdAt > recentCutoff);
       }
       default:
         return savedImages;
     }
-  }, [savedImages, activeView, activeFolderId, favoriteTags]);
+  }, [savedImages, activeView, activeFolderId, favoriteTags, recentCutoff]);
 
   const { globalMediaFilter } = useSettingsStore();
   const filteredDisplayImages = useMemo(() => {
-    if (globalMediaFilter === 'all') return displayImages;
-    return displayImages.filter(img => img.mediaType === globalMediaFilter);
-  }, [displayImages, globalMediaFilter]);
+    const query = collectionSearch.trim().toLowerCase();
+    const filtered = displayImages.filter(img => {
+      if (globalMediaFilter !== 'all' && img.mediaType !== globalMediaFilter) return false;
+      if (!query) return true;
+      return [img.title, img.providerId, img.source, ...(img.tags || [])]
+        .filter(Boolean)
+        .some(value => String(value).toLowerCase().includes(query));
+    });
+    return [...filtered].sort((a, b) => {
+      if (sortMode === 'oldest') return (a.createdAt || 0) - (b.createdAt || 0);
+      if (sortMode === 'title') return (a.title || a.sourceId).localeCompare(b.title || b.sourceId);
+      if (sortMode === 'source') return a.providerId.localeCompare(b.providerId);
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
+  }, [displayImages, globalMediaFilter, collectionSearch, sortMode]);
 
   // Calculate folder stats efficiently
   const folderStats = useMemo(() => {
@@ -177,6 +189,11 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
     }
     return stats;
   }, [folders, savedImages]);
+  const visibleFolders = useMemo(() => {
+    const query = collectionSearch.trim().toLowerCase();
+    if (!query) return folders;
+    return folders.filter(folder => `${folder.name} ${folder.description || ''}`.toLowerCase().includes(query));
+  }, [folders, collectionSearch]);
 
   const handleStartSlideshow = () => {
     if (filteredDisplayImages.length === 0) {
@@ -184,6 +201,34 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
       return;
     }
     slideshow.start(0, filteredDisplayImages);
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds(current => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const moveSelectedToFolder = async (folderId: string | null) => {
+    if (selectedIds.size === 0) return;
+    const db = getDb();
+    for (const id of selectedIds) {
+      await db.execute("UPDATE FlowSavedImages SET folderId = ? WHERE id = ?", [folderId, id]);
+    }
+    setSelectedIds(new Set());
+    await loadSavedImages(activeFolderId);
+    await loadFolders();
+  };
+
+  const deleteSelected = async () => {
+    if (selectedIds.size === 0 || !confirm(`Remove ${selectedIds.size} selected item(s) from My Collection? Downloaded files will not be deleted.`)) return;
+    const db = getDb();
+    for (const id of selectedIds) await db.execute("DELETE FROM FlowSavedImages WHERE id = ?", [id]);
+    setSelectedIds(new Set());
+    await loadSavedImages(activeFolderId);
+    await loadFolders();
   };
 
   return (
@@ -217,6 +262,13 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
               className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all shadow-[0_0_15px_rgba(99,102,241,0.2)] disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <Play size={12} fill="currentColor" /> Slideshow
+            </button>
+
+            <button
+              onClick={() => { setSelectionMode(value => !value); setSelectedIds(new Set()); }}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 border transition-all ${selectionMode ? 'border-accent bg-accent text-white' : 'border-border-subtle bg-surface text-foreground-muted hover:text-foreground'}`}
+            >
+              <CheckSquare size={12} /> {selectionMode ? 'Done' : 'Select'}
             </button>
 
             <button 
@@ -274,9 +326,9 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
               <div className="relative">
                 <button 
                   onClick={() => setShowSettings(!showSettings)}
-                  className="p-1.5 text-foreground-muted hover:text-accent border border-transparent hover:border-border-subtle rounded-lg transition-all"
+                  className="px-3 py-1.5 text-foreground-muted hover:text-accent border border-border-subtle bg-surface rounded-lg transition-all flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest"
                 >
-                  <Settings size={14} />
+                  <Settings size={13} /> Manage
                 </button>
                 {showSettings && (
                   <div className="absolute right-0 top-full mt-2 w-56 bg-black border border-border-subtle rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col">
@@ -348,7 +400,7 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
             {([
               { id: 'all' as CollectionView, label: `All Images`, icon: <LayoutGrid size={12} />, count: savedImages.length },
               { id: 'folders' as CollectionView, label: 'Folders', icon: <FolderOpen size={12} />, count: folders.length },
-              { id: 'favorites' as CollectionView, label: 'Favorites', icon: <Heart size={12} /> },
+              { id: 'favorites' as CollectionView, label: 'Favorite Tags', icon: <Heart size={12} /> },
               { id: 'recent' as CollectionView, label: 'Recent', icon: <Clock size={12} /> },
               { id: 'uncategorized' as CollectionView, label: 'Uncategorized', icon: <Sparkles size={12} /> },
             ]).map(pill => (
@@ -368,6 +420,28 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
             ))}
           </div>
         )}
+
+        <div className="px-4 pb-3 flex flex-col sm:flex-row gap-2">
+          <label className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" size={15} />
+            <input
+              value={collectionSearch}
+              onChange={event => setCollectionSearch(event.target.value)}
+              placeholder={activeFolderId ? "Search this folder…" : "Search titles, tags, and sources…"}
+              className="h-10 w-full rounded-xl border border-border-subtle bg-black/20 pl-9 pr-9 text-sm text-foreground outline-none focus:border-accent"
+            />
+            {collectionSearch && <button onClick={() => setCollectionSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground-muted hover:text-foreground" aria-label="Clear collection search"><X size={14} /></button>}
+          </label>
+          <label className="relative min-w-44">
+            <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" size={14} />
+            <select value={sortMode} onChange={event => setSortMode(event.target.value as typeof sortMode)} className="h-10 w-full appearance-none rounded-xl border border-border-subtle bg-surface pl-9 pr-3 text-xs font-bold uppercase tracking-wider text-foreground outline-none focus:border-accent">
+              <option value="newest">Newest saved</option>
+              <option value="oldest">Oldest saved</option>
+              <option value="title">Title A–Z</option>
+              <option value="source">Source</option>
+            </select>
+          </label>
+        </div>
       </div>
 
       {/* Main Content Area */}
@@ -386,9 +460,9 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
                 <Plus size={12} strokeWidth={3} /> New Folder
               </button>
             </div>
-            {folders.length > 0 ? (
+            {visibleFolders.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {folders.map(folder => {
+                {visibleFolders.map(folder => {
                   const stats = folderStats[folder.id] || { count: 0, lastUpdated: 'Never', firstImage: null };
                   return (
                     <div key={folder.id} className="group relative">
@@ -450,8 +524,8 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
             ) : (
               <div className="flex flex-col items-center justify-center py-20 text-foreground-muted">
                 <Folder size={48} className="mb-4 opacity-20" />
-                <p className="font-bold uppercase tracking-widest">No folders yet</p>
-                <p className="text-sm mt-2 opacity-60">Create a folder or run Auto-Organization from settings.</p>
+                <p className="font-bold uppercase tracking-widest">{collectionSearch ? 'No matching folders' : 'No folders yet'}</p>
+                <p className="text-sm mt-2 opacity-60">{collectionSearch ? 'Try a different folder name.' : 'Create a folder or run Auto-Organization from Manage.'}</p>
               </div>
             )}
           </div>
@@ -460,6 +534,12 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
         {/* Image Grid Views (All, Favorites, Recent, Uncategorized, or Folder contents) */}
         {(activeView !== 'folders' || activeFolderId) && (
           <div className="flex flex-col p-4 gap-4">
+            {!activeFolderId && activeView === 'favorites' && (
+              <div className="flex flex-col gap-1 rounded-2xl border border-rose-500/20 bg-rose-500/5 px-5 py-4">
+                <h3 className="flex items-center gap-2 text-sm font-black text-rose-300"><Heart size={15} fill="currentColor" /> Images matching your favorite tags</h3>
+                <p className="text-xs text-foreground-muted">This view follows the tags you starred while browsing. Saving an individual card adds it to All Images; starring a tag controls this personalized view.</p>
+              </div>
+            )}
             {/* Recommendations Panel (only in folder view) */}
             {activeFolderId && (recommendations.length > 0 || isLoadingRecs) && (
               <div className="p-4 bg-surface-elevated border border-border-subtle rounded-2xl flex flex-col gap-3">
@@ -507,6 +587,25 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
 
             {/* Main Image Grid */}
             <div className="flex-1 relative min-h-[400px]">
+              {selectionMode && filteredDisplayImages.length > 0 && (
+                <div className="mx-4 mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 p-3">
+                  <span className="mr-2 text-xs font-bold">{selectedIds.size} selected</span>
+                  <button onClick={() => setSelectedIds(new Set(filteredDisplayImages.map(image => image.id)))} className="rounded-lg bg-surface px-3 py-1.5 text-[10px] font-black uppercase">Select visible</button>
+                  <button onClick={() => setSelectedIds(new Set())} className="rounded-lg bg-surface px-3 py-1.5 text-[10px] font-black uppercase">Clear</button>
+                  <select
+                    aria-label="Move selected items to folder"
+                    disabled={selectedIds.size === 0}
+                    defaultValue=""
+                    onChange={event => { if (event.target.value) void moveSelectedToFolder(event.target.value === '__none__' ? null : event.target.value); event.currentTarget.value = ''; }}
+                    className="rounded-lg border border-border-subtle bg-surface px-3 py-1.5 text-[10px] font-black uppercase disabled:opacity-40"
+                  >
+                    <option value="" disabled>Move to…</option>
+                    <option value="__none__">Uncategorized</option>
+                    {folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+                  </select>
+                  <button disabled={selectedIds.size === 0} onClick={() => void deleteSelected()} className="ml-auto flex items-center gap-1 rounded-lg bg-red-500/15 px-3 py-1.5 text-[10px] font-black uppercase text-red-400 disabled:opacity-40"><Trash2 size={11} /> Remove</button>
+                </div>
+              )}
               {filteredDisplayImages.length > 0 ? (
                 <MasonryGrid 
                   images={filteredDisplayImages} 
@@ -516,6 +615,9 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
                   onReorder={isRearrangeMode ? (draggedId, dropId) => {
                     useImageCollectionStore.getState().reorderImage(draggedId, dropId);
                   } : undefined}
+                  selectionMode={selectionMode}
+                  selectedIds={selectedIds}
+                  onToggleSelection={image => toggleSelected(image.id)}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center py-20 text-foreground-muted">

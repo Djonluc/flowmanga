@@ -12,6 +12,7 @@ const PROXY_DOMAINS = [
   'sankakuapi.com',
   'hentai.org',
   'ehgt.org',
+  'hath.network',
   'donmai.us',
   'pixiv.net',
   'pximg.net',
@@ -73,7 +74,7 @@ function mediaReferer(url: string): string | undefined {
     if (hostname.includes('rule34')) return 'https://rule34.xxx/';
     if (hostname.includes('gelbooru')) return 'https://gelbooru.com/';
     if (hostname.includes('pixiv') || hostname.includes('pximg')) return 'https://www.pixiv.net/';
-    if (hostname.includes('ehgt.org')) return 'https://e-hentai.org/';
+    if (hostname.includes('ehgt.org') || hostname.includes('hath.network')) return 'https://e-hentai.org/';
     return `https://${hostname}/`;
   } catch {
     return undefined;
@@ -161,9 +162,14 @@ async function proxyViaTauri(url: string): Promise<string | null> {
   if (needsProxy(url)) {
     if (!isTauriRuntime()) return url;
 
+    const hostname = new URL(url).hostname.toLowerCase();
+    const ehentaiCookies = (hostname.includes('e-hentai.org') || hostname.includes('ehgt.org') || hostname.includes('hath.network'))
+      ? useSettingsStore.getState().booruAuth?.['e-hentai']?.sessionCookies?.trim()
+      : undefined;
     const mediaHeaders = {
       Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
       ...(mediaReferer(url) ? { Referer: mediaReferer(url)! } : {}),
+      ...(ehentaiCookies ? { Cookie: ehentaiCookies } : {}),
     };
 
     try {

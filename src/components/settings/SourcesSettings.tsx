@@ -1,4 +1,4 @@
-import { Globe, ExternalLink, ShieldCheck, Zap, AlertTriangle, Search, Sparkles, Activity, Clock, Power, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
+import { Globe, ExternalLink, ShieldCheck, Zap, AlertTriangle, Search, Sparkles, Activity, Power, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import { useState } from 'react';
 import { useSettingsStore } from '../../stores/useSettingsStore';
@@ -77,7 +77,7 @@ export const SourcesSettings = () => {
             case 'sankaku-books':
                 return "Books uses the same Sankaku session as image search. Authenticate once under Sankaku Image + Books access.";
             case 'e-hentai':
-                return "Automatic: Click 'Launch Authenticator', log in, bypass Cloudflare, and the window will close automatically.\nManual: Click 'Open in Browser', log in, open DevTools (F12) -> Application -> Cookies, and copy 'ipb_member_id' and 'ipb_pass_hash' below.";
+                return "Public galleries work without signing in. A session is optional and removes the anonymous front-page delay. Use Auto-Extract after signing in with Chrome, or paste ipb_member_id and ipb_pass_hash cookies manually.";
             case 'webnovel':
                 return "1. Best: Log in on your normal system browser, then click 'Auto-Extract'.\n2. Alternative: Click 'Launch Authenticator', log in/pass Cloudflare, and manually close the window.\n3. Manual: Copy all cookies from Chrome DevTools.";
             case 'gelbooru':
@@ -215,10 +215,10 @@ export const SourcesSettings = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {mangaProviders.map((source) => {
                     const isEnabled = isSourceEnabled(source.id);
-                    const systemStatus = (source.capabilities as any).status || 'operational';
+                    const systemStatus = 'status' in source.capabilities && typeof source.capabilities.status === 'string'
+                        ? source.capabilities.status
+                        : 'operational';
                     const displayStatus = !isEnabled ? 'sealed' : systemStatus;
-                    const errorCount = Math.floor(Math.random() * 5);
-                    const lastReq = Math.floor(Math.random() * 60) + " mins ago";
 
                     return (
                         <div 
@@ -307,23 +307,11 @@ export const SourcesSettings = () => {
                                 </div>
                             </div>
                             
-                            {/* Health Metrics */}
+                            {/* Capability summary. Runtime request failures are reported by the diagnostics panel and console. */}
                             {isEnabled && (
-                                <div className="mt-2 pt-4 border-t border-white/5 flex items-center justify-between">
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-foreground/40 mb-1">Last Request</span>
-                                        <div className="flex items-center gap-2">
-                                            <Clock size={12} className="text-foreground-dim" />
-                                            <span className="text-xs font-bold text-foreground-dim">{lastReq}</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col items-end">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-foreground/40 mb-1">Error Count</span>
-                                        <div className="flex items-center gap-2">
-                                            <Activity size={12} className={errorCount > 0 ? "text-rose-400" : "text-emerald-400"} />
-                                            <span className={clsx("text-xs font-bold", errorCount > 0 ? "text-rose-400" : "text-emerald-400")}>{errorCount}</span>
-                                        </div>
-                                    </div>
+                                <div className="mt-2 flex items-center gap-2 border-t border-white/5 pt-4 text-xs font-bold text-foreground-dim">
+                                    <Activity size={12} className="text-emerald-400" />
+                                    Enabled · request health is reported in Diagnostics
                                 </div>
                             )}
                         </div>
@@ -344,10 +332,10 @@ export const SourcesSettings = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {galleryProviders.map((source) => {
                             const isSealed = !isSourceEnabled(source.id) || source.isEnabled === false;
-                            const systemStatus = (source.capabilities as any).status || 'operational';
+                            const systemStatus = 'status' in source.capabilities && typeof source.capabilities.status === 'string'
+                                ? source.capabilities.status
+                                : 'operational';
                             const displayStatus = isSealed ? 'sealed' : systemStatus;
-                            const errorCount = Math.floor(Math.random() * 5);
-                            const lastReq = Math.floor(Math.random() * 60) + " mins ago";
 
                             return (
                                 <div 
@@ -431,23 +419,11 @@ export const SourcesSettings = () => {
                                         </div>
                                     </div>
 
-                                    {/* Health Metrics */}
+                                    {/* Capability summary. Avoid presenting synthetic request metrics as health data. */}
                                     {!isSealed && (
-                                        <div className="mt-2 pt-4 border-t border-white/5 flex items-center justify-between">
-                                            <div className="flex flex-col">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-foreground/40 mb-1">Last Request</span>
-                                                <div className="flex items-center gap-2">
-                                                    <Clock size={12} className="text-foreground-dim" />
-                                                    <span className="text-xs font-bold text-foreground-dim">{lastReq}</span>
-                                                </div>
-                                            </div>
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-foreground/40 mb-1">Error Count</span>
-                                                <div className="flex items-center gap-2">
-                                                    <Activity size={12} className={errorCount > 0 ? "text-rose-400" : "text-emerald-400"} />
-                                                    <span className={clsx("text-xs font-bold", errorCount > 0 ? "text-rose-400" : "text-emerald-400")}>{errorCount}</span>
-                                                </div>
-                                            </div>
+                                        <div className="mt-2 flex items-center gap-2 border-t border-white/5 pt-4 text-xs font-bold text-foreground-dim">
+                                            <Activity size={12} className="text-emerald-400" />
+                                            Enabled · request health is reported in Diagnostics
                                         </div>
                                     )}
                                 </div>

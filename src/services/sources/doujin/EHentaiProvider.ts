@@ -13,6 +13,7 @@ import type {
   SourceSeries,
   SourceSearchResult,
   SourceCapabilities,
+  SourceSearchOptions,
   ContentType,
   MediaType,
   MediaDomain,
@@ -20,7 +21,7 @@ import type {
 } from "../types";
 
 export class EHentaiProvider implements SourceProvider {
-  readonly id = "ehentai";
+  readonly id = "e-hentai";
   readonly name = "E-Hentai";
   readonly domains = ["e-hentai.org"];
   readonly contentType: ContentType = "doujin";
@@ -114,7 +115,6 @@ export class EHentaiProvider implements SourceProvider {
 
   async fetchSeries(url: string): Promise<SourceSeries> {
     const content = await this.fetchContent(url);
-    const ids = this.extractGalleryIdAndHash(url);
 
     return {
       title: content.metadata?.title || `Gallery`,
@@ -135,7 +135,7 @@ export class EHentaiProvider implements SourceProvider {
     };
   }
 
-  async search(query: string, options: any = {}): Promise<SourceSearchResult[]> {
+  async search(query: string, options: SourceSearchOptions = {}): Promise<SourceSearchResult[]> {
     const page = options.page || 0; // E-Hentai uses 0-indexed pages
     const searchUrl = `https://e-hentai.org/?page=${page}&f_search=${encodeURIComponent(query)}`;
 
@@ -174,7 +174,7 @@ export class EHentaiProvider implements SourceProvider {
     return results;
   }
 
-  async searchByTags(tags: string[], options: any = {}): Promise<SourceSearchResult[]> {
+  async searchByTags(tags: string[], options: SourceSearchOptions = {}): Promise<SourceSearchResult[]> {
     return this.search(tags.join(" "), options);
   }
 

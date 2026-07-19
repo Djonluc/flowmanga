@@ -3,6 +3,9 @@ import { useSettingsStore } from "../stores/useSettingsStore";
 import { hasExcludedTag, mergeExcludedTags } from "../services/TagExclusions";
 import { getActiveForYouProfile } from "./forYouProfiles";
 import { ContentFilter } from "../services/ContentFilter";
+import { mapQueryForProvider } from "./ProviderTagMapper";
+import { MediaFingerprintService } from "./MediaFingerprintService";
+import { resolveProviderTags } from "./ProviderTagResolver";
 
 export class SearchFederator {
   private providers: Map<string, ImageProvider> = new Map();
@@ -51,7 +54,7 @@ export class SearchFederator {
     }
   }
 
-  /** Deprioritizes images that have already been seen and strictly excludes saved images. */
+  /** Excludes saved media and anything exposed in an image-platform feed in the last 48 hours. */
   private async filterExclusions(images: PlatformImage[]): Promise<PlatformImage[]> {
     if (images.length === 0) return [];
     try {
@@ -67,23 +70,21 @@ export class SearchFederator {
       const notSavedImages = images.filter(img => !savedSet.has(img.id));
       if (notSavedImages.length === 0) return [];
       
-      // 2. Strictly exclude images seen in the last 24 hours
+      // 2. Strictly exclude images exposed in any tab during the last 48 hours.
       const notSavedIds = notSavedImages.map(img => img.id);
       const nsPlaceholders = notSavedIds.map(() => '?').join(',');
       const seenRows = await db.select<{id: string}[]>(`
         SELECT id FROM FlowSeenImages 
         WHERE id IN (${nsPlaceholders})
-        AND seenAt >= datetime('now', '-1 day')
+        AND seenAt >= datetime('now', '-48 hours')
       `, notSavedIds);
       const seenSet = new Set(seenRows.map(r => r.id));
 
       const unseen = notSavedImages.filter(img => !seenSet.has(img.id));
-      const recentlySeen = notSavedImages.filter(img => seenSet.has(img.id));
-
-      // Seen history is a ranking signal, not a reason to empty a valid feed.
-      // New material stays first; recently viewed candidates remain available
-      // when the selected tag has a small or slow-moving catalog.
-      return [...unseen, ...recentlySeen];
+      if (seenSet.size > 0) {
+        console.info(`[SearchFederator] suppressed ${seenSet.size}/${notSavedImages.length} items seen within 48 hours`);
+      }
+      return MediaFingerprintService.filterRecentDuplicates(unseen);
     } catch (e) {
       console.warn("[SearchFederator] Failed to filter exclusions", e);
       return images;
@@ -105,17 +106,26 @@ export class SearchFederator {
   }
 
   /** Injects media type filters if the user wants exclusively videos or gifs */
-  private getMediaFilterQuery(baseQuery?: SearchQuery): SearchQuery {
+  private getMediaFilterQuery(baseQuery?: SearchQuery, providerId?: string): SearchQuery {
     const query = baseQuery || { raw: "", positiveTags: [], negativeTags: [], predicates: {} };
     const { globalMediaFilter } = useSettingsStore.getState();
     if (globalMediaFilter === 'all' || globalMediaFilter === 'image') return query;
 
-    const newTags = [...query.positiveTags, "animated"];
+    // Sankaku's `animated` tag is mostly GIFs. Its canonical `video` tag
+    // yields actual MP4/WebM posts and prevents video-only feeds from being
+    // reduced to the occasional video in an otherwise GIF-heavy page.
+    const mediaTag = providerId === 'sankaku' && globalMediaFilter === 'video' ? 'video' : 'animated';
+    const newTags = [...query.positiveTags, mediaTag];
     return {
       ...query,
       positiveTags: Array.from(new Set(newTags)),
-      raw: query.raw ? `${query.raw} animated` : "animated"
+      raw: query.raw ? `${query.raw} ${mediaTag}` : mediaTag
     };
+  }
+
+  private async prepareProviderQuery(query: SearchQuery, provider: ImageProvider): Promise<SearchQuery> {
+    const resolved = await resolveProviderTags(query, provider);
+    return this.getMediaFilterQuery(mapQueryForProvider(resolved, provider.id), provider.id);
   }
 
   private filterMediaType(images: PlatformImage[]): PlatformImage[] {
@@ -177,19 +187,16 @@ export class SearchFederator {
 
     if (activeProviders.length === 0) return [];
 
-    const finalQuery = this.getMediaFilterQuery(query);
-
     // Fetch from all active providers concurrently. Each completed provider
     // is emitted immediately; the final merge still preserves grouping.
     const requests = activeProviders.map(p => ({
       providerId: p.id,
-      request: p.search(finalQuery, page)
+      request: this.prepareProviderQuery(query, p).then(providerQuery => p.search(providerQuery, page))
         .then(async res => {
           const filtered = this.filterAdult(this.filterMediaType(res));
           const blockFiltered = await this.filterBlocked(filtered);
-          // A direct search is a catalog operation. Do not hide posts solely
-          // because they were viewed in another tab; seen filtering belongs to
-          // recommendation-oriented feeds where novelty is the goal.
+          // Search is a complete tag catalog. Seen posts remain available so
+          // results can run from the newest match into older pages.
           return blockFiltered;
         }),
     }));
@@ -208,7 +215,7 @@ export class SearchFederator {
 
     const requests = activeProviders.map(p => {
       const fetchPromise = isAnimatedFilter 
-        ? p.search(this.getMediaFilterQuery(), page)
+        ? this.prepareProviderQuery({ raw: '', positiveTags: [], negativeTags: [], predicates: {} }, p).then(query => p.search(query, page))
         : p.getLatest(page);
 
       return {
@@ -218,6 +225,8 @@ export class SearchFederator {
           const filtered = this.filterAdult(this.filterMediaType(res));
           const blockFiltered = await this.filterBlocked(filtered);
           console.info(`[SearchFederator] latest provider=${p.id} page=${page} raw=${res.length} adultVisible=${filtered.length} afterBlocked=${blockFiltered.length}`);
+          // Latest is a chronological archive, not a novelty feed. Previously
+          // seen and saved posts must remain visible in their real position.
           return blockFiltered;
         }),
       };
@@ -400,7 +409,7 @@ export class SearchFederator {
           ? [...allPositiveTags, `order:${sankakuFreshPage ? 'recent' : 'random'}`]
           : allPositiveTags;
         const effectiveTag = positiveTags.join(' ');
-        const query = this.getMediaFilterQuery({ raw: effectiveTag, positiveTags, negativeTags: blockedTags, predicates: {} });
+        const query = this.prepareProviderQuery({ raw: effectiveTag, positiveTags, negativeTags: blockedTags, predicates: {} }, p);
         
         // Sankaku rate-limits page jumps aggressively. Keep its requests
         // sequential so a refresh reaches current results reliably.
@@ -409,7 +418,7 @@ export class SearchFederator {
 
         requests.push({
           providerId: p.id,
-          request: p.search(query, fetchPage)
+          request: query.then(providerQuery => p.search(providerQuery, fetchPage))
             .then(async res => {
               const filtered = this.filterAdult(this.filterMediaType(res));
               const blockFiltered = await this.filterBlocked(filtered);
@@ -493,7 +502,7 @@ export class SearchFederator {
 
     const requests = activeProviders.map(p => {
       const fetchPromise = isAnimatedFilter
-        ? p.search(this.getMediaFilterQuery(), page)
+        ? this.prepareProviderQuery({ raw: '', positiveTags: [], negativeTags: [], predicates: {} }, p).then(query => p.search(query, page))
         : p.getDiscovery(page);
 
       return {
@@ -616,6 +625,7 @@ import { SankakuProvider } from "./providers/SankakuProvider";
 import { NekosProvider } from "./providers/NekosProvider";
 import { KonachanProvider } from "./providers/KonachanProvider";
 import { ZerochanProvider } from "./providers/ZerochanProvider";
+import { EHentaiProvider } from "./providers/EHentaiProvider";
 
 // Singleton instance for easy application-wide access
 export const federator = new SearchFederator();
@@ -626,3 +636,4 @@ federator.registerProvider(new SankakuProvider());
 federator.registerProvider(new NekosProvider());
 federator.registerProvider(new KonachanProvider());
 federator.registerProvider(new ZerochanProvider());
+federator.registerProvider(new EHentaiProvider());

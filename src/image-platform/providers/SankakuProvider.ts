@@ -312,13 +312,12 @@ export class SankakuProvider extends BaseProvider {
 
   private mapPosts(posts: SankakuPost[]): PlatformImage[] {
     const approved = posts.filter(post => post.id !== undefined && isSankakuApprovedPost(post));
-    const playable = approved.filter(post => {
-      if (getSankakuMediaType(post) !== 'video') {
-        return Boolean(post.file_url || post.sample_url || post.preview_url || post.gif_preview_url);
-      }
-      return Boolean([post.video_url, post.stream_url, post.file_url, post.sample_url]
-        .some(url => /\.(mp4|webm)(?:\?|$)/i.test(url || '')));
-    });
+    // List payloads often omit the signed MP4 URL while retaining the video
+    // type and poster. Keep those cards so the detail modal can hydrate the
+    // richer per-post payload on click instead of silently deleting videos.
+    const playable = approved.filter(post => Boolean(
+      post.video_url || post.stream_url || post.file_url || post.sample_url || post.preview_url || post.gif_preview_url,
+    ));
     const skipped = approved.length - playable.length;
     if (skipped > 0) {
       const loginRequired = approved.filter(post => post.redirect_to_signup).length;

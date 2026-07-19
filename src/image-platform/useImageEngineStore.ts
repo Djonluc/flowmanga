@@ -5,6 +5,12 @@ import { QueryParser } from "./QueryParser";
 import { getSankakuCooldownUntil } from "../services/Sankaku";
 
 let deferredPageRetryTimer: ReturnType<typeof setTimeout> | undefined;
+const emptyPageSkips: Record<'search' | 'latest' | 'curated' | 'discover', number> = {
+  search: 0,
+  latest: 0,
+  curated: 0,
+  discover: 0,
+};
 
 interface FeedState {
   images: PlatformImage[];
@@ -75,6 +81,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
         set(s => {
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
+          void get().markAsSeen(newUnique);
           return {
             feeds: {
               ...s.feeds,
@@ -94,6 +101,9 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
           search: { ...state.feeds.search, hasMore: true }
         }
       }));
+      if (get().feeds.search.images.length === 0 && results.length === 0) {
+        setTimeout(() => void get().loadNextPage(), 0);
+      }
     } catch (e: any) {
       console.error("[ImageEngineStore] Search failed:", e);
       set({ error: e.message || "Failed to search", isLoading: false });
@@ -135,6 +145,9 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
           latest: { ...state.feeds.latest, currentPage: 1, hasMore: true }
         }
       }));
+      if (get().feeds.latest.images.length === 0 && results.length === 0) {
+        setTimeout(() => void get().loadNextPage(), 0);
+      }
     } catch (e: any) {
       set({ error: e.message || "Failed to fetch latest", isLoading: false });
     }
@@ -173,6 +186,9 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
           curated: { ...state.feeds.curated, currentPage: 1, hasMore: true }
         }
       }));
+      if (get().feeds.curated.images.length === 0 && results.length === 0) {
+        setTimeout(() => void get().loadNextPage(), 0);
+      }
     } catch (e: any) {
       set({ error: e.message || "Failed to fetch curated", isLoading: false });
     }
@@ -211,6 +227,9 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
           discover: { ...state.feeds.discover, currentPage: 1, hasMore: true }
         }
       }));
+      if (get().feeds.discover.images.length === 0 && results.length === 0) {
+        setTimeout(() => void get().loadNextPage(), 0);
+      }
     } catch (e: any) {
       set({ error: e.message || "Failed to fetch discovery", isLoading: false });
     }
@@ -260,8 +279,23 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
       // particular, Sankaku must retry this page after its cooldown rather
       // than moving to a cursor that was never fetched.
       if (pageResults.length === 0 && appendedCount === 0) {
-        set({ isFetchingNextPage: false });
         const cooldownUntil = getSankakuCooldownUntil();
+        if (mode === 'latest' && !cooldownUntil) {
+          // Never skip a chronological cursor or declare Latest exhausted due
+          // to a temporary empty response. Retry the same page at a calm pace.
+          set({ isFetchingNextPage: false });
+          if (!deferredPageRetryTimer) {
+            deferredPageRetryTimer = setTimeout(() => {
+              deferredPageRetryTimer = undefined;
+              if (get().fetchMode === 'latest' && get().feeds.latest.hasMore) void get().loadNextPage();
+            }, 5000);
+          }
+          console.info(`[ImageEngineStore] latest page=${nextPage} returned no posts; retrying the same chronological page`);
+          return;
+        }
+        if (cooldownUntil) {
+          set({ isFetchingNextPage: false });
+        }
         if (cooldownUntil && !deferredPageRetryTimer) {
           const expectedPage = activeFeed.currentPage;
           const retryDelay = Math.max(500, cooldownUntil - Date.now() + 100);
@@ -277,8 +311,24 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
             }
           }, retryDelay);
         }
+        if (!cooldownUntil) {
+          emptyPageSkips[mode] += 1;
+          const backOff = emptyPageSkips[mode] >= 5;
+          set(s => ({
+            isFetchingNextPage: false,
+            feeds: {
+              ...s.feeds,
+              [mode]: { ...s.feeds[mode], currentPage: nextPage, hasMore: true },
+            },
+          }));
+          console.info(`[ImageEngineStore] ${mode} page=${nextPage} had no unseen items; ${backOff ? 'backing off before continuing' : 'advancing'}`);
+          if (backOff) emptyPageSkips[mode] = 0;
+          setTimeout(() => void get().loadNextPage(), backOff ? 3000 : 0);
+        }
         return;
       }
+
+      emptyPageSkips[mode] = 0;
 
       set(s => ({
         isFetchingNextPage: false,
@@ -302,6 +352,7 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
       clearTimeout(deferredPageRetryTimer);
       deferredPageRetryTimer = undefined;
     }
+    Object.keys(emptyPageSkips).forEach(key => { emptyPageSkips[key as keyof typeof emptyPageSkips] = 0; });
     set({
       feeds: {
         latest: { ...initialFeedState },
@@ -322,12 +373,18 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
       const { getDb } = await import('../services/db');
       const db = getDb();
       
-      // Keep transaction small
-      const values = images.map(img => `('${img.id}', '${img.sourceId}', '${img.providerId}')`).join(',');
-      await db.execute(`
-        INSERT OR IGNORE INTO FlowSeenImages (id, sourceId, providerId)
-        VALUES ${values}
-      `);
+      // Refresh the exposure timestamp if an item reaches a feed again after
+      // expiry. Parameters avoid IDs ever being interpreted as SQL text.
+      for (const image of images) {
+        await db.execute(`
+          INSERT INTO FlowSeenImages (id, sourceId, providerId, seenAt)
+          VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(id) DO UPDATE SET
+            sourceId = excluded.sourceId,
+            providerId = excluded.providerId,
+            seenAt = CURRENT_TIMESTAMP
+        `, [image.id, image.sourceId, image.providerId]);
+      }
     } catch (e) {
       console.error("[ImageEngineStore] Failed to mark as seen", e);
     }

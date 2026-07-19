@@ -1,3 +1,22 @@
+## FlowManga 2.5.1
+
+FlowManga 2.5.1 adds full E-Hentai gallery reading and downloads, provider-aware tag searching, visually aware duplicate protection for For You and Discovery, improved Sankaku video handling, and redesigned Collection and Playlist organization.
+
+### Highlights
+
+- Latest stays chronological and continuously paged without hiding previously seen posts.
+- Search stays complete for every requested tag without novelty filtering.
+- For You and Discovery suppress recently exposed and visually repeated media for 48 hours.
+- E-Hentai galleries open at full quality, retain tags, support slideshows, and download as grouped library books.
+- My Collection gains search, sorting, bulk selection, folder moves, and bulk removal.
+- Playlists gain clearer creation, matching, sorting, searching, and cleanup tools.
+- Source diagnostics no longer show invented health metrics.
+- E-Hentai namespace tags now honor both plain and namespace-specific blacklist entries.
+
+See `CHANGELOG.md` for the full list of changes and fixes.
+
+---
+
 ## FlowManga 2.6.0
 
 FlowManga 2.6.0 is a major reliability and recommendation update for visual-media discovery, especially Sankaku Complex, Rule34, and Danbooru.

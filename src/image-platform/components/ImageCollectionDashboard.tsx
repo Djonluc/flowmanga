@@ -5,6 +5,7 @@ import { useSlideshowStore } from '../useSlideshowStore';
 import { useImageCollectionStore } from '../useImageCollectionStore';
 import { MasonryGrid } from './MasonryGrid';
 import { ImageDetailModal } from './ImageDetailModal';
+import { EHentaiGalleryReader } from './EHentaiGalleryReader';
 import { MyCollectionTab } from './MyCollectionTab';
 import { PlaylistsTab } from './PlaylistsTab';
 import { ForYouHeader } from './ForYouHeader';
@@ -356,7 +357,17 @@ export const ImageCollectionDashboard = () => {
 
           <select
             value={globalMediaFilter}
-            onChange={(e) => setGlobalMediaFilter(e.target.value as any)}
+            onChange={(event) => {
+              const filter = event.target.value as 'all' | 'image' | 'video' | 'gif';
+              setGlobalMediaFilter(filter);
+              // Media-only queries need a fresh provider request. Filtering the
+              // already-loaded image feed would otherwise make Video/GIF look
+              // empty even though the source has matching posts.
+              if (activeTab === 'new') void store.fetchLatest(true);
+              else if (activeTab === 'foryou') void store.fetchCurated(true);
+              else if (activeTab === 'discover') void store.fetchDiscover(true);
+              else if (activeTab === 'search') void store.search(searchInput);
+            }}
             className="h-12 px-4 bg-surface hover:bg-surface-raised border border-border-subtle text-foreground-muted hover:text-foreground font-black uppercase tracking-widest rounded-xl transition-all outline-none"
           >
             <option value="all">All Media</option>
@@ -546,7 +557,22 @@ export const ImageCollectionDashboard = () => {
       </div>
 
       {/* Image Detail Modal */}
-      {selectedImageIndex !== null && (modalImages || images)[selectedImageIndex] && (
+      {selectedImageIndex !== null && (modalImages || images)[selectedImageIndex]?.providerId === 'e-hentai' && (
+        <EHentaiGalleryReader
+          gallery={(modalImages || images)[selectedImageIndex]}
+          galleries={modalImages || images}
+          galleryIndex={selectedImageIndex}
+          onClose={() => setSelectedImageIndex(null)}
+          onNavigateGallery={(newIndex) => setSelectedImageIndex(newIndex)}
+          onSearchTag={(tag) => {
+            setSearchQuery(tag);
+            setActiveTab("search");
+            store.search(tag);
+            setSelectedImageIndex(null);
+          }}
+        />
+      )}
+      {selectedImageIndex !== null && (modalImages || images)[selectedImageIndex] && (modalImages || images)[selectedImageIndex].providerId !== 'e-hentai' && (
         <ImageDetailModal 
           image={(modalImages || images)[selectedImageIndex]} 
           images={modalImages || images}

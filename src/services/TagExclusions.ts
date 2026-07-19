@@ -15,7 +15,16 @@ function comparableTag(value: string): string {
 }
 
 export function hasExcludedTag(tags: string[] = [], excludedTags: string[] = []): boolean {
-  const normalizedTags = new Set(tags.map(comparableTag));
+  const normalizedTags = new Set(tags.flatMap(tag => {
+    const normalized = comparableTag(tag);
+    const namespaceSeparator = normalized.indexOf(':');
+    // E-Hentai exposes namespaced tags (for example `female:tag` and
+    // `parody:title`). A user's plain `tag` blacklist should still match the
+    // value, while a namespaced blacklist remains precise.
+    return namespaceSeparator > 0
+      ? [normalized, normalized.slice(namespaceSeparator + 1).trim()]
+      : [normalized];
+  }));
   return normalizeExcludedTags(excludedTags).map(comparableTag)
     .some(excluded => normalizedTags.has(excluded));
 }

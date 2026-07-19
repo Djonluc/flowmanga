@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { getDb } from '../../services/db';
-import { Play, Search, Trash2, Plus, Edit2, Copy, Save, X, Tag, Sparkles, Clock, Heart, User, Film } from 'lucide-react';
+import { Play, Search, Trash2, Plus, Edit2, Copy, Save, X, Tag, Sparkles, Heart, User, Film, ArrowUpDown } from 'lucide-react';
 import { useSlideshowStore } from '../useSlideshowStore';
 import { useImageCollectionStore } from '../useImageCollectionStore';
 
@@ -42,6 +42,8 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
   
   const [isBulkMode, setIsBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [playlistSearch, setPlaylistSearch] = useState('');
+  const [playlistSort, setPlaylistSort] = useState<'newest' | 'name' | 'matches'>('newest');
   
   const slideshow = useSlideshowStore();
   const { savedImages } = useImageCollectionStore();
@@ -171,15 +173,7 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
       const db = getDb();
       let deletedCount = 0;
       for (const p of playlists) {
-        const q = parseQuery(p.query);
-        const matchCount = savedImages.filter(img => {
-          const mediaType = img.mediaType || 'image';
-          if (q.allowedMediaTypes && q.allowedMediaTypes.length > 0 && !q.allowedMediaTypes.includes(mediaType as any)) {
-            return false;
-          }
-          const tags = (img.tags || []).map(t => t.toLowerCase());
-          return (q.and.length === 0 || q.and.every(t => tags.some(tag => tag.includes(t.toLowerCase()))));
-        }).length;
+        const matchCount = countLocalMatches(p);
         if (matchCount === 0) {
           await db.execute("DELETE FROM FlowPlaylists WHERE id = ?", [p.id]);
           deletedCount++;
@@ -233,14 +227,16 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
     try {
       const parsed = JSON.parse(queryStr);
       if (parsed.and || parsed.or || parsed.exclude) return parsed;
-    } catch (e) {}
+    } catch {
+      // Legacy plain-text playlists are converted into an AND query below.
+    }
     return { and: queryStr.split(' ').filter(Boolean), or: [], exclude: [], allowedMediaTypes: ['image', 'video', 'gif'] };
   };
 
   const stripPrefix = (t: string) => t.replace(/^(character|series|artist|copyright):/, '').replace(/_/g, ' ');
 
   const buildQueryString = (query: SmartQuery): string => {
-    let parts = [...query.and.map(t => stripPrefix(t))];
+    const parts = [...query.and.map(t => stripPrefix(t))];
     query.or.forEach(t => parts.push(`~${stripPrefix(t)}`));
     query.exclude.forEach(t => parts.push(`-${stripPrefix(t)}`));
     return parts.join(' ');
@@ -254,7 +250,9 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
         [crypto.randomUUID(), `${p.name} (Copy)`, p.query]
       );
       await loadPlaylists();
-    } catch (e) {}
+    } catch (error) {
+      console.error('[PlaylistsTab] Failed to duplicate playlist:', error);
+    }
   };
 
   const generateCuratedPlaylists = async () => {
@@ -405,16 +403,37 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
     );
   };
 
+  const countLocalMatches = (playlist: Playlist): number => {
+    const query = parseQuery(playlist.query);
+    return savedImages.filter(image => {
+      const mediaType = image.mediaType || 'image';
+      if (query.allowedMediaTypes?.length && !query.allowedMediaTypes.includes(mediaType)) return false;
+      const tags = (image.tags || []).map(tag => tag.toLowerCase());
+      const matchesAll = query.and.length === 0 || query.and.every(term => tags.some(tag => tag.includes(term.toLowerCase())));
+      const matchesAny = query.or.length === 0 || query.or.some(term => tags.some(tag => tag.includes(term.toLowerCase())));
+      const excluded = query.exclude.some(term => tags.some(tag => tag.includes(term.toLowerCase())));
+      return matchesAll && matchesAny && !excluded;
+    }).length;
+  };
+
+  const visiblePlaylists = [...playlists]
+    .filter(playlist => playlist.name.toLowerCase().includes(playlistSearch.trim().toLowerCase()))
+    .sort((a, b) => {
+      if (playlistSort === 'name') return a.name.localeCompare(b.name);
+      if (playlistSort === 'matches') return countLocalMatches(b) - countLocalMatches(a);
+      return 0;
+    });
+
   return (
-    <div className="w-full h-full p-8 overflow-y-auto bg-background flex flex-col gap-6 relative">
-      <div className="flex items-center justify-between">
+    <div className="w-full h-full p-4 md:p-8 overflow-y-auto bg-background flex flex-col gap-6 relative">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <h2 className="text-2xl font-black uppercase tracking-widest text-foreground">Smart Playlists</h2>
           <p className="text-foreground-muted text-sm mt-1">
             Dynamic collections that auto-update based on tags. Play locally or search online.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {isBulkMode ? (
             <>
               <button 
@@ -471,28 +490,37 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
         </div>
       </div>
 
-      {playlists.length === 0 ? (
+      <div className="flex flex-col gap-3 rounded-2xl border border-border-subtle bg-surface/60 p-3 sm:flex-row sm:items-center">
+        <label className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" size={16} />
+          <input value={playlistSearch} onChange={event => setPlaylistSearch(event.target.value)} placeholder="Find a playlist…" className="h-11 w-full rounded-xl border border-border-subtle bg-black/20 pl-10 pr-10 text-sm text-foreground outline-none focus:border-accent" />
+          {playlistSearch && <button onClick={() => setPlaylistSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground-muted hover:text-foreground" aria-label="Clear playlist search"><X size={14} /></button>}
+        </label>
+        <label className="relative min-w-48">
+          <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" size={15} />
+          <select value={playlistSort} onChange={event => setPlaylistSort(event.target.value as typeof playlistSort)} className="h-11 w-full appearance-none rounded-xl border border-border-subtle bg-surface pl-10 pr-3 text-xs font-bold uppercase tracking-wider text-foreground outline-none focus:border-accent">
+            <option value="newest">Recently created</option>
+            <option value="name">Name A–Z</option>
+            <option value="matches">Most matches</option>
+          </select>
+        </label>
+        <div className="px-2 text-xs font-bold text-foreground-muted">{visiblePlaylists.length} of {playlists.length} playlists</div>
+      </div>
+
+      {visiblePlaylists.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-foreground-muted bg-surface/30 rounded-3xl border border-white/5">
           <div className="w-24 h-24 mb-6 rounded-full bg-white/5 flex items-center justify-center text-white/20">
             <Play size={48} />
           </div>
-          <h3 className="text-xl font-black uppercase tracking-widest text-foreground mb-2">No Playlists Yet</h3>
-          <p className="text-sm font-medium opacity-60">Create a smart playlist to auto-organize by tags.</p>
+          <h3 className="text-xl font-black uppercase tracking-widest text-foreground mb-2">{playlistSearch ? 'No matching playlists' : 'No Playlists Yet'}</h3>
+          <p className="text-sm font-medium opacity-60">{playlistSearch ? 'Try a different name.' : 'Create a smart playlist to auto-organize by tags.'}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {playlists.map(p => {
+          {visiblePlaylists.map(p => {
             const q = parseQuery(p.query);
             // Count matching local images
-            const matchCount = savedImages.filter(img => {
-              const mediaType = img.mediaType || 'image';
-              if (q.allowedMediaTypes && q.allowedMediaTypes.length > 0 && !q.allowedMediaTypes.includes(mediaType as any)) {
-                return false;
-              }
-
-              const tags = (img.tags || []).map(t => t.toLowerCase());
-              return (q.and.length === 0 || q.and.every(t => tags.some(tag => tag.includes(t.toLowerCase()))));
-            }).length;
+            const matchCount = countLocalMatches(p);
             
             const isSelected = selectedIds.includes(p.id);
             return (

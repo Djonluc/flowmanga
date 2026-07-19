@@ -1021,6 +1021,36 @@ async fn fetch_binary(
 }
 
 #[command]
+async fn compute_image_dhash(url: String) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36")
+        .connect_timeout(std::time::Duration::from_secs(6))
+        .timeout(std::time::Duration::from_secs(15))
+        .redirect(reqwest::redirect::Policy::limited(5))
+        .build()
+        .map_err(|error| error.to_string())?;
+    let response = client.get(url).send().await.map_err(|error| error.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!("Fingerprint request failed: {}", response.status()));
+    }
+    let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+    let image = image::load_from_memory(&bytes).map_err(|error| error.to_string())?;
+    let grayscale = image
+        .resize_exact(9, 8, image::imageops::FilterType::Triangle)
+        .to_luma8();
+    let mut hash = 0_u64;
+    for y in 0..8 {
+        for x in 0..8 {
+            hash <<= 1;
+            if grayscale.get_pixel(x, y)[0] > grayscale.get_pixel(x + 1, y)[0] {
+                hash |= 1;
+            }
+        }
+    }
+    Ok(format!("{hash:016x}"))
+}
+
+#[command]
 async fn fetch_json(
     url: String,
     method: String,
@@ -2602,6 +2632,7 @@ pub fn run() {
             auto_extract_cookies,
             show_path_in_file_manager,
             fetch_binary,
+            compute_image_dhash,
             get_cwd
         ])
         .setup(|app| {
