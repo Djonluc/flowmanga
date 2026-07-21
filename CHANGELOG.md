@@ -1,3 +1,39 @@
+# FlowManga v2.5.2 Release Notes
+
+This patch improves live discovery feeds, media playback, safe-mode filtering, gallery navigation, packaged audio, and desktop stability.
+
+### Feed and Search Improvements
+
+- Latest now keeps each provider's chronological batches together and advances every source independently through older pages.
+- Tag searches consistently request newest matches first without hiding previously viewed results.
+- Discovery and For You retain recent-content protection while continuing through empty or filtered pages.
+- Safe mode now filters explicit ratings, tags, titles, recommendation terms, and provider results before they are displayed.
+- App-wide excluded tags are now managed separately from recommendation-only Interest Manager exclusions.
+
+### Sankaku Improvements
+
+- Latest follows Sankaku's canonical date ordering, refreshes page one as a live feed, and retains pending or unreviewed posts returned by the provider.
+- Signed video URLs are resolved on demand, cached briefly, and streamed with byte-range support in cards and the detail viewer.
+- Video thumbnails animate on hover or focus without flooding the provider request queue.
+- Parent posts can be opened directly, and real multi-image groups include previous/next gallery navigation.
+- Expanded diagnostics report session state, post status, pagination ranges, filtering, and media hydration failures.
+
+### Interface and Reliability
+
+- Added clear loading feedback while image feeds gather results and gallery badges for multi-image items.
+- Improved compact-screen spacing, opaque sticky controls, theme contrast, download-count visibility, and true fullscreen sizing.
+- Removed the Continue Reading panel from the manga home page.
+- Packaged ambient music is now discovered from the installed Tauri resource layout.
+- Reduced WebView2 memory pressure by avoiding full-video blobs in grid previews, limiting cached media, reducing stream chunks, and capping backend logs at Info.
+
+### Provider Fixes
+
+- Improved Rule34 video URL selection and chronological paging.
+- Corrected E-Hentai first-page behavior and strengthened gallery metadata and exclusion handling.
+- Hardened provider URL parsing and pagination for Nekos and Zerochan.
+
+---
+
 # FlowManga v2.5.1 Release Notes
 
 This release activates E-Hentai galleries, improves Sankaku media reliability, reorganizes Collections and Playlists, and adds source-aware discovery with visual duplicate protection.

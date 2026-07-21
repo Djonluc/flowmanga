@@ -21,9 +21,24 @@ const PROXY_DOMAINS = [
 ];
 
 const proxyCache = new Map<string, string>();
-const MAX_PROXY_CACHE = 100;
+const MAX_PROXY_CACHE = 50;
+const MAX_VIDEO_PROXY_CACHE = 2;
+
+function isVideoUrl(url: string): boolean {
+  return /\.(mp4|webm|ogv|ogg|m4v)(?:\?|$)/i.test(url);
+}
 
 function cacheProxyBlob(url: string, blobUrl: string): string {
+  if (isVideoUrl(url)) {
+    const videoKeys = Array.from(proxyCache.keys()).filter(isVideoUrl);
+    while (videoKeys.length >= MAX_VIDEO_PROXY_CACHE) {
+      const oldestVideoKey = videoKeys.shift();
+      if (!oldestVideoKey) break;
+      const oldestVideoUrl = proxyCache.get(oldestVideoKey);
+      if (oldestVideoUrl?.startsWith('blob:')) URL.revokeObjectURL(oldestVideoUrl);
+      proxyCache.delete(oldestVideoKey);
+    }
+  }
   proxyCache.set(url, blobUrl);
   if (proxyCache.size > MAX_PROXY_CACHE) {
     const oldestKey = proxyCache.keys().next().value;
@@ -57,9 +72,11 @@ export function streamViaTauri(url: string): string {
 }
 
 function mediaMimeType(url: string): string {
-  const extension = url.match(/\.(mp4|webm|gif|png|jpg|jpeg|avif|webp)(?:\?|$)/i)?.[1]?.toLowerCase();
+  const extension = url.match(/\.(mp4|webm|ogv|ogg|m4v|gif|png|jpg|jpeg|avif|webp)(?:\?|$)/i)?.[1]?.toLowerCase();
   if (extension === 'mp4') return 'video/mp4';
   if (extension === 'webm') return 'video/webm';
+  if (extension === 'ogv' || extension === 'ogg') return 'video/ogg';
+  if (extension === 'm4v') return 'video/mp4';
   if (extension === 'gif') return 'image/gif';
   if (extension === 'png') return 'image/png';
   if (extension === 'avif') return 'image/avif';
@@ -124,8 +141,16 @@ async function proxyViaTauri(url: string): Promise<string | null> {
             }
           }
           if (!bytes) throw binaryError || new Error('Sankaku media request failed');
-          const extension = url.match(/\.(mp4|webm|gif|png|jpg|jpeg)(?:\?|$)/i)?.[1]?.toLowerCase();
-          const mime = extension === 'mp4' ? 'video/mp4' : extension === 'webm' ? 'video/webm' : extension === 'gif' ? 'image/gif' : 'image/*';
+          const extension = url.match(/\.(mp4|webm|ogv|ogg|m4v|gif|png|jpg|jpeg)(?:\?|$)/i)?.[1]?.toLowerCase();
+          const mime = extension === 'mp4' || extension === 'm4v'
+            ? 'video/mp4'
+            : extension === 'webm'
+              ? 'video/webm'
+              : extension === 'ogv' || extension === 'ogg'
+                ? 'video/ogg'
+                : extension === 'gif'
+                  ? 'image/gif'
+                  : 'image/*';
           const blobUrl = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: mime }));
           return cacheProxyBlob(url, blobUrl);
         } catch (binaryError) {

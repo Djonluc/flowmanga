@@ -1,69 +1,25 @@
-## FlowManga 2.5.1
+## FlowManga 2.5.2
 
-FlowManga 2.5.1 adds full E-Hentai gallery reading and downloads, provider-aware tag searching, visually aware duplicate protection for For You and Discovery, improved Sankaku video handling, and redesigned Collection and Playlist organization.
-
-### Highlights
-
-- Latest stays chronological and continuously paged without hiding previously seen posts.
-- Search stays complete for every requested tag without novelty filtering.
-- For You and Discovery suppress recently exposed and visually repeated media for 48 hours.
-- E-Hentai galleries open at full quality, retain tags, support slideshows, and download as grouped library books.
-- My Collection gains search, sorting, bulk selection, folder moves, and bulk removal.
-- Playlists gain clearer creation, matching, sorting, searching, and cleanup tools.
-- Source diagnostics no longer show invented health metrics.
-- E-Hentai namespace tags now honor both plain and namespace-specific blacklist entries.
-
-See `CHANGELOG.md` for the full list of changes and fixes.
-
----
-
-## FlowManga 2.6.0
-
-FlowManga 2.6.0 is a major reliability and recommendation update for visual-media discovery, especially Sankaku Complex, Rule34, and Danbooru.
+FlowManga 2.5.2 is a reliability patch for live image feeds, Sankaku video playback, safety filtering, gallery navigation, packaged music, and the desktop layout.
 
 ### Highlights
 
-- Rebuilt Sankaku Latest around its live cursor feed so new posts and continuous pagination remain current.
-- Improved Sankaku search, tag autocomplete, discovery, session handling, and detailed request diagnostics.
-- Added streaming video playback for Sankaku and Rule34 with byte-range support and automatic fallback.
-- Corrected video detection so MP4/WebM files are preferred over static poster thumbnails.
-- Made the global Images, GIFs, and Videos selector enforce the selected media type across feeds.
-- Expanded For You with editable themes, core and secondary tags, typed artist/character/series tags, exclusions, and a dedicated Sankaku tag.
-- Sankaku For You now mixes 10% recent results with 90% randomized matching results to reduce repetition.
-
-### Safety and privacy
-
-- Adult-only preset themes and generated suggestions remain hidden unless Adult Content is enabled.
-- Safe mode now filters provider autocomplete and learned suggestions consistently.
-- Protected network errors redact API keys, tokens, passwords, and user identifiers.
-- Access-gated Sankaku posts without usable media URLs are skipped instead of appearing as broken cards.
-
-### Reliability fixes
-
-- Restored Danbooru video proxy behavior after separating provider-specific streaming paths.
-- Fixed Rule34 cards treating video poster images as the playable media.
-- Fixed Sankaku pagination, stale first-page caching, alphanumeric post IDs, and richer post-detail hydration.
-- Improved masonry continuous loading, empty states, scroll resets, retry behavior, and media diagnostics.
-- Seen history now ranks results without permanently emptying small or slow-moving feeds.
-- Blocked-tag logs identify the exclusions responsible for removed results.
-- Sankaku image and Books access share authentication and session verification.
-
-### Recommendation improvements
-
-- Added configurable Broad, Strict, and Themed recommendation modes.
-- Added editable built-in themes and a Custom Theme profile.
-- Added required tags, favorite-tag support, exclusions, and source-aware query behavior.
-- Balanced recommendations by source and related content while retaining recently viewed fallback candidates.
-
-### Developer and release readiness
-
-- Updated project documentation and corrected stale README links.
-- Synchronized the desktop, Rust, npm, and lockfile versions at 2.6.0.
-- Added accurate Cargo package metadata and resolved strict Clippy findings.
-- Removed confirmed unused imports, values, and recommendation constants.
+- Latest keeps every source in chronological order, presents provider batches together, and continuously advances into older posts.
+- Searches start with the newest matching posts and do not hide results merely because they were viewed before.
+- Discovery and For You continue paging while avoiding recently repeated content.
+- Safe mode now blocks explicit ratings, tags, titles, recommendation terms, and unsafe provider results more consistently.
+- App-wide excluded tags have a cleaner chip editor and are separated from recommendation-only Interest Manager exclusions.
+- Sankaku Latest uses the provider's date ordering and includes pending or unreviewed posts returned by its live feed.
+- Sankaku videos resolve signed streams on demand, animate on hover or focus, and play through byte-range streaming in the detail viewer.
+- Sankaku parent links and real multi-image groups now support direct navigation.
+- Multi-image items display a Gallery badge before opening.
+- Fullscreen sizing, compact-screen controls, sticky headers, theme contrast, and download-count placement have been improved.
+- Bundled ambient music is correctly discovered in installed builds.
+- WebView2 memory pressure is reduced by limiting video blobs, media caches, stream chunk sizes, and backend log volume.
+- The manga home page no longer includes the Continue Reading panel.
 
 ### Installing
 
-Download the Windows setup file from the Assets section and run it. Existing libraries, downloads, and settings are preserved during an update.
+Download the Windows setup file from the Assets section and run it. Existing libraries, downloads, settings, and provider sessions are preserved during an update.
 
-Some Sankaku media requires a valid provider session. If restricted posts are missing, open Source Settings, recapture the Sankaku session, and use Verify Session.
+Some Sankaku media still depends on the permissions of the saved provider session. If restricted posts or videos are unavailable, open Source Settings, recapture the Sankaku session, and use Verify Session.

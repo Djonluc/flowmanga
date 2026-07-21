@@ -137,10 +137,9 @@ function dedupeResults(
   let blockedTags: string[] = [];
   try {
     // We get the blocked tags dynamically to avoid circular issues
-    blockedTags = mergeExcludedTags(
-      useGalleryStore.getState().blockedTags || [],
-      useSettingsStore.getState().excludedTags || [],
-    );
+    // Global filtering is owned exclusively by Settings. The gallery's
+    // blockedTags are recommendation preferences used by For You.
+    blockedTags = mergeExcludedTags(useSettingsStore.getState().excludedTags || []);
   } catch (error) {
     console.warn('[GalleryStore] Failed to load blocked-tag filters:', error);
   }

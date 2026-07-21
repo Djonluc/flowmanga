@@ -239,15 +239,15 @@ export const DiscoverView = () => {
         className="flex-1 h-full overflow-y-auto custom-scrollbar relative bg-transparent"
     >
       {/* ─── Top Sticky Header (Search & Filters) ─── */}
-      <div className="sticky top-0 z-40 bg-background/80 backdrop-blur-3xl border-b border-border-subtle px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-4 flex flex-col gap-4">
+      <div className="sticky top-0 z-40 bg-[var(--color-background-solid)] border-b border-border-strong px-4 sm:px-6 lg:px-8 xl:px-10 py-3 sm:py-4 flex flex-col gap-3 shadow-[0_12px_30px_rgba(0,0,0,0.16)]">
         
         {/* Top Bar: Tabs & Search */}
-        <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 bg-surface-elevated border border-border-subtle p-1 rounded-2xl">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+            <div className="flex min-w-0 max-w-full items-center gap-1 overflow-x-auto no-scrollbar bg-surface border border-border-subtle p-1 rounded-2xl">
                 <button
                     onClick={() => setActiveTab('latest')}
                     className={clsx(
-                        "flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                        "flex shrink-0 items-center gap-2 px-3 sm:px-5 py-2.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all",
                         activeTab === 'latest' ? "bg-accent text-white shadow-lg shadow-accent/20" : "text-foreground-dim hover:text-foreground hover:bg-surface-raised"
                     )}
                 >
@@ -256,7 +256,7 @@ export const DiscoverView = () => {
                 <button
                     onClick={() => setActiveTab('discover')}
                     className={clsx(
-                        "flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                        "flex shrink-0 items-center gap-2 px-3 sm:px-5 py-2.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all",
                         activeTab === 'discover' ? "bg-purple-500 text-white shadow-lg shadow-purple-500/20" : "text-foreground-dim hover:text-foreground hover:bg-surface-raised"
                     )}
                 >
@@ -265,7 +265,7 @@ export const DiscoverView = () => {
                 <button
                     onClick={() => setActiveTab('for-you')}
                     className={clsx(
-                        "flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                        "flex shrink-0 items-center gap-2 px-3 sm:px-5 py-2.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all",
                         activeTab === 'for-you' ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20" : "text-foreground-dim hover:text-foreground hover:bg-surface-raised"
                     )}
                 >
@@ -273,7 +273,7 @@ export const DiscoverView = () => {
                 </button>
             </div>
 
-            <form onSubmit={handleSearch} className="relative w-80">
+            <form onSubmit={handleSearch} className="relative hidden 2xl:block w-72 shrink-0">
                 <input
                     type="text"
                     placeholder="Search the multiverse..."
@@ -286,8 +286,8 @@ export const DiscoverView = () => {
         </div>
 
         {/* Content Types & Filters */}
-        <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+        <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto no-scrollbar">
             {contentTypes.map((type) => (
                 <button
                 key={type.id}
@@ -305,10 +305,10 @@ export const DiscoverView = () => {
             </div>
             <button
                 onClick={() => openTagManager("discovery", [])}
-                className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-surface-elevated border border-border-subtle text-foreground-dim hover:text-foreground hover:bg-surface-raised transition-all"
+                className="flex shrink-0 items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full bg-surface border border-border-subtle text-foreground-muted hover:text-foreground hover:bg-surface-raised transition-all"
             >
                 <Filter size={12} />
-                <span className="text-[10px] font-black uppercase tracking-widest">
+                <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">
                 Filter By Genre
                 </span>
             </button>

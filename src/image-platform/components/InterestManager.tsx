@@ -367,18 +367,18 @@ export const InterestManager = ({ onClose }: { onClose: () => void }) => {
           )}
 
           <section className="border-t border-border-subtle pt-4">
-            <h3 className="text-sm font-semibold text-foreground">Blocked tags</h3>
-            <p className="mt-1 text-xs text-foreground-muted">These are blocked throughout the app, regardless of the selected theme.</p>
+            <h3 className="text-sm font-semibold text-foreground">Recommendation-wide exclusions</h3>
+            <p className="mt-1 text-xs text-foreground-muted">These affect only For You recommendations. Manage app-wide exclusions under Settings → Sources.</p>
             <div className="mt-3 flex gap-2">
               <input
                 value={inputValues.blocked}
                 onChange={event => setInputValues(previous => ({ ...previous, blocked: event.target.value }))}
                 onKeyDown={event => { if (event.key === 'Enter') addTag('blocked'); }}
-                placeholder="Add a blocked tag"
+                placeholder="Exclude from For You"
                 className="min-w-0 flex-1 rounded-md border border-border-subtle bg-black/20 px-3 py-2 text-sm outline-none focus:border-red-500"
               />
               <button type="button" onClick={() => addTag('blocked')} disabled={!inputValues.blocked.trim()} className="inline-flex items-center gap-1 rounded-md bg-red-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">
-                <Plus size={14} /> Block
+                <Plus size={14} /> Exclude
               </button>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">

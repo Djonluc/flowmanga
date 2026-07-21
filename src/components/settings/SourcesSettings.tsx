@@ -1,4 +1,4 @@
-import { Globe, ExternalLink, ShieldCheck, Zap, AlertTriangle, Search, Sparkles, Activity, Power, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
+import { Globe, ExternalLink, ShieldCheck, Zap, AlertTriangle, Search, Sparkles, Activity, Power, CheckCircle2, XCircle, RefreshCw, Plus, X, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import { useState } from 'react';
 import { useSettingsStore } from '../../stores/useSettingsStore';
@@ -21,7 +21,7 @@ export const SourcesSettings = () => {
         disabledSources,
         toggleSource,
     } = useSettingsStore();
-    const [tagInput, setTagInput] = useState(excludedTags?.join(', ') || '');
+    const [tagInput, setTagInput] = useState('');
     const [isExtracting, setIsExtracting] = useState<Record<string, boolean>>({});
     const [sankakuSessionStatus, setSankakuSessionStatus] = useState<SankakuSessionStatus | null>(null);
 
@@ -96,7 +96,7 @@ export const SourcesSettings = () => {
     };
 
     useEffect(() => {
-        const unlisten = listen<string>('auth-cookies-extracted', (event) => {
+        const unlisten = listen<string>('auth-cookies-extracted', async (event) => {
             try {
                 const url = new URL(event.payload);
                 const providerId = url.searchParams.get('provider');
@@ -121,6 +121,9 @@ export const SourcesSettings = () => {
                         sessionCookies: cookie || currentAuth?.[authProviderId]?.sessionCookies,
                         localStorage: parsedLs || currentAuth?.[authProviderId]?.localStorage
                     });
+                    if (authProviderId === 'sankaku') {
+                        setSankakuSessionStatus(await verifySankakuSession());
+                    }
                 }
             } catch (e) {
                 console.error("Failed to parse extracted cookies", e);
@@ -196,6 +199,20 @@ export const SourcesSettings = () => {
     };
 
     const isSourceEnabled = (id: string) => !disabledSources.includes(id);
+
+    const addExcludedTags = () => {
+        const additions = tagInput
+            .split(/[,\n]+/)
+            .map(tag => tag.trim().toLowerCase().replace(/\s+/g, ' '))
+            .filter(Boolean);
+        if (additions.length === 0) return;
+        setExcludedTags(Array.from(new Set([...(excludedTags || []), ...additions])));
+        setTagInput('');
+    };
+
+    const removeExcludedTag = (tag: string) => {
+        setExcludedTags((excludedTags || []).filter(item => item !== tag));
+    };
 
     return (
         <div className="space-y-8 pb-12">
@@ -658,24 +675,58 @@ export const SourcesSettings = () => {
                 <div className="group bg-white/5 p-6 rounded-[32px] border border-white/5 flex flex-col gap-4 hover:border-rose-500/20 transition-all duration-500">
                     <div className="flex flex-col">
                         <span className="text-rose-500 text-[10px] font-black uppercase tracking-widest mb-1">Custom Filters</span>
-                        <span className="text-foreground text-base font-bold tracking-tight">Exclude Tags & Genres</span>
+                        <span className="text-foreground text-base font-bold tracking-tight">App-wide Excluded Tags</span>
                         <p className="text-foreground-muted text-[10px] font-medium mt-1">
-                            Type any tags you want to globally hide (comma separated). For example: <span className="text-foreground/40 italic">horror, mecha, spoilers</span>
+                            Only tags listed here are hidden across Latest, Discover, Search, For You, and collection feeds. Interest Manager exclusions affect recommendations only.
                         </p>
                     </div>
-                    
-                    <input
-                        type="text"
-                        value={tagInput}
-                        onChange={(e) => {
-                            const val = e.target.value;
-                            setTagInput(val);
-                            const tags = val.split(',').map(t => t.trim()).filter(Boolean);
-                            setExcludedTags(tags);
-                        }}
-                        placeholder="e.g. horror, tragedy, mecha..."
-                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-rose-500/50 transition-colors"
-                    />
+
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                        <input
+                            type="text"
+                            value={tagInput}
+                            onChange={(e) => setTagInput(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    addExcludedTags();
+                                }
+                            }}
+                            placeholder="Type a tag, then press Enter"
+                            className="min-w-0 flex-1 bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-rose-500/50 transition-colors"
+                        />
+                        <button
+                            type="button"
+                            onClick={addExcludedTags}
+                            disabled={!tagInput.trim()}
+                            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-rose-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white transition-colors hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                            <Plus size={15} /> Add
+                        </button>
+                    </div>
+
+                    <div className="flex min-h-12 flex-wrap content-start gap-2 rounded-2xl border border-white/5 bg-black/20 p-3">
+                        {(excludedTags || []).map(tag => (
+                            <span key={tag} className="inline-flex max-w-full items-center gap-2 rounded-xl border border-rose-500/25 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200">
+                                <span className="truncate">{tag}</span>
+                                <button type="button" onClick={() => removeExcludedTag(tag)} aria-label={`Remove ${tag}`} title={`Remove ${tag}`} className="shrink-0 text-rose-300/70 hover:text-white">
+                                    <X size={13} />
+                                </button>
+                            </span>
+                        ))}
+                        {(excludedTags || []).length === 0 && (
+                            <span className="self-center text-xs text-foreground-muted">No app-wide exclusions. All content allowed by the adult-content setting can appear.</span>
+                        )}
+                    </div>
+
+                    {(excludedTags || []).length > 0 && (
+                        <div className="flex items-center justify-between gap-3">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-foreground-muted">{excludedTags.length} excluded {excludedTags.length === 1 ? 'tag' : 'tags'}</span>
+                            <button type="button" onClick={() => { if (confirm('Clear all app-wide excluded tags?')) setExcludedTags([]); }} className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-300 hover:text-rose-200">
+                                <Trash2 size={13} /> Clear all
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

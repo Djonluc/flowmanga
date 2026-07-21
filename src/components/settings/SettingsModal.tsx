@@ -133,7 +133,7 @@ export const SettingsModal = () => {
 
                         {/* Content Area */}
                         <div className="flex-1 flex flex-col min-w-0 bg-surface">
-                            <div className="flex items-center justify-between p-8 border-b border-border-subtle">
+                            <div className="flex items-center justify-between p-4 sm:p-6 lg:p-8 border-b border-border-subtle">
                                 <h3 className="text-xl font-black text-foreground uppercase tracking-widest">
                                     {activeTabLabel}
                                 </h3>
@@ -145,8 +145,8 @@ export const SettingsModal = () => {
                                 </button>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
-                                <div className="max-w-2xl mx-auto space-y-8">
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8">
+                                <div className={clsx(activeTab === 'appearance' ? "max-w-5xl" : "max-w-2xl", "mx-auto space-y-8")}>
                                     {activeTab === 'general' && <GeneralSettings />}
                                     {activeTab === 'reader' && <ReaderSettings />}
                                     {activeTab === 'audio' && <AmbientSettings />}

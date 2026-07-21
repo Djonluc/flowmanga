@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { PlatformImage } from '../types';
 import { useSlideshowStore } from '../useSlideshowStore';
 import { useImageCollectionStore } from '../useImageCollectionStore';
-import { Download, Heart, FolderPlus, Play, ExternalLink, X, Tag, Loader2, Star, RefreshCw, Folder, Trash2, Search, ShieldAlert, ZoomIn, ZoomOut, Maximize, Minimize, Move, Pin } from 'lucide-react';
+import { Download, Heart, FolderPlus, Play, ExternalLink, X, Tag, Loader2, Star, RefreshCw, Folder, Trash2, Search, ShieldAlert, ZoomIn, ZoomOut, Maximize, Minimize, Move, Pin, ChevronLeft, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
 import { useGalleryStore } from '../../stores/useGalleryStore';
 import { toast } from '../../components/Toast';
@@ -23,6 +23,7 @@ interface ImageDetailModalProps {
   index: number;
   onClose: () => void;
   onNavigate?: (newIndex: number) => void;
+  onOpenRelated?: (image: PlatformImage) => void;
   onSearchTag: (tag: string) => void;
   favoriteTags?: string[];
   onToggleFavorite?: (tag: string) => void;
@@ -156,7 +157,7 @@ const ClickableTag = ({ tag, type, onSearch, onClose, isInterest }: { tag: strin
   );
 };
 
-export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, images, index, onClose, onNavigate, onSearchTag }) => {
+export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, images, index, onClose, onNavigate, onOpenRelated, onSearchTag }) => {
   const slideshow = useSlideshowStore();
   const { savedImages, saveImage, removeSavedImage, folders, loadFolders, refreshMetadata, updateLocalPath } = useImageCollectionStore();
   const imageDownloadPath = useSettingsStore(state => state.imageDownloadPath);
@@ -166,6 +167,39 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
   const [downloadingIds, setDownloadingIds] = React.useState<string[]>([]);
   const isDownloading = downloadingIds.includes(image.id);
   const [isRefreshingMeta, setIsRefreshingMeta] = React.useState(false);
+  const [isOpeningParent, setIsOpeningParent] = React.useState(false);
+  const relatedIndexes = React.useMemo(() => image.relatedGroupId
+    ? images.map((item, itemIndex) => item.relatedGroupId === image.relatedGroupId ? itemIndex : -1).filter(itemIndex => itemIndex >= 0)
+    : [], [image.relatedGroupId, images]);
+  const relatedPosition = relatedIndexes.indexOf(index);
+
+  const navigateRelated = (direction: -1 | 1) => {
+    if (!onNavigate || relatedIndexes.length < 2 || relatedPosition < 0) return;
+    const nextPosition = (relatedPosition + direction + relatedIndexes.length) % relatedIndexes.length;
+    onNavigate(relatedIndexes[nextPosition]);
+  };
+
+  const openParent = async () => {
+    if (!image.parentId || isOpeningParent) return;
+    const loadedIndex = images.findIndex(item => item.providerId === image.providerId && item.sourceId === image.parentId);
+    if (loadedIndex >= 0 && onNavigate) {
+      onNavigate(loadedIndex);
+      return;
+    }
+
+    setIsOpeningParent(true);
+    try {
+      const { federator } = await import('../SearchFederator');
+      const parent = await federator.getById(image.providerId, image.parentId);
+      if (parent) onOpenRelated?.(parent);
+      else toast.error('The parent post could not be loaded from Sankaku.');
+    } catch (error) {
+      console.warn(`[ImageDetailModal] Failed to open parent ${image.parentId}:`, error);
+      toast.error('The parent post could not be loaded.');
+    } finally {
+      setIsOpeningParent(false);
+    }
+  };
   
   const [userInterests, setUserInterests] = React.useState<string[]>([]);
   React.useEffect(() => {
@@ -187,7 +221,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
   const [dragStart, setDragStart] = React.useState({ x: 0, y: 0 });
   const isImageTall = Boolean(image.height && image.width && (image.height / image.width > 1.5));
   const initialVideoSource = [image.fullUrl, image.sampleUrl, image.previewUrl]
-    .find(url => Boolean(url?.match(/\.(mp4|webm)(?:\?|$)/i))) || null;
+    .find(url => Boolean(url?.match(/\.(mp4|webm|ogv|ogg|m4v)(?:\?|$)/i))) || null;
   const [videoSource, setVideoSource] = React.useState<string | null>(initialVideoSource);
   const isVideo = image.mediaType === 'video' && Boolean(videoSource);
 
@@ -587,7 +621,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
           const { federator } = await import('../SearchFederator');
           const fresh = await federator.getById(image.providerId, image.sourceId);
           const playable = [fresh?.fullUrl, fresh?.sampleUrl, fresh?.previewUrl]
-            .find(url => Boolean(url?.match(/\.(mp4|webm)(?:\?|$)/i)));
+            .find(url => Boolean(url?.match(/\.(mp4|webm|ogv|ogg|m4v)(?:\?|$)/i)));
           if (playable) {
             setVideoSource(playable);
             // Keep the signed CDN URL intact so <video> can request byte
@@ -904,10 +938,19 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
                 {image.redirectToSignup && <span className="text-amber-400">Sign-in required</span>}
               </div>
               {(image.parentId || image.poolIds?.length || image.bookIds?.length || image.relatedGroupId) && (
+                <div className="space-y-2">
                 <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-widest">
-                  {image.parentId && <span className="px-2 py-1 rounded bg-surface border border-border-subtle">Parent {image.parentId}</span>}
+                  {image.parentId && <button type="button" onClick={() => void openParent()} disabled={isOpeningParent} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-surface border border-border-subtle hover:border-accent hover:text-accent disabled:opacity-50" title="Open the parent post">{isOpeningParent && <Loader2 size={10} className="animate-spin" />} Parent {image.parentId}</button>}
                   {image.poolIds?.map(poolId => <span key={`pool-${poolId}`} className="px-2 py-1 rounded bg-surface border border-border-subtle">Pool {poolId}</span>)}
                   {image.bookIds?.map(bookId => <span key={`book-${bookId}`} className="px-2 py-1 rounded bg-surface border border-border-subtle">Book {bookId}</span>)}
+                </div>
+                {relatedIndexes.length > 1 && (
+                  <div className="flex items-center justify-between rounded-xl border border-border-subtle bg-surface/60 p-2">
+                    <button type="button" onClick={() => navigateRelated(-1)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-widest hover:bg-white/5" title="Previous item in this gallery"><ChevronLeft size={13} /> Previous</button>
+                    <span className="text-[10px] font-bold text-foreground-muted">{relatedPosition + 1} / {relatedIndexes.length}</span>
+                    <button type="button" onClick={() => navigateRelated(1)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-widest hover:bg-white/5" title="Next item in this gallery">Next <ChevronRight size={13} /></button>
+                  </div>
+                )}
                 </div>
               )}
             </div>

@@ -8,13 +8,11 @@ import {
   Tag,
   Edit2,
   Trash2,
-  ChevronRight,
   PlusCircle,
   Clock,
   TrendingUp,
   BarChart3,
   Activity as ActivityIcon,
-  Bookmark,
   Plus,
   Camera,
   FolderOpen,
@@ -472,48 +470,7 @@ export const HomeView = () => {
               <div className="absolute top-[40%] right-[10%] w-[35%] h-[35%] bg-accent-soft blur-[100px] rounded-full opacity-50" />
             </div>
 
-            {/* 2. Continue Reading - Hero Banner */}
-            {continueReading.length > 0 && (
-              <div className="relative z-10 w-full mt-4">
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-black text-foreground tracking-tight">Continue Reading</h2>
-                    <p className="text-xs font-bold text-foreground-dim uppercase tracking-widest mt-1">Pick up where you left off</p>
-                  </div>
-                  <Bookmark size={24} className="text-accent opacity-50" />
-                </div>
-                <button 
-                  onClick={() => handleOpenItem(continueReading[0])}
-                  className="w-full text-left group relative rounded-[24px] overflow-hidden bg-surface-elevated/40 border border-border-subtle p-6 flex flex-col sm:flex-row gap-6 items-center shadow-lg hover:bg-surface-raised transition-all active:scale-[0.98]"
-                >
-                  <div className="w-24 h-36 sm:w-32 sm:h-48 flex-shrink-0 rounded-xl overflow-hidden shadow-md relative">
-                    <ProxiedHomeImage src={continueReading[0].cover ? (continueReading[0].cover.startsWith('http') ? continueReading[0].cover : convertFileSrc(continueReading[0].cover)) : ""} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                  </div>
-                  <div className="flex-1 min-w-0 flex flex-col gap-3">
-                    <h3 className="text-2xl sm:text-3xl font-black text-foreground truncate">{continueReading[0].seriesTitle || continueReading[0].title}</h3>
-                    <div className="flex items-center gap-3">
-                      <span className="px-3 py-1 bg-accent/20 text-accent rounded-full text-xs font-black uppercase tracking-widest">
-                        Ch. {continueReading[0].chapterNumber}
-                      </span>
-                      <span className="text-sm font-bold text-foreground-muted">
-                        Page {continueReading[0].currentPage} {continueReading[0].totalPages ? `of ${continueReading[0].totalPages}` : ''}
-                      </span>
-                    </div>
-                    {continueReading[0].totalPages > 0 && (
-                      <div className="w-full max-w-md h-2 bg-black/40 rounded-full overflow-hidden mt-2 border border-white/5">
-                        <div className="h-full bg-accent rounded-full" style={{ width: `${(continueReading[0].currentPage / continueReading[0].totalPages) * 100}%` }} />
-                      </div>
-                    )}
-                  </div>
-                  <div className="hidden sm:flex w-14 h-14 rounded-full bg-accent text-white items-center justify-center shadow-lg shadow-accent/20 group-hover:scale-110 transition-transform">
-                    <ChevronRight size={24} className="ml-1" />
-                  </div>
-                </button>
-              </div>
-            )}
-
-            {/* 3. Recommended For You - Horizontal Rail */}
+            {/* Recommended For You - Horizontal Rail */}
             {personalized.length > 0 && (
               <div className="relative z-10">
                 <HorizontalRail

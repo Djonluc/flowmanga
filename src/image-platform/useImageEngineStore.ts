@@ -24,6 +24,19 @@ const initialFeedState: FeedState = {
   hasMore: true,
 };
 
+/** Newest dated results first; undated source results stay at the bottom. */
+function sortSearchChronologically(images: PlatformImage[]): PlatformImage[] {
+  return images
+    .map((image, index) => ({ image, index }))
+    .sort((a, b) => {
+      const aTime = a.image.createdAt || 0;
+      const bTime = b.image.createdAt || 0;
+      if (aTime !== bTime) return bTime - aTime;
+      return a.index - b.index;
+    })
+    .map(item => item.image);
+}
+
 interface ImageEngineState {
   feeds: {
     latest: FeedState;
@@ -82,12 +95,13 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
           void get().markAsSeen(newUnique);
+          const chronologicalImages = sortSearchChronologically([...s.feeds[mode].images, ...newUnique]);
           return {
             feeds: {
               ...s.feeds,
               [mode]: {
                 ...s.feeds[mode],
-                images: [...s.feeds[mode].images, ...newUnique]
+                images: chronologicalImages
               }
             }
           };
@@ -127,8 +141,10 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
           const existingIds = new Set(s.feeds[mode].images.map(img => img.id));
           const newUnique = chunk.filter(img => !existingIds.has(img.id));
           get().markAsSeen(newUnique);
-          const newImages = [...s.feeds[mode].images, ...newUnique];
-          newImages.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          const appendedImages = [...s.feeds[mode].images, ...newUnique];
+          const newImages = mode === 'search'
+            ? sortSearchChronologically(appendedImages)
+            : appendedImages;
           return {
             feeds: {
               ...s.feeds,
@@ -254,9 +270,6 @@ export const useImageEngineStore = create<ImageEngineState>((set, get) => ({
           appendedCount += newUnique.length;
           get().markAsSeen(newUnique);
           const newImages = [...s.feeds[mode].images, ...newUnique];
-          if (mode === 'latest') {
-            newImages.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-          }
           return {
             feeds: {
               ...s.feeds,

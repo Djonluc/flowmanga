@@ -9,6 +9,10 @@ import { resolveProviderTags } from "./ProviderTagResolver";
 
 export class SearchFederator {
   private providers: Map<string, ImageProvider> = new Map();
+  /** Last successfully received Latest page for each provider. */
+  private latestProviderPages = new Map<string, number>();
+  /** Invalidates responses that were started before the latest refresh. */
+  private latestGeneration = 0;
 
   registerProvider(provider: ImageProvider) {
     this.providers.set(provider.id, provider);
@@ -22,18 +26,38 @@ export class SearchFederator {
   private filterAdult(images: PlatformImage[]): PlatformImage[] {
     const { showAdultContent } = useSettingsStore.getState();
     if (showAdultContent) return images;
-    return images.filter(img => img.rating === 'safe' || !img.rating);
+
+    const visible = images.filter(image => !ContentFilter.isAdultPlatformImage(image));
+
+    if (visible.length !== images.length) {
+      console.info(`[SearchFederator] safe mode removed ${images.length - visible.length}/${images.length} adult-rated or adult-tagged items`);
+    }
+    return visible;
+  }
+
+  /** Removes unsafe interest terms before they can become provider requests. */
+  private filterSafeQueries(queries: string[]): string[] {
+    if (useSettingsStore.getState().showAdultContent) return queries;
+
+    return queries
+      .map(query => query
+        .split(/\s+/)
+        .filter(Boolean)
+        .filter(term => {
+          const tag = term.replace(/^-/, '').replace(/^(artist|character|series|copyright):/i, '');
+          return !ContentFilter.isAdultTag(tag);
+        })
+        .join(' '))
+      .filter(Boolean);
   }
 
   /** Strictly removes any image that contains a user's blocked tag. */
   private async filterBlocked(images: PlatformImage[]): Promise<PlatformImage[]> {
     if (images.length === 0) return [];
     try {
-      const { useGalleryStore } = await import("../stores/useGalleryStore");
-      const blockedTags = mergeExcludedTags(
-        useGalleryStore.getState().blockedTags,
-        useSettingsStore.getState().excludedTags,
-      );
+      // Only Settings exclusions are global. Interest Manager exclusions and
+      // its legacy blocked-tag list belong exclusively to For You.
+      const blockedTags = mergeExcludedTags(useSettingsStore.getState().excludedTags);
       
       if (blockedTags.length === 0) return images;
 
@@ -42,7 +66,7 @@ export class SearchFederator {
         .filter(item => item.count > 0)
         .sort((a, b) => b.count - a.count);
       if (blockedCounts.length > 0) {
-        console.info(`[SearchFederator] blocked ${images.length - images.filter(img => !hasExcludedTag(img.tags || [], blockedTags)).length}/${images.length} images; reasons=${blockedCounts.slice(0, 12).map(item => `${item.tag}:${item.count}`).join(',')}`);
+        console.info(`[SearchFederator] global exclusions removed ${images.length - images.filter(img => !hasExcludedTag(img.tags || [], blockedTags)).length}/${images.length} images; reasons=${blockedCounts.slice(0, 12).map(item => `${item.tag}:${item.count}`).join(',')}`);
       }
 
       return images.filter(img => {
@@ -189,9 +213,23 @@ export class SearchFederator {
 
     // Fetch from all active providers concurrently. Each completed provider
     // is emitted immediately; the final merge still preserves grouping.
-    const requests = activeProviders.map(p => ({
+    const requests = activeProviders.map(p => {
+      const predicates = { ...query.predicates };
+      delete predicates.order;
+      delete predicates.sort;
+      delete predicates.page;
+      delete predicates.limit;
+      if (p.id === 'sankaku') predicates.order = 'recent';
+
+      const chronologicalQuery: SearchQuery = {
+        ...query,
+        predicates,
+        positiveTags: query.positiveTags.filter(tag => !/^(?:order|sort|random):/i.test(tag)),
+      };
+
+      return {
       providerId: p.id,
-      request: this.prepareProviderQuery(query, p).then(providerQuery => p.search(providerQuery, page))
+      request: this.prepareProviderQuery(chronologicalQuery, p).then(providerQuery => p.search(providerQuery, page))
         .then(async res => {
           const filtered = this.filterAdult(this.filterMediaType(res));
           const blockFiltered = await this.filterBlocked(filtered);
@@ -199,7 +237,8 @@ export class SearchFederator {
           // results can run from the newest match into older pages.
           return blockFiltered;
         }),
-    }));
+      };
+    });
 
     const resultsArray = await this.resolveProviderRequests(requests, onChunk);
     const grouped = this.groupRelatedResults(resultsArray.flat());
@@ -209,22 +248,41 @@ export class SearchFederator {
   async getLatest(page: number, onChunk?: (images: PlatformImage[]) => void): Promise<PlatformImage[]> {
     const activeProviders = await this.getActiveProviders();
     if (activeProviders.length === 0) return [];
+
+    // A page-one request is an explicit refresh/new session. Every provider
+    // restarts independently; subsequent requests advance only providers that
+    // actually completed their previous page.
+    if (page <= 1) {
+      this.latestProviderPages.clear();
+      this.latestGeneration += 1;
+    }
+    const generation = this.latestGeneration;
     
     const { globalMediaFilter } = useSettingsStore.getState();
     const isAnimatedFilter = globalMediaFilter === 'video' || globalMediaFilter === 'gif';
 
     const requests = activeProviders.map(p => {
+      const providerPage = page <= 1 ? 1 : (this.latestProviderPages.get(p.id) || 0) + 1;
       const fetchPromise = isAnimatedFilter 
-        ? this.prepareProviderQuery({ raw: '', positiveTags: [], negativeTags: [], predicates: {} }, p).then(query => p.search(query, page))
-        : p.getLatest(page);
+        ? this.prepareProviderQuery({ raw: '', positiveTags: [], negativeTags: [], predicates: {} }, p).then(query => p.search(query, providerPage))
+        : p.getLatest(providerPage);
 
       return {
         providerId: p.id,
         request: fetchPromise
         .then(async res => {
+          if (generation !== this.latestGeneration) {
+            console.info(`[SearchFederator] discarded stale Latest response provider=${p.id} requestPage=${providerPage}`);
+            return [];
+          }
+          if (res.length > 0) {
+            this.latestProviderPages.set(p.id, Math.max(providerPage, this.latestProviderPages.get(p.id) || 0));
+          }
           const filtered = this.filterAdult(this.filterMediaType(res));
           const blockFiltered = await this.filterBlocked(filtered);
-          console.info(`[SearchFederator] latest provider=${p.id} page=${page} raw=${res.length} adultVisible=${filtered.length} afterBlocked=${blockFiltered.length}`);
+          const first = blockFiltered[0];
+          const last = blockFiltered[blockFiltered.length - 1];
+          console.info(`[SearchFederator] latest provider=${p.id} requestPage=${providerPage} globalPage=${page} raw=${res.length} adultVisible=${filtered.length} afterBlocked=${blockFiltered.length} nextProviderPage=${res.length > 0 ? providerPage + 1 : providerPage} range=${first?.sourceId || 'none'}@${first?.createdAt || 'unknown'}..${last?.sourceId || 'none'}@${last?.createdAt || 'unknown'}`);
           // Latest is a chronological archive, not a novelty feed. Previously
           // seen and saved posts must remain visible in their real position.
           return blockFiltered;
@@ -232,9 +290,27 @@ export class SearchFederator {
       };
     });
 
-    const resultsArray = await this.resolveProviderRequests(requests, onChunk);
-    const grouped = this.groupRelatedResults(resultsArray.flat());
-    return onChunk ? grouped : this.groupRelatedResults(this.interleaveResults(resultsArray));
+    // Requests above begin concurrently, but results are committed in the
+    // configured provider order. This keeps each source's batch contiguous in
+    // Latest instead of mixing cards by response timing or timestamp.
+    const resultsArray: PlatformImage[][] = [];
+    for (const { providerId, request } of requests) {
+      try {
+        const images = await request;
+        if (generation !== this.latestGeneration) return [];
+        resultsArray.push(images);
+        const providerBatch = this.groupRelatedResults(images);
+        if (onChunk && providerBatch.length > 0) onChunk(providerBatch);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[SearchFederator] Latest provider ${providerId} failed; preserving its page for retry: ${message}`);
+        resultsArray.push([]);
+      }
+    }
+
+    return generation === this.latestGeneration
+      ? this.groupRelatedResults(resultsArray.flat())
+      : [];
   }
 
   async getCurated(page: number, onChunk?: (images: PlatformImage[]) => void): Promise<PlatformImage[]> {
@@ -364,6 +440,12 @@ export class SearchFederator {
           }
         }
       }
+
+      discoveryTags = this.filterSafeQueries(discoveryTags);
+      sankakuCoreTags = this.filterSafeQueries(sankakuCoreTags);
+      if (sankakuProfileTag && this.filterSafeQueries([sankakuProfileTag]).length === 0) {
+        sankakuProfileTag = undefined;
+      }
       const { useGalleryStore } = await import("../stores/useGalleryStore");
       blockedTags = mergeExcludedTags(
         useGalleryStore.getState().blockedTags,
@@ -375,9 +457,8 @@ export class SearchFederator {
     }
 
     if (discoveryTags.length === 0) {
-      return useSettingsStore.getState().activeForYouProfileId
-        ? []
-        : this.getLatest(page, onChunk);
+      console.info('[SearchFederator] No usable For You interests; falling back to randomized discovery.');
+      return this.getDiscovery(page, onChunk);
     }
 
     // for each tag across all providers, then interleave the results.
@@ -483,6 +564,12 @@ export class SearchFederator {
     
     if (finalResults.length > 0) {
       return finalResults;
+    }
+
+    // Adult-only interests can legitimately produce no candidates in safe
+    // mode. Use the randomized, safety-filtered feed instead of going blank.
+    if (!useSettingsStore.getState().showAdultContent) {
+      return this.getDiscovery(page, onChunk);
     }
 
     // Fallback if somehow everything fails (Only if not in Strict Mode)
@@ -600,6 +687,9 @@ export class SearchFederator {
 
     for (const group of groups.values()) {
       group.sort((a, b) => (a.relatedIndex ?? Number.MAX_SAFE_INTEGER) - (b.relatedIndex ?? Number.MAX_SAFE_INTEGER));
+      if (group.length > 1) {
+        for (const member of group) member.relatedGroupSize = group.length;
+      }
     }
 
     const emitted = new Set<string>();

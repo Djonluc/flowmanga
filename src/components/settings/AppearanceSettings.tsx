@@ -28,17 +28,17 @@ export const AppearanceSettings = () => {
     ];
 
     return (
-        <div className="flex flex-col gap-8 pb-12 w-full max-w-5xl mx-auto">
+        <div className="flex flex-col gap-6 sm:gap-8 pb-12 w-full max-w-5xl mx-auto">
             {/* Header Area */}
             <div className="flex items-center justify-between mb-2">
                 <div>
-                    <h2 className="text-3xl font-black text-foreground uppercase tracking-tighter">Appearance</h2>
-                    <p className="text-foreground-dim font-bold tracking-wide mt-1">Customize themes and configure the ambient background engine.</p>
+                    <h2 className="text-2xl sm:text-3xl font-black text-foreground uppercase tracking-tighter">Appearance</h2>
+                    <p className="text-sm sm:text-base text-foreground-muted font-semibold tracking-wide mt-1">Customize themes and configure the ambient background engine.</p>
                 </div>
             </div>
 
             {/* Interface Theme Selection */}
-            <div className="glass-panel p-6 rounded-[32px] border border-border-subtle relative overflow-hidden group">
+            <div className="glass-panel p-4 sm:p-6 rounded-2xl sm:rounded-[32px] border border-border-subtle relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-accent/5 blur-[80px] rounded-full pointer-events-none" />
                 <h3 className="text-foreground font-black uppercase tracking-widest text-sm italic opacity-50 mb-6 relative z-10">Application Theme</h3>
                 
@@ -54,7 +54,7 @@ export const AppearanceSettings = () => {
                                     "flex flex-col items-center justify-center p-5 rounded-2xl border transition-all relative overflow-hidden",
                                     active 
                                         ? "ring-2 ring-offset-2 ring-offset-surface shadow-xl" 
-                                        : "border-border-subtle hover:border-white/20 hover:bg-white/5 opacity-80 hover:opacity-100 bg-surface"
+                                        : "border-border-subtle hover:border-border-strong hover:bg-surface-raised opacity-90 hover:opacity-100 bg-surface"
                                 )}
                                 style={{ 
                                    borderColor: active ? t.color : undefined,
@@ -77,7 +77,7 @@ export const AppearanceSettings = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 
                 {/* Ambient Mode Selection */}
-                <div className="glass-panel p-6 rounded-[32px] border border-border-subtle relative overflow-hidden lg:col-span-2">
+                <div className="glass-panel p-4 sm:p-6 rounded-2xl sm:rounded-[32px] border border-border-subtle relative overflow-hidden lg:col-span-2">
                     <div className="absolute -top-20 -right-20 w-64 h-64 bg-blue-500/10 blur-[80px] rounded-full pointer-events-none" />
                     
                     <div className="flex items-center gap-4 mb-6 relative z-10">
@@ -99,7 +99,7 @@ export const AppearanceSettings = () => {
                                     "flex flex-col p-4 rounded-xl border transition-all text-left relative overflow-hidden",
                                     ambientMode === m.id 
                                         ? "bg-blue-500/10 border-blue-500/30" 
-                                        : "bg-surface border-border-subtle hover:border-white/20"
+                                        : "bg-surface border-border-subtle hover:border-border-strong"
                                 )}
                             >
                                 {ambientMode === m.id && <div className="absolute top-0 left-0 w-full h-1 bg-blue-500" />}
@@ -111,7 +111,7 @@ export const AppearanceSettings = () => {
                 </div>
 
                 {/* Ambient Tuning */}
-                <div className="glass-panel p-6 rounded-[32px] border border-border-subtle relative overflow-hidden lg:col-span-2">
+                <div className="glass-panel p-4 sm:p-6 rounded-2xl sm:rounded-[32px] border border-border-subtle relative overflow-hidden lg:col-span-2">
                     <div className="flex items-center gap-4 mb-6 relative z-10">
                         <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-500">
                             <SlidersHorizontal size={24} />
@@ -131,7 +131,7 @@ export const AppearanceSettings = () => {
                             <input 
                                 type="range" min="0" max="1" step="0.05" value={ambientIntensity}
                                 onChange={(e) => setAmbientIntensity(Number(e.target.value))}
-                                className="w-full h-2 bg-black/40 rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:bg-purple-500 [&::-webkit-slider-thumb]:rounded-full cursor-pointer shadow-inner"
+                                className="w-full h-2 bg-border-strong rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:bg-purple-500 [&::-webkit-slider-thumb]:rounded-full cursor-pointer shadow-inner"
                             />
                         </div>
 
@@ -143,7 +143,7 @@ export const AppearanceSettings = () => {
                             <input 
                                 type="range" min="0" max="120" step="5" value={ambientBlur}
                                 onChange={(e) => setAmbientBlur(Number(e.target.value))}
-                                className="w-full h-2 bg-black/40 rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:bg-emerald-500 [&::-webkit-slider-thumb]:rounded-full cursor-pointer shadow-inner"
+                                className="w-full h-2 bg-border-strong rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:bg-emerald-500 [&::-webkit-slider-thumb]:rounded-full cursor-pointer shadow-inner"
                             />
                         </div>
 
@@ -155,7 +155,7 @@ export const AppearanceSettings = () => {
                             <input 
                                 type="range" min="0" max="2" step="0.1" value={ambientBrightness}
                                 onChange={(e) => setAmbientBrightness(Number(e.target.value))}
-                                className="w-full h-2 bg-black/40 rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:bg-amber-500 [&::-webkit-slider-thumb]:rounded-full cursor-pointer shadow-inner"
+                                className="w-full h-2 bg-border-strong rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:bg-amber-500 [&::-webkit-slider-thumb]:rounded-full cursor-pointer shadow-inner"
                             />
                         </div>
 
@@ -169,7 +169,7 @@ export const AppearanceSettings = () => {
                                 onClick={() => setAmbientNoise(!showAmbientNoise)}
                                 className={clsx(
                                     "w-14 h-8 rounded-full transition-colors relative flex-shrink-0",
-                                    showAmbientNoise ? "bg-accent" : "bg-black/40 border border-white/10"
+                                    showAmbientNoise ? "bg-accent" : "bg-surface-raised border border-border-strong"
                                 )}
                             >
                                 <div className={clsx(

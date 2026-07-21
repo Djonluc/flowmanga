@@ -36,6 +36,7 @@ export interface PlatformImage {
   title?: string;
   relatedGroupId?: string;
   relatedIndex?: number;
+  relatedGroupSize?: number;
   parentId?: string;
   poolIds?: string[];
   bookIds?: string[];

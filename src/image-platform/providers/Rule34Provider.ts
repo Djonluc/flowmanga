@@ -6,6 +6,19 @@ import {
   type Rule34TagCategory,
 } from "../../services/Rule34TagMetadata";
 
+function parseRule34Timestamp(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  if (typeof value === "number" || /^\d+(?:\.\d+)?$/.test(String(value))) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+      const timestamp = numeric > 10_000_000_000 ? numeric : numeric * 1000;
+      if (Number.isFinite(new Date(timestamp).getTime())) return timestamp;
+    }
+  }
+  const parsed = Date.parse(String(value));
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export class Rule34Provider extends BaseProvider {
   id = "rule34";
   name = "Rule34";
@@ -82,6 +95,9 @@ export class Rule34Provider extends BaseProvider {
       }
 
       console.log(`[Rule34Provider] Success: Received ${response.length} images.`);
+      const responseFirst = response[0];
+      const responseLast = response[response.length - 1];
+      console.info(`[Rule34Provider] latest page=${page} pid=${pid} count=${response.length} ids=${responseFirst?.id ?? 'none'}..${responseLast?.id ?? 'none'} dates=${responseFirst?.created_at ?? responseFirst?.change ?? 'unknown'}..${responseLast?.created_at ?? responseLast?.change ?? 'unknown'}`);
 
       // Gather all unique tags from the result set for bulk resolution
       const allUniqueTags = new Set<string>();
@@ -163,14 +179,20 @@ export class Rule34Provider extends BaseProvider {
           metaTags: [...new Set(buckets.meta)],
           // Treat unknown/missing Rule34 ratings as explicit. The source data
           // is occasionally incomplete, and defaulting it to safe is unsafe.
-          rating: ["s", "safe"].includes(String(post.rating).toLowerCase())
+          rating: ["s", "safe", "g", "general"].includes(String(post.rating).toLowerCase())
             ? "safe"
             : ["q", "questionable"].includes(String(post.rating).toLowerCase())
               ? "questionable"
               : "explicit",
           score: post.score,
           sourceUrl: `https://rule34.xxx/index.php?page=post&s=view&id=${post.id}`,
-          createdAt: post.created_at ? new Date(post.created_at * 1000).getTime() : Date.now(),
+          // Rule34 deployments have returned both Unix values and formatted
+          // date strings. `change` is the documented Unix fallback. When
+          // neither exists, the monotonically increasing ID preserves the
+          // website's newest-to-oldest order without pretending it is "now".
+          createdAt: parseRule34Timestamp(post.created_at)
+            ?? parseRule34Timestamp(post.change)
+            ?? Number(post.id),
           mediaType: this.getMediaType(fileUrl),
           isLocal: false
         } as any;

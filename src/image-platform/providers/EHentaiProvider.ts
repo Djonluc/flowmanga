@@ -74,7 +74,11 @@ export class EHentaiProvider extends BaseProvider {
       const { images, nextUrl } = this.parseGalleryList(html);
       if (nextUrl) pages.set(page + 1, nextUrl);
       else pages.delete(page + 1);
-      console.info(`[EHentaiProvider] ${key} page=${page} galleries=${images.length} next=${nextUrl || "none"}`);
+      if (key === 'latest') {
+        console.info(`[EHentaiProvider] latest page=${page} requestedUrl=${url} galleries=${images.length} nextUrl=${nextUrl || "none"}`);
+      } else {
+        console.info(`[EHentaiProvider] ${key} page=${page} requested=${page === 1 ? 'first-page' : 'cursor-page'} galleries=${images.length} nextCursor=${nextUrl ? 'present' : 'none'}`);
+      }
       return images;
     } catch (error) {
       console.warn(`[EHentaiProvider] ${key} page=${page} failed`, error);

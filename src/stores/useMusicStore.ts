@@ -96,6 +96,7 @@ export const useMusicStore = create<MusicState>()(
           // Merge custom web streams
           const combinedTracks = [...raw, ...state.customStreams];
           set({ tracks: combinedTracks, isLoadingTracks: false });
+          console.info(`[MusicStore] Loaded ${raw.length} bundled/local tracks and ${state.customStreams.length} streams.`);
 
           // If no current track is set but tracks exist, auto-select first
           const updatedState = get();

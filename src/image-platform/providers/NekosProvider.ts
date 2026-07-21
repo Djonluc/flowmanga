@@ -17,7 +17,7 @@ export class NekosProvider extends BaseProvider {
   domains = ["nekosapi.com", "api.nekosapi.com", "cdn.nekosapi.com"];
 
   async search(query: SearchQuery, page: number): Promise<PlatformImage[]> {
-    const limit = 20;
+    const limit = 40;
     const offset = (page - 1) * limit;
     
     // Convert array of positive tags to a comma separated string if any
@@ -54,7 +54,9 @@ export class NekosProvider extends BaseProvider {
         rating: item.rating || "safe",
         score: 0,
         sourceUrl: item.source_url || `https://nekosapi.com/image/${item.id}`,
-        createdAt: Date.now(),
+        // The v4 response does not expose a publication timestamp. Leaving it
+        // unset prevents catalog entries from being falsely promoted above
+        // genuinely new posts in the cross-source Latest feed.
         isLocal: false,
       }));
     } catch (e) {
@@ -64,7 +66,7 @@ export class NekosProvider extends BaseProvider {
   }
 
   async getDiscovery(page: number): Promise<PlatformImage[]> {
-    const limit = 20;
+    const limit = 40;
     // To ensure freshness we can fetch random items for discovery
     let apiUrl = `https://api.nekosapi.com/v4/images/random?limit=${limit}`;
     
@@ -95,7 +97,7 @@ export class NekosProvider extends BaseProvider {
         rating: item.rating || "safe",
         score: 0,
         sourceUrl: item.source_url || `https://nekosapi.com/image/${item.id}`,
-        createdAt: Date.now(),
+        // Random results have no publication timestamp in this API response.
         isLocal: false,
       }));
     } catch (e) {

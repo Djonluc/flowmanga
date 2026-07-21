@@ -4,7 +4,7 @@ import { useImageEngineStore } from "../useImageEngineStore";
 import { streamViaTauri, useMediaLoader } from "../../hooks/useMediaLoader";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import clsx from "clsx";
-import { Check, Play, RefreshCw } from "lucide-react";
+import { Check, Images, Play, RefreshCw } from "lucide-react";
 
 interface MasonryGridProps {
   images: PlatformImage[];
@@ -179,6 +179,22 @@ export const MasonryGrid: React.FC<MasonryGridProps> = ({
     return () => observer.disconnect();
   }, [images.length]);
 
+  if (images.length === 0 && (store.isLoading || isFetchingNextPage || hasMore)) {
+    return (
+      <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-5 px-8 text-center">
+        <div className="relative h-16 w-16">
+          <div className="absolute inset-0 rounded-full border-2 border-accent/20" />
+          <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-accent" />
+          <div className="absolute inset-3 animate-pulse rounded-full bg-accent/15" />
+        </div>
+        <div>
+          <p className="font-black uppercase tracking-[0.22em] text-foreground">Gathering fresh media</p>
+          <p className="mt-2 max-w-md text-sm text-foreground-muted">Searching active sources and filtering unavailable or recently repeated results. New cards will appear as each source responds.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (images.length === 0 && !store.isLoading && !isFetchingNextPage) {
     return (
       <div className="p-8 text-center text-foreground-muted">
@@ -272,7 +288,8 @@ const ImageCard = ({
   const [sourceIndex, setSourceIndex] = useState(0);
   const [retryAttempt, setRetryAttempt] = useState(0);
   const [hasError, setHasError] = useState(false);
-  const [forceVideoBlobProxy, setForceVideoBlobProxy] = useState(false);
+  const [hydratedVideoUrl, setHydratedVideoUrl] = useState<string | null>(null);
+  const [isPreviewEngaged, setIsPreviewEngaged] = useState(false);
   const { proxyViaTauri, needsProxy } = useMediaLoader();
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -296,16 +313,23 @@ const ImageCard = ({
 
   // Video samples are often static JPEG posters (notably on Rule34). Prefer
   // the actual video file; images retain the bandwidth-friendly sample order.
-  const mediaUrls = Array.from(new Set((image.mediaType === 'video'
-    ? [image.fullUrl, image.sampleUrl, image.thumbnailUrl, image.previewUrl]
-    : [image.thumbnailUrl, image.sampleUrl, image.previewUrl, image.fullUrl]
-  ).filter(Boolean)));
+  const videoUrlPattern = /\.(mp4|webm|ogv|ogg|m4v)(?:\?|$)/i;
+  const sankakuPosterUrls = [image.thumbnailUrl, image.previewUrl, image.sampleUrl]
+    .filter(url => url && !videoUrlPattern.test(url));
+  const mediaCandidates = image.mediaType === 'video'
+    ? image.providerId === 'sankaku' && !isPreviewEngaged
+      ? sankakuPosterUrls
+      : [hydratedVideoUrl, image.fullUrl, image.sampleUrl, image.thumbnailUrl, image.previewUrl]
+    : [image.thumbnailUrl, image.sampleUrl, image.previewUrl, image.fullUrl];
+  const mediaUrls = Array.from(new Set(mediaCandidates.filter(Boolean)));
   let targetUrl = mediaUrls[sourceIndex] || mediaUrls[0] || "";
   let shouldWaitForProxy = false;
   let finalSrc: string | null = targetUrl;
-  let isVideo = Boolean(targetUrl?.match(/\.(mp4|webm)(?:\?|$)/i));
+  let isVideo = Boolean(targetUrl?.match(videoUrlPattern));
   let isRangeStreamVideo = false;
   const isDeclaredVideo = image.mediaType === 'video';
+  const isCollection = image.providerId === 'e-hentai'
+    || (image.relatedGroupSize || 0) > 1;
   const hasMedia = mediaUrls.length > 0;
 
   if (image.localPath) {
@@ -313,13 +337,13 @@ const ImageCard = ({
     const localSrc = convertFileSrc(image.localPath);
     targetUrl = localSrc;
     finalSrc = localSrc;
-    isVideo = Boolean(localSrc.match(/\.(mp4|webm)(?:\?|$)/i));
+    isVideo = Boolean(localSrc.match(/\.(mp4|webm|ogv|ogg|m4v)(?:\?|$)/i));
   } else {
     // Signed Sankaku video URLs support browser streaming/range requests. A
     // blob proxy must download the entire clip before playback can begin,
     // which makes longer thumbnail previews appear permanently frozen.
     isRangeStreamVideo = isVideo && (image.providerId === 'sankaku' || image.providerId === 'rule34');
-    shouldWaitForProxy = (!isRangeStreamVideo || forceVideoBlobProxy) && needsProxy(targetUrl);
+    shouldWaitForProxy = !isRangeStreamVideo && needsProxy(targetUrl);
     finalSrc = shouldWaitForProxy ? proxySrc : (isRangeStreamVideo ? streamViaTauri(targetUrl) : targetUrl);
     if (finalSrc && retryAttempt > 0 && !shouldWaitForProxy) {
       try {
@@ -338,8 +362,39 @@ const ImageCard = ({
     setSourceIndex(0);
     setRetryAttempt(0);
     setHasError(false);
-    setForceVideoBlobProxy(false);
+    setHydratedVideoUrl(null);
   }, [image.id, image.thumbnailUrl, image.previewUrl, image.sampleUrl, image.fullUrl]);
+
+  // Sankaku list responses commonly mark a post as video while providing only
+  // a static poster. Resolve the signed MP4 only when the card is engaged.
+  // Resolving every near-viewport card would fill Sankaku's shared rate-limit
+  // queue and starve Latest, Discovery, and Search requests.
+  useEffect(() => {
+    if (!isVisible || !isPreviewEngaged || image.providerId !== 'sankaku' || image.mediaType !== 'video' || hydratedVideoUrl) return;
+    const alreadyPlayable = [image.fullUrl, image.sampleUrl, image.previewUrl, image.thumbnailUrl]
+      .some(url => /\.(mp4|webm|ogv|ogg|m4v)(?:\?|$)/i.test(url || ''));
+    if (alreadyPlayable) return;
+
+    let active = true;
+    const timer = setTimeout(() => {
+      void import('../SearchFederator').then(({ federator }) => federator.getById(image.providerId, image.sourceId))
+        .then(fresh => {
+          if (!active) return;
+          const playable = [fresh?.fullUrl, fresh?.sampleUrl, fresh?.previewUrl, fresh?.thumbnailUrl]
+            .find(url => /\.(mp4|webm|ogv|ogg|m4v)(?:\?|$)/i.test(url || ''));
+          if (playable) setHydratedVideoUrl(playable);
+          else console.info(`[MasonryGrid] Sankaku video ${image.sourceId} has no animated preview available for this session.`);
+        })
+        .catch(error => {
+          if (active) console.warn(`[MasonryGrid] Failed to hydrate Sankaku video preview ${image.sourceId}:`, error);
+        });
+    }, 350);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [hydratedVideoUrl, image.fullUrl, image.mediaType, image.previewUrl, image.providerId, image.sampleUrl, image.sourceId, image.thumbnailUrl, isPreviewEngaged, isVisible]);
 
   // Fetch proxy URL if needed when visible
   useEffect(() => {
@@ -381,11 +436,16 @@ const ImageCard = ({
     setIsLoaded(false);
     setProxySrc(null);
 
-    if (isRangeStreamVideo && !forceVideoBlobProxy) {
-      console.warn(`[MasonryGrid] ${image.providerId} range preview failed for ${image.sourceId}; trying blob fallback.`);
-      setForceVideoBlobProxy(true);
-      setRetryAttempt(0);
-      return;
+    if (isRangeStreamVideo) {
+      // Never download a complete remote video into a grid-card blob. A few
+      // large clips are enough to exhaust WebView2's renderer memory. Fall
+      // through to the static poster and reserve blob fallback for the modal.
+      console.warn(`[MasonryGrid] ${image.providerId} range preview failed for ${image.sourceId}; using poster fallback.`);
+      if (sourceIndex < mediaUrls.length - 1) {
+        setSourceIndex((index) => index + 1);
+        setRetryAttempt(0);
+        return;
+      }
     }
 
     if (retryAttempt < 2) {
@@ -438,6 +498,9 @@ const ImageCard = ({
         isSelected && "border-accent ring-2 ring-accent/70",
         isDragOver ? "border-accent shadow-[0_0_20px_rgba(99,102,241,0.5)] scale-[0.98] z-20" : "border-border-subtle"
       )}
+      onMouseEnter={() => setIsPreviewEngaged(true)}
+      onMouseLeave={() => setIsPreviewEngaged(false)}
+      onFocusCapture={() => setIsPreviewEngaged(true)}
       style={{ paddingBottom }}
       onClick={() => {
         if (selectionMode) {
@@ -462,6 +525,19 @@ const ImageCard = ({
           isSelected ? "border-accent bg-accent text-white" : "border-white/70 bg-black/60 text-transparent",
         )} aria-hidden="true">
           <Check size={16} strokeWidth={3} />
+        </div>
+      )}
+      {isCollection && (
+        <div
+          aria-label="Multiple images"
+          title="Multiple images"
+          className={clsx(
+            "absolute right-3 z-30 inline-flex items-center gap-1.5 rounded-full bg-black/75 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-white shadow-lg backdrop-blur-sm pointer-events-none",
+            selectionMode ? "top-12" : "top-3",
+          )}
+        >
+          <Images size={13} />
+          <span>Gallery</span>
         </div>
       )}
       {/* Loading Skeleton */}

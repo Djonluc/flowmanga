@@ -49,6 +49,9 @@ export class SankakuProvider extends BaseProvider {
   private readonly keysetCursors = new Map<string, string | null>();
   private readonly keysetCache = new Map<string, { expiresAt: number; posts: SankakuPost[] }>();
   private readonly keysetRequests = new Map<string, Promise<SankakuPost[] | null>>();
+  private readonly keysetGenerations = new Map<string, number>();
+  private readonly detailCache = new Map<string, { expiresAt: number; image: PlatformImage }>();
+  private readonly detailRequests = new Map<string, Promise<PlatformImage | null>>();
   private readonly autocompleteCache = new Map<string, { expiresAt: number; tags: string[] }>();
 
   private describeError(error: unknown): string {
@@ -130,30 +133,47 @@ export class SankakuProvider extends BaseProvider {
   private async fetchKeysetPosts(tags: string[], page: number): Promise<SankakuPost[] | null> {
     const key = tags.join(' ');
     const cursorKey = `${key}:${Math.max(1, page)}`;
+    if (page <= 1) {
+      const nextGeneration = (this.keysetGenerations.get(key) || 0) + 1;
+      this.keysetGenerations.set(key, nextGeneration);
+      for (const existingKey of Array.from(this.keysetCursors.keys())) {
+        if (existingKey.startsWith(`${key}:`)) this.keysetCursors.delete(existingKey);
+      }
+      this.keysetCache.delete(cursorKey);
+      // Do not reuse a page-one request that belongs to the previous refresh.
+      this.keysetRequests.delete(cursorKey);
+    }
+    const generation = this.keysetGenerations.get(key) || 0;
     const cached = this.keysetCache.get(cursorKey);
     if (cached && (cached.expiresAt > Date.now() || isSankakuCoolingDown())) return cached.posts;
 
     const inFlight = this.keysetRequests.get(cursorKey);
     if (inFlight) return inFlight;
 
-    const request = this.fetchKeysetPostsUncached(key, page, cursorKey);
+    const request = this.fetchKeysetPostsUncached(key, page, cursorKey, generation);
     this.keysetRequests.set(cursorKey, request);
     try {
       const posts = await request;
+      if (generation !== (this.keysetGenerations.get(key) || 0)) {
+        console.info(`[SankakuProvider] discarded stale keyset response page=${page} tags=${key || '(none)'}`);
+        return null;
+      }
       if (posts) {
         // Page one of Latest is a live feed. Cursor pages and searches remain
         // cached to prevent duplicate requests while a grid is rendering.
-        const livePageOne = page === 1 && /(^|\s)order:(?:recent|random)(?:\s|$)/i.test(key);
+        const livePageOne = page === 1 && /(^|\s)order:(?:date|recent|random)(?:\s|$)/i.test(key);
         const cacheMs = livePageOne ? 0 : 60_000;
         this.keysetCache.set(cursorKey, { posts, expiresAt: Date.now() + cacheMs });
       }
       return posts;
     } finally {
-      this.keysetRequests.delete(cursorKey);
+      if (this.keysetRequests.get(cursorKey) === request) {
+        this.keysetRequests.delete(cursorKey);
+      }
     }
   }
 
-  private async fetchKeysetPostsUncached(key: string, page: number, cursorKey: string): Promise<SankakuPost[] | null> {
+  private async fetchKeysetPostsUncached(key: string, page: number, cursorKey: string, generation: number): Promise<SankakuPost[] | null> {
     const next = page > 1 ? this.keysetCursors.get(`${key}:${page - 1}`) : undefined;
     if (page > 1 && !next) return null;
 
@@ -169,13 +189,20 @@ export class SankakuProvider extends BaseProvider {
       if (next) url.searchParams.set('next', next);
 
       try {
-        console.info(`[SankakuProvider] keyset request page=${page} host=${url.host} tags=${key || '(none)'} cursor=${next ? 'present' : 'none'}`);
+        const sessionMode = hasSankakuAuth(getSankakuRequestHeaders()) ? 'saved-session' : 'anonymous';
+        console.info(`[SankakuProvider] keyset request page=${page} host=${url.host} tags=${key || '(none)'} cursor=${next ? 'present' : 'none'} session=${sessionMode}`);
         const response = await this.requestJson<SankakuKeysetResponse>(url.toString());
+        if (generation !== (this.keysetGenerations.get(key) || 0)) return null;
         const posts = Array.isArray(response?.data) ? response.data : [];
         this.keysetCursors.set(cursorKey, response?.meta?.next || null);
         const first = posts[0];
         const last = posts.at(-1);
-        console.info(`[SankakuProvider] keyset response page=${page} posts=${posts.length} next=${response?.meta?.next ? 'present' : 'none'} first=${first?.id ?? 'none'}@${parseSankakuCreatedAt(first?.created_at) ?? 'unknown'} last=${last?.id ?? 'none'}@${parseSankakuCreatedAt(last?.created_at) ?? 'unknown'}`);
+        const statuses = Array.from(posts.reduce((counts, post) => {
+          const status = post.status?.toLowerCase() || 'missing';
+          counts.set(status, (counts.get(status) || 0) + 1);
+          return counts;
+        }, new Map<string, number>())).map(([status, count]) => `${status}:${count}`).join(',');
+        console.info(`[SankakuProvider] keyset response page=${page} posts=${posts.length} statuses=${statuses || 'none'} next=${response?.meta?.next ? 'present' : 'none'} first=${first?.id ?? 'none'}@${parseSankakuCreatedAt(first?.created_at) ?? 'unknown'} last=${last?.id ?? 'none'}@${parseSankakuCreatedAt(last?.created_at) ?? 'unknown'}`);
         return posts;
       } catch (error) {
         noteSankakuRateLimit(error);
@@ -196,7 +223,12 @@ export class SankakuProvider extends BaseProvider {
 
     const tags = this.buildTags(query);
     const isLatest = query.positiveTags.includes('_sort:new_');
-    if (isLatest) tags.push('order:recent');
+    // Match Sankaku's official web client: its newest/date option is sent to
+    // the API as order:date. `order:recent` is not the canonical site sort and
+    // may acquire different semantics as the API evolves.
+    // Do not add a status filter: Sankaku's live feed can include pending or
+    // unreviewed submissions, and Latest should preserve everything returned.
+    if (isLatest) tags.push('order:date');
 
     console.info(`[SankakuProvider] search page=${Math.max(1, page)} mode=${isLatest ? 'latest' : 'search'} tags=${tags.join(' ') || '(none)'}`);
 
@@ -236,12 +268,42 @@ export class SankakuProvider extends BaseProvider {
   }
 
   async getById(id: string): Promise<PlatformImage | null> {
+    const cached = this.detailCache.get(id);
+    if (cached && cached.expiresAt > Date.now()) return cached.image;
+    const inFlight = this.detailRequests.get(id);
+    if (inFlight) return inFlight;
+
+    const request = this.fetchByIdUncached(id);
+    this.detailRequests.set(id, request);
+    try {
+      const image = await request;
+      if (image) this.detailCache.set(id, { image, expiresAt: Date.now() + 5 * 60_000 });
+      return image;
+    } finally {
+      if (this.detailRequests.get(id) === request) this.detailRequests.delete(id);
+    }
+  }
+
+  private async fetchByIdUncached(id: string): Promise<PlatformImage | null> {
     try {
       // The per-post endpoint carries richer media fields than the list API,
       // including playable files for sessions allowed to view them.
-      const response = await this.fetchSankakuJson<unknown>(`/posts/${encodeURIComponent(id)}`);
-      const post = unwrapSankakuPosts(response)[0] || (response as SankakuPost);
-      return post?.id !== undefined ? this.mapPost(post) : null;
+      const response = await this.fetchSankakuJson<unknown>(`/posts/${encodeURIComponent(id)}/fu`, { lang: 'en' });
+      const post = unwrapSankakuPosts(response)[0];
+      if (post && (post.file_url || post.sample_url || post.fallback_url || post.video_url || post.stream_url)) {
+        // `/posts/:id/fu` is a media-resolution endpoint. Its successful
+        // response commonly omits metadata, including the ID, and returns only
+        // signed file/sample/fallback URLs.
+        const resolvedPost: SankakuPost = {
+          ...post,
+          id: post.id ?? id,
+          file_url: post.video_url || post.stream_url || post.file_url || post.sample_url || post.fallback_url,
+          sample_url: post.sample_url || post.fallback_url || post.file_url,
+        };
+        console.info(`[SankakuProvider] detail post=${id} video=${getSankakuMediaType(resolvedPost) === 'video'} file=${Boolean(resolvedPost.file_url)} sample=${Boolean(resolvedPost.sample_url)} preview=${Boolean(resolvedPost.preview_url)} restricted=${Boolean(resolvedPost.redirect_to_signup || resolvedPost.is_premium)}`);
+        return this.mapPost(resolvedPost);
+      }
+      throw new Error('Sankaku detail response did not contain usable media URLs');
     } catch (error) {
       console.warn(`[SankakuProvider] Direct post lookup failed for ${id}; trying list lookup. (${this.describeError(error)})`);
       try {
@@ -250,7 +312,7 @@ export class SankakuProvider extends BaseProvider {
           limit: 1,
           lang: 'en',
         });
-        const post = unwrapSankakuPosts(response)[0] || (response as SankakuPost);
+        const post = unwrapSankakuPosts(response)[0];
         return post?.id !== undefined ? this.mapPost(post) : null;
       } catch (fallbackError) {
         console.warn('[SankakuProvider] getById failed:', fallbackError);
@@ -312,19 +374,24 @@ export class SankakuProvider extends BaseProvider {
 
   private mapPosts(posts: SankakuPost[]): PlatformImage[] {
     const approved = posts.filter(post => post.id !== undefined && isSankakuApprovedPost(post));
+    const removed = posts.filter(post => post.id !== undefined).length - approved.length;
+    if (removed > 0) {
+      console.info(`[SankakuProvider] excluded ${removed}/${posts.length} removed or inaccessible records`);
+    }
     // List payloads often omit the signed MP4 URL while retaining the video
     // type and poster. Keep those cards so the detail modal can hydrate the
     // richer per-post payload on click instead of silently deleting videos.
-    const playable = approved.filter(post => Boolean(
-      post.video_url || post.stream_url || post.file_url || post.sample_url || post.preview_url || post.gif_preview_url,
+    const immediatelyPlayable = approved.filter(post => Boolean(
+      post.video_url || post.stream_url || post.file_url || post.sample_url || post.fallback_url || post.preview_url || post.gif_preview_url,
     ));
-    const skipped = approved.length - playable.length;
-    if (skipped > 0) {
+    const unresolved = approved.length - immediatelyPlayable.length;
+    if (unresolved > 0) {
       const loginRequired = approved.filter(post => post.redirect_to_signup).length;
-      console.info(`[SankakuProvider] skipped ${skipped}/${approved.length} posts without usable media URLs${loginRequired ? `; loginRequired=${loginRequired}` : ''}`);
+      const premiumRequired = approved.filter(post => post.is_premium && !post.file_url && !post.sample_url && !post.preview_url).length;
+      const sessionMode = hasSankakuAuth(getSankakuRequestHeaders()) ? 'saved-session' : 'anonymous';
+      console.info(`[SankakuProvider] retained ${unresolved}/${approved.length} posts for detail hydration without list media URLs; redirectToSignup=${loginRequired} premiumRestricted=${premiumRequired} session=${sessionMode}`);
     }
-    return playable
-      .map(post => this.mapPost(post));
+    return approved.map(post => this.mapPost(post));
   }
 
   private filterTypedTags(images: PlatformImage[], query: SearchQuery): PlatformImage[] {
@@ -365,7 +432,7 @@ export class SankakuProvider extends BaseProvider {
 
   private mapPost(post: SankakuPost): PlatformImage {
     const tags = mapSankakuTags(post.tags, post.tag_names);
-    const playableUrl = post.video_url || post.stream_url || post.file_url;
+    const playableUrl = post.video_url || post.stream_url || post.file_url || post.fallback_url;
     const previewUrl = post.gif_preview_url || post.preview_url || post.sample_url || playableUrl || '';
     const sampleUrl = playableUrl || post.sample_url || previewUrl;
     const fullUrl = playableUrl || sampleUrl;

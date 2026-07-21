@@ -71,7 +71,9 @@ function App() {
              if (Math.abs(calculatedZoom - currentStoreZoom) > 0.05) {
                  useSettingsStore.getState().setZoomScale(calculatedZoom);
              }
-          } catch(e) { }
+          } catch (error) {
+            console.debug('[App] Could not synchronize browser zoom:', error);
+          }
        }, 500); // debounce zoom events
     };
 
@@ -214,15 +216,25 @@ function MainContent() {
   // Fix Windows maximized frameless bleed
   const [isWindowMaximized, setIsWindowMaximized] = useState(false);
   const isFullscreen = useSettingsStore((s) => s.isFullscreen);
+  const setFullscreenState = useSettingsStore((s) => s.setFullscreenState);
 
   useEffect(() => {
     let unmounted = false;
     const checkMax = async () => {
       try {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        const max = await getCurrentWindow().isMaximized();
-        if (!unmounted) setIsWindowMaximized(max);
-      } catch (e) {}
+        const currentWindow = getCurrentWindow();
+        const [max, full] = await Promise.all([
+          currentWindow.isMaximized(),
+          currentWindow.isFullscreen(),
+        ]);
+        if (!unmounted) {
+          setIsWindowMaximized(max);
+          setFullscreenState(full);
+        }
+      } catch (error) {
+        console.debug('[App] Could not synchronize native window state:', error);
+      }
     };
     checkMax();
     window.addEventListener('resize', checkMax);
@@ -230,10 +242,10 @@ function MainContent() {
       unmounted = true;
       window.removeEventListener('resize', checkMax);
     };
-  }, []);
+  }, [setFullscreenState]);
 
   return (
-    <div className={`w-full h-screen flex flex-col bg-background text-foreground overflow-hidden box-border ${isWindowMaximized && !isFullscreen ? 'p-2' : ''}`}>
+    <div className={`w-full h-[100dvh] min-h-0 flex flex-col bg-background text-foreground overflow-hidden box-border ${isWindowMaximized && !isFullscreen ? 'p-2' : ''}`}>
       {!isFullscreen && <TitleBar />}
       <div className="flex-1 min-h-0 relative">
         <Layout hideSidebar={images.length > 0 || !!currentVideo}>

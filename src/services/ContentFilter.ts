@@ -46,8 +46,26 @@ export class ContentFilter {
       "gender transformation",
       "roleplay",
       "bdsm",
+      "sex",
+      "oral",
+      "anal",
       "intercourse",
+      "penetration",
+      "masturbation",
+      "handjob",
+      "blowjob",
+      "vagina",
+      "penis",
+      "pussy",
+      "dick",
+      "cock",
       "genitals",
+      "anus",
+      "exposed_anus",
+      "cum",
+      "topless",
+      "nipples",
+      "lingerie",
       "yuri",
       "yaoi",
       "bara",
@@ -58,10 +76,35 @@ export class ContentFilter {
       "bl",
       "gl"
     ].includes(t) ||
-    /(^|_)(trap|femboy|sissy|gay|lesbian|homosexual|bisexual|transgender|yaoi|yuri|bara)(_|$)/.test(normalized) ||
+    /(^|_)(trap|femboy|sissy|gay|lesbian|homosexual|bisexual|transgender|yaoi|yuri|bara|sex|oral|anal|penetration|masturbation|handjob|blowjob|vagina|penis|pussy|dick|cock|genitals|anus|cum|topless|nipples)(_|$)/.test(normalized) ||
     t.includes("fetish") ||
     t.includes("explicit sexual") ||
     t.includes("erotic");
+  }
+
+  /**
+   * Safety check for image-platform cards. Unlike `isAdult`, this does not
+   * reject an entire mixed-rating booru merely because of its provider name.
+   */
+  static isAdultPlatformImage(item: any): boolean {
+    const rating = String(item.rating || "unknown").toLowerCase();
+    if (["explicit", "questionable", "suggestive", "sensitive", "e", "q"].includes(rating)) {
+      return true;
+    }
+
+    const tags = [
+      ...(item.tags || []),
+      ...(item.generalTags || []),
+      ...(item.characterTags || []),
+      ...(item.copyrightTags || []),
+      ...(item.artistTags || []),
+      ...(item.metaTags || []),
+    ];
+    if (tags.some((tag: string) => this.isAdultTag(tag))) return true;
+
+    const title = String(item.title || "").toLowerCase();
+    return ["hentai", "porn", "nsfw", "18+", "smut", "explicit sexual"]
+      .some(term => title.includes(term));
   }
 
   static isAdult(item: any, additionalExcludedTags: string[] = []): boolean {

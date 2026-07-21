@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { useImageEngineStore } from '../useImageEngineStore';
 import { useSlideshowStore } from '../useSlideshowStore';
@@ -17,6 +17,7 @@ import { useSettingsStore } from '../../stores/useSettingsStore';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { PlatformImage } from '../types';
 import { getSankakuTagSuggestions, type SankakuTagSuggestion } from '../../services/Sankaku';
+import { ContentFilter } from '../../services/ContentFilter';
 
 const SlideshowMedia = ({ image, isPaused }: { image: PlatformImage; isPaused: boolean }) => {
   const { proxyViaTauri, needsProxy } = useMediaLoader();
@@ -110,9 +111,10 @@ export const ImageCollectionDashboard = () => {
   
   // Derive active feed state
   const activeFeed = store.feeds[store.fetchMode];
-  const { globalMediaFilter, setGlobalMediaFilter } = useSettingsStore();
+  const { globalMediaFilter, setGlobalMediaFilter, showAdultContent } = useSettingsStore();
 
   const filterImages = (feedImages: PlatformImage[]) => feedImages.filter(img => {
+    if (!showAdultContent && ContentFilter.isAdultPlatformImage(img)) return false;
     if (globalMediaFilter === 'all') return true;
     if (globalMediaFilter === 'image') return !img.mediaType || img.mediaType === 'image';
     return img.mediaType === globalMediaFilter;
@@ -138,6 +140,24 @@ export const ImageCollectionDashboard = () => {
   const activeTab = store.activeTab;
   const setActiveTab = store.setActiveTab;
   const [refreshKey, setRefreshKey] = useState(0);
+  const previousAdultSetting = useRef(showAdultContent);
+
+  useEffect(() => {
+    if (previousAdultSetting.current === showAdultContent) return;
+    previousAdultSetting.current = showAdultContent;
+
+    // Cached cards are hidden synchronously by filterImages above. Reset the
+    // remote feeds as well so switching tabs cannot resurrect stale results.
+    store.reset();
+    setRefreshKey(key => key + 1);
+    setModalImages(null);
+    setSelectedImageIndex(null);
+
+    if (activeTab === 'new') void useImageEngineStore.getState().fetchLatest(true);
+    if (activeTab === 'foryou') void useImageEngineStore.getState().fetchCurated(true);
+    if (activeTab === 'discover') void useImageEngineStore.getState().fetchDiscover(true);
+    if (activeTab === 'search' && searchInput) void useImageEngineStore.getState().search(searchInput);
+  }, [showAdultContent]);
 
   useEffect(() => {
     const lastTerm = searchDraft.trim();
@@ -583,6 +603,16 @@ export const ImageCollectionDashboard = () => {
             if (newIndex >= 0 && newIndex < arr.length) {
               setSelectedImageIndex(newIndex);
             }
+          }}
+          onOpenRelated={(relatedImage) => {
+            const currentImages = modalImages || images;
+            const existingIndex = currentImages.findIndex(item => item.id === relatedImage.id);
+            if (existingIndex >= 0) {
+              setSelectedImageIndex(existingIndex);
+              return;
+            }
+            setModalImages([...currentImages, relatedImage]);
+            setSelectedImageIndex(currentImages.length);
           }}
           onSearchTag={(tag) => {
             setSearchQuery(tag);

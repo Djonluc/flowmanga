@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "2.5.1"
+version = "2.5.2"
 description = "A local-first manga reader, library, downloader, and visual discovery desktop app."
 authors = ["DjonStNix"]
 license = "MIT"

@@ -2158,9 +2158,17 @@ async fn list_ambient_sounds(app: AppHandle, custom_folders: Vec<String>) -> Res
 
     // 1. Check Tauri resource directory (for bundled/packaged assets)
     if let Ok(resource_dir) = app.path().resource_dir() {
-        let resource_audio = resource_dir.join("assets").join("audio");
-        if resource_audio.exists() {
-            audio_roots.push(resource_audio);
+        // A resource declared as ../assets/audio is stored below `_up_` by
+        // Tauri's bundler. Keep the direct path too for alternative targets
+        // and older development bundles.
+        let packaged_candidates = [
+            resource_dir.join("assets").join("audio"),
+            resource_dir.join("_up_").join("assets").join("audio"),
+        ];
+        for resource_audio in packaged_candidates {
+            if resource_audio.exists() && !audio_roots.contains(&resource_audio) {
+                audio_roots.push(resource_audio);
+            }
         }
     }
 
@@ -2275,6 +2283,7 @@ async fn list_ambient_sounds(app: AppHandle, custom_folders: Vec<String>) -> Res
         }
     }
 
+    log::info!("Discovered {} ambient audio tracks", sounds.len());
     Ok(sounds)
 }
 
@@ -2529,8 +2538,8 @@ pub fn run() {
                                         .and_then(|value| value.strip_prefix("bytes="))
                                         .and_then(|value| value.split('-').next())
                                         .and_then(|value| value.parse::<u64>().ok())
-                                        .map(|start| format!("bytes={}-{}", start, start.saturating_add(4 * 1024 * 1024 - 1)))
-                                        .unwrap_or_else(|| "bytes=0-4194303".to_string());
+                                        .map(|start| format!("bytes={}-{}", start, start.saturating_add(1024 * 1024 - 1)))
+                                        .unwrap_or_else(|| "bytes=0-1048575".to_string());
                                     req = req.header("Range", bounded_range);
                                 } else if let Some(range) = requested_range {
                                     req = req.header("Range", range);
@@ -2601,7 +2610,7 @@ pub fn run() {
             });
         })
 
-        .plugin(tauri_plugin_log::Builder::default().build())
+        .plugin(tauri_plugin_log::Builder::default().level(log::LevelFilter::Info).build())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())

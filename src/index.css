@@ -43,6 +43,7 @@
 
   /* Theme: Cinematic Dark (Default) */
   --color-background: #060607;
+  --color-background-solid: #060607;
   --color-surface: #0a0a0b;
   --color-surface-elevated: rgba(255, 255, 255, 0.035);
   --color-surface-raised: rgba(255, 255, 255, 0.07);
@@ -71,6 +72,7 @@
 [data-theme='dark'] {
   color-scheme: dark;
   --color-background: #060607;
+  --color-background-solid: #060607;
   --color-surface: #0a0a0b;
   --color-surface-elevated: rgba(255, 255, 255, 0.035);
   --color-surface-raised: rgba(255, 255, 255, 0.07);
@@ -89,6 +91,7 @@
 [data-theme='oled'] {
   color-scheme: dark;
   --color-background: #000000;
+  --color-background-solid: #000000;
   --color-surface: #050505;
   --color-surface-elevated: rgba(255, 255, 255, 0.03);
   --color-surface-raised: rgba(255, 255, 255, 0.05);
@@ -107,6 +110,7 @@
 [data-theme='paper'] {
   color-scheme: light;
   --color-background: #fdfaf3;
+  --color-background-solid: #fdfaf3;
   --color-surface: #f4ecd8;
   --color-surface-elevated: rgba(0, 0, 0, 0.04);
   --color-surface-raised: rgba(0, 0, 0, 0.08);
@@ -129,6 +133,7 @@
 [data-theme='amethyst'] {
   color-scheme: dark;
   --color-background: transparent;
+  --color-background-solid: #0d0419;
   --bg-image: linear-gradient(rgba(10, 2, 20, 0.8), rgba(4, 1, 10, 0.95)), url('/logo.png');
   --color-surface: rgba(20, 5, 40, 0.4);
   --color-surface-elevated: rgba(168, 85, 247, 0.12);
@@ -151,6 +156,7 @@
 [data-theme='light'] {
   color-scheme: light;
   --color-background: #ffffff;
+  --color-background-solid: #ffffff;
   --color-surface: #f3f4f6;
   --color-surface-elevated: rgba(0, 0, 0, 0.035);
   --color-surface-raised: rgba(0, 0, 0, 0.07);

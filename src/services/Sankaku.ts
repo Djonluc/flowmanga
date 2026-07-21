@@ -201,6 +201,7 @@ export interface SankakuPost {
   status?: string;
   file_url?: string;
   sample_url?: string;
+  fallback_url?: string;
   preview_url?: string;
   gif_preview_url?: string;
   video_url?: string;
@@ -481,9 +482,9 @@ export function mapSankakuTags(tags: SankakuTag[] | string[] | undefined, tagNam
 export function isSankakuApprovedPost(post: SankakuPost): boolean {
   if (!post.status) return true;
   const status = post.status.toLowerCase();
-  // The API already applies the current user's visibility rules. Preserve
-  // visible workflow states shown by the website and reject only explicit
-  // removal states.
+  // Sankaku's official newest feed includes pending submissions alongside
+  // active posts. Treat the API response as the website's visible feed and
+  // remove only records which have an explicit removal state.
   return !['deleted', 'hidden', 'banned', 'blocked', 'removed'].includes(status);
 }
 
@@ -531,7 +532,7 @@ export function getSankakuGroupInfo(post: SankakuPost): SankakuGroupInfo {
 
 export function getSankakuMediaType(post: SankakuPost): 'image' | 'video' | 'gif' {
   const fileType = (post.file_type || '').toLowerCase();
-  const url = post.video_url || post.stream_url || post.file_url || post.sample_url || post.gif_preview_url || post.preview_url || '';
+  const url = post.video_url || post.stream_url || post.file_url || post.sample_url || post.fallback_url || post.gif_preview_url || post.preview_url || '';
   if (fileType.startsWith('video/') || /\.(mp4|webm|ogv|swf)(?:\?|$)/i.test(url)) return 'video';
   if (fileType === 'image/gif' || /\.gif(?:\?|$)/i.test(url)) return 'gif';
   return 'image';
@@ -540,8 +541,8 @@ export function getSankakuMediaType(post: SankakuPost): 'image' | 'video' | 'gif
 export function getSankakuMediaStatus(post: SankakuPost): 'available' | 'login_required' | 'premium_required' | 'unavailable' {
   if (!isSankakuApprovedPost(post)) return 'unavailable';
   if (post.redirect_to_signup) return 'login_required';
-  if (post.is_premium && !post.file_url && !post.sample_url && !post.preview_url) return 'premium_required';
-  if (post.file_url || post.sample_url || post.preview_url) return 'available';
+  if (post.is_premium && !post.file_url && !post.sample_url && !post.fallback_url && !post.preview_url) return 'premium_required';
+  if (post.file_url || post.sample_url || post.fallback_url || post.preview_url) return 'available';
   return 'unavailable';
 }
 
@@ -551,8 +552,11 @@ export function getSankakuSourceUrl(id: string | number): string {
 
 export function unwrapSankakuPosts(value: unknown): SankakuPost[] {
   if (Array.isArray(value)) return value as SankakuPost[];
-  if (value && typeof value === 'object' && Array.isArray((value as { data?: unknown }).data)) {
-    return (value as { data: SankakuPost[] }).data;
+  if (value && typeof value === 'object') {
+    const data = (value as { data?: unknown }).data;
+    if (Array.isArray(data)) return data as SankakuPost[];
+    if (data && typeof data === 'object') return [data as SankakuPost];
+    if ((value as SankakuPost).id !== undefined) return [value as SankakuPost];
   }
   return [];
 }

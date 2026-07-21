@@ -105,7 +105,8 @@ export class ZerochanProvider extends BaseProvider {
           rating: "safe", // Zerochan is mostly SFW but can have ecchi. They don't expose rating easily.
           score: 0,
           sourceUrl: `https://www.zerochan.net/${p.id}`,
-          createdAt: Date.now(), // Zerochan API doesn't return created_at easily in this endpoint
+          // This endpoint has no publication timestamp. Do not make older
+          // catalog items look newer than dated posts from other providers.
           mediaType: this.getMediaType(guessedFullUrl),
           isLocal: false
         };
