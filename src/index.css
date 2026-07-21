@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+/* WebView2 may retain the pre-fullscreen work-area viewport for one frame.
+   Pin every document layer to the native surface and keep any exposed edge
+   black so Windows' auto-hidden taskbar boundary can never flash white. */
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  min-width: 100%;
+  min-height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+html,
+#root {
+  background: #000;
+}
+
 @theme {
   /* Surface Tokens */
   --color-background: var(--color-background);
@@ -18,8 +37,10 @@
   
   /* Accent System */
   --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
   --color-accent-soft: var(--color-accent-soft);
   --color-accent-glow: var(--color-accent-glow);
+  --color-on-accent: var(--color-on-accent);
   
   /* Cinematic Effects */
   --shadow-ambient: var(--shadow-ambient);
@@ -56,8 +77,10 @@
   --color-border-strong: rgba(255, 255, 255, 0.12);
   
   --color-accent: #6366f1;
+  --color-accent-hover: #4f46e5;
   --color-accent-soft: rgba(99, 102, 241, 0.12);
   --color-accent-glow: rgba(99, 102, 241, 0.4);
+  --color-on-accent: #ffffff;
 
   --shadow-ambient: 0 40px 80px -20px rgba(0, 0, 0, 0.8);
   --shadow-elevated: 0 20px 40px -12px rgba(0, 0, 0, 0.5);
@@ -82,8 +105,10 @@
   --color-border-subtle: rgba(255, 255, 255, 0.06);
   --color-border-strong: rgba(255, 255, 255, 0.12);
   --color-accent: #6366f1;
+  --color-accent-hover: #4f46e5;
   --color-accent-soft: rgba(99, 102, 241, 0.12);
   --color-accent-glow: rgba(99, 102, 241, 0.4);
+  --color-on-accent: #ffffff;
   --shadow-ambient: 0 40px 80px -20px rgba(0, 0, 0, 0.8);
   --shadow-elevated: 0 20px 40px -12px rgba(0, 0, 0, 0.5);
 }
@@ -101,33 +126,84 @@
   --color-border-subtle: rgba(255, 255, 255, 0.04);
   --color-border-strong: rgba(255, 255, 255, 0.1);
   --color-accent: #6366f1;
+  --color-accent-hover: #4f46e5;
   --color-accent-soft: rgba(99, 102, 241, 0.12);
   --color-accent-glow: rgba(99, 102, 241, 0.4);
+  --color-on-accent: #ffffff;
   --shadow-ambient: 0 40px 80px -20px rgba(0, 0, 0, 1);
   --shadow-elevated: 0 20px 40px -12px rgba(0, 0, 0, 0.6);
 }
 
 [data-theme='paper'] {
   color-scheme: light;
-  --color-background: #fdfaf3;
-  --color-background-solid: #fdfaf3;
-  --color-surface: #f4ecd8;
-  --color-surface-elevated: rgba(0, 0, 0, 0.04);
-  --color-surface-raised: rgba(0, 0, 0, 0.08);
+  --color-background: #f7f0e3;
+  --color-background-solid: #f7f0e3;
+  --color-surface: #fffaf0;
+  --color-surface-elevated: #fbf4e7;
+  --color-surface-raised: #efe2cc;
   
-  --color-foreground: #2d241e;
-  --color-foreground-muted: #5c534a;
-  --color-foreground-dim: #8a8178;
+  --color-foreground: #2b211a;
+  --color-foreground-muted: #625448;
+  --color-foreground-dim: #796a5d;
   
-  --color-border-subtle: rgba(139, 69, 19, 0.15);
-  --color-border-strong: rgba(139, 69, 19, 0.25);
+  --color-border-subtle: rgba(101, 71, 44, 0.2);
+  --color-border-strong: rgba(101, 71, 44, 0.36);
   
-  --color-accent: #a0522d;
-  --color-accent-soft: rgba(160, 82, 45, 0.08);
-  --color-accent-glow: rgba(160, 82, 45, 0.15);
+  --color-accent: #a74620;
+  --color-accent-hover: #833518;
+  --color-accent-soft: rgba(167, 70, 32, 0.12);
+  --color-accent-glow: rgba(167, 70, 32, 0.24);
+  --color-on-accent: #fffaf0;
   
-  --shadow-ambient: 0 32px 64px -16px rgba(139, 69, 19, 0.15);
-  --shadow-elevated: 0 12px 24px -8px rgba(139, 69, 19, 0.1);
+  --shadow-ambient: 0 32px 64px -16px rgba(92, 58, 31, 0.2);
+  --shadow-elevated: 0 12px 28px -10px rgba(92, 58, 31, 0.2);
+  --bg-image:
+    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.72), transparent 34%),
+    linear-gradient(115deg, rgba(126, 87, 49, 0.025) 25%, transparent 25%, transparent 75%, rgba(126, 87, 49, 0.025) 75%);
+  --paper-control: #fffdf7;
+  --paper-inset: rgba(104, 73, 45, 0.075);
+}
+
+/* Paper is an opaque reading theme, not a light tint over dark glass. */
+[data-theme='paper'] .glass,
+[data-theme='paper'] .glass-panel {
+  background: rgba(255, 250, 240, 0.94);
+  border-color: var(--color-border-subtle);
+  box-shadow: var(--shadow-elevated);
+}
+
+[data-theme='paper'] :is(input:not([type='range']), textarea, select) {
+  color: var(--color-foreground);
+  background-color: var(--paper-control);
+  border-color: var(--color-border-subtle);
+  caret-color: var(--color-accent);
+}
+
+[data-theme='paper'] :is(input, textarea)::placeholder {
+  color: var(--color-foreground-dim);
+  opacity: 1;
+}
+
+[data-theme='paper'] :is(input:not([type='range']), textarea, select):focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+[data-theme='paper'] :is(.bg-black\/20, .bg-black\/30, .bg-black\/40) {
+  background-color: var(--paper-inset);
+}
+
+[data-theme='paper'] :is(.bg-white\/3, .bg-white\/5, .bg-white\/10) {
+  background-color: rgba(104, 73, 45, 0.075);
+}
+
+[data-theme='paper'] :is(.border-white\/5, .border-white\/10, .border-white\/15) {
+  border-color: var(--color-border-subtle);
+}
+
+[data-theme='paper'] ::selection {
+  color: var(--color-foreground);
+  background: rgba(167, 70, 32, 0.22);
 }
 
 [data-theme='amethyst'] {
@@ -147,8 +223,10 @@
   --color-border-strong: rgba(168, 85, 247, 0.5);
   
   --color-accent: #c084fc;
+  --color-accent-hover: #a855f7;
   --color-accent-soft: rgba(192, 132, 252, 0.15);
   --color-accent-glow: rgba(192, 132, 252, 0.8);
+  --color-on-accent: #ffffff;
   
   --shadow-ambient: 0 0 60px rgba(168, 85, 247, 0.2);
 }
@@ -169,8 +247,10 @@
   --color-border-strong: rgba(0, 0, 0, 0.15);
   
   --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
   --color-accent-soft: rgba(37, 99, 235, 0.08);
   --color-accent-glow: rgba(37, 99, 235, 0.15);
+  --color-on-accent: #ffffff;
   
   --shadow-ambient: 0 40px 80px -20px rgba(0, 0, 0, 0.12);
   --shadow-elevated: 0 10px 20px -5px rgba(0, 0, 0, 0.08);
@@ -234,6 +314,27 @@ body {
 .no-scrollbar::-webkit-scrollbar {
     display: none;
 }
+
+/* Keep image metadata reachable on compact laptop displays. */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+@media (max-height: 800px) and (min-width: 1024px) {
+  .image-detail-sidebar .image-detail-section {
+    padding: 0.75rem;
+  }
+
+  .image-detail-sidebar {
+    font-size: 0.92rem;
+  }
+}
+
+[data-theme='paper'] .image-detail-sidebar :is(.text-red-300, .text-red-400) { color: #a6362a; }
+[data-theme='paper'] .image-detail-sidebar :is(.text-purple-300, .text-purple-400) { color: #7446a8; }
+[data-theme='paper'] .image-detail-sidebar :is(.text-green-300, .text-green-400) { color: #18734b; }
+[data-theme='paper'] .image-detail-sidebar :is(.text-blue-300, .text-blue-400) { color: #2864a5; }
 
 .glass {
     background: var(--color-surface-elevated);

@@ -74,12 +74,25 @@ export class SankakuProvider extends BaseProvider {
       // unavailable; never print cookies or bearer tokens to the console.
       if (hasSankakuAuth(authenticatedHeaders) && isSankakuAuthenticationRejected(error)) {
         console.warn(`[SankakuProvider] Saved session was rejected for ${new URL(url).pathname}; retrying the public feed. (${this.describeError(error)})`);
-        return runSankakuRequest(() => this.fetchJson<T>(url, getSankakuPublicRequestHeaders(), {
+        const publicResponse = await runSankakuRequest(() => this.fetchJson<T>(url, getSankakuPublicRequestHeaders(), {
           retries: 1,
           timeoutMs: 12000,
           headlessFallback: false,
           transport: 'rust',
         }));
+        const markRejected = (value: unknown): void => {
+          if (Array.isArray(value)) {
+            value.forEach(markRejected);
+            return;
+          }
+          if (!value || typeof value !== 'object') return;
+          const record = value as Record<string, unknown>;
+          if (Array.isArray(record.data)) record.data.forEach(markRejected);
+          else if (record.data && typeof record.data === 'object') markRejected(record.data);
+          else record.flowmanga_auth_rejected = true;
+        };
+        markRejected(publicResponse);
+        return publicResponse;
       }
       throw error;
     }
@@ -267,7 +280,11 @@ export class SankakuProvider extends BaseProvider {
     }, page);
   }
 
-  async getById(id: string): Promise<PlatformImage | null> {
+  async getById(id: string, options?: { forceRefresh?: boolean }): Promise<PlatformImage | null> {
+    if (options?.forceRefresh) {
+      this.detailCache.delete(id);
+      this.detailRequests.delete(id);
+    }
     const cached = this.detailCache.get(id);
     if (cached && cached.expiresAt > Date.now()) return cached.image;
     const inFlight = this.detailRequests.get(id);

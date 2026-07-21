@@ -123,10 +123,10 @@ export class SearchFederator {
     return this.getProviders().filter(p => isSourceEnabled(p.id));
   }
 
-  async getById(providerId: string, sourceId: string): Promise<PlatformImage | null> {
+  async getById(providerId: string, sourceId: string, options?: { forceRefresh?: boolean }): Promise<PlatformImage | null> {
     const provider = this.providers.get(providerId);
     if (!provider || !provider.getById) return null;
-    return provider.getById(sourceId);
+    return provider.getById(sourceId, options);
   }
 
   /** Injects media type filters if the user wants exclusively videos or gifs */

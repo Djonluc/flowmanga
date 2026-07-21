@@ -100,7 +100,8 @@ function App() {
         
         // Restore Size
         const { windowWidth, windowHeight } = useSettingsStore.getState();
-        if (windowWidth && windowHeight) {
+        const [isFull, isMaximized] = await Promise.all([win.isFullscreen(), win.isMaximized()]);
+        if (windowWidth && windowHeight && !isFull && !isMaximized) {
            await win.setSize(new LogicalSize(windowWidth, windowHeight));
         }
 
@@ -109,6 +110,10 @@ function App() {
            clearTimeout(resizeTimer);
            resizeTimer = setTimeout(async () => {
               try {
+                const [full, maximized] = await Promise.all([win.isFullscreen(), win.isMaximized()]);
+                // Never persist a monitor-sized fullscreen/maximized viewport
+                // as the user's normal window size.
+                if (full || maximized) return;
                 const factor = await win.scaleFactor();
                 const size = await win.innerSize();
                 const logical = size.toLogical(factor);
@@ -135,7 +140,7 @@ function App() {
     return (
       <div
         data-theme={theme}
-        className="h-screen w-screen bg-background flex items-center justify-center relative overflow-hidden text-foreground"
+        className="fixed inset-0 bg-background flex items-center justify-center overflow-hidden text-foreground"
       >
         <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 to-purple-900/20" />
         <div className="absolute top-0 left-0 w-full h-1 bg-blue-600 animate-pulse" />
@@ -245,7 +250,7 @@ function MainContent() {
   }, [setFullscreenState]);
 
   return (
-    <div className={`w-full h-[100dvh] min-h-0 flex flex-col bg-background text-foreground overflow-hidden box-border ${isWindowMaximized && !isFullscreen ? 'p-2' : ''}`}>
+    <div className={`fixed inset-0 min-h-0 flex flex-col bg-background text-foreground overflow-hidden box-border ${isWindowMaximized && !isFullscreen ? 'p-2' : ''}`}>
       {!isFullscreen && <TitleBar />}
       <div className="flex-1 min-h-0 relative">
         <Layout hideSidebar={images.length > 0 || !!currentVideo}>

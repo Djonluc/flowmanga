@@ -223,6 +223,8 @@ export interface SankakuPost {
   has_children?: boolean;
   is_premium?: boolean;
   redirect_to_signup?: boolean;
+  /** The saved credentials were rejected and this record came from public fallback. */
+  flowmanga_auth_rejected?: boolean;
   video_duration?: number;
   total_score?: number;
   score?: number;
@@ -538,8 +540,9 @@ export function getSankakuMediaType(post: SankakuPost): 'image' | 'video' | 'gif
   return 'image';
 }
 
-export function getSankakuMediaStatus(post: SankakuPost): 'available' | 'login_required' | 'premium_required' | 'unavailable' {
+export function getSankakuMediaStatus(post: SankakuPost): 'available' | 'login_required' | 'session_access_required' | 'premium_required' | 'unavailable' {
   if (!isSankakuApprovedPost(post)) return 'unavailable';
+  if (post.flowmanga_auth_rejected && post.redirect_to_signup) return 'session_access_required';
   if (post.redirect_to_signup) return 'login_required';
   if (post.is_premium && !post.file_url && !post.sample_url && !post.fallback_url && !post.preview_url) return 'premium_required';
   if (post.file_url || post.sample_url || post.fallback_url || post.preview_url) return 'available';

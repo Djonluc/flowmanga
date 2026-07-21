@@ -241,8 +241,25 @@ export const useSettingsStore = create<SettingsState>()(
           const { getCurrentWindow } = await import("@tauri-apps/api/window");
           const appWindow = getCurrentWindow();
           const isFull = await appWindow.isFullscreen();
-          await appWindow.setFullscreen(!isFull);
-          set({ isFullscreen: !isFull });
+          const requested = !isFull;
+          await appWindow.setFullscreen(requested);
+
+          // Installed WebView2 windows can report the resize before Windows
+          // finishes switching out of the taskbar work area. Confirm the
+          // native state instead of hiding the title bar optimistically.
+          await new Promise(resolve => setTimeout(resolve, 120));
+          let confirmed = await appWindow.isFullscreen();
+          if (confirmed !== requested) {
+            console.warn(`[Settings] Fullscreen transition was not accepted; retrying requested=${requested}.`);
+            await appWindow.setFullscreen(requested);
+            await new Promise(resolve => setTimeout(resolve, 180));
+            confirmed = await appWindow.isFullscreen();
+          }
+
+          if (confirmed) await appWindow.setFocus();
+          set({ isFullscreen: confirmed });
+          window.dispatchEvent(new Event('resize'));
+          console.info(`[Settings] Fullscreen requested=${requested} confirmed=${confirmed} viewport=${window.innerWidth}x${window.innerHeight}`);
         } catch (err) {
           console.error("[Settings] Failed to toggle fullscreen:", err);
         }

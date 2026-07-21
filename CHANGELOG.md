@@ -1,3 +1,27 @@
+# FlowManga v2.5.3 Hotfix
+
+This hotfix corrects installed-build fullscreen sizing, improves Paper-theme readability, makes image details responsive, and clarifies Sankaku session and media failures.
+
+### Bug Fixes
+
+- Fixed the Windows installed app leaving a taskbar-sized strip beneath the reader after entering fullscreen.
+- Fullscreen transitions are now verified against the native window state and retried when Windows does not accept the first transition.
+- Fullscreen and maximized dimensions are no longer saved as the normal application window size.
+- Pinned the document and application shell to every WebView edge and added a native-safe black backdrop to prevent white boundary flashes.
+- Fixed image-detail actions, tags, and metadata being clipped on compact or short displays.
+- Added independent metadata scrolling, responsive panel sizing, compact-height spacing, and safe truncation for long tags.
+- Fixed Sankaku cards repeatedly retrying expired or blocked preview URLs.
+- Sankaku Retry now requests fresh post metadata and a new signed media URL.
+- Distinguished an unverified or rejected saved Sankaku session from a user who has never signed in.
+
+### Theme Improvements
+
+- Reworked Paper into an opaque warm-paper palette instead of a light tint over dark translucent layers.
+- Improved primary, muted, placeholder, tag, border, input, focus, hover, and selected-state contrast.
+- Preserved intentionally dark image and slideshow overlays where light controls are required.
+
+---
+
 # FlowManga v2.5.2 Release Notes
 
 This patch improves live discovery feeds, media playback, safe-mode filtering, gallery navigation, packaged audio, and desktop stability.

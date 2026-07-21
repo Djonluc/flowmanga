@@ -104,15 +104,15 @@ const ClickableTag = ({ tag, type, onSearch, onClose, isInterest }: { tag: strin
   }
 
   return (
-    <div className="flex group relative" ref={buttonRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+    <div className="flex group relative min-w-0 max-w-full" ref={buttonRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
       <button 
         onClick={() => toggleTagState(cleanTag, type)} 
-        className={`px-3 py-1.5 border rounded-l-lg text-sm transition-all border-r-0 flex items-center gap-2 ${colorClasses}`}
+        className={`min-w-0 max-w-[min(220px,calc(100vw-8rem))] px-3 py-1.5 border rounded-l-lg text-sm transition-all border-r-0 flex items-center gap-2 ${colorClasses}`}
         title="Click to toggle Favorite / Block"
       >
         {isFav && <Star size={12} fill="currentColor" />}
         {isBlocked && <ShieldAlert size={12} />}
-        {cleanTag}
+        <span className="truncate">{cleanTag}</span>
       </button>
       <button 
         onClick={handlePinInterest} 
@@ -656,15 +656,15 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
   }, [currentLocalPath, thumbnailSource, fullSource, initialVideoSource, image.mediaType, image.providerId, image.sourceId, loadRemoteSource]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-6 bg-black/80 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-2 xl:p-4 bg-black/80 backdrop-blur-sm" onClick={onClose}>
       <div 
-        className="w-full max-w-[98vw] h-[98vh] bg-surface rounded-2xl overflow-hidden shadow-2xl flex border border-border-subtle"
+        className="w-full max-w-[98vw] h-full max-h-[calc(100dvh-1rem)] bg-surface sm:rounded-2xl overflow-hidden shadow-2xl flex flex-col lg:flex-row border border-border-subtle min-w-0 min-h-0"
         onClick={e => e.stopPropagation()}
       >
         {/* Left Side: Media */}
         <div 
           ref={containerRef}
-          className="flex-1 bg-black/50 relative flex items-center justify-center group overflow-hidden touch-none"
+          className="flex-1 min-w-0 min-h-[42vh] lg:min-h-0 bg-black/50 relative flex items-center justify-center group overflow-hidden touch-none"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
@@ -821,10 +821,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
         </div>
 
         {/* Right Side: Info & Actions */}
-        <div className="w-[350px] shrink-0 bg-surface-elevated overflow-y-auto no-scrollbar flex flex-col border-l border-border-subtle z-30 relative">
+        <div className="image-detail-sidebar w-full lg:w-[clamp(290px,26vw,360px)] max-h-[46vh] lg:max-h-none min-h-0 shrink-0 bg-surface-elevated overflow-y-auto custom-scrollbar flex flex-col border-t lg:border-t-0 lg:border-l border-border-subtle z-30 relative overscroll-contain">
           
           {/* Header Metadata */}
-          <div className="p-6 border-b border-border-subtle flex flex-col gap-2">
+          <div className="image-detail-section p-4 xl:p-5 border-b border-border-subtle flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="px-3 py-1 bg-accent/20 text-accent font-black text-xs uppercase tracking-widest rounded-full">
                 {image.providerId}
@@ -844,7 +844,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
           </div>
 
           {/* Quick Actions */}
-          <div className="p-6 border-b border-border-subtle grid grid-cols-2 gap-3">
+          <div className="image-detail-section p-4 xl:p-5 border-b border-border-subtle grid grid-cols-2 gap-2.5">
             <button onClick={() => { slideshow.start(index, images); onClose(); }} className="h-10 col-span-2 bg-accent hover:bg-accent-hover text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all">
               <Play size={18} fill="currentColor" /> Start Slideshow
             </button>
@@ -859,7 +859,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
               <button 
                 onClick={handleDownload}
                 disabled={isDownloading}
-                className="h-10 bg-surface hover:bg-surface-raised border border-border-subtle rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-foreground transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="h-10 min-w-0 px-2 bg-surface hover:bg-surface-raised border border-border-subtle rounded-xl flex items-center justify-center gap-2 text-xs xl:text-sm font-bold text-foreground transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isDownloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} 
                 {isDownloading ? "Downloading..." : "Download"}
@@ -868,7 +868,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
             <button 
               onClick={handleFavoriteToggle} 
               className={clsx(
-                "h-10 border border-border-subtle rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all",
+                "h-10 min-w-0 px-2 border border-border-subtle rounded-xl flex items-center justify-center gap-2 text-xs xl:text-sm font-bold transition-all",
                 isFavorited ? "bg-red-500/10 text-red-500 hover:bg-red-500/20" : "bg-surface hover:bg-surface-raised text-foreground"
               )}
             >
@@ -879,7 +879,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
               <div className="relative">
                 <button 
                   onClick={() => setShowFolderMenu(!showFolderMenu)}
-                  className="w-full h-10 border border-border-subtle hover:border-accent rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-foreground transition-all"
+                  className="w-full h-10 min-w-0 px-2 border border-border-subtle hover:border-accent rounded-xl flex items-center justify-center gap-2 text-xs xl:text-sm font-bold text-foreground transition-all"
                 >
                   <FolderPlus size={16} /> {savedImages.find(img => img.id === image.id)?.folderId ? "Manage Folder" : "Add to Folder"}
                 </button>
@@ -912,14 +912,14 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
                 const { open } = await import('@tauri-apps/plugin-shell');
                  if (image.sourceUrl) await open(image.sourceUrl);
               }}
-              className="h-10 bg-surface hover:bg-surface-raised border border-border-subtle rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-foreground transition-all"
+              className="h-10 min-w-0 px-2 bg-surface hover:bg-surface-raised border border-border-subtle rounded-xl flex items-center justify-center gap-2 text-xs xl:text-sm font-bold text-foreground transition-all"
             >
               <ExternalLink size={16} /> Original
             </button>
             <button 
               onClick={handleRefreshMeta}
               disabled={isRefreshingMeta}
-              className="h-10 bg-surface hover:bg-surface-raised border border-border-subtle rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-foreground transition-all disabled:opacity-50"
+              className="h-10 min-w-0 px-2 bg-surface hover:bg-surface-raised border border-border-subtle rounded-xl flex items-center justify-center gap-2 text-xs xl:text-sm font-bold text-foreground transition-all disabled:opacity-50"
             >
               {isRefreshingMeta ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} 
               Refresh Meta
@@ -927,7 +927,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
           </div>
 
           {(image.author || image.source || image.relatedGroupId || image.parentId || image.poolIds?.length || image.bookIds?.length || image.isPremium || image.redirectToSignup || image.videoDuration) && (
-            <div className="p-6 border-b border-border-subtle space-y-3">
+            <div className="image-detail-section p-4 xl:p-5 border-b border-border-subtle space-y-3">
               <h3 className="text-xs font-black uppercase tracking-widest text-foreground-muted">Source Metadata</h3>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-foreground-muted">
                 {image.author && <span>Author: <strong className="text-foreground">{image.author}</strong></span>}
@@ -935,7 +935,9 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
                 {image.sequence !== undefined && <span>Sequence: <strong className="text-foreground">{image.sequence}</strong></span>}
                 {image.videoDuration !== undefined && <span>Duration: <strong className="text-foreground">{Math.round(image.videoDuration)}s</strong></span>}
                 {image.isPremium && <span className="text-amber-400">Premium content</span>}
-                {image.redirectToSignup && <span className="text-amber-400">Sign-in required</span>}
+                {image.mediaStatus === 'session_access_required'
+                  ? <span className="text-amber-400">Saved session rejected or lacks access</span>
+                  : image.redirectToSignup && <span className="text-amber-400">Sign-in required</span>}
               </div>
               {(image.parentId || image.poolIds?.length || image.bookIds?.length || image.relatedGroupId) && (
                 <div className="space-y-2">
@@ -957,7 +959,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
           )}
 
           {/* Tags */}
-          <div className="p-6 flex flex-col gap-6">
+          <div className="image-detail-section p-4 xl:p-5 flex flex-col gap-4 xl:gap-5">
             
             {artistTags.length > 0 && (
               <div className="flex flex-col gap-3">

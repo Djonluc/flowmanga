@@ -16,7 +16,7 @@ export const AppearanceSettings = () => {
         { id: 'dark', label: 'Dark', icon: Moon, color: '#3b82f6', bg: '#0f172a' },
         { id: 'oled', label: 'OLED', icon: Eye, color: '#10b981', bg: '#000000' },
         { id: 'amethyst', label: 'Amethyst', icon: Zap, color: '#c084fc', bg: '#2e1065' },
-        { id: 'paper', label: 'Paper', icon: FileText, color: '#d97706', bg: '#fef3c7' },
+        { id: 'paper', label: 'Paper', icon: FileText, color: '#a74620', bg: '#fffaf0' },
         { id: 'light', label: 'Light', icon: Sun, color: '#eab308', bg: '#f8fafc' },
     ];
 

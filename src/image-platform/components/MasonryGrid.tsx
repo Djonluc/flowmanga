@@ -289,6 +289,8 @@ const ImageCard = ({
   const [retryAttempt, setRetryAttempt] = useState(0);
   const [hasError, setHasError] = useState(false);
   const [hydratedVideoUrl, setHydratedVideoUrl] = useState<string | null>(null);
+  const [refreshedMediaUrls, setRefreshedMediaUrls] = useState<string[]>([]);
+  const [isRefreshingMedia, setIsRefreshingMedia] = useState(false);
   const [isPreviewEngaged, setIsPreviewEngaged] = useState(false);
   const { proxyViaTauri, needsProxy } = useMediaLoader();
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -319,8 +321,8 @@ const ImageCard = ({
   const mediaCandidates = image.mediaType === 'video'
     ? image.providerId === 'sankaku' && !isPreviewEngaged
       ? sankakuPosterUrls
-      : [hydratedVideoUrl, image.fullUrl, image.sampleUrl, image.thumbnailUrl, image.previewUrl]
-    : [image.thumbnailUrl, image.sampleUrl, image.previewUrl, image.fullUrl];
+      : [hydratedVideoUrl, ...refreshedMediaUrls, image.fullUrl, image.sampleUrl, image.thumbnailUrl, image.previewUrl]
+    : [...refreshedMediaUrls, image.thumbnailUrl, image.sampleUrl, image.previewUrl, image.fullUrl];
   const mediaUrls = Array.from(new Set(mediaCandidates.filter(Boolean)));
   let targetUrl = mediaUrls[sourceIndex] || mediaUrls[0] || "";
   let shouldWaitForProxy = false;
@@ -363,7 +365,39 @@ const ImageCard = ({
     setRetryAttempt(0);
     setHasError(false);
     setHydratedVideoUrl(null);
+    setRefreshedMediaUrls([]);
   }, [image.id, image.thumbnailUrl, image.previewUrl, image.sampleUrl, image.fullUrl]);
+
+  const retryMedia = async () => {
+    setHasError(false);
+    setIsLoaded(false);
+    setSourceIndex(0);
+    setRetryAttempt(0);
+    setProxySrc(null);
+
+    if (image.providerId !== 'sankaku' || isRefreshingMedia) return;
+    setIsRefreshingMedia(true);
+    try {
+      const { federator } = await import('../SearchFederator');
+      const fresh = await federator.getById(image.providerId, image.sourceId, { forceRefresh: true });
+      const urls = Array.from(new Set(
+        [fresh?.fullUrl, fresh?.sampleUrl, fresh?.previewUrl, fresh?.thumbnailUrl]
+          .filter((url): url is string => Boolean(url)),
+      ));
+      if (urls.length === 0) {
+        setHasError(true);
+        return;
+      }
+      setRefreshedMediaUrls(urls);
+      const playable = urls.find(url => videoUrlPattern.test(url));
+      if (playable) setHydratedVideoUrl(playable);
+    } catch (error) {
+      console.warn(`[MasonryGrid] Failed to refresh Sankaku media ${image.sourceId}:`, error);
+      setHasError(true);
+    } finally {
+      setIsRefreshingMedia(false);
+    }
+  };
 
   // Sankaku list responses commonly mark a post as video while providing only
   // a static poster. Resolve the signed MP4 only when the card is engaged.
@@ -623,27 +657,30 @@ const ImageCard = ({
       {isVisible && !hasMedia && (
         <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 bg-surface text-center p-4">
           <span className="text-xs font-black uppercase tracking-widest text-foreground-muted">
-            {image.mediaStatus === 'login_required' ? 'Sign in to view' : image.mediaStatus === 'premium_required' ? 'Premium content' : 'Media unavailable'}
+            {image.mediaStatus === 'session_access_required'
+              ? 'Saved session needs verification'
+              : image.mediaStatus === 'login_required'
+                ? 'Sign in to view'
+                : image.mediaStatus === 'premium_required'
+                  ? 'Premium content'
+                  : 'Media unavailable'}
           </span>
           {image.sourceUrl && <span className="text-[10px] text-foreground-muted">Open the original source for access.</span>}
         </div>
       )}
       {hasError && (
         <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 bg-surface text-center p-4">
-          <span className="text-xs font-black uppercase tracking-widest text-foreground-muted">Preview unavailable</span>
+          <span className="text-xs font-black uppercase tracking-widest text-foreground-muted">{isRefreshingMedia ? 'Refreshing media link' : 'Preview unavailable'}</span>
           <button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              setHasError(false);
-              setIsLoaded(false);
-              setSourceIndex(0);
-              setRetryAttempt(0);
-              setProxySrc(null);
+              void retryMedia();
             }}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-raised text-foreground text-[10px] font-black uppercase tracking-widest hover:bg-accent hover:text-white"
+            disabled={isRefreshingMedia}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-raised text-foreground text-[10px] font-black uppercase tracking-widest hover:bg-accent hover:text-white disabled:opacity-50"
           >
-            <RefreshCw size={12} /> Retry
+            <RefreshCw size={12} className={isRefreshingMedia ? 'animate-spin' : undefined} /> {isRefreshingMedia ? 'Refreshing' : 'Retry'}
           </button>
         </div>
       )}

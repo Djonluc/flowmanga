@@ -13,7 +13,7 @@ export interface PlatformImage {
   previewUrl?: string; // Lower-resolution fallback when the preferred URL fails
   sampleUrl: string; // Medium version, suitable for grid view or slideshow
   fullUrl: string; // Original, uncompressed version
-  mediaStatus?: 'available' | 'login_required' | 'premium_required' | 'unavailable';
+  mediaStatus?: 'available' | 'login_required' | 'session_access_required' | 'premium_required' | 'unavailable';
   
   // Dimensions
   width: number;
@@ -72,7 +72,7 @@ export interface ImageProvider {
   search(query: SearchQuery, page: number): Promise<PlatformImage[]>;
   getLatest(page: number): Promise<PlatformImage[]>;
   getDiscovery(page: number): Promise<PlatformImage[]>;
-  getById?(id: string): Promise<PlatformImage | null>;
+  getById?(id: string, options?: { forceRefresh?: boolean }): Promise<PlatformImage | null>;
   autocompleteTags?(query: string): Promise<string[]>;
   
   // Capabilities
