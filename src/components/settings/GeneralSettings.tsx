@@ -9,16 +9,19 @@ import { toast } from '../Toast';
 import { useState } from 'react';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
+import { useImageCollectionStore } from '../../image-platform/useImageCollectionStore';
 
 export const GeneralSettings = () => {
     const { 
         zoomScale, setZoomScale,
-        libraryPath, setLibraryPath, 
+        libraryPath, setLibraryPath,
+        imageDownloadPath, setImageDownloadPath,
         networkProxy, setNetworkProxy
     } = useSettingsStore();
     
     const { verifyLibraryIntegrity, scanLibrary, rebuildCollectionIndex } = useLibraryStore();
     const { downloadPath, setDownloadPath } = useGalleryStore();
+    const reindexLocalFolder = useImageCollectionStore(state => state.reindexLocalFolder);
     const { forceRefresh } = useDiscoveryStore();
     
     const [isVerifying, setIsVerifying] = useState(false);
@@ -42,7 +45,9 @@ export const GeneralSettings = () => {
                 toast.success("Scan complete!");
             }
         } catch (e) {
-            toast.error("Failed to update library path");
+            const message = e instanceof Error ? e.message : String(e);
+            console.error('[GeneralSettings] Manga archive scan failed', e);
+            toast.error(`Failed to scan manga folder: ${message}`);
         }
     };
 
@@ -147,7 +152,7 @@ export const GeneralSettings = () => {
                     
                     <div className="mt-6 bg-black/20 rounded-2xl p-4 border border-white/5 relative z-10">
                         <p className="text-foreground-dim text-xs font-mono break-all line-clamp-2">
-                            {downloadPath || defaultCollectionPath}
+                            {imageDownloadPath || downloadPath || defaultCollectionPath}
                         </p>
                     </div>
 
@@ -155,9 +160,18 @@ export const GeneralSettings = () => {
                         <button 
                             onClick={async () => {
                                 try {
-                                    const selected = await openDialog({ directory: true, multiple: false, defaultPath: downloadPath || undefined });
-                                    if (selected && typeof selected === 'string') { setDownloadPath(selected); toast.success('Collection folder updated'); }
-                                } catch (e) {}
+                                    const selected = await openDialog({ directory: true, multiple: false, defaultPath: imageDownloadPath || downloadPath || undefined });
+                                    if (selected && typeof selected === 'string') {
+                                        setImageDownloadPath(selected);
+                                        await setDownloadPath(selected);
+                                        const report = await reindexLocalFolder(selected);
+                                        toast.success(`Collection folder scanned: ${report.scanned} files found, ${report.imported} imported`);
+                                    }
+                                } catch (e) {
+                                    const message = e instanceof Error ? e.message : String(e);
+                                    console.error('[GeneralSettings] Image collection scan failed', e);
+                                    toast.error(`Failed to scan image collection: ${message}`);
+                                }
                             }}
                             className="flex-1 py-3 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-purple-500/20"
                         >

@@ -316,11 +316,16 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       const results: any[] = await invoke("scan_manga_folder", { path });
 
       for (const m of results) {
+        const existingSeries = await db.select<Array<{ id: string }>>(
+          "SELECT id FROM Series WHERE path = ? LIMIT 1",
+          [m.file_path],
+        );
+        const seriesId = existingSeries[0]?.id || m.id;
         // 1. Insert Series with rich v2.5 metadata
         await db.execute(
           "INSERT OR IGNORE INTO Series (id, title, path, author, type, coverPath, source, tags, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
-            m.id,
+            seriesId,
             m.title,
             m.file_path,
             m.author || "",
@@ -331,11 +336,15 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
             m.description || "",
           ],
         );
+        await db.execute(
+          "UPDATE Series SET title = ?, path = ?, author = ?, type = 'manga', coverPath = ?, source = 'local', tags = ?, description = ? WHERE id = ?",
+          [m.title, m.file_path, m.author || "", m.cover_path, (m.tags || []).join(","), m.description || "", seriesId],
+        );
 
         // 2. Scan and Insert Chapters
         const chapters: any[] = await invoke("scan_chapters", {
           path: m.file_path,
-          seriesId: m.id,
+          seriesId,
         });
         for (const c of chapters) {
           await db.execute(
@@ -359,7 +368,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       try {
         const { MetadataEnrichmentService } = await import("../services/manga-intelligence/MetadataEnrichmentService");
         for (const m of results) {
-          await MetadataEnrichmentService.enqueueSeries(m.id);
+          const stored = await db.select<Array<{ id: string }>>("SELECT id FROM Series WHERE path = ? LIMIT 1", [m.file_path]);
+          if (stored[0]?.id) await MetadataEnrichmentService.enqueueSeries(stored[0].id);
         }
       } catch (e) {
         console.warn("[LibraryStore] Failed to trigger metadata enrichment:", e);
@@ -784,39 +794,29 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       // 1. Scan default Library Path
       await get().scanLibrary();
 
-      // 2. Scan Gallery Download Path (Collections)
-      const { useGalleryStore } = await import("./useGalleryStore");
-      let downloadPath = useGalleryStore.getState().downloadPath;
-      
-      if (!downloadPath) {
-        const { documentDir, join } = await import("@tauri-apps/api/path");
-        const docDir = await documentDir();
-        downloadPath = await join(docDir, "FlowManga Collection");
-      }
-      
-      if (downloadPath) {
-        const { exists } = await import("@tauri-apps/plugin-fs");
-        if (await exists(downloadPath)) {
-            await get().addMangaFolder(downloadPath);
-        }
-      }
+      // 2. Rebuild saved image/video entries with the media scanner. Image
+      // collections must never be passed through the manga migration scanner.
+      const { useImageCollectionStore } = await import("../image-platform/useImageCollectionStore");
+      const mediaReport = await useImageCollectionStore.getState().reindexLocalFolder();
 
       // 3. Clean up invalid/missing files
       const count = await get().verifyLibraryIntegrity();
-      console.log(`[LibraryStore] Collection rebuild complete. Removed ${count} invalid entries.`);
+      console.log(`[LibraryStore] Collection rebuild complete. Scanned ${mediaReport.scanned} media files, linked ${mediaReport.linked}, imported ${mediaReport.imported}, removed ${count} invalid manga entries.`);
       const { toast } = await import("../components/Toast");
-      toast.success("Collection Index Rebuilt");
+      toast.success(`Index rebuilt: ${mediaReport.scanned} media files and ${get().series.length} manga found`);
     } catch (err) {
       console.error("[LibraryStore] Failed to rebuild collection index:", err);
       const { toast } = await import("../components/Toast");
-      toast.error("Failed to rebuild collection index");
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to rebuild collection index: ${message}`);
+      throw err;
     } finally {
       set({ isLoading: false });
     }
   },
 
   verifyLibraryIntegrity: async (seriesId?: string) => {
-    const { exists } = await import("@tauri-apps/plugin-fs");
+    const { invoke } = await import("@tauri-apps/api/core");
     const db = getDb();
     const seriesList = seriesId
       ? get().series.filter((s) => s.id === seriesId)
@@ -826,7 +826,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     let removedCount = 0;
     for (const s of seriesList) {
       if (s.path) {
-        const folderExists = await exists(s.path);
+        const folderExists = await invoke<boolean>("local_path_exists", { path: s.path });
         if (!folderExists) {
           console.warn(
             `[LibraryStore] Folder missing: ${s.path}. Removing from DB.`,
@@ -836,7 +836,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         } else {
           // Folder exists, verify chapters
           for (const book of s.books) {
-            const fileExists = await exists(book.path);
+            const fileExists = await invoke<boolean>("local_path_exists", { path: book.path });
             if (!fileExists) {
               console.warn(
                 `[LibraryStore] Chapter missing: ${book.path}. Removing from DB.`,

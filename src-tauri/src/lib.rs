@@ -490,10 +490,95 @@ async fn scan_manga_folder(path: String) -> Result<Vec<MangaMetadata>, String> {
         }
     }
 
+    // A selected archive may contain an extra organizational level such as
+    // Library/Manga/Series. Discover already-standardized series below that
+    // level without running the migration routine on chapter/image folders.
+    for entry in WalkDir::new(root_path)
+        .min_depth(2)
+        .max_depth(4)
+        .into_iter()
+        .filter_map(|entry| entry.ok())
+    {
+        if !entry.file_type().is_dir() {
+            continue;
+        }
+        let candidate = entry.path();
+        if !candidate.join("metadata.json").exists() && !candidate.join("chapters").is_dir() {
+            continue;
+        }
+        if let Some(item) = process_folder(candidate, false) {
+            manga.push(item);
+        }
+    }
+
     manga.sort_by(|a, b| a.file_path.cmp(&b.file_path));
     manga.dedup_by(|a, b| a.file_path == b.file_path);
 
     Ok(manga)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalMediaFile {
+    path: String,
+    relative_dir: String,
+    file_name: String,
+    media_type: String,
+}
+
+#[command]
+async fn scan_media_folder(path: String) -> Result<Vec<LocalMediaFile>, String> {
+    let root = Path::new(&path);
+    if !root.exists() {
+        return Err(format!("Collection folder does not exist: {path}"));
+    }
+    if !root.is_dir() {
+        return Err(format!("Collection path is not a folder: {path}"));
+    }
+
+    let image_extensions = ["jpg", "jpeg", "png", "webp", "gif", "avif", "bmp"];
+    let video_extensions = ["mp4", "webm", "mkv", "avi", "mov", "m4v"];
+    let mut files = Vec::new();
+
+    for entry in WalkDir::new(root).follow_links(false).into_iter().filter_map(Result::ok) {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let entry_path = entry.path();
+        let extension = entry_path
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        let media_type = if video_extensions.contains(&extension.as_str()) {
+            "video"
+        } else if extension == "gif" {
+            "gif"
+        } else if image_extensions.contains(&extension.as_str()) {
+            "image"
+        } else {
+            continue;
+        };
+        let relative_dir = entry_path
+            .parent()
+            .and_then(|parent| parent.strip_prefix(root).ok())
+            .map(|value| value.to_string_lossy().to_string())
+            .unwrap_or_default();
+        files.push(LocalMediaFile {
+            path: entry_path.to_string_lossy().to_string(),
+            relative_dir,
+            file_name: entry.file_name().to_string_lossy().to_string(),
+            media_type: media_type.to_string(),
+        });
+    }
+
+    files.sort_by(|left, right| left.path.cmp(&right.path));
+    Ok(files)
+}
+
+#[command]
+fn local_path_exists(path: String) -> bool {
+    Path::new(&path).exists()
 }
 
 #[derive(Serialize)]
@@ -2701,6 +2786,8 @@ pub fn run() {
             backup_database,
             scan_video_folder,
             scan_manga_folder,
+            scan_media_folder,
+            local_path_exists,
             read_folder,
             scan_chapters,
             download_image,

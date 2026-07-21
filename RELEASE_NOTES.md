@@ -1,3 +1,24 @@
+## FlowManga 2.5.5 Folder Indexing Hotfix
+
+FlowManga 2.5.5 repairs installed-build folder discovery when manga or image-collection storage is moved or reselected.
+
+### Fixes
+
+- Changing the Manga Archive path now immediately scans the selected folder and refreshes the library.
+- Manga discovery now supports nested layouts such as `Library/Manga/Series` instead of checking only one directory level.
+- Changing the Image Collections path now recursively scans images, GIFs, and videos and refreshes My Collection.
+- Existing provider downloads are relinked after a folder move; previously unknown local media is imported with a stable identity.
+- Nested image directories are represented as collection albums and local album covers load from their real filesystem paths.
+- Rebuild Index now runs the manga scanner only on manga storage and the media scanner only on image collections.
+- Custom folders outside Documents or Pictures, including folders on another drive, are validated through the native backend.
+- Index failures now include the actual folder or scanner error instead of only displaying a generic failure message.
+
+### Installing
+
+Download `FlowManga_2.5.5_x64-setup.exe` from the GitHub release assets. Existing settings and library metadata are preserved. After updating, reselect either storage path or use Settings → General → Rebuild Index once.
+
+---
+
 ## FlowManga 2.5.4
 
 FlowManga 2.5.4 completes the reliability, privacy, accessibility, and maintainability work identified in the application audit.

@@ -1,3 +1,16 @@
+## FlowManga v2.5.5 - 2026-07-21
+
+### Fixed
+
+- Unified the displayed and persisted image-collection folder setting.
+- Added recursive native media indexing, moved-file relinking, local media import, and nested album restoration.
+- Added native custom-path existence checks so selected folders on other drives can be indexed.
+- Added nested manga archive discovery and stable database identity when rescanning existing series.
+- Prevented image collections from being processed by the manga migration scanner.
+- Added actionable index error reporting and local filesystem album covers.
+
+---
+
 ## FlowManga v2.5.4 - 2026-07-21
 
 ### Added

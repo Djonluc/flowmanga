@@ -7,6 +7,7 @@ import { useSettingsStore } from '../../stores/useSettingsStore';
 import { federator } from '../SearchFederator';
 import { getDb } from '../../services/db';
 import type { PlatformImage } from '../types';
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 interface MyCollectionTabProps {
   onImageClick?: (image: PlatformImage, index: number, imagesContext: PlatformImage[]) => void;
@@ -184,7 +185,9 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
       stats[folder.id] = {
         count: folderImages.length,
         lastUpdated: folderImages[0] ? new Date(folderImages[0].createdAt).toLocaleDateString() : 'Never',
-        firstImage: folderImages[0] ? (folderImages[0].thumbnailUrl || folderImages[0].sampleUrl || folderImages[0].fullUrl) : null
+        firstImage: folderImages[0]
+          ? (folderImages[0].localPath ? convertFileSrc(folderImages[0].localPath) : (folderImages[0].thumbnailUrl || folderImages[0].sampleUrl || folderImages[0].fullUrl))
+          : null
       };
     }
     return stats;

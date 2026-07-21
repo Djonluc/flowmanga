@@ -5,6 +5,7 @@ import { TagIntelligenceService } from "./services/TagIntelligenceService";
 import { exists } from '@tauri-apps/plugin-fs';
 import { join, pictureDir } from '@tauri-apps/api/path';
 import { useSettingsStore } from "../stores/useSettingsStore";
+import { parseLocalMediaIdentity } from "./LocalMediaIndex";
 
 interface FlowImageFolder {
   id: string;
@@ -33,6 +34,7 @@ interface ImageCollectionState {
   refreshMetadata: (id: string) => Promise<boolean>;
   refreshAllMetadata: () => Promise<void>;
   recheckLocalFiles: () => Promise<{ found: number, totalChecked: number }>;
+  reindexLocalFolder: (path?: string) => Promise<{ scanned: number; linked: number; imported: number; folders: number }>;
   retroOrganizeLibrary: () => Promise<{ scanned: number; assigned: number; created: number; skipped: number } | null>;
   batchSaveImages: (images: PlatformImage[], folderId: string) => Promise<number>;
   reorderImage: (draggedId: string, dropId: string) => Promise<void>;
@@ -318,6 +320,71 @@ export const useImageCollectionStore = create<ImageCollectionState>((set, get) =
       console.error("[useImageCollectionStore] Recheck failed", e);
     }
     return { found, totalChecked };
+  },
+
+  reindexLocalFolder: async (providedPath?: string) => {
+    const legacyPath = (await import("../stores/useGalleryStore")).useGalleryStore.getState().downloadPath;
+    const saveDirectory = providedPath || useSettingsStore.getState().imageDownloadPath || legacyPath;
+    if (!saveDirectory) {
+      return { scanned: 0, linked: 0, imported: 0, folders: 0 };
+    }
+
+    type LocalMediaFile = { path: string; relativeDir: string; fileName: string; mediaType: "image" | "gif" | "video" };
+    const { invoke } = await import("@tauri-apps/api/core");
+    const files = await invoke<LocalMediaFile[]>("scan_media_folder", { path: saveDirectory });
+    const db = getDb();
+    const existing = await db.select<Array<{ id: string; providerId: string; sourceId: string; localPath: string | null }>>(
+      "SELECT id, providerId, sourceId, localPath FROM FlowSavedImages",
+    );
+    const normalizePath = (value: string | null | undefined) => (value || "").replace(/\\/g, "/").toLowerCase();
+    const byPath = new Map(existing.filter(row => row.localPath).map(row => [normalizePath(row.localPath), row]));
+    const bySource = new Map(existing.map(row => [`${row.providerId}-${row.sourceId}`.toLowerCase(), row]));
+    const foldersByName = new Map((await db.select<Array<{ id: string; name: string }>>("SELECT id, name FROM FlowSavedFolders")).map(folder => [folder.name.toLowerCase(), folder.id]));
+    let linked = 0;
+    let imported = 0;
+    let createdFolders = 0;
+
+    for (const file of files) {
+      const { stem, providerId, sourceId } = parseLocalMediaIdentity(file.fileName, normalizePath(file.path));
+      const matched = byPath.get(normalizePath(file.path)) || bySource.get(`${providerId}-${sourceId}`.toLowerCase());
+      let folderId: string | null = null;
+
+      if (file.relativeDir) {
+        const folderName = file.relativeDir.replace(/\\/g, "/").split("/").filter(Boolean).join(" / ");
+        folderId = foldersByName.get(folderName.toLowerCase()) || null;
+        if (!folderId) {
+          folderId = crypto.randomUUID();
+          await db.execute(
+            "INSERT INTO FlowSavedFolders (id, name, description, coverUrl, query) VALUES (?, ?, ?, null, null)",
+            [folderId, folderName, `Imported from ${file.relativeDir}`],
+          );
+          foldersByName.set(folderName.toLowerCase(), folderId);
+          createdFolders++;
+        }
+      }
+
+      if (matched) {
+        await db.execute(
+          "UPDATE FlowSavedImages SET localPath = ?, isLocal = 1, mediaType = COALESCE(mediaType, ?), folderId = COALESCE(folderId, ?) WHERE id = ?",
+          [file.path, file.mediaType, folderId, matched.id],
+        );
+        linked++;
+        continue;
+      }
+
+      const id = `local:${normalizePath(file.path)}`;
+      await db.execute(
+        `INSERT OR IGNORE INTO FlowSavedImages
+         (id, folderId, sourceId, providerId, fullUrl, sampleUrl, thumbnailUrl, width, height, tags, rating, score, sourceUrl, artistTags, characterTags, copyrightTags, generalTags, metaTags, isLocal, localPath, mediaType, sourceMetadata)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, '[]', 'unknown', 0, '', '[]', '[]', '[]', '[]', '[]', 1, ?, ?, ?)`,
+        [id, folderId, sourceId, providerId, "", "", "", file.path, file.mediaType, JSON.stringify({ title: stem, fileType: file.fileName.split(".").pop() })],
+      );
+      imported++;
+    }
+
+    await get().loadFolders();
+    await get().loadSavedImages();
+    return { scanned: files.length, linked, imported, folders: createdFolders };
   },
 
   removeSavedImage: async (id) => {
