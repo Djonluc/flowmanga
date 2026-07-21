@@ -1,22 +1,15 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Layout } from './components/Layout';
 import { Reader } from './components/Reader'
-import { ControlPanel } from './components/ControlPanel'
-import { LibraryGrid } from './components/LibraryGrid'
 import { useReadingStore } from './stores/useReadingStore'
 // import { useLibraryStore } from './stores/useLibraryStore'
 import { useSettingsStore } from './stores/useSettingsStore'
-import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 // import { ArrowLeft } from 'lucide-react'
 import { useLibraryEvents } from './hooks/useLibraryEvents'
 import { useAdaptiveColor } from './hooks/useAdaptiveColor'
 import { useReadingAnalytics } from './hooks/useReadingAnalytics'
 import { AnimatePresence, motion } from 'framer-motion';
 
-import { HomeView } from './components/HomeView';
-import { DiscoverView } from './components/DiscoverView';
-import { VideoLibrary } from './components/video/VideoLibrary';
-import { DownloadsView } from './components/DownloadsView';
 
 import { AmbientBackground } from './components/AmbientBackground';
 import { OfflineAudioEngine } from './components/OfflineAudioEngine';
@@ -25,6 +18,14 @@ import { LocationModal } from './components/modals/LocationModal';
 import { SafetyCheckModal } from './components/modals/SafetyCheckModal';
 import { UpdateNotificationModal } from './components/modals/UpdateNotificationModal';
 import { TitleBar } from './components/TitleBar';
+import { FirstRunWizard } from './components/modals/FirstRunWizard';
+
+const LibraryGrid = lazy(() => import('./components/LibraryGrid').then(module => ({ default: module.LibraryGrid })));
+const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard').then(module => ({ default: module.AnalyticsDashboard })));
+const HomeView = lazy(() => import('./components/HomeView').then(module => ({ default: module.HomeView })));
+const DiscoverView = lazy(() => import('./components/DiscoverView').then(module => ({ default: module.DiscoverView })));
+const VideoLibrary = lazy(() => import('./components/video/VideoLibrary').then(module => ({ default: module.VideoLibrary })));
+const DownloadsView = lazy(() => import('./components/DownloadsView').then(module => ({ default: module.DownloadsView })));
 
 function App() {
   const { isInitializing, zoomScale, accentColor, theme } = useSettingsStore();
@@ -209,7 +210,7 @@ function MainContent() {
   const { images } = useReadingStore()
   const { currentVideo } = useVideoStore();
   const { 
-    activeView, 
+    activeView, firstRunComplete, downloadPath,
     isLocationModalOpen, setLocationModalOpen,
     isSafetyCheckModalOpen, safetyCheckTitle, onSafetyCheckResolved, setSafetyCheckModal
   } = useSettingsStore();
@@ -268,6 +269,7 @@ function MainContent() {
                 </motion.div>
             ) : (
                 <div className="h-full w-full relative">
+                  <Suspense fallback={<div className="h-full w-full grid place-items-center text-sm font-bold text-foreground-dim">Loading view…</div>}>
                     <LazyTab active={activeView === 'stats'}><AnalyticsDashboard /></LazyTab>
                     <LazyTab active={activeView === 'downloads'}>
                         <div className="flex-1 min-h-0 bg-transparent relative h-full">
@@ -280,11 +282,12 @@ function MainContent() {
                     <LazyTab active={!['stats', 'downloads', 'home', 'discover', 'videos'].includes(activeView)}>
                         <LibraryGrid />
                     </LazyTab>
+                  </Suspense>
                 </div>
             )}
         </AnimatePresence>
-        <ControlPanel />
     </Layout>
+    {!firstRunComplete && !downloadPath && <FirstRunWizard />}
     <LocationModal 
         isOpen={isLocationModalOpen} 
         onClose={() => setLocationModalOpen(false)}

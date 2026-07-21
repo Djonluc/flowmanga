@@ -57,10 +57,18 @@ export const FollowingTags: React.FC = () => {
       {favoriteTags.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {favoriteTags.map(tag => (
-            <div 
+            <div
               key={tag}
+              role="button"
+              tabIndex={0}
               className="group flex items-center justify-between p-4 bg-white/[0.03] border border-white/[0.06] rounded-2xl hover:bg-white/[0.05] transition-all cursor-pointer"
               onClick={() => handleTagClick(tag)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  handleTagClick(tag);
+                }
+              }}
             >
               <div className="flex items-center gap-3 overflow-hidden">
                 <div className="w-8 h-8 rounded-xl bg-pink-500/20 flex items-center justify-center text-pink-400 shrink-0">

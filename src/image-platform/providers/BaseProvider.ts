@@ -1,6 +1,7 @@
 import type { ImageProvider, PlatformImage, SearchQuery } from "../types";
 import { fetch } from "@tauri-apps/plugin-http";
 import { invoke } from "@tauri-apps/api/core";
+import { diagnostics } from "../../services/DiagnosticsService";
 
 interface ProviderRequestGate {
   tail: Promise<void>;
@@ -15,6 +16,8 @@ function redactNetworkError(value: string): string {
 }
 
 async function runWithProviderGate<T>(providerId: string, request: () => Promise<T>): Promise<T> {
+  const { useSettingsStore } = await import('../../stores/useSettingsStore');
+  const configuredInterval = useSettingsStore.getState().providerPolicies?.[providerId]?.minRequestIntervalMs || 0;
   const gate = providerRequestGates.get(providerId) ?? {
     tail: Promise.resolve(),
     nextRequestAt: 0,
@@ -37,7 +40,7 @@ async function runWithProviderGate<T>(providerId: string, request: () => Promise
 
     // Rule34 needs conservative spacing between requests; other providers retain their
     // existing throughput while still getting serialized request ownership.
-    gate.nextRequestAt = Date.now() + (providerId === 'rule34' ? 1_000 : 0);
+    gate.nextRequestAt = Date.now() + Math.max(configuredInterval, providerId === 'rule34' ? 1_000 : 0);
     return await request();
   } catch (error) {
     const message = typeof error === 'string'
@@ -86,7 +89,11 @@ export abstract class BaseProvider implements ImageProvider {
    * This bypasses CORS issues since the request is made from the Rust backend.
    */
   protected async fetchJson<T>(url: string, headers: Record<string, string> = {}, options: ProviderFetchOptions = {}): Promise<T> {
-    let retries = options.retries ?? 3;
+    const requestStartedAt = Date.now();
+    diagnostics.providerAttempt(this.id);
+    const { useSettingsStore } = await import("../../stores/useSettingsStore");
+    const configuredRetries = useSettingsStore.getState().providerPolicies?.[this.id]?.maxRetries;
+    let retries = options.retries ?? configuredRetries ?? 3;
     let delay = 1000;
     let headlessAttempted = false;
     
@@ -113,6 +120,7 @@ export abstract class BaseProvider implements ImageProvider {
                 timeoutId = setTimeout(() => reject(new Error(`Request timed out after ${options.timeoutMs ?? 30000}ms`)), options.timeoutMs ?? 30000);
               }),
             ]));
+            diagnostics.providerSuccess(this.id, Date.now() - requestStartedAt, Object.keys(headers).length > 0);
             return response;
           }
 
@@ -131,7 +139,9 @@ export abstract class BaseProvider implements ImageProvider {
             try {
               const rawJson = await invoke<string>("fetch_json_headless", { url: url.toString(), headers });
               try {
-                return JSON.parse(rawJson.trim()) as T;
+                const parsed = JSON.parse(rawJson.trim()) as T;
+                diagnostics.providerSuccess(this.id, Date.now() - requestStartedAt, Object.keys(headers).length > 0);
+                return parsed;
               } catch {
                 const preview = rawJson.trim().replace(/\s+/g, " ").slice(0, 160);
                 throw new Error(`Headless response was not JSON${preview ? `: ${preview}` : ""}`);
@@ -161,7 +171,9 @@ export abstract class BaseProvider implements ImageProvider {
           throw new Error(`[${this.id}] HTTP error! status: ${response.status}`);
         }
 
-        return await response.json();
+        const result = await response.json() as T;
+        diagnostics.providerSuccess(this.id, Date.now() - requestStartedAt, Object.keys(headers).length > 0);
+        return result;
         } finally {
           if (timeoutId) clearTimeout(timeoutId);
         }
@@ -178,6 +190,7 @@ export abstract class BaseProvider implements ImageProvider {
           retries--;
           continue;
         }
+        diagnostics.providerFailure(this.id, error);
         throw error;
       }
     }
@@ -189,6 +202,8 @@ export abstract class BaseProvider implements ImageProvider {
    * Helper function to fetch HTML via Tauri's HTTP plugin.
    */
   protected async fetchHtml(url: string, headers: Record<string, string> = {}): Promise<string> {
+    const requestStartedAt = Date.now();
+    diagnostics.providerAttempt(this.id);
     let retries = 3;
     let delay = 1000;
     
@@ -215,7 +230,9 @@ export abstract class BaseProvider implements ImageProvider {
           throw new Error(`[${this.id}] HTTP error! status: ${response.status}`);
         }
 
-        return await response.text();
+        const result = await response.text();
+        diagnostics.providerSuccess(this.id, Date.now() - requestStartedAt, Object.keys(headers).length > 0);
+        return result;
       } catch (error: any) {
         if (retries > 1) {
           console.warn(`[${this.id}] Fetch/Parse error: ${error.message}. Retrying in ${delay}ms...`);
@@ -224,6 +241,7 @@ export abstract class BaseProvider implements ImageProvider {
           retries--;
           continue;
         }
+        diagnostics.providerFailure(this.id, error);
         throw error;
       }
     }

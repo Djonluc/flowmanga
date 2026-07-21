@@ -865,6 +865,7 @@ export const ImageViewer: React.FC = () => {
           <div className="w-full h-full flex flex-col md:flex-row overflow-hidden">
             {/* Image Section */}
             <div
+              role="presentation"
               className="flex-1 relative flex items-center justify-center overflow-hidden"
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
@@ -1246,7 +1247,8 @@ export const ImageViewer: React.FC = () => {
                       ) : recommendations.length > 0 ? (
                         <div className="grid grid-cols-2 gap-3">
                           {recommendations.map((rec) => (
-                            <div
+                            <button
+                              type="button"
                               key={rec.id}
                               className="aspect-square rounded-xl overflow-hidden cursor-pointer hover:scale-105 transition-transform border border-white/5 relative group"
                               onClick={() => {
@@ -1267,7 +1269,7 @@ export const ImageViewer: React.FC = () => {
                                   {rec.source}
                                 </span>
                               </div>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       ) : (

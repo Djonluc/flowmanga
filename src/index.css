@@ -241,7 +241,7 @@ html,
   
   --color-foreground: #111827;
   --color-foreground-muted: #4b5563;
-  --color-foreground-dim: #9ca3af;
+  --color-foreground-dim: #6b7280;
   
   --color-border-subtle: rgba(0, 0, 0, 0.08);
   --color-border-strong: rgba(0, 0, 0, 0.15);
@@ -373,4 +373,17 @@ body {
 
 .shadow-card {
     box-shadow: var(--shadow-elevated);
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent, #7c3aed);
+  outline-offset: 2px;
 }

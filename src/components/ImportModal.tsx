@@ -189,13 +189,13 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                     {!isScraping && scrapedImages.length === 0 && chapterFeed.length === 0 && !isDownloading ? (
                         <form onSubmit={handleWebSubmit} className="space-y-6">
                           <div className="space-y-3">
-                            <label className="text-xs font-black text-foreground-dim uppercase tracking-widest">Source URL</label>
+                            <label htmlFor="import-source-url" className="text-xs font-black text-foreground-dim uppercase tracking-widest">Source URL</label>
                             <input
+                                id="import-source-url"
                                 type="text"
                                 value={localUrl}
                                 onChange={(e) => setLocalUrl(e.target.value)}
                                 placeholder="Paste MangaDex link here..."
-                                autoFocus
                                 className="w-full px-5 py-4 bg-black/40 border border-white/10 rounded-xl text-foreground placeholder:text-foreground-dim focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-medium"
                             />
                             <p className="text-[10px] text-foreground-dim italic">Example: mangadex.org/title/uuid or /chapter/uuid</p>
@@ -324,7 +324,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                         </div>
                                         <div className="flex flex-col gap-4">
                                           <div className="flex items-center justify-between">
-                                            <label className="text-xs font-black text-foreground-dim uppercase tracking-widest">Batch Selection</label>
+                                            <p className="text-xs font-black text-foreground-dim uppercase tracking-widest">Batch Selection</p>
                                             <div className="flex gap-2">
                                               <button 
                                                 onClick={handleSelectAll}
@@ -351,10 +351,11 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                           </div>
 
                                           <div className="flex items-center gap-3 bg-white/5 border border-white/10 p-4 rounded-xl">
-                                            <label className="text-[10px] font-black text-foreground-dim uppercase tracking-widest whitespace-nowrap">Chapter Range</label>
+                                            <span className="text-[10px] font-black text-foreground-dim uppercase tracking-widest whitespace-nowrap">Chapter Range</span>
                                             <div className="flex items-center gap-2 flex-1">
                                               <input 
                                                 type="number" 
+                                                aria-label="First chapter in range"
                                                 value={rangeFrom}
                                                 onChange={(e) => setRangeFrom(e.target.value)}
                                                 className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-foreground text-xs text-center"
@@ -363,6 +364,7 @@ export function ImportModal({ isOpen, onClose, onImportFolder }: ImportModalProp
                                               <span className="text-foreground-muted">to</span>
                                               <input 
                                                 type="number" 
+                                                aria-label="Last chapter in range"
                                                 value={rangeTo}
                                                 onChange={(e) => setRangeTo(e.target.value)}
                                                 className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-foreground text-xs text-center"

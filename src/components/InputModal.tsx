@@ -77,7 +77,6 @@ export function InputModal({ isOpen, onClose, onSubmit, title, placeholder, desc
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
                   placeholder={placeholder}
-                  autoFocus
                   className="w-full px-4 py-3 bg-surface-raised border border-white/10 rounded-lg text-foreground placeholder:text-foreground-dim focus:outline-none focus:border-blue-500 transition-colors"
                 />
 

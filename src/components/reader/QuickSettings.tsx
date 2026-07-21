@@ -70,7 +70,7 @@ export const QuickSettings = () => {
     >
       <AnimatePresence>
         {isOpen && (
-          <div className="fixed inset-0 z-[50]" onClick={() => setIsOpen(false)} onPointerDown={(e) => { e.stopPropagation(); setIsOpen(false); }} onWheel={(e) => e.stopPropagation()}>
+          <div className="fixed inset-0 z-[50]" role="button" tabIndex={0} aria-label="Close quick settings" onKeyDown={event => { if (event.key === 'Escape' || event.key === 'Enter') setIsOpen(false); }} onClick={() => setIsOpen(false)} onPointerDown={(e) => { e.stopPropagation(); setIsOpen(false); }} onWheel={(e) => e.stopPropagation()}>
           <motion.div
             initial={{ opacity: 0, x: 100, scale: 0.9, filter: "blur(20px)" }}
             animate={{ opacity: 1, x: 0, scale: 1, filter: "blur(0px)" }}

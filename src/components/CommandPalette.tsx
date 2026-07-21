@@ -243,8 +243,8 @@ export const CommandPalette = () => {
                         <div className="flex items-center px-6 py-6 border-b border-white/5 gap-4">
                             <Search className="text-foreground/20" size={24} />
                             <input 
-                                autoFocus
                                 type="text"
+                                aria-label="Search library and commands"
                                 placeholder="Search library, commands..."
                                 value={query}
                                 onChange={(e) => { setQuery(e.target.value); setSelectedIndex(0); }}
@@ -260,7 +260,8 @@ export const CommandPalette = () => {
                         <div className="max-h-[50vh] overflow-y-auto p-2">
                             {results.length > 0 ? (
                                 results.map((result, index) => (
-                                    <div
+                                    <button
+                                        type="button"
                                         key={result.id}
                                         onClick={result.action}
                                         className={`
@@ -282,7 +283,7 @@ export const CommandPalette = () => {
                                                 <ArrowRight size={14} />
                                             </div>
                                         )}
-                                    </div>
+                                    </button>
                                 ))
                             ) : (
                                 <div className="p-12 text-center">

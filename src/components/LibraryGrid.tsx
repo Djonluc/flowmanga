@@ -814,7 +814,7 @@ const ContextMenu = ({
 }) => {
   if (!activeMenu) return null;
   return (
-    <div className="fixed inset-0 z-[100]" onClick={onClose}>
+    <div className="fixed inset-0 z-[100]" role="button" tabIndex={0} aria-label="Close menu" onClick={onClose} onKeyDown={event => { if (event.key === 'Escape' || event.key === 'Enter') onClose(); }}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: -10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}

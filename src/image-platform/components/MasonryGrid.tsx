@@ -500,6 +500,14 @@ const ImageCard = ({
   return (
     <div
       ref={cardRef}
+      role="button"
+      tabIndex={0}
+      onKeyDown={event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onImageClick?.(image, index);
+        }
+      }}
       data-masonry-image-id={image.id}
       draggable={!!onReorder}
       onDragStart={(e) => {

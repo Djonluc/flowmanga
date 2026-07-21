@@ -86,8 +86,12 @@ export const SlideshowReader = () => {
 
     return (
         <div 
+            role="button"
+            tabIndex={0}
+            aria-label="Toggle slideshow playback"
             className="slideshow-reader w-full h-full flex items-center justify-center bg-transparent overflow-hidden relative cursor-pointer"
             onClick={togglePlayback}
+            onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); togglePlayback(); } }}
         >
             <AnimatePresence mode="wait">
                 <motion.div
@@ -104,16 +108,16 @@ export const SlideshowReader = () => {
             </AnimatePresence>
             
             {/* Quick Navigation Zones */}
-            <div className="absolute inset-y-0 left-0 w-1/4 group cursor-west-resize" onClick={prevSlide}>
+            <button type="button" aria-label="Previous slide" className="absolute inset-y-0 left-0 w-1/4 group cursor-west-resize" onClick={event => { event.stopPropagation(); prevSlide(); }}>
                 <div className="absolute inset-y-0 left-0 w-20 bg-gradient-to-r from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <Rewind size={32} className="text-foreground opacity-50" />
                 </div>
-            </div>
-            <div className="absolute inset-y-0 right-0 w-1/4 group cursor-east-resize" onClick={nextSlide}>
+            </button>
+            <button type="button" aria-label="Next slide" className="absolute inset-y-0 right-0 w-1/4 group cursor-east-resize" onClick={event => { event.stopPropagation(); nextSlide(); }}>
                 <div className="absolute inset-y-0 right-0 w-20 bg-gradient-to-l from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <FastForward size={32} className="text-foreground opacity-50" />
                 </div>
-            </div>
+            </button>
         </div>
     );
 };

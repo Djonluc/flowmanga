@@ -44,3 +44,4 @@ chat_history*.jsonl
 task.md
 scratch_*.cjs
 out.json
+eslint-*.json

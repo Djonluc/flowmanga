@@ -1,3 +1,39 @@
+## FlowManga 2.5.4
+
+FlowManga 2.5.4 completes the reliability, privacy, accessibility, and maintainability work identified in the application audit.
+
+### Reliability and data safety
+
+- Added numbered, transactional database migrations with automatic database backup before schema changes.
+- Added full library and settings export/restore without exporting credentials.
+- Added AES-256-GCM password-encrypted device-transfer packages.
+- Added download-integrity checks, missing-file repair tools, and exact/perceptual duplicate management.
+- Added a first-run wizard for folders, content safety, and source selection.
+
+### Providers and diagnostics
+
+- Consolidated Gallery Hub onto the canonical visual-media providers so authentication, pagination, filtering, and media mapping no longer diverge between duplicate implementations.
+- Added per-source request spacing, retries, schedules, status reporting, and last-error diagnostics.
+- Added structured Error, Warning, Info, Debug, and Trace logging with opt-in troubleshooting and sanitized diagnostic export.
+
+### Security and accessibility
+
+- Enabled a Tauri content security policy, reduced network capability scope to HTTPS, and rejected private, local, credential-bearing, and insecure remote URLs in the Rust proxy layer.
+- Removed unused broad shell capability while retaining safe external-link opening.
+- Added focus trapping and restoration, Escape behavior, visible keyboard focus, reduced-motion support, labels, media alternatives, and keyboard operation for readers, cards, menus, and dialogs.
+
+### Performance and release quality
+
+- Lazy-loaded major application views and Settings panels and split major third-party dependencies into stable production chunks.
+- Added 26 frontend tests and 3 Rust security tests.
+- Added CI quality checks and release verification for tests, packaged audio, desktop startup, and SHA-256 installer checksums.
+
+### Installing
+
+Download `FlowManga_2.5.4_x64-setup.exe` from the GitHub release assets and run it. Existing libraries, downloads, settings, provider sessions, and application preferences are preserved.
+
+---
+
 ## FlowManga 2.5.3 Hotfix
 
 FlowManga 2.5.3 fixes fullscreen behavior in installed Windows builds, improves the Paper theme, makes image details fit compact displays, and strengthens Sankaku session and media recovery.

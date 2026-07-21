@@ -145,7 +145,14 @@ export const VideoPlayer: React.FC = () => {
            onLoadedMetadata={handleLoadedMetadata}
            onEnded={handleEnded}
            onClick={() => togglePlay()}
-        />
+        >
+          <track
+            kind="captions"
+            src="data:text/vtt;charset=utf-8,WEBVTT%0A%0A"
+            srcLang="en"
+            label="No captions available"
+          />
+        </video>
 
         {/* Top Bar */}
         <div className={`absolute top-0 left-0 w-full p-4 bg-gradient-to-b from-black/80 to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>

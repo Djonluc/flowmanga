@@ -1,27 +1,26 @@
 import { HealthMonitor } from "./HealthMonitor";
 import { TagParser } from "./parser/TagParser";
-import type { BaseProvider } from "./providers/BaseProvider";
-import type { ImageMedia, EngineSearchOptions, StructuredQuery } from "./types";
+import type { ImageMedia, EngineSearchOptions, LegacyImageProvider, StructuredQuery } from "./types";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { isSankakuCoolingDown } from "../Sankaku";
 
 export class DiscoveryEngine {
-  private providers = new Map<string, BaseProvider>();
+  private providers = new Map<string, LegacyImageProvider>();
   private monitor = HealthMonitor.getInstance();
 
-  registerProvider(provider: BaseProvider) {
+  registerProvider(provider: LegacyImageProvider) {
     this.providers.set(provider.id, provider);
   }
 
-  getProvider(id: string): BaseProvider | undefined {
+  getProvider(id: string): LegacyImageProvider | undefined {
     return this.providers.get(id);
   }
 
-  getAllProviders(): BaseProvider[] {
+  getAllProviders(): LegacyImageProvider[] {
     return Array.from(this.providers.values());
   }
 
-  getActiveProviders(): BaseProvider[] {
+  getActiveProviders(): LegacyImageProvider[] {
     const booruAuth = useSettingsStore.getState().booruAuth;
     const disabledSources = useSettingsStore.getState().disabledSources || [];
 
@@ -52,7 +51,7 @@ export class DiscoveryEngine {
   }
 
   // Helper to check what providers need authentication but don't have it
-  getProvidersMissingAuth(): BaseProvider[] {
+  getProvidersMissingAuth(): LegacyImageProvider[] {
     const booruAuth = useSettingsStore.getState().booruAuth;
     const disabledSources = useSettingsStore.getState().disabledSources || [];
 
@@ -144,7 +143,7 @@ export class DiscoveryEngine {
   }
 
   private async fetchWithFallback(
-    provider: BaseProvider,
+    provider: LegacyImageProvider,
     method: "search" | "discovery",
     query: StructuredQuery | null,
     options: EngineSearchOptions,
@@ -205,7 +204,7 @@ export class DiscoveryEngine {
     return accumulated;
   }
 
-  private interleaveResults(resultsArray: ImageMedia[][], providers: BaseProvider[]): ImageMedia[] {
+  private interleaveResults(resultsArray: ImageMedia[][], providers: LegacyImageProvider[]): ImageMedia[] {
     const interleaved: ImageMedia[] = [];
     const pointers = new Array(resultsArray.length).fill(0);
     const seen = new Set<string>();

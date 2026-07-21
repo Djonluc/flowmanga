@@ -12,7 +12,7 @@ export function slugify(text: string): string {
 
 export function generateUniqueSlug(title: string, checkExists: (slug: string) => Promise<boolean>): Promise<string> {
   const baseSlug = slugify(title);
-  let finalSlug = baseSlug;
+  const finalSlug = baseSlug;
   let counter = 1;
 
   const getValidSlug = async (slug: string): Promise<string> => {

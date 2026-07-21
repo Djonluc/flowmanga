@@ -1,27 +1,34 @@
-import { useState } from 'react';
+import { lazy, Suspense, useCallback, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Settings, BookOpen, Download, Palette, Search } from 'lucide-react';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import clsx from 'clsx';
+import { useModalAccessibility } from '../../hooks/useModalAccessibility';
 
-import { GeneralSettings } from './GeneralSettings';
-import { ReaderSettings } from './ReaderSettings';
-import { AppearanceSettings } from './AppearanceSettings';
-import { DownloadSettings } from './DownloadSettings';
-import { AmbientSettings } from './AmbientSettings';
-import { SourcesSettings } from './SourcesSettings';
-import { AutomationSettings } from './AutomationSettings';
-import { UpdateSettings } from './UpdateSettings';
-import { MangaIntelligenceDebugger } from './MangaIntelligenceDebugger';
-import { AboutSettings } from './AboutSettings';
-import { Headphones, Globe, Sparkles, RefreshCw, ShieldAlert, Brain, Info } from 'lucide-react';
+import { Headphones, Globe, Sparkles, RefreshCw, ShieldAlert, Brain, Info, Activity, Database } from 'lucide-react';
 
-type SettingsTab = 'general' | 'reader' | 'appearance' | 'audio' | 'downloads' | 'sources' | 'automation' | 'updates' | 'intelligence' | 'about';
+const GeneralSettings = lazy(() => import('./GeneralSettings').then(module => ({ default: module.GeneralSettings })));
+const ReaderSettings = lazy(() => import('./ReaderSettings').then(module => ({ default: module.ReaderSettings })));
+const AppearanceSettings = lazy(() => import('./AppearanceSettings').then(module => ({ default: module.AppearanceSettings })));
+const DownloadSettings = lazy(() => import('./DownloadSettings').then(module => ({ default: module.DownloadSettings })));
+const AmbientSettings = lazy(() => import('./AmbientSettings').then(module => ({ default: module.AmbientSettings })));
+const SourcesSettings = lazy(() => import('./SourcesSettings').then(module => ({ default: module.SourcesSettings })));
+const AutomationSettings = lazy(() => import('./AutomationSettings').then(module => ({ default: module.AutomationSettings })));
+const UpdateSettings = lazy(() => import('./UpdateSettings').then(module => ({ default: module.UpdateSettings })));
+const MangaIntelligenceDebugger = lazy(() => import('./MangaIntelligenceDebugger').then(module => ({ default: module.MangaIntelligenceDebugger })));
+const AboutSettings = lazy(() => import('./AboutSettings').then(module => ({ default: module.AboutSettings })));
+const DiagnosticsSettings = lazy(() => import('./DiagnosticsSettings').then(module => ({ default: module.DiagnosticsSettings })));
+const DataManagementSettings = lazy(() => import('./DataManagementSettings').then(module => ({ default: module.DataManagementSettings })));
+
+type SettingsTab = 'general' | 'reader' | 'appearance' | 'audio' | 'downloads' | 'sources' | 'automation' | 'updates' | 'intelligence' | 'diagnostics' | 'data' | 'about';
 
 export const SettingsModal = () => {
     const { isSettingsOpen, toggleSettings } = useSettingsStore();
     const [activeTab, setActiveTab] = useState<SettingsTab>('general');
     const [searchQuery, setSearchQuery] = useState('');
+    const modalRef = useRef<HTMLDivElement>(null);
+    const closeSettings = useCallback(() => toggleSettings(), [toggleSettings]);
+    useModalAccessibility(isSettingsOpen, modalRef, closeSettings);
 
     const tabGroups = [
         {
@@ -46,6 +53,8 @@ export const SettingsModal = () => {
                 { id: 'audio', label: 'Audio', icon: Headphones },
                 { id: 'updates', label: 'Updates', icon: RefreshCw },
                 { id: 'intelligence', label: 'Intelligence', icon: Brain },
+                { id: 'diagnostics', label: 'Diagnostics', icon: Activity },
+                { id: 'data', label: 'Data & Backup', icon: Database },
                 { id: 'about', label: 'About', icon: Info },
             ]
         }
@@ -67,6 +76,11 @@ export const SettingsModal = () => {
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     {/* Backdrop */}
                     <motion.div 
+                        ref={modalRef}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="settings-dialog-title"
+                        tabIndex={-1}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
@@ -79,11 +93,11 @@ export const SettingsModal = () => {
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="relative w-full max-w-5xl h-[80vh] bg-surface rounded-[32px] border border-border-strong shadow-cinematic flex overflow-hidden"
+                        className="relative w-full max-w-5xl h-[min(90vh,900px)] bg-surface rounded-[24px] sm:rounded-[32px] border border-border-strong shadow-cinematic flex overflow-hidden"
                     >
                         {/* Sidebar */}
-                        <div className="w-64 bg-surface-elevated border-r border-border-subtle p-6 flex flex-col gap-2">
-                            <h2 className="text-2xl font-black text-foreground italic tracking-tighter mb-8 px-4">
+                        <div className="w-52 lg:w-64 bg-surface-elevated border-r border-border-subtle p-3 lg:p-6 flex flex-col gap-2">
+                            <h2 id="settings-dialog-title" className="text-2xl font-black text-foreground italic tracking-tighter mb-8 px-4">
                                 SETTINGS
                             </h2>
                             <div className="relative mb-6 px-4">
@@ -139,6 +153,7 @@ export const SettingsModal = () => {
                                 </h3>
                                 <button 
                                     onClick={toggleSettings}
+                                    aria-label="Close settings"
                                     className="p-2 rounded-full hover:bg-surface-elevated text-foreground-dim hover:text-foreground transition-colors"
                                 >
                                     <X size={20} />
@@ -147,16 +162,20 @@ export const SettingsModal = () => {
 
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8">
                                 <div className={clsx(activeTab === 'appearance' ? "max-w-5xl" : "max-w-2xl", "mx-auto space-y-8")}>
-                                    {activeTab === 'general' && <GeneralSettings />}
-                                    {activeTab === 'reader' && <ReaderSettings />}
-                                    {activeTab === 'audio' && <AmbientSettings />}
-                                    {activeTab === 'appearance' && <AppearanceSettings />}
-                                    {activeTab === 'downloads' && <DownloadSettings />}
-                                    {activeTab === 'automation' && <AutomationSettings />}
-                                    {activeTab === 'sources' && <SourcesSettings />}
-                                    {activeTab === 'updates' && <UpdateSettings />}
-                                    {activeTab === 'intelligence' && <MangaIntelligenceDebugger />}
-                                    {activeTab === 'about' && <AboutSettings />}
+                                    <Suspense fallback={<div className="py-12 text-center text-sm font-bold text-foreground-dim">Loading settings…</div>}>
+                                        {activeTab === 'general' && <GeneralSettings />}
+                                        {activeTab === 'reader' && <ReaderSettings />}
+                                        {activeTab === 'audio' && <AmbientSettings />}
+                                        {activeTab === 'appearance' && <AppearanceSettings />}
+                                        {activeTab === 'downloads' && <DownloadSettings />}
+                                        {activeTab === 'automation' && <AutomationSettings />}
+                                        {activeTab === 'sources' && <SourcesSettings />}
+                                        {activeTab === 'updates' && <UpdateSettings />}
+                                        {activeTab === 'intelligence' && <MangaIntelligenceDebugger />}
+                                        {activeTab === 'diagnostics' && <DiagnosticsSettings />}
+                                        {activeTab === 'data' && <DataManagementSettings />}
+                                        {activeTab === 'about' && <AboutSettings />}
+                                    </Suspense>
                                 </div>
                             </div>
                         </div>

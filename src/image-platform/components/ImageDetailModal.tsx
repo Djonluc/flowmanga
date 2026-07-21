@@ -656,10 +656,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
   }, [currentLocalPath, thumbnailSource, fullSource, initialVideoSource, image.mediaType, image.providerId, image.sourceId, loadRemoteSource]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-2 xl:p-4 bg-black/80 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-2 xl:p-4" role="dialog" aria-modal="true" aria-label="Image details">
+      <button type="button" className="absolute inset-0 bg-black/80 backdrop-blur-sm" aria-label="Close image details" onClick={onClose} />
       <div 
-        className="w-full max-w-[98vw] h-full max-h-[calc(100dvh-1rem)] bg-surface sm:rounded-2xl overflow-hidden shadow-2xl flex flex-col lg:flex-row border border-border-subtle min-w-0 min-h-0"
-        onClick={e => e.stopPropagation()}
+        className="relative w-full max-w-[98vw] h-full max-h-[calc(100dvh-1rem)] bg-surface sm:rounded-2xl overflow-hidden shadow-2xl flex flex-col lg:flex-row border border-border-subtle min-w-0 min-h-0"
       >
         {/* Left Side: Media */}
         <div 
@@ -679,7 +679,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
                   <span className="font-black tracking-widest uppercase text-xs">Buffering Video...</span>
                 </div>
               )}
-              <video 
+              <video
                 src={(fullSrc || thumbnailSrc) || undefined}
                 autoPlay
                 loop
@@ -703,7 +703,9 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({ image, image
                     }
                   });
                 }}
-              />
+              >
+                <track kind="captions" src="data:text/vtt;charset=utf-8,WEBVTT%0A%0A" srcLang="en" label="No captions available" />
+              </video>
             </>
           ) : (
             <div className="relative w-full h-full flex items-center justify-center pointer-events-none">

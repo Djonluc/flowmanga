@@ -474,6 +474,7 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
                           <div className="absolute inset-0">
                             <img 
                               src={folder.coverUrl || stats.firstImage} 
+                              alt={`${folder.name} album cover`}
                               onError={(e) => {
                                 if (e.currentTarget.src !== stats.firstImage && stats.firstImage) {
                                   e.currentTarget.src = stats.firstImage;
@@ -575,7 +576,7 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
                       }}
                       className="flex-none w-[100px] h-[140px] rounded-xl overflow-hidden border border-border-subtle bg-surface hover:border-accent hover:shadow-[0_0_15px_rgba(99,102,241,0.3)] transition-all group relative"
                     >
-                      <img src={img.sampleUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                      <img src={img.sampleUrl} alt={img.tags?.slice(0, 3).join(', ') || 'Recommended image'} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <Plus className="text-white drop-shadow-md" size={24} />
                       </div>
@@ -656,8 +657,9 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
             
             <div className="p-6 flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-foreground-muted mb-2">Album Name</label>
+                <label htmlFor="album-rule-name" className="block text-[10px] font-black uppercase tracking-widest text-foreground-muted mb-2">Album Name</label>
                 <input 
+                  id="album-rule-name"
                   type="text" 
                   value={editingRules.name}
                   onChange={e => setEditingRules({ ...editingRules, name: e.target.value })}
@@ -667,8 +669,9 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
               </div>
 
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-foreground-muted mb-2">Description</label>
+                <label htmlFor="album-rule-description" className="block text-[10px] font-black uppercase tracking-widest text-foreground-muted mb-2">Description</label>
                 <textarea 
+                  id="album-rule-description"
                   value={editingRules.description}
                   onChange={e => setEditingRules({ ...editingRules, description: e.target.value })}
                   placeholder="Optional description..."
@@ -678,8 +681,9 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
               </div>
 
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-accent mb-2">Primary Tag (Required)</label>
+                <label htmlFor="album-rule-primary" className="block text-[10px] font-black uppercase tracking-widest text-accent mb-2">Primary Tag (Required)</label>
                 <input 
+                  id="album-rule-primary"
                   type="text" 
                   value={editingRules.primary}
                   onChange={e => setEditingRules({ ...editingRules, primary: e.target.value })}
@@ -689,8 +693,9 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
               </div>
               
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-foreground-muted mb-2">Include Any Of (Optional, space-separated)</label>
+                <label htmlFor="album-rule-include" className="block text-[10px] font-black uppercase tracking-widest text-foreground-muted mb-2">Include Any Of (Optional, space-separated)</label>
                 <input 
+                  id="album-rule-include"
                   type="text" 
                   value={editingRules.include}
                   onChange={e => setEditingRules({ ...editingRules, include: e.target.value })}
@@ -700,8 +705,9 @@ export const MyCollectionTab: React.FC<MyCollectionTabProps> = ({ onImageClick, 
               </div>
 
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-red-400 mb-2">Exclude Tags (space-separated)</label>
+                <label htmlFor="album-rule-exclude" className="block text-[10px] font-black uppercase tracking-widest text-red-400 mb-2">Exclude Tags (space-separated)</label>
                 <input 
+                  id="album-rule-exclude"
                   type="text" 
                   value={editingRules.exclude}
                   onChange={e => setEditingRules({ ...editingRules, exclude: e.target.value })}

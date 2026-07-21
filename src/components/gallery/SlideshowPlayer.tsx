@@ -666,7 +666,8 @@ export const SlideshowPlayer: React.FC = () => {
               {slideshowImages
                 .slice(slideshowIndex + 1, slideshowIndex + 11)
                 .map((img, i) => (
-                  <div
+                  <button
+                    type="button"
                     key={`${img.id}-${i}`}
                     className="flex gap-4 items-center group cursor-pointer"
                     onClick={() => setSlideshowIndex(slideshowIndex + 1 + i)}
@@ -687,7 +688,7 @@ export const SlideshowPlayer: React.FC = () => {
                         {img.source}
                       </p>
                     </div>
-                  </div>
+                  </button>
                 ))}
             </div>
           </motion.div>

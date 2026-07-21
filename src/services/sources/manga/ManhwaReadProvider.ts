@@ -67,7 +67,7 @@ export class ManhwaReadProvider implements SourceProvider {
     const res = await invoke<any>("scrape_series_headless", { url });
     const links: string[] = res.chapter_links || res.chapterLinks || [];
     
-    let tags: string[] = [];
+    const tags: string[] = [];
     try {
       const htmlText = await invoke<string>("fetch_html", { url, headers: null });
       const parser = new DOMParser();

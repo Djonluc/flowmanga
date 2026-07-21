@@ -4,11 +4,9 @@ import { CollectionEngine } from "./CollectionEngine";
 import { RecommendationEngine } from "./RecommendationEngine";
 import { HealthMonitor } from "./HealthMonitor";
 
-import { DanbooruClient } from "./providers/DanbooruClient";
+import { federator } from '../../image-platform/SearchFederator';
+import { UnifiedProviderAdapter } from './UnifiedProviderAdapter';
 // import { GelbooruClient } from "./providers/GelbooruClient"; // DISABLED — not ready
-import { Rule34Client } from "./providers/Rule34Client";
-import { SankakuClient } from "./providers/SankakuClient";
-import { EHentaiClient } from "./providers/EHentaiClient";
 
 // Singleton instances
 export const imageDiscovery = new DiscoveryEngine();
@@ -20,13 +18,10 @@ export const imageHealth = HealthMonitor.getInstance();
 export { RecommendationEngine };
 
 // Initialize default providers
-const providers = [
-  new DanbooruClient(),
+const providers = federator.getProviders().map(provider => new UnifiedProviderAdapter(provider));
+/*
   // new GelbooruClient(),  // DISABLED — not ready
-  new Rule34Client(),
-  new SankakuClient(),
-  new EHentaiClient(),
-];
+*/
 
 providers.forEach(p => {
   imageDiscovery.registerProvider(p);

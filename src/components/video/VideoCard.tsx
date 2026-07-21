@@ -18,9 +18,12 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onClick, isCurrent 
   };
 
   return (
-    <div 
+    <div
+      role="button"
+      tabIndex={0}
       className={`group relative aspect-video bg-[#050505] rounded-3xl overflow-hidden cursor-pointer transition-all duration-500 border border-white/5 hover:border-blue-500/50 hover:shadow-2xl hover:shadow-blue-500/10 ${isCurrent ? 'ring-2 ring-blue-500 shadow-2xl shadow-blue-500/20' : ''}`}
       onClick={onClick}
+      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick(); } }}
     >
       {/* Thumbnail */}
       {video.thumbnailPath ? (

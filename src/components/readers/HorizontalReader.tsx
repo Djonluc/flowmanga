@@ -42,8 +42,8 @@ export const HorizontalReader = () => {
   return (
     <div className="w-full h-full relative flex items-center justify-center bg-black overflow-hidden group">
       {/* Navigation Zones */}
-      <div className="absolute inset-y-0 left-0 w-1/4 z-10 cursor-pointer" onClick={() => readingDirection === 'ltr' ? prevPage() : nextPage()} title="Previous" />
-      <div className="absolute inset-y-0 right-0 w-1/4 z-10 cursor-pointer" onClick={() => readingDirection === 'ltr' ? nextPage() : prevPage()} title="Next" />
+      <button type="button" aria-label="Previous page" className="absolute inset-y-0 left-0 w-1/4 z-10 cursor-pointer" onClick={() => readingDirection === 'ltr' ? prevPage() : nextPage()} title="Previous" />
+      <button type="button" aria-label="Next page" className="absolute inset-y-0 right-0 w-1/4 z-10 cursor-pointer" onClick={() => readingDirection === 'ltr' ? nextPage() : prevPage()} title="Next" />
       
       {/* Navigation Indicators */}
       <button 

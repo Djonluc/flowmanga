@@ -526,8 +526,17 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
             return (
               <div 
                 key={p.id} 
+                role={isBulkMode ? 'checkbox' : undefined}
+                tabIndex={isBulkMode ? 0 : undefined}
+                aria-checked={isBulkMode ? isSelected : undefined}
                 onClick={() => {
                   if (isBulkMode) {
+                    setSelectedIds(prev => isSelected ? prev.filter(id => id !== p.id) : [...prev, p.id]);
+                  }
+                }}
+                onKeyDown={event => {
+                  if (isBulkMode && (event.key === 'Enter' || event.key === ' ')) {
+                    event.preventDefault();
                     setSelectedIds(prev => isSelected ? prev.filter(id => id !== p.id) : [...prev, p.id]);
                   }
                 }}
@@ -541,7 +550,7 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
                 
                 {p.coverUrl && (
                   <div className="absolute inset-0 z-0">
-                    <img src={p.coverUrl} className="w-full h-full object-cover opacity-20 group-hover:opacity-30 transition-opacity" />
+                    <img src={p.coverUrl} alt="" className="w-full h-full object-cover opacity-20 group-hover:opacity-30 transition-opacity" />
                     <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/80 to-surface/40" />
                   </div>
                 )}
@@ -608,8 +617,9 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
             <div className="p-6 flex flex-col gap-5 overflow-y-auto">
               {/* Name */}
               <div>
-                <label className="block text-xs font-black uppercase tracking-widest text-foreground-muted mb-2">Playlist Name</label>
+                <label htmlFor="playlist-name" className="block text-xs font-black uppercase tracking-widest text-foreground-muted mb-2">Playlist Name</label>
                 <input 
+                  id="playlist-name"
                   type="text" 
                   value={playlistName}
                   onChange={e => setPlaylistName(e.target.value)}
@@ -620,7 +630,7 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
 
               {/* Media Type Toggle */}
               <div>
-                <label className="block text-xs font-black uppercase tracking-widest text-foreground-muted mb-2">Allowed Media Types</label>
+                <p className="block text-xs font-black uppercase tracking-widest text-foreground-muted mb-2">Allowed Media Types</p>
                 <div className="flex gap-2">
                   {(['image', 'video', 'gif'] as const).map(type => {
                     const isSelected = builderState.allowedMediaTypes?.includes(type) ?? true;
@@ -663,7 +673,10 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
                       {labels[field]}
                     </label>
                     <div className={`min-h-[44px] p-2 rounded-xl border ${activeTagField === field ? borderColors[field] : 'border-border-subtle'} bg-black/20 flex flex-wrap items-center gap-2 cursor-text`}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setActiveTagField(field)}
+                      onKeyDown={event => { if (event.key === 'Enter') setActiveTagField(field); }}
                     >
                       {builderState[field].map((tag, i) => (
                         <TagChip key={`${field}-${i}`} tag={tag} field={field} index={i} color={colors[field]} />
@@ -694,7 +707,6 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ onPlay }) => {
                         value={tagSearchFilter}
                         onChange={e => setTagSearchFilter(e.target.value)}
                         placeholder="Search tags..."
-                        autoFocus
                         className="w-full pl-9 pr-4 py-2 bg-black/30 border border-border-subtle rounded-lg text-sm text-foreground focus:outline-none focus:border-accent"
                       />
                     </div>

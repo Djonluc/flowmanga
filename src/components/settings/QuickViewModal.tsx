@@ -280,7 +280,8 @@ export const QuickViewModal = () => {
                                         </div>
                                         <div ref={railRef} className="flex gap-4 overflow-x-auto no-scrollbar scroll-smooth pb-4">
                                             {relatedItems.map((item, idx) => (
-                                                <div 
+                                                <button
+                                                    type="button"
                                                     key={idx} 
                                                     onClick={() => useModalStore.getState().openQuickView(item)}
                                                     className="min-w-[120px] aspect-[2/3] rounded-2xl bg-white/5 border border-white/10 overflow-hidden cursor-pointer hover:scale-105 transition-all group relative"
@@ -289,7 +290,7 @@ export const QuickViewModal = () => {
                                                     <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent flex flex-col justify-end p-3">
                                                         <span className="text-[8px] font-black text-foreground uppercase truncate">{item.title}</span>
                                                     </div>
-                                                </div>
+                                                </button>
                                             ))}
                                         </div>
                                     </div>

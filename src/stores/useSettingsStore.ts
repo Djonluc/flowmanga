@@ -30,6 +30,14 @@ export interface BooruAuth {
   artistTypeValue?: string;
 }
 
+export interface ProviderRuntimePolicy {
+  minRequestIntervalMs: number;
+  maxRetries: number;
+  scheduleEnabled: boolean;
+  activeFromHour: number;
+  activeToHour: number;
+}
+
 interface SettingsState {
   theme: Theme;
   readingMode: ReadingMode;
@@ -202,6 +210,8 @@ interface SettingsState {
   disabledSources: string[];
   toggleSource: (sourceId: string) => void;
   isSourceEnabled: (sourceId: string) => boolean;
+  providerPolicies: Record<string, ProviderRuntimePolicy>;
+  setProviderPolicy: (sourceId: string, policy: Partial<ProviderRuntimePolicy>) => void;
 
   // App Version / Updates
   updateInfo: UpdateInfo | null;
@@ -590,6 +600,21 @@ export const useSettingsStore = create<SettingsState>()(
         const state = useSettingsStore.getState();
         return !state.disabledSources.includes(sourceId);
       },
+      providerPolicies: {},
+      setProviderPolicy: (sourceId, policy) => set(state => ({
+        providerPolicies: {
+          ...state.providerPolicies,
+          [sourceId]: {
+            minRequestIntervalMs: 0,
+            maxRetries: 3,
+            scheduleEnabled: false,
+            activeFromHour: 0,
+            activeToHour: 24,
+            ...state.providerPolicies[sourceId],
+            ...policy,
+          },
+        },
+      })),
 
       // App Version / Updates
       updateInfo: null,

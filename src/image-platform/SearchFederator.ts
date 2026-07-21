@@ -117,10 +117,18 @@ export class SearchFederator {
 
   async getActiveProviders(): Promise<ImageProvider[]> {
     const { useSettingsStore } = await import("../stores/useSettingsStore");
-    const { isSourceEnabled } = useSettingsStore.getState();
+    const { isSourceEnabled, providerPolicies } = useSettingsStore.getState();
     // Sankaku has a public feed; a captured session unlocks additional
     // restricted content but should not make the entire source disappear.
-    return this.getProviders().filter(p => isSourceEnabled(p.id));
+    const hour = new Date().getHours();
+    return this.getProviders().filter(provider => {
+      if (!isSourceEnabled(provider.id)) return false;
+      const policy = providerPolicies?.[provider.id];
+      if (!policy?.scheduleEnabled) return true;
+      const from = Math.max(0, Math.min(23, policy.activeFromHour));
+      const to = Math.max(1, Math.min(24, policy.activeToHour));
+      return from < to ? hour >= from && hour < to : hour >= from || hour < to;
+    });
   }
 
   async getById(providerId: string, sourceId: string, options?: { forceRefresh?: boolean }): Promise<PlatformImage | null> {

@@ -8,6 +8,9 @@ import { useSettingsStore } from './stores/useSettingsStore'
 import { useLibraryStore } from './stores/useLibraryStore'
 import { useGalleryStore } from './stores/useGalleryStore'
 import { AppVersionService } from './services/AppVersionService'
+import { installConsoleDiagnostics } from './services/DiagnosticsService'
+
+installConsoleDiagnostics();
 
 // Initialize the root early to show a loading state immediately
 const root = createRoot(document.getElementById('root')!);

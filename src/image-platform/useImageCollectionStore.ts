@@ -196,7 +196,7 @@ export const useImageCollectionStore = create<ImageCollectionState>((set, get) =
 
         if (targetFolderName) {
           targetFolderName = targetFolderName.replace(/\b\w/g, c => c.toUpperCase()); // Capitalize
-          let folder = state.folders.find(f => f.name.toLowerCase() === targetFolderName!.toLowerCase());
+          const folder = state.folders.find(f => f.name.toLowerCase() === targetFolderName!.toLowerCase());
           
           if (!folder) {
             const newId = crypto.randomUUID();
@@ -497,7 +497,7 @@ export const useImageCollectionStore = create<ImageCollectionState>((set, get) =
       // Get images that aren't already grouped, or just all images. Let's do all images.
       const allImages = await db.select<any[]>("SELECT * FROM FlowSavedImages");
       
-      let scanned = allImages.length;
+      const scanned = allImages.length;
       let assigned = 0;
       let created = 0;
       let skipped = 0;
@@ -532,7 +532,7 @@ export const useImageCollectionStore = create<ImageCollectionState>((set, get) =
           continue;
         }
 
-        let folder = get().folders.find(f => f.name.toLowerCase() === folderName.toLowerCase());
+        const folder = get().folders.find(f => f.name.toLowerCase() === folderName.toLowerCase());
         let folderId: string;
         
         if (!folder) {

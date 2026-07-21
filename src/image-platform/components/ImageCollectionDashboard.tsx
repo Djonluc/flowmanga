@@ -81,14 +81,16 @@ const SlideshowMedia = ({ image, isPaused }: { image: PlatformImage; isPaused: b
     return (
       <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
         {src && <img src={image.thumbnailUrl || image.sampleUrl || ""} className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-40 scale-125 pointer-events-none saturate-150" alt="" />}
-        <video 
+        <video
           src={src || ""}
           autoPlay
           muted={!isPaused}
           controls={isPaused}
           onEnded={() => useSlideshowStore.getState().next()}
           className="w-full h-full object-contain select-none animate-fade-in relative z-10"
-        />
+        >
+          <track kind="captions" src="data:text/vtt;charset=utf-8,WEBVTT%0A%0A" srcLang="en" label="No captions available" />
+        </video>
       </div>
     );
   }

@@ -146,7 +146,7 @@ export class WebNovelProvider implements SourceProvider {
         if (descEl) description = descEl.textContent?.trim() || "";
     }
 
-    let chapters: SourceChapter[] = [];
+    const chapters: SourceChapter[] = [];
     
     // 3. Extract chapters from catalog
     if (catalogHtml) {
@@ -317,7 +317,7 @@ export class WebNovelProvider implements SourceProvider {
       const seen = new Set<string>();
 
       items.forEach(item => {
-          let href = item.getAttribute("href") || "";
+          const href = item.getAttribute("href") || "";
           if (!href.includes("webnovel.com/comic") && !href.startsWith("/comic/")) return;
 
           let absoluteUrl = href;

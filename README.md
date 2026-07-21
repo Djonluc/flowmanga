@@ -60,6 +60,15 @@ FlowManga is a local-first Tauri 2 desktop application for reading, organizing, 
 - Source-aware tag autocomplete, typed tags, exclusions, and media filtering.
 - Shared Sankaku image and Books authentication with session verification.
 - Download queue with pause, resume, retry reporting, cleanup, and native image processing.
+- Per-source request spacing, retry policy, schedules, live status, and sanitized diagnostics.
+
+### Reliability, privacy, and maintenance
+
+- Numbered transactional database migrations with an automatic pre-migration backup.
+- Full library/settings export and restore, plus password-encrypted device-transfer packages.
+- Exact and perceptual duplicate detection, missing-file checks, and download-integrity repair tools.
+- Structured troubleshooting logs with secret and local-path redaction.
+- First-run setup for library folders, download location, content safety, and enabled sources.
 
 ### Desktop integration
 
@@ -132,12 +141,14 @@ Copy `.env.example` to `.env` only when non-default scraper behavior is required
 ```bash
 npm ci
 npm run typecheck
+npm run lint:a11y
+npm test
 npm run vite-build
 cargo test --manifest-path src-tauri/Cargo.toml
 cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 ```
 
-The repository still contains legacy ESLint debt, primarily explicit `any` annotations and older hook patterns. TypeScript, the production Vite build, Rust tests, and Clippy are the current release gates. See [DEPLOYMENT.md](DEPLOYMENT.md) for the tag-driven Windows publishing process.
+CI runs TypeScript, frontend tests, the production Vite build, Rust tests, Clippy, dependency auditing, bundled-audio verification, a desktop startup smoke check, and release checksum generation. The audited interaction surfaces also pass the accessibility rules for labels, keyboard operation, focus, media alternatives, and dialog behavior. See [DEPLOYMENT.md](DEPLOYMENT.md) for the tag-driven Windows publishing process.
 
 ---
 
@@ -165,11 +176,11 @@ flowmanga/
 
 ## Roadmap
 
-- Continue reducing legacy ESLint and type debt.
-- Add automated tests for provider mapping, recommendation filtering, and Rust range streaming.
+- Continue reducing legacy type and hook debt directory by directory.
+- Expand provider fixtures and installed-Windows UI smoke coverage.
 - Improve reader performance for very long chapters and large local libraries.
 - Expand touch and gesture support.
-- Explore optional self-hosted synchronization and source extensions.
+- Explore opt-in hosted synchronization in addition to encrypted manual device transfer.
 
 ---
 
@@ -187,6 +198,6 @@ flowmanga/
 [![YouTube](https://img.shields.io/badge/YouTube-@Djonluc-FF0000?style=flat-square&logo=youtube)](https://www.youtube.com/@Djonluc)
 [![Email](https://img.shields.io/badge/Email-djonstnix@gmail.com-5B8CFF?style=flat-square&logo=gmail)](mailto:djonstnix@gmail.com)
 
-**Version:** 2.5.3 · **Status:** active development
+**Version:** 2.5.4 · **Status:** active development
 
 </div>

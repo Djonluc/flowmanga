@@ -53,7 +53,7 @@ export class TagIntelligenceService {
         if (existing.length > 0) {
           // Only update score for tags the user already added manually
           // Do NOT auto-insert new tags — user controls what's in their interests
-          let newScore = existing[0].score + 1;
+          const newScore = existing[0].score + 1;
 
           // Auto-promote to dominant if score reaches 5 (and it's a tag, not pinned manually)
           let newType = existing[0].type;
@@ -68,7 +68,7 @@ export class TagIntelligenceService {
           // If tag doesn't exist yet — skip. User must add it manually.
         }
       } else if (action === 'remove' && existing.length > 0) {
-        let newScore = existing[0].score - 1;
+        const newScore = existing[0].score - 1;
 
         if (newScore <= 0 && !existing[0].isPinned) {
           // Remove from DB if score reaches 0 and not pinned

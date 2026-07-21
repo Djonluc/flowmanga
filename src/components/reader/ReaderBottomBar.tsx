@@ -240,6 +240,16 @@ export const ReaderBottomBar = ({ visible }: { visible: boolean }) => {
 
               <div
                 ref={barRef}
+                role="slider"
+                tabIndex={0}
+                aria-label="Reading progress"
+                aria-valuemin={1}
+                aria-valuemax={Math.max(totalPages, 1)}
+                aria-valuenow={Math.min(currentIndex + 1, Math.max(totalPages, 1))}
+                onKeyDown={event => {
+                  if (event.key === 'ArrowLeft') setPage(Math.max(0, currentIndex - 1));
+                  if (event.key === 'ArrowRight') setPage(Math.min(totalPages - 1, currentIndex + 1));
+                }}
                 onMouseMove={handleMouseMove}
                 onMouseLeave={() => {
                   if (!isDragging) {

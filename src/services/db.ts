@@ -1,4 +1,5 @@
 import Database from "@tauri-apps/plugin-sql";
+import { runDatabaseMigrations } from './DatabaseMigrations';
 
 let db: Database | null = null;
 
@@ -248,6 +249,11 @@ export const initDatabase = async () => {
       updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  // Numbered, transactional migrations run before compatibility fallbacks.
+  // A native database copy is created first, and failures include the exact
+  // migration number instead of being silently swallowed.
+  await runDatabaseMigrations(db);
 
   // Migration: Ensure lastPosition exists for existing databases
 

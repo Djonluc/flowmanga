@@ -18,10 +18,10 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: lts/*
           cache: npm
@@ -42,6 +42,9 @@ jobs:
       - name: Verify TypeScript
         run: npm run typecheck
 
+      - name: Run frontend regression tests
+        run: npm test
+
       - name: Verify web production build
         run: npm run vite-build
 
@@ -50,6 +53,26 @@ jobs:
 
       - name: Run Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Verify bundled audio resources
+        shell: pwsh
+        run: |
+          $tracks = Get-ChildItem -Path assets/audio -Recurse -File -ErrorAction Stop
+          if ($tracks.Count -eq 0) { throw "No bundled audio tracks were found." }
+          Write-Host "Verified $($tracks.Count) bundled audio resource(s)."
+
+      - name: Build unpackaged desktop executable for smoke test
+        run: npx tauri build --no-bundle
+
+      - name: Smoke test packaged application startup
+        shell: pwsh
+        run: |
+          $exe = Get-Item src-tauri/target/release/app.exe -ErrorAction Stop
+          $process = Start-Process -FilePath $exe.FullName -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 10
+          if ($process.HasExited) { throw "Packaged application exited during startup with code $($process.ExitCode)." }
+          Stop-Process -Id $process.Id -Force
+          Write-Host "Packaged executable remained healthy through the startup smoke window."
 
       - name: Verify tag matches application version
         shell: pwsh
@@ -79,3 +102,15 @@ jobs:
           releaseBody: ${{ steps.release-notes.outputs.body }}
           releaseDraft: false
           prerelease: false
+
+      - name: Publish installer checksum
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $installer = Get-ChildItem src-tauri/target/release/bundle/nsis -Filter "*.exe" | Select-Object -First 1
+          if (-not $installer) { throw "NSIS installer was not produced." }
+          $hash = (Get-FileHash -Algorithm SHA256 $installer.FullName).Hash.ToLowerInvariant()
+          $checksumPath = "$($installer.FullName).sha256"
+          "$hash  $($installer.Name)" | Set-Content -Encoding ascii $checksumPath
+          gh release upload "${{ github.ref_name }}" $checksumPath --clobber

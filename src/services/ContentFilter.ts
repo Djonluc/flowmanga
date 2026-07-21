@@ -76,7 +76,7 @@ export class ContentFilter {
       "bl",
       "gl"
     ].includes(t) ||
-    /(^|_)(trap|femboy|sissy|gay|lesbian|homosexual|bisexual|transgender|yaoi|yuri|bara|sex|oral|anal|penetration|masturbation|handjob|blowjob|vagina|penis|pussy|dick|cock|genitals|anus|cum|topless|nipples)(_|$)/.test(normalized) ||
+    /(^|_)(explicit|nudity|nude|trap|femboy|sissy|gay|lesbian|homosexual|bisexual|transgender|yaoi|yuri|bara|sex|oral|anal|penetration|masturbation|handjob|blowjob|vagina|penis|pussy|dick|cock|genitals|anus|cum|topless|nipples)(_|$)/.test(normalized) ||
     t.includes("fetish") ||
     t.includes("explicit sexual") ||
     t.includes("erotic");

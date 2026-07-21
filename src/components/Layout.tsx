@@ -37,8 +37,7 @@ interface LayoutProps {
 export const Layout = ({ children, hideSidebar = false }: LayoutProps) => {
     const { 
         theme, 
-        isScreenshotMode, 
-        zoomScale, 
+        isScreenshotMode,
         activeView 
     } = useSettingsStore();
     
@@ -50,7 +49,7 @@ export const Layout = ({ children, hideSidebar = false }: LayoutProps) => {
     } = useModalStore();
 
     const { deleteSeries, addMangaFolder } = useLibraryStore();
-    const { images, currentPageIndex } = useReadingStore();
+    const { images } = useReadingStore();
 
     const handleImportFolder = async () => {
         const { open: openDialog } = await import('@tauri-apps/plugin-dialog');

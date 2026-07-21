@@ -12,16 +12,18 @@ export const VideoFolderGrid: React.FC<VideoFolderGridProps> = ({ folders, onSel
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 p-6">
       {folders.map(folder => (
-        <div 
+        <button
+          type="button"
           key={folder.id}
           onClick={() => onSelectFolder(folder)}
-          className="group cursor-pointer flex flex-col items-center"
+          className="group cursor-pointer flex flex-col items-center text-left"
         >
            {/* Folder Icon / Cover */}
            <div className="relative w-full aspect-[2/3] bg-[#050505] rounded-3xl overflow-hidden border border-white/5 transition-all duration-500 hover:scale-105 hover:border-blue-500/50 shadow-2xl group-hover:shadow-blue-500/10">
                {folder.videos[0]?.thumbnailPath ? (
                    <img 
                       src={convertFileSrc(folder.videos[0].thumbnailPath)} 
+                      alt={`Preview for ${folder.name}`}
                       className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all duration-700 group-hover:scale-110"
                    />
                ) : (
@@ -40,7 +42,7 @@ export const VideoFolderGrid: React.FC<VideoFolderGridProps> = ({ folders, onSel
            <h3 className="mt-4 text-foreground font-black text-xs uppercase tracking-widest text-center truncate w-full px-4 opacity-50 group-hover:opacity-100 transition-opacity">
                {folder.name}
            </h3>
-        </div>
+        </button>
       ))}
     </div>
   );

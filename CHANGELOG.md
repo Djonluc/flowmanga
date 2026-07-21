@@ -1,3 +1,23 @@
+## FlowManga v2.5.4 - 2026-07-21
+
+### Added
+
+- Transactional database migrations, automatic backups, full export/restore, encrypted device transfer, library integrity checks, and duplicate management.
+- Source diagnostics, structured redacted logging, troubleshooting export, request policies, schedules, and first-run setup.
+- Frontend provider/filter/data tests, Rust URL-policy tests, CI quality checks, startup smoke testing, and installer checksums.
+
+### Changed
+
+- Gallery Hub now adapts the canonical image-platform providers instead of maintaining duplicate provider implementations.
+- Major views, Settings panels, and third-party dependencies are code-split for faster startup.
+- Reader, viewer, playlist, collection, video, menu, and settings interactions now include keyboard and assistive-technology support.
+
+### Security
+
+- Enabled CSP, reduced Tauri HTTP and shell permissions, and hardened every native remote fetch against insecure, private, local, or credential-bearing URLs.
+
+---
+
 # FlowManga v2.5.3 Hotfix
 
 This hotfix corrects installed-build fullscreen sizing, improves Paper-theme readability, makes image details responsive, and clarifies Sankaku session and media failures.

@@ -6,6 +6,21 @@ use tauri::{command, AppHandle, Emitter, Manager};
 use uuid::Uuid;
 use walkdir::WalkDir;
 
+#[command]
+fn backup_database(app: AppHandle) -> Result<String, String> {
+    let config_dir = app.path().app_config_dir().map_err(|error| error.to_string())?;
+    let source = config_dir.join("flowmanga.db");
+    if !source.exists() {
+        return Err(format!("Database was not found at {}", source.display()));
+    }
+    let backup_dir = config_dir.join("backups");
+    fs::create_dir_all(&backup_dir).map_err(|error| error.to_string())?;
+    let timestamp = chrono::Utc::now().format("%Y%m%d-%H%M%S");
+    let destination = backup_dir.join(format!("flowmanga-pre-migration-{}.db", timestamp));
+    fs::copy(&source, &destination).map_err(|error| error.to_string())?;
+    Ok(normalize_path(&destination))
+}
+
 #[derive(Serialize)]
 pub struct VideoMetadata {
     id: String,
@@ -15,6 +30,53 @@ pub struct VideoMetadata {
 
 fn normalize_path(path: &Path) -> String {
     path.to_string_lossy().replace("\\", "/")
+}
+
+fn validate_remote_url(value: &str) -> Result<url::Url, String> {
+    let parsed = url::Url::parse(value).map_err(|_| "Remote URL is invalid".to_string())?;
+    if parsed.scheme() != "https" {
+        return Err("Only HTTPS remote requests are allowed".to_string());
+    }
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("Credentials embedded in remote URLs are not allowed".to_string());
+    }
+    let private = match parsed.host().ok_or_else(|| "Remote URL has no host".to_string())? {
+        url::Host::Domain(value) => {
+            let host = value.to_ascii_lowercase();
+            host == "localhost" || host.ends_with(".localhost") || host.ends_with(".local")
+        }
+        url::Host::Ipv4(ip) => ip.is_private() || ip.is_loopback() || ip.is_link_local() || ip.is_broadcast() || ip.is_unspecified(),
+        url::Host::Ipv6(ip) => {
+            let first = ip.segments()[0];
+            ip.is_loopback() || ip.is_unspecified() || (first & 0xfe00) == 0xfc00 || (first & 0xffc0) == 0xfe80
+        }
+    };
+    if private { return Err("Private network targets are not allowed".to_string()); }
+    Ok(parsed)
+}
+
+#[cfg(test)]
+mod security_tests {
+    use super::validate_remote_url;
+
+    #[test]
+    fn remote_url_policy_accepts_public_https() {
+        assert!(validate_remote_url("https://example.com/media.jpg").is_ok());
+    }
+
+    #[test]
+    fn remote_url_policy_rejects_insecure_and_private_targets() {
+        assert!(validate_remote_url("http://example.com/media.jpg").is_err());
+        assert!(validate_remote_url("https://localhost/private").is_err());
+        assert!(validate_remote_url("https://127.0.0.1/private").is_err());
+        assert!(validate_remote_url("https://192.168.1.10/private").is_err());
+        assert!(validate_remote_url("https://[::1]/private").is_err());
+    }
+
+    #[test]
+    fn remote_url_policy_rejects_embedded_credentials() {
+        assert!(validate_remote_url("https://user:password@example.com/file").is_err());
+    }
 }
 
 #[command]
@@ -983,6 +1045,7 @@ async fn fetch_binary(
     headers: Option<HashMap<String, String>>,
     proxy_url: Option<String>,
 ) -> Result<Vec<u8>, String> {
+    validate_remote_url(&url)?;
     let mut client_builder = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
         .connect_timeout(std::time::Duration::from_secs(8))
@@ -1022,18 +1085,23 @@ async fn fetch_binary(
 
 #[command]
 async fn compute_image_dhash(url: String) -> Result<String, String> {
-    let client = reqwest::Client::builder()
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36")
-        .connect_timeout(std::time::Duration::from_secs(6))
-        .timeout(std::time::Duration::from_secs(15))
-        .redirect(reqwest::redirect::Policy::limited(5))
-        .build()
-        .map_err(|error| error.to_string())?;
-    let response = client.get(url).send().await.map_err(|error| error.to_string())?;
-    if !response.status().is_success() {
-        return Err(format!("Fingerprint request failed: {}", response.status()));
-    }
-    let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+    let bytes = if url.starts_with("https://") {
+        validate_remote_url(&url)?;
+        let client = reqwest::Client::builder()
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36")
+            .connect_timeout(std::time::Duration::from_secs(6))
+            .timeout(std::time::Duration::from_secs(15))
+            .redirect(reqwest::redirect::Policy::limited(5))
+            .build()
+            .map_err(|error| error.to_string())?;
+        let response = client.get(url).send().await.map_err(|error| error.to_string())?;
+        if !response.status().is_success() {
+            return Err(format!("Fingerprint request failed: {}", response.status()));
+        }
+        response.bytes().await.map_err(|error| error.to_string())?.to_vec()
+    } else {
+        fs::read(&url).map_err(|error| format!("Could not read local media for fingerprinting: {error}"))?
+    };
     let image = image::load_from_memory(&bytes).map_err(|error| error.to_string())?;
     let grayscale = image
         .resize_exact(9, 8, image::imageops::FilterType::Triangle)
@@ -1058,6 +1126,7 @@ async fn fetch_json(
     headers: Option<HashMap<String, String>>,
     proxy_url: Option<String>,
 ) -> Result<serde_json::Value, String> {
+    validate_remote_url(&url)?;
     let mut client_builder = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         .connect_timeout(std::time::Duration::from_secs(8))
@@ -1156,6 +1225,7 @@ async fn fetch_html(
     headers: Option<HashMap<String, String>>,
     proxy_url: Option<String>,
 ) -> Result<String, String> {
+    validate_remote_url(&url)?;
     let mut client_builder = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         .gzip(true)
@@ -1438,6 +1508,7 @@ pub struct SeriesScrapeResult {
 
 #[command]
 async fn fetch_html_headless(url: String) -> Result<String, String> {
+    validate_remote_url(&url)?;
     println!("[Rust] Fetching HTML headless for: {}", url);
     tauri::async_runtime::spawn_blocking(move || {
         let browser = Browser::new(LaunchOptions {
@@ -1471,6 +1542,7 @@ async fn fetch_html_headless(url: String) -> Result<String, String> {
 
 #[command]
 async fn fetch_json_headless(url: String, headers: Option<HashMap<String, String>>) -> Result<String, String> {
+    validate_remote_url(&url)?;
     println!("[Rust] Fetching JSON headless for: {}", url);
     tauri::async_runtime::spawn_blocking(move || {
         let browser = Browser::new(LaunchOptions {
@@ -2516,6 +2588,15 @@ pub fn run() {
                     if parsed_url.path() == "/image-proxy" {
                         let query_params: std::collections::HashMap<_, _> = parsed_url.query_pairs().into_owned().collect();
                         if let Some(target_url) = query_params.get("url") {
+                            if validate_remote_url(target_url).is_err() {
+                                let response = tauri::http::Response::builder()
+                                    .status(403)
+                                    .header("Content-Type", "text/plain")
+                                    .body(b"Remote target is not allowed".to_vec())
+                                    .unwrap();
+                                responder.respond(response);
+                                return;
+                            }
                             let mut user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
                             if target_url.contains("donmai.us") {
                                 user_agent = "FlowManga/1.0";
@@ -2617,6 +2698,7 @@ pub fn run() {
         .plugin(tauri_plugin_cli::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            backup_database,
             scan_video_folder,
             scan_manga_folder,
             read_folder,

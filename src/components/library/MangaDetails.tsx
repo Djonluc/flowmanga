@@ -483,6 +483,8 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                   <div
                     className="fixed inset-0 z-40"
                     onClick={() => setIsTopMoreMenuOpen(false)}
+                    role="button" tabIndex={0} aria-label="Close menu"
+                    onKeyDown={event => { if (event.key === 'Escape' || event.key === 'Enter') setIsTopMoreMenuOpen(false); }}
                   />
                   <motion.div
                     initial={{ opacity: 0, scale: 0.9, y: 10 }}
@@ -877,6 +879,8 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                       <div
                         className="fixed inset-0 z-40"
                         onClick={() => setIsActionsMoreMenuOpen(false)}
+                        role="button" tabIndex={0} aria-label="Close menu"
+                        onKeyDown={event => { if (event.key === 'Escape' || event.key === 'Enter') setIsActionsMoreMenuOpen(false); }}
                       />
                       <motion.div
                         initial={{ opacity: 0, scale: 0.9, y: 10 }}
@@ -1028,7 +1032,6 @@ export const MangaDetails: React.FC<MangaDetailsProps> = ({
                           initial={{ width: 0, opacity: 0 }}
                           animate={{ width: 200, opacity: 1 }}
                           exit={{ width: 0, opacity: 0 }}
-                          autoFocus
                           placeholder="Search scrolls..."
                           className="bg-transparent border-none outline-none text-xs font-bold px-2 py-1 placeholder:text-foreground-dim"
                           value={localQuery}

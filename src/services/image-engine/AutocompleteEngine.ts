@@ -1,8 +1,8 @@
 import type { AutocompleteResult } from "./types";
-import type { BaseProvider } from "./providers/BaseProvider";
+import type { LegacyImageProvider } from "./types";
 
 export class AutocompleteEngine {
-  private providers = new Map<string, BaseProvider>();
+  private providers = new Map<string, LegacyImageProvider>();
   
   // Local alias map (e.g. blond -> blonde_hair)
   private localAliases: Record<string, string> = {
@@ -13,7 +13,7 @@ export class AutocompleteEngine {
     "nsfw": "rating:explicit",
   };
 
-  registerProvider(provider: BaseProvider) {
+  registerProvider(provider: LegacyImageProvider) {
     this.providers.set(provider.id, provider);
   }
 
@@ -41,7 +41,7 @@ export class AutocompleteEngine {
       }];
     }
 
-    let provider: BaseProvider | undefined;
+    let provider: LegacyImageProvider | undefined;
     
     if (targetSource && this.providers.has(targetSource)) {
       provider = this.providers.get(targetSource);

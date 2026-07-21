@@ -207,8 +207,9 @@ export const EHentaiGalleryReader: React.FC<EHentaiGalleryReaderProps> = ({ gall
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-2 backdrop-blur-sm md:p-6" role="dialog" aria-modal="true" aria-label={galleryTitle} onClick={onClose}>
-      <div className="flex h-[98vh] w-full max-w-[98vw] flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface shadow-2xl" onClick={event => event.stopPropagation()}>
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-2 md:p-6" role="dialog" aria-modal="true" aria-label={galleryTitle}>
+      <button type="button" className="absolute inset-0 bg-black/80 backdrop-blur-sm" aria-label="Close gallery" onClick={onClose} />
+      <div className="relative flex h-[98vh] w-full max-w-[98vw] flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface shadow-2xl">
       <header className="hidden">
         <button onClick={onClose} className="rounded-full p-2 hover:bg-white/10" aria-label="Close gallery"><X /></button>
         <div className="min-w-0 flex-1">

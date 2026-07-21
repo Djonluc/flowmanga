@@ -15,7 +15,7 @@ export interface ImageMedia {
   previewUrl: string;
   sampleUrl: string; // Web-friendly size
   fullUrl: string; // Original, highest resolution
-  mediaStatus?: 'available' | 'login_required' | 'premium_required' | 'unavailable';
+  mediaStatus?: 'available' | 'login_required' | 'session_access_required' | 'premium_required' | 'unavailable';
   
   // Metadata
   width?: number;
@@ -99,4 +99,16 @@ export interface AutocompleteResult {
   postCount: number;
   category: "general" | "character" | "artist" | "copyright" | "meta";
   source: string;
+}
+
+export interface LegacyImageProvider {
+  readonly id: string;
+  readonly name: string;
+  readonly baseUrl: string;
+  readonly capabilities: SourceCapabilities;
+  search(query: StructuredQuery, options: EngineSearchOptions): Promise<ImageMedia[]>;
+  getDiscovery(options: EngineSearchOptions): Promise<ImageMedia[]>;
+  getLatest(options: EngineSearchOptions): Promise<ImageMedia[]>;
+  getRecommendations(image: ImageMedia): Promise<ImageMedia[]>;
+  autocomplete(tag: string): Promise<AutocompleteResult[]>;
 }

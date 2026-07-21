@@ -162,7 +162,7 @@ function parseChapterRows(html: string): { url: string; title: string }[] {
     const a = li.querySelector("a[href]") as HTMLAnchorElement | null;
     const subj = li.querySelector("span.subj");
     if (!a || !subj?.textContent?.trim()) return;
-    let href = a.getAttribute("href") || "";
+    const href = a.getAttribute("href") || "";
     if (!href) return;
     out.push({
       url: absUrl(href),

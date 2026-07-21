@@ -867,13 +867,13 @@ export class ScraperService {
         const ogTitle =
           (doc.querySelector("meta[property='og:title']") as HTMLMetaElement)
             ?.content || "";
-        let title =
+        const title =
           doc.querySelector(".post-title h1")?.textContent?.trim() ||
           ogTitle.split(" - ")[0] ||
           doc.title.split(" - ")[0] ||
           "Untitled";
 
-        let description =
+        const description =
           (
             doc.querySelector(
               "meta[property='og:description']",

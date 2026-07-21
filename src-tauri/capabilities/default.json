@@ -21,12 +21,10 @@
     {
       "identifier": "http:default",
       "allow": [
-        { "url": "https://**" },
-        { "url": "http://**" }
+        { "url": "https://**" }
       ]
     },
     "dialog:default",
-    "shell:default",
     "log:default",
     "cli:default",
     "sql:allow-load",

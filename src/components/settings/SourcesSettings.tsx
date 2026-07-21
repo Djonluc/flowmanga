@@ -1,5 +1,6 @@
 import { Globe, ExternalLink, ShieldCheck, Zap, AlertTriangle, Search, Sparkles, Activity, Power, CheckCircle2, XCircle, RefreshCw, Plus, X, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
+import { SourcePolicySettings } from './SourcePolicySettings';
 import { useState } from 'react';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import { sourceRegistry } from '../../services/sources/registry';
@@ -551,8 +552,9 @@ export const SourcesSettings = () => {
 
                         {p.capabilities.requiresCookies ? (
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-foreground/40 uppercase tracking-widest ml-2">Session Cookies</label>
+                                <label htmlFor={`source-cookies-${p.id}`} className="text-[10px] font-black text-foreground/40 uppercase tracking-widest ml-2">Session Cookies</label>
                                 <textarea
+                                    id={`source-cookies-${p.id}`}
                                     value={booruAuth?.[getAuthProviderId(p.id)]?.sessionCookies || booruAuth?.['sankaku-books']?.sessionCookies || ''}
                                     onChange={(e) => {
                                         const val = e.target.value;
@@ -569,8 +571,9 @@ export const SourcesSettings = () => {
                         ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-foreground/40 uppercase tracking-widest ml-2">User ID</label>
+                                    <label htmlFor={`source-user-${p.id}`} className="text-[10px] font-black text-foreground/40 uppercase tracking-widest ml-2">User ID</label>
                                     <input
+                                        id={`source-user-${p.id}`}
                                         type="text"
                                         value={booruAuth?.[p.id]?.userId || ''}
                                         onChange={(e) => {
@@ -585,8 +588,9 @@ export const SourcesSettings = () => {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-foreground/40 uppercase tracking-widest ml-2">API Key</label>
+                                    <label htmlFor={`source-key-${p.id}`} className="text-[10px] font-black text-foreground/40 uppercase tracking-widest ml-2">API Key</label>
                                     <input
+                                        id={`source-key-${p.id}`}
                                         type="password"
                                         value={booruAuth?.[p.id]?.apiKey || ''}
                                         onChange={(e) => {
@@ -729,6 +733,8 @@ export const SourcesSettings = () => {
                     )}
                 </div>
             </div>
+
+            <SourcePolicySettings />
         </div>
     );
 };

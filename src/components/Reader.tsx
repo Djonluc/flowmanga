@@ -168,12 +168,16 @@ export const Reader = () => {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label="Reader"
       onDoubleClick={toggleFullScreenAction}
       onClick={() => {
         if (!showControls) {
           setShowControls(true);
         }
       }}
+      onKeyDown={event => { if (event.key === 'Escape') setShowControls(true); }}
       className="w-full h-full relative bg-transparent overflow-hidden select-none flex flex-col items-center justify-center"
     >
       {/* Adaptive UI color extraction logic is handled in <AdaptiveUI /> component below */}
@@ -193,15 +197,21 @@ export const Reader = () => {
             exit={{ opacity: 0 }}
             className="absolute inset-0 z-40 flex pointer-events-auto"
           >
-            <div
+            <button
+              type="button"
+              aria-label="Previous page"
               className="w-[15%] h-full cursor-w-resize"
               onClick={() => useReadingStore.getState().prevPage()}
             />
-            <div
+            <button
+              type="button"
+              aria-label="Show reader controls"
               className="flex-1 h-full"
               onClick={() => setShowControls(true)}
             />
-            <div
+            <button
+              type="button"
+              aria-label="Next page"
               className="w-[15%] h-full cursor-e-resize"
               onClick={() => useReadingStore.getState().nextPage()}
             />
