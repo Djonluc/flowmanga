@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "FlowManga",
-  "version": "2.5.6",
+  "version": "2.5.7",
   "identifier": "com.djonstnix.flowmanga",
   "build": {
     "frontendDist": "../dist",
@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' customprotocol: asset: flowmanga:; connect-src 'self' ipc: http://ipc.localhost https: flowmanga:; img-src 'self' asset: flowmanga: https: data: blob:; media-src 'self' asset: flowmanga: https: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; frame-src https:; object-src 'none'; base-uri 'self'; form-action 'none'",
+      "csp": "default-src 'self' customprotocol: asset: flowmanga:; connect-src 'self' ipc: http://ipc.localhost https: flowmanga:; img-src 'self' asset: http://asset.localhost flowmanga: https: data: blob:; media-src 'self' asset: http://asset.localhost flowmanga: https: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; frame-src https:; object-src 'none'; base-uri 'self'; form-action 'none'",
       "assetProtocol": {
         "enable": true,
         "scope": ["**"]

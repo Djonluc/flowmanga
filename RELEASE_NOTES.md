@@ -1,3 +1,19 @@
+## FlowManga 2.5.7 Windows Local Media Hotfix
+
+FlowManga 2.5.7 completes the installed-app fix for downloaded manga that could be located on disk but whose covers and pages were blocked inside the reader.
+
+### Fixes
+
+- Allowed WebView2's Windows local-media origin, `http://asset.localhost`, in the installed application's image and media Content Security Policy.
+- Existing downloaded covers, chapter pages, local videos, and other library media can now load through Tauri's protected asset bridge.
+- No folder changes, rescans, or repeat downloads are required after installing the update.
+
+### Installing
+
+Download `FlowManga_2.5.7_x64-setup.exe` from the GitHub release assets. Existing downloads, settings, paths, and library metadata are preserved.
+
+---
+
 ## FlowManga 2.5.6 Local Library Display Hotfix
 
 FlowManga 2.5.6 restores covers and chapter pages for downloaded manga that are present on disk but appeared missing inside the installed application.

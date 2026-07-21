@@ -1,3 +1,12 @@
+## FlowManga v2.5.7 - 2026-07-21
+
+### Fixed
+
+- Allowed the Windows WebView2 `http://asset.localhost` origin for local images and media in the installed application's Content Security Policy.
+- Restored rendering of existing downloaded covers and manga pages without moving or downloading the files again.
+
+---
+
 ## FlowManga v2.5.6 - 2026-07-21
 
 ### Fixed

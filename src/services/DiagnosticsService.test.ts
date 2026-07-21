@@ -28,6 +28,6 @@ describe('DiagnosticsService', () => {
   });
 
   it('exports the package version instead of a stale hard-coded version', () => {
-    expect(JSON.parse(diagnostics.exportSnapshot()).appVersion).toBe('2.5.6');
+    expect(JSON.parse(diagnostics.exportSnapshot()).appVersion).toBe('2.5.7');
   });
 });
