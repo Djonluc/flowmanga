@@ -164,7 +164,7 @@ export const diagnostics = {
   exportSnapshot(): string {
     return JSON.stringify({
       generatedAt: new Date().toISOString(),
-      appVersion: '2.5.3',
+      appVersion: packageMetadata.version,
       userAgent: redactDiagnosticText(globalThis.navigator?.userAgent ?? 'unknown'),
       providers: this.getProviders(),
       events,
@@ -192,3 +192,4 @@ export function installConsoleDiagnostics(): void {
     };
   }
 }
+import packageMetadata from '../../package.json';

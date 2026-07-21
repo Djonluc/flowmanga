@@ -1,3 +1,13 @@
+## FlowManga v2.5.6 - 2026-07-21
+
+### Fixed
+
+- Restored installed-build rendering of existing local manga covers and chapter pages.
+- Prevented anonymous CORS mode from being applied to Tauri `asset.localhost` resources while preserving it for remote images.
+- Replaced the diagnostics exporter's stale hard-coded version with the actual package version.
+
+---
+
 ## FlowManga v2.5.5 - 2026-07-21
 
 ### Fixed

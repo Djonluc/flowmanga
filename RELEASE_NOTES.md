@@ -1,3 +1,20 @@
+## FlowManga 2.5.6 Local Library Display Hotfix
+
+FlowManga 2.5.6 restores covers and chapter pages for downloaded manga that are present on disk but appeared missing inside the installed application.
+
+### Fixes
+
+- Fixed Tauri local-file images being rejected by WebView2 because the image renderer incorrectly applied remote CORS rules to `asset.localhost` URLs.
+- Existing downloaded covers and chapter pages now display without moving, renaming, or downloading the files again.
+- Diagnostics exports now report the installed package version instead of the stale hard-coded `2.5.3` value.
+- Added regression tests covering Tauri local assets, remote-image CORS behavior, and diagnostic version reporting.
+
+### Installing
+
+Download `FlowManga_2.5.6_x64-setup.exe` from the GitHub release assets. Existing downloads, folder paths, settings, and library metadata are preserved.
+
+---
+
 ## FlowManga 2.5.5 Folder Indexing Hotfix
 
 FlowManga 2.5.5 repairs installed-build folder discovery when manga or image-collection storage is moved or reselected.

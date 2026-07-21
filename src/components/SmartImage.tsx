@@ -12,6 +12,10 @@ interface SmartImageProps {
   eager?: boolean;
 }
 
+export function shouldUseAnonymousCors(src: string): boolean {
+  return /^https?:\/\//i.test(src) && !/^https?:\/\/(?:asset|ipc)\.localhost(?:\/|$)/i.test(src);
+}
+
 export const SmartImage = ({
   src,
   alt,
@@ -193,9 +197,11 @@ export const SmartImage = ({
     if (!isVisible || hasError || isLoaded) return;
 
     const img = new Image();
-    img.src = src;
-    img.crossOrigin = "anonymous";
+    // Tauri serves local files through asset.localhost. Applying a CORS mode to
+    // that custom-protocol bridge makes WebView2 reject otherwise readable files.
+    if (shouldUseAnonymousCors(src)) img.crossOrigin = "anonymous";
     img.referrerPolicy = "no-referrer";
+    img.src = src;
 
     img.onload = () => {
       setIsLoaded(true);
