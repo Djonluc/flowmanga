@@ -3,13 +3,16 @@ import { invoke } from "@tauri-apps/api/core";
 import { useLibraryStore } from "../stores/useLibraryStore";
 import { useReadingStore } from "../stores/useReadingStore";
 import { useSettingsStore } from "../stores/useSettingsStore";
-import { buildDiscordReadingActivity } from "../services/DiscordPresenceService";
+import {
+  buildDiscordIdleActivity,
+  buildDiscordReadingActivity,
+  isDiscordAdultContent,
+} from "../services/DiscordPresenceService";
 
-const validApplicationId = (value: string) => /^\d{17,20}$/.test(value);
+const FLOWMANGA_SESSION_STARTED_AT = Date.now();
 
 export function useDiscordPresence() {
   const enabled = useSettingsStore((state) => state.discordRichPresenceEnabled);
-  const applicationId = useSettingsStore((state) => state.discordApplicationId);
   const shareTitle = useSettingsStore((state) => state.discordShareMangaTitle);
   const shareProgress = useSettingsStore((state) => state.discordShareReadingProgress);
   const showElapsedTime = useSettingsStore((state) => state.discordShowElapsedTime);
@@ -35,18 +38,56 @@ export function useDiscordPresence() {
     return chapters[currentChapterIndex]?.title;
   }, [chapters, currentChapterIndex, metadata]);
 
+  const isAdultContent = useMemo(
+    () =>
+      isDiscordAdultContent({
+        title:
+          series?.displayName ||
+          series?.title ||
+          metadata?.displayTitle ||
+          metadata?.title,
+        source: series?.source || metadata?.source || metadata?.provider,
+        rating:
+          metadata?.rating ||
+          metadata?.contentRating ||
+          metadata?.content_rating,
+        tags: [
+          ...(series?.tags || []),
+          ...(Array.isArray(metadata?.tags) ? metadata.tags : []),
+          ...(Array.isArray(metadata?.genres) ? metadata.genres : []),
+        ],
+      }),
+    [metadata, series],
+  );
+
   useEffect(() => {
     let cancelled = false;
     const timer = window.setTimeout(async () => {
-      if (!enabled || !validApplicationId(applicationId) || totalPages === 0) {
+      if (!enabled) {
         await invoke("clear_discord_presence").catch(() => undefined);
+        return;
+      }
+
+      if (totalPages === 0) {
+        try {
+          await invoke("set_discord_presence", {
+            input: buildDiscordIdleActivity(FLOWMANGA_SESSION_STARTED_AT),
+          });
+        } catch (error) {
+          if (!cancelled) {
+            console.debug(
+              "[DiscordPresence] Discord desktop connection unavailable:",
+              error,
+            );
+          }
+        }
         return;
       }
 
       if (!session.current || session.current.key !== sessionKey) {
         session.current = { key: sessionKey, startedAt: Date.now() };
       }
-      const payload = buildDiscordReadingActivity(applicationId, {
+      const payload = buildDiscordReadingActivity({
         title: series?.displayName || series?.title || metadata?.displayTitle || metadata?.title,
         chapter,
         pageIndex,
@@ -55,6 +96,7 @@ export function useDiscordPresence() {
         shareProgress,
         showElapsedTime,
         startedAt: session.current.startedAt,
+        isAdultContent,
       });
 
       try {
@@ -71,9 +113,9 @@ export function useDiscordPresence() {
       window.clearTimeout(timer);
     };
   }, [
-    applicationId,
     chapter,
     enabled,
+    isAdultContent,
     metadata?.displayTitle,
     metadata?.title,
     pageIndex,

@@ -6,8 +6,10 @@ FlowManga 2.5.9 fixes downloaded manga being present on disk but missing from th
 
 - Added an opt-in Discord desktop integration that can show the current manga, chapter, page progress, and elapsed reading time.
 - Added separate privacy switches for the manga title, reading progress, and timer.
-- Added a Discord connection test and Application ID configuration under Settings → Integrations.
-- Presence is cleared when the reader closes or the integration is disabled, and Discord connection failures never interrupt reading.
+- Added a Discord connection test under Settings → Integrations.
+- Bundled the developer-owned FlowManga Discord identity and branded artwork so users never need to enter an Application ID.
+- Added an in-theme idle presence with app runtime, plus a privacy-safe “after-hours arc” status that never reveals adult titles or progress.
+- Presence is cleared when the integration is disabled, and Discord connection failures never interrupt reading.
 
 ### Fixes
 
@@ -17,6 +19,7 @@ FlowManga 2.5.9 fixes downloaded manga being present on disk but missing from th
 - Rescanning a folder now attaches chapters to the existing series record instead of a transient scanner ID.
 - The download destination is clearly labeled as primary library storage, and changing it immediately scans existing manga.
 - Installed builds open maximized by default, ignore stale tiny saved dimensions, and enforce a minimum usable window size.
+- Reader seek bars remain contained and readable for very large merged libraries instead of rendering thousands of overflowing chapter markers.
 
 ### Existing downloads
 

@@ -3,7 +3,9 @@
 ### Added
 
 - Added opt-in Discord Rich Presence for manga title, chapter, page progress, and elapsed reading time.
-- Added Discord privacy controls, public Application ID configuration, and a connection test under Settings → Integrations.
+- Added Discord privacy controls and a connection test under Settings → Integrations.
+- Bundled FlowManga's developer-owned Discord identity and branded artwork; regular users are never asked for an Application ID.
+- Added an in-theme idle presence with runtime and an automatic privacy-safe status for adult reading.
 
 ### Fixed
 
@@ -13,6 +15,7 @@
 - Preserved the existing series identity when rescanning downloaded chapters.
 - Renamed the misleading temporary-download setting and made path changes immediately scan existing manga.
 - Opened installed builds maximized, rejected stale compressed window dimensions, and enforced a usable minimum window size.
+- Bounded and adaptively sampled chapter markers so seek bars remain usable in merged libraries with tens of thousands of pages.
 
 ---
 

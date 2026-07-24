@@ -34,6 +34,4 @@ The tag starts `.github/workflows/release.yml`. GitHub Actions builds the Window
 The desktop installer and the application window use the icon files configured in `src-tauri/tauri.conf.json`. The browser tab uses `public/logo_square.png`, which is the same FlowManga mark.
 # Discord Rich Presence branding
 
-To ship Rich Presence preconfigured for every user, create a FlowManga application in the [Discord Developer Portal](https://discord.com/developers/applications), upload its icon, and add its public Application ID as the GitHub Actions repository variable `DISCORD_APPLICATION_ID`. The release workflow exposes that value to Vite as `VITE_DISCORD_APPLICATION_ID`.
-
-This value is public and is not a client secret. Without it, users can still enter an Application ID under Settings → Integrations.
+Discord Rich Presence ships with FlowManga's developer-owned public Application ID and branded artwork already bundled. End users only choose whether presence is enabled and which reading details they share; they never configure the Discord application identity.

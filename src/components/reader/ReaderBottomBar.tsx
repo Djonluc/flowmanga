@@ -1,10 +1,11 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
 import { useReadingStore } from "../../stores/useReadingStore";
 import { useReaderStore } from "../../stores/useReaderStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { getVisibleChapterMarks } from "./readerProgress";
 
 export const ReaderBottomBar = ({ visible }: { visible: boolean }) => {
   const {
@@ -24,16 +25,10 @@ export const ReaderBottomBar = ({ visible }: { visible: boolean }) => {
   const { isFlatMode, metadata } = useReadingStore();
   const totalPages = images.length;
 
-  const chapterMarks: number[] = [];
-  if (isFlatMode && metadata?.chapters) {
-      metadata.chapters.forEach((ch: { startIndex?: number }) => {
-          if (ch.startIndex !== undefined) {
-              chapterMarks.push(ch.startIndex);
-          }
-      });
-  } else {
-      chapterMarks.push(0);
-  }
+  const chapterMarks = useMemo(
+    () => getVisibleChapterMarks(metadata?.chapters, totalPages, isFlatMode),
+    [isFlatMode, metadata?.chapters, totalPages],
+  );
 
   const handleTogglePlayback = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -186,9 +181,9 @@ export const ReaderBottomBar = ({ visible }: { visible: boolean }) => {
           className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[55] w-full max-w-[90%] md:max-w-4xl px-8 py-6 bg-black/40 backdrop-blur-[64px] border border-white/10 rounded-[40px] shadow-[0_-32px_128px_rgba(0,0,0,0.6)] flex flex-col gap-4 pointer-events-auto"
         >
           {/* Top Row: Progress Bar & Stats */}
-          <div className="flex items-center gap-8 w-full">
+          <div className="flex w-full min-w-0 items-center gap-4 sm:gap-8">
             {/* Left Stats */}
-            <div className="flex flex-col items-start gap-0 min-w-[80px]">
+            <div className="flex min-w-[72px] shrink-0 flex-col items-start gap-0 sm:min-w-[80px]">
               <span className="text-[8px] font-black text-accent uppercase tracking-[0.4em]">
                 Progress
               </span>
@@ -203,7 +198,7 @@ export const ReaderBottomBar = ({ visible }: { visible: boolean }) => {
             </div>
 
             {/* Progress Slider Body */}
-            <div className="flex-1 relative group">
+            <div className="group relative min-w-0 flex-1">
               {/* Preview Thumbnail */}
               <AnimatePresence>
                 {previewIndex !== null && hoverProgress !== null && (
@@ -280,13 +275,17 @@ export const ReaderBottomBar = ({ visible }: { visible: boolean }) => {
                 </div>
 
                 {/* Chapter Markers */}
-                {chapterMarks.map((markIndex, i) => (
-                    <div 
-                        key={i}
-                        className="absolute w-1 h-3 bg-white/50 rounded-full top-1/2 -translate-y-1/2 -ml-0.5 transition-all group-hover:h-4 group-hover:bg-white z-10 pointer-events-none"
-                        style={{ left: `${(markIndex / totalPages) * 100}%` }}
+                <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                  {chapterMarks.map((markIndex) => (
+                    <div
+                      key={markIndex}
+                      className="absolute top-1/2 z-10 h-3 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/45 transition-all group-hover:h-4 group-hover:bg-white/80"
+                      style={{
+                        left: `${(markIndex / Math.max(totalPages - 1, 1)) * 100}%`,
+                      }}
                     />
-                ))}
+                  ))}
+                </div>
 
                 {/* Handle Point */}
                 <motion.div
@@ -299,7 +298,7 @@ export const ReaderBottomBar = ({ visible }: { visible: boolean }) => {
             </div>
 
             {/* Right Percentage */}
-            <div className="text-right flex flex-col items-end min-w-[80px]">
+            <div className="flex min-w-[72px] shrink-0 flex-col items-end text-right sm:min-w-[80px]">
               <span className="text-[8px] font-black text-foreground-dim uppercase tracking-[0.4em]">
                 Completion
               </span>
