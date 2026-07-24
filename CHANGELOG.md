@@ -7,6 +7,7 @@
 - Bundled FlowManga's developer-owned Discord identity and branded artwork; regular users are never asked for an Application ID.
 - Added an in-theme idle presence with runtime and an automatic privacy-safe status for explicitly adult reading.
 - Distinguished mature mainstream manga from adult-only sources and automatically classified the latter with a `hentai` tag.
+- Replaced Discord's misleading “Watching” activity with a neutral FlowManga activity and archive-themed idle wording.
 
 ### Fixed
 

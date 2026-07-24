@@ -51,8 +51,8 @@ describe("DiscordPresenceService", () => {
   it("uses an in-theme ambient presence while no manga is open", () => {
     expect(buildDiscordIdleActivity(10_000)).toMatchObject({
       applicationId: FLOWMANGA_DISCORD_APPLICATION_ID,
-      details: "Between story arcs",
-      state: "Charting the next realm",
+      details: "Journeying through my archive",
+      state: "Choosing the next story arc",
       startTimestamp: 10,
     });
   });

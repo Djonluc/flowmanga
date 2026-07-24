@@ -71,7 +71,7 @@ fn set_discord_presence(
     }
 
     let mut payload = activity::Activity::new()
-        .activity_type(activity::ActivityType::Watching)
+        .activity_type(activity::ActivityType::Playing)
         .details(input.details)
         .state(input.state);
     if let Some(start) = input.start_timestamp {

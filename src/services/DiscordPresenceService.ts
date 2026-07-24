@@ -81,8 +81,8 @@ export function buildDiscordIdleActivity(
 ): DiscordActivityPayload {
   return {
     applicationId: FLOWMANGA_DISCORD_APPLICATION_ID,
-    details: "Between story arcs",
-    state: "Charting the next realm",
+    details: "Journeying through my archive",
+    state: "Choosing the next story arc",
     startTimestamp: Math.floor(startedAt / 1000),
     ...commonArtwork,
   };
