@@ -204,30 +204,37 @@ export class DownloadService {
             mergedMeta.chapters.sort((a: any, b: any) => parseFloat(a.number) - parseFloat(b.number));
             
             await this.writeMetadata(mangaRoot, mergedMeta);
-            store.updateJobStatus(job.id, 'completed');
-            
-            // Register with Library & Notify
-            import('../stores/useLibraryStore').then(async ({ useLibraryStore }) => {
-                  const { join } = await import('@tauri-apps/api/path');
-                  // Ensure we use the correct cover file from metadata
-                  const coverFile = mergedMeta.coverFile || 'cover.jpg';
-                  const absoluteCoverPath = await join(mangaRoot, coverFile);
 
-                  await useLibraryStore.getState().registerDownloadedSeries(
-                      { ...mergedMeta, rootPath: mangaRoot, coverPath: absoluteCoverPath }, 
-                      await Promise.all(mergedMeta.chapters.map(async (ch: any) => ({
-                          id: `${mergedMeta.mangaId}-${ch.number}`,
-                          title: `Chapter ${ch.number}`,
-                          chapterNumber: isNaN(parseFloat(ch.number)) ? 0 : parseFloat(ch.number),
-                          filePath: mangaRoot,
-                          coverPath: ch.coverFile ? await join(mangaRoot, ch.coverFile) : null,
-                          sourceId: ch.sourceId
-                      })))
-                  );
-                 
-                 const { emit } = await import('@tauri-apps/api/event');
-                 await emit('library:updated');
-            });
+            // Do not report success before the database registration finishes.
+            // The old fire-and-forget import could mark a job complete while the
+            // installed app's Library still had no record for it.
+            const [{ useLibraryStore }, { join }, { emit }] = await Promise.all([
+                import('../stores/useLibraryStore'),
+                import('@tauri-apps/api/path'),
+                import('@tauri-apps/api/event'),
+            ]);
+            const coverFile = mergedMeta.coverFile || 'cover.jpg';
+            const absoluteCoverPath = await join(mangaRoot, coverFile);
+            const registeredChapters = await Promise.all(mergedMeta.chapters.map(async (ch: any) => ({
+                id: `${mergedMeta.mangaId}-${ch.number}`,
+                title: `Chapter ${ch.number}`,
+                chapterNumber: isNaN(parseFloat(ch.number)) ? 0 : parseFloat(ch.number),
+                filePath: mangaRoot,
+                coverPath: ch.coverFile ? await join(mangaRoot, ch.coverFile) : null,
+                sourceId: ch.sourceId,
+                totalPages:
+                    Number.isFinite(ch.endIndex) && Number.isFinite(ch.startIndex)
+                        ? Math.max(0, ch.endIndex - ch.startIndex + 1)
+                        : 0,
+            })));
+
+            await useLibraryStore.getState().registerDownloadedSeries(
+                { ...mergedMeta, rootPath: mangaRoot, coverPath: absoluteCoverPath },
+                registeredChapters,
+            );
+            await emit('library:updated');
+            store.updateJobStatus(job.id, 'completed');
+            console.info(`[Download] Completed and registered "${mergedMeta.title}" at ${mangaRoot} (${registeredChapters.length} chapters)`);
 
         } catch (error) {
             console.error(`[Download] Job ${job.id} failed:`, error);

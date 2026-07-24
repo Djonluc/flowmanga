@@ -8,6 +8,7 @@ import { useSettingsStore } from './stores/useSettingsStore'
 import { useLibraryEvents } from './hooks/useLibraryEvents'
 import { useAdaptiveColor } from './hooks/useAdaptiveColor'
 import { useReadingAnalytics } from './hooks/useReadingAnalytics'
+import { useDiscordPresence } from './hooks/useDiscordPresence'
 import { AnimatePresence, motion } from 'framer-motion';
 
 
@@ -103,7 +104,13 @@ function App() {
         const { windowWidth, windowHeight } = useSettingsStore.getState();
         const [isFull, isMaximized] = await Promise.all([win.isFullscreen(), win.isMaximized()]);
         if (windowWidth && windowHeight && !isFull && !isMaximized) {
-           await win.setSize(new LogicalSize(windowWidth, windowHeight));
+           // Ignore stale/compressed sizes persisted by older installed builds.
+           // They could otherwise reopen FlowManga as a tiny strip every time.
+           if (windowWidth >= 1000 && windowHeight >= 680) {
+             await win.setSize(new LogicalSize(windowWidth, windowHeight));
+           } else {
+             await win.maximize();
+           }
         }
 
         // Listen for resize
@@ -218,6 +225,7 @@ function MainContent() {
   useLibraryEvents();
   useAdaptiveColor();
   useReadingAnalytics();
+  useDiscordPresence();
 
   // Fix Windows maximized frameless bleed
   const [isWindowMaximized, setIsWindowMaximized] = useState(false);

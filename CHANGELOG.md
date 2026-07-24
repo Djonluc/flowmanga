@@ -1,3 +1,21 @@
+## FlowManga v2.5.9 - 2026-07-24
+
+### Added
+
+- Added opt-in Discord Rich Presence for manga title, chapter, page progress, and elapsed reading time.
+- Added Discord privacy controls, public Application ID configuration, and a connection test under Settings → Integrations.
+
+### Fixed
+
+- Unified manga downloads with the configured primary Manga Archive so downloaded titles are saved where the Library scans.
+- Waited for database registration and the Library refresh before marking a manga download complete.
+- Assigned stable unique identities to locally scraped manga instead of reusing the conflicting `local` placeholder.
+- Preserved the existing series identity when rescanning downloaded chapters.
+- Renamed the misleading temporary-download setting and made path changes immediately scan existing manga.
+- Opened installed builds maximized, rejected stale compressed window dimensions, and enforced a usable minimum window size.
+
+---
+
 ## FlowManga v2.5.8 - 2026-07-23
 
 ### Fixed

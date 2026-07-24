@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { ScraperService, type ScrapedImage, type ScrapeResult } from '../services/ScraperService';
 import { useSettingsStore } from './useSettingsStore';
+import { resolveMangaArchivePath, stableSeriesId } from '../utils/mangaStorage';
 
 interface ScraperState {
     url: string;
@@ -160,19 +161,26 @@ export const useScraperStore = create<ScraperState>((set, get) => ({
         if (!metadata) return 'error';
         
         // 1. Get or Pick Base Directory (Centralized Library)
-        const { downloadPath: settingsPath, setLocationModalOpen } = useSettingsStore.getState();
+        const {
+            libraryPath,
+            downloadPath: legacyDownloadPath,
+            setLocationModalOpen,
+        } = useSettingsStore.getState();
+        const settingsPath = resolveMangaArchivePath(libraryPath, legacyDownloadPath);
         
         if (!settingsPath) {
             setLocationModalOpen(true);
             return 'error';
         }
         
-        const libraryPath = settingsPath;
-        set({ downloadPath: libraryPath });
+        const archivePath = settingsPath;
+        set({ downloadPath: archivePath });
 
         // 2. Prepare Data & Check Existence
         const safeTitle = ScraperService.sanitizeFilename(metadata.title || 'Unknown');
-        const mangaRoot = `${libraryPath}/${safeTitle}`;
+        const { join } = await import('@tauri-apps/api/path');
+        const mangaRoot = await join(archivePath, safeTitle);
+        console.info(`[Download] Queueing "${metadata.title || 'Unknown'}" in configured manga archive: ${mangaRoot}`);
         
         const { exists } = await import('@tauri-apps/plugin-fs');
         const folderExists = await exists(mangaRoot);
@@ -182,19 +190,21 @@ export const useScraperStore = create<ScraperState>((set, get) => ({
             
             // Capture state in closure so it survives reset() when ImportModal closes
             const capturedMetadata = { ...metadata };
-            const capturedPath = libraryPath;
+            const capturedPath = archivePath;
             const capturedChapterFeed = [...get().chapterFeed];
             const capturedSelectedKeys = [...get().selectedChapterKeys];
             const capturedScrapedImages = [...get().scrapedImages];
 
             setSafetyCheckModal(true, capturedMetadata.title || 'Unknown Series', (action) => {
-                const currentMangaRoot = `${capturedPath}/${ScraperService.sanitizeFilename(capturedMetadata.title || 'Unknown')}`;
-                
-                if (action === 'redownload') {
-                    get().performQueueDownload(currentMangaRoot, true, capturedMetadata, capturedChapterFeed, capturedSelectedKeys, capturedScrapedImages);
-                } else if (action === 'update') {
-                    get().performQueueDownload(currentMangaRoot, false, capturedMetadata, capturedChapterFeed, capturedSelectedKeys, capturedScrapedImages);
-                }
+                import('@tauri-apps/api/path').then(({ join }) =>
+                    join(capturedPath, ScraperService.sanitizeFilename(capturedMetadata.title || 'Unknown'))
+                ).then((currentMangaRoot) => {
+                    if (action === 'redownload') {
+                        get().performQueueDownload(currentMangaRoot, true, capturedMetadata, capturedChapterFeed, capturedSelectedKeys, capturedScrapedImages);
+                    } else if (action === 'update') {
+                        get().performQueueDownload(currentMangaRoot, false, capturedMetadata, capturedChapterFeed, capturedSelectedKeys, capturedScrapedImages);
+                    }
+                }).catch((error) => console.error('[Download] Failed to resolve archive path', error));
             });
             return 'prompted';
         }
@@ -250,18 +260,20 @@ export const useScraperStore = create<ScraperState>((set, get) => ({
         if (domain === 'unknown' && currentUrl) {
             try { domain = new URL(currentUrl).hostname.replace('www.', ''); } catch (_) {}
         }
+        const seriesIdentity = metadata.sourceUrl || currentUrl || `${domain}:${metadata.title || mangaRoot}`;
+        const seriesId = stableSeriesId(metadata.mangaId, seriesIdentity);
         const trackingMetadata = {
             ...metadata,
             source: metadata.source || domain.split('.')[0],
             sourceUrl: metadata.sourceUrl || currentUrl || '',
-            mangaId: metadata.mangaId || 'local',
+            mangaId: seriesId,
             tracked: true,
             autoUpdate: true,
             lastChecked: new Date().toISOString()
         };
 
         useDownloadStore.getState().addJob({
-            id: `${metadata.mangaId || Math.random().toString(36).substr(2, 9)}`,
+            id: seriesId,
             title: metadata.title || 'Unknown Series',
             coverUrl: metadata.coverUrl,
             totalChapters: chaptersToDownload.length,

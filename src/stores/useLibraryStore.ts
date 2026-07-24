@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { getDb } from "../services/db";
 import { toast } from "../components/Toast";
+import { stableSeriesId } from "../utils/mangaStorage";
 
 export interface ComicInfo {
   series?: string;
@@ -351,7 +352,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
             "INSERT OR IGNORE INTO Chapters (id, seriesId, title, chapterNumber, filePath, coverPath, totalPages) VALUES (?, ?, ?, ?, ?, ?, ?)",
             [
               c.id,
-              m.id,
+              seriesId,
               c.title,
               c.chapter_number,
               c.file_path,
@@ -721,11 +722,22 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   registerDownloadedSeries: async (metadata: any, chapters: any[]) => {
     const db = getDb();
     try {
+      const existingAtPath = await db.select<Array<{ id: string }>>(
+        "SELECT id FROM Series WHERE path = ? LIMIT 1",
+        [metadata.rootPath],
+      );
+      const seriesId =
+        existingAtPath[0]?.id ||
+        stableSeriesId(
+          metadata.mangaId,
+          metadata.sourceUrl || metadata.rootPath || metadata.title,
+        );
+
       // 1. Insert/Update Series (Avoid REPLACE to prevent cascade delete of chapters)
       await db.execute(
         "INSERT OR IGNORE INTO Series (id, title, path, type, source) VALUES (?, ?, ?, ?, ?)",
         [
-          metadata.mangaId,
+          seriesId,
           metadata.title,
           metadata.rootPath,
           "manga",
@@ -744,8 +756,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
           (metadata.tags || []).join(","),
           metadata.description || "",
           metadata.sourceUrl || metadata.seriesUrl || "",
-          metadata.mangaId,
-          metadata.mangaId,
+          seriesId,
+          seriesId,
         ],
       );
 
@@ -755,7 +767,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
           "INSERT OR REPLACE INTO Chapters (id, seriesId, title, chapterNumber, filePath, coverPath, sourceId, totalPages) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
           [
             c.id,
-            metadata.mangaId,
+            seriesId,
             c.title,
             c.chapterNumber,
             c.filePath,
@@ -773,6 +785,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         "[LibraryStore] Failed to register downloaded series:",
         err,
       );
+      throw err;
     }
   },
 

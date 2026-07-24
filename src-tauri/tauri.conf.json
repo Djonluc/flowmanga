@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "FlowManga",
-  "version": "2.5.8",
+  "version": "2.5.9",
   "identifier": "com.djonstnix.flowmanga",
   "build": {
     "frontendDist": "../dist",
@@ -14,8 +14,11 @@
       {
         "label": "main",
         "title": "FlowManga",
-        "width": 2049,
-        "height": 1045,
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1000,
+        "minHeight": 680,
+        "maximized": true,
         "resizable": true,
         "fullscreen": false,
         "decorations": false,

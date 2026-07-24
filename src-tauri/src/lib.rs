@@ -1,10 +1,130 @@
-use serde::Serialize;
+use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
 use std::path::Path;
+use std::sync::Mutex;
 use tauri::{command, AppHandle, Emitter, Manager};
 use uuid::Uuid;
 use walkdir::WalkDir;
+
+struct DiscordConnection {
+    application_id: String,
+    client: DiscordIpcClient,
+}
+
+#[derive(Default)]
+struct DiscordPresenceState(Mutex<Option<DiscordConnection>>);
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DiscordActivityInput {
+    application_id: String,
+    details: String,
+    state: String,
+    start_timestamp: Option<i64>,
+    large_image: Option<String>,
+    large_text: Option<String>,
+    small_image: Option<String>,
+    small_text: Option<String>,
+}
+
+fn validate_discord_application_id(value: &str) -> Result<(), String> {
+    if (17..=20).contains(&value.len()) && value.chars().all(|character| character.is_ascii_digit()) {
+        Ok(())
+    } else {
+        Err("Discord Application ID must contain 17 to 20 digits.".to_string())
+    }
+}
+
+#[command]
+fn set_discord_presence(
+    input: DiscordActivityInput,
+    presence: tauri::State<'_, DiscordPresenceState>,
+) -> Result<(), String> {
+    validate_discord_application_id(&input.application_id)?;
+
+    let mut connection = presence
+        .0
+        .lock()
+        .map_err(|_| "Discord Rich Presence state is unavailable.".to_string())?;
+
+    let needs_connection = connection
+        .as_ref()
+        .map(|current| current.application_id != input.application_id)
+        .unwrap_or(true);
+
+    if needs_connection {
+        if let Some(mut current) = connection.take() {
+            let _ = current.client.clear_activity();
+            let _ = current.client.close();
+        }
+
+        let mut client = DiscordIpcClient::new(&input.application_id);
+        client.connect().map_err(|error| {
+            format!("Discord desktop is not running or its local RPC connection is unavailable: {error}")
+        })?;
+        *connection = Some(DiscordConnection {
+            application_id: input.application_id.clone(),
+            client,
+        });
+    }
+
+    let mut payload = activity::Activity::new()
+        .activity_type(activity::ActivityType::Watching)
+        .details(input.details)
+        .state(input.state);
+    if let Some(start) = input.start_timestamp {
+        payload = payload.timestamps(activity::Timestamps::new().start(start));
+    }
+    if input.large_image.is_some() || input.small_image.is_some() {
+        let mut assets = activity::Assets::new();
+        if let Some(value) = input.large_image {
+            assets = assets.large_image(value);
+        }
+        if let Some(value) = input.large_text {
+            assets = assets.large_text(value);
+        }
+        if let Some(value) = input.small_image {
+            assets = assets.small_image(value);
+        }
+        if let Some(value) = input.small_text {
+            assets = assets.small_text(value);
+        }
+        payload = payload.assets(assets);
+    }
+
+    let update_result = connection
+        .as_mut()
+        .ok_or_else(|| "Discord Rich Presence is not connected.".to_string())?
+        .client
+        .set_activity(payload);
+    if let Err(error) = update_result {
+        if let Some(mut failed) = connection.take() {
+            let _ = failed.client.close();
+        }
+        return Err(format!("Discord rejected the Rich Presence update: {error}"));
+    }
+    Ok(())
+}
+
+#[command]
+fn clear_discord_presence(
+    presence: tauri::State<'_, DiscordPresenceState>,
+) -> Result<(), String> {
+    let mut connection = presence
+        .0
+        .lock()
+        .map_err(|_| "Discord Rich Presence state is unavailable.".to_string())?;
+    if let Some(mut current) = connection.take() {
+        current
+            .client
+            .clear_activity()
+            .map_err(|error| format!("Could not clear Discord Rich Presence: {error}"))?;
+        let _ = current.client.close();
+    }
+    Ok(())
+}
 
 #[command]
 fn backup_database(app: AppHandle) -> Result<String, String> {
@@ -57,7 +177,7 @@ fn validate_remote_url(value: &str) -> Result<url::Url, String> {
 
 #[cfg(test)]
 mod security_tests {
-    use super::validate_remote_url;
+    use super::{validate_discord_application_id, validate_remote_url};
 
     #[test]
     fn remote_url_policy_accepts_public_https() {
@@ -76,6 +196,13 @@ mod security_tests {
     #[test]
     fn remote_url_policy_rejects_embedded_credentials() {
         assert!(validate_remote_url("https://user:password@example.com/file").is_err());
+    }
+
+    #[test]
+    fn discord_application_id_policy_accepts_only_snowflake_digits() {
+        assert!(validate_discord_application_id("123456789012345678").is_ok());
+        assert!(validate_discord_application_id("not-a-client-id").is_err());
+        assert!(validate_discord_application_id("1234").is_err());
     }
 }
 
@@ -2782,7 +2909,10 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_cli::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(DiscordPresenceState::default())
         .invoke_handler(tauri::generate_handler![
+            set_discord_presence,
+            clear_discord_presence,
             backup_database,
             scan_video_folder,
             scan_manga_folder,

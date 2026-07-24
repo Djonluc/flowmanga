@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { UpdateInfo } from '../services/AppVersionService';
 import { DEFAULT_FOR_YOU_PROFILES, type ForYouProfile, type ForYouProfileTagType } from '../image-platform/forYouProfiles';
+import { FLOWMANGA_DISCORD_APPLICATION_ID } from "../services/DiscordPresenceService";
 
 export type ReadingMode =
   | "vertical"
@@ -96,6 +97,18 @@ interface SettingsState {
   windowWidth: number | null;
   windowHeight: number | null;
   setWindowSize: (w: number, h: number) => void;
+
+  // Discord Rich Presence
+  discordRichPresenceEnabled: boolean;
+  discordApplicationId: string;
+  discordShareMangaTitle: boolean;
+  discordShareReadingProgress: boolean;
+  discordShowElapsedTime: boolean;
+  setDiscordRichPresenceEnabled: (enabled: boolean) => void;
+  setDiscordApplicationId: (applicationId: string) => void;
+  setDiscordShareMangaTitle: (enabled: boolean) => void;
+  setDiscordShareReadingProgress: (enabled: boolean) => void;
+  setDiscordShowElapsedTime: (enabled: boolean) => void;
 
   // Image Processing
   brightness: number;
@@ -454,6 +467,22 @@ export const useSettingsStore = create<SettingsState>()(
       windowWidth: null,
       windowHeight: null,
       setWindowSize: (w, h) => set({ windowWidth: w, windowHeight: h }),
+
+      // Discord Rich Presence is opt-in because activity is visible to other
+      // Discord users. A FlowManga Discord Application ID can be supplied at
+      // build time or configured in Settings.
+      discordRichPresenceEnabled: false,
+      discordApplicationId:
+        import.meta.env.VITE_DISCORD_APPLICATION_ID ||
+        FLOWMANGA_DISCORD_APPLICATION_ID,
+      discordShareMangaTitle: true,
+      discordShareReadingProgress: true,
+      discordShowElapsedTime: true,
+      setDiscordRichPresenceEnabled: (enabled) => set({ discordRichPresenceEnabled: enabled }),
+      setDiscordApplicationId: (applicationId) => set({ discordApplicationId: applicationId.trim() }),
+      setDiscordShareMangaTitle: (enabled) => set({ discordShareMangaTitle: enabled }),
+      setDiscordShareReadingProgress: (enabled) => set({ discordShareReadingProgress: enabled }),
+      setDiscordShowElapsedTime: (enabled) => set({ discordShowElapsedTime: enabled }),
 
       // Image Processing
       brightness: 1,

@@ -16,6 +16,8 @@ jobs:
   publish-tauri:
     runs-on: windows-latest
     timeout-minutes: 45
+    env:
+      VITE_DISCORD_APPLICATION_ID: ${{ vars.DISCORD_APPLICATION_ID }}
     steps:
       - name: Check out source
         uses: actions/checkout@v7

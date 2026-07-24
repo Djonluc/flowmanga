@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "2.5.8"
+version = "2.5.9"
 description = "A local-first manga reader, library, downloader, and visual discovery desktop app."
 authors = ["DjonStNix"]
 license = "MIT"
@@ -40,3 +40,4 @@ tauri-plugin-http = "2"
 image = "0.25.6"
 url = "2.5"
 rookie = "0.5.6"
+discord-rich-presence = "1.1.0"

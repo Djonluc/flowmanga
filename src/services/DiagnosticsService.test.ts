@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { diagnostics, redactDiagnosticText } from './DiagnosticsService';
+import packageMetadata from '../../package.json';
 
 describe('DiagnosticsService', () => {
   beforeEach(() => diagnostics.clear());
@@ -28,6 +29,6 @@ describe('DiagnosticsService', () => {
   });
 
   it('exports the package version instead of a stale hard-coded version', () => {
-    expect(JSON.parse(diagnostics.exportSnapshot()).appVersion).toBe('2.5.8');
+    expect(JSON.parse(diagnostics.exportSnapshot()).appVersion).toBe(packageMetadata.version);
   });
 });

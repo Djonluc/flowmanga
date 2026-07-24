@@ -1,29 +1,35 @@
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useSettingsStore } from '../../stores/useSettingsStore';
+import { useLibraryStore } from '../../stores/useLibraryStore';
 import { Trash2, Folder, Zap, Cpu, Gauge, ShieldAlert } from 'lucide-react';
 import { toast } from '../Toast';
-import clsx from 'clsx';
 
 export const DownloadSettings = () => {
     const { 
-        downloadPath, setDownloadPath, 
+        libraryPath, setLibraryPath,
+        downloadPath, setDownloadPath,
         maxConcurrentJobs, setMaxConcurrentJobs,
         maxConcurrentChapters, setMaxConcurrentChapters,
         maxConcurrentPages, setMaxConcurrentPages
     } = useSettingsStore();
+    const scanLibrary = useLibraryStore(state => state.scanLibrary);
+    const effectiveDownloadPath = libraryPath || downloadPath;
 
     const handleBrowseDownloads = async () => {
         try {
             const selected = await openDialog({
                 directory: true,
                 multiple: false,
-                defaultPath: downloadPath || undefined
+                defaultPath: effectiveDownloadPath || undefined
             });
             if (selected && typeof selected === 'string') {
                 setDownloadPath(selected);
-                toast.success("Download directory updated");
+                setLibraryPath(selected);
+                toast.success("Manga archive updated. Scanning existing downloads...");
+                await scanLibrary(selected);
+                toast.success("Manga archive scan complete");
             }
-        } catch (e) {
+        } catch {
             toast.error("Failed to update directory");
         }
     };
@@ -40,7 +46,7 @@ export const DownloadSettings = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 
-                {/* Temporary Storage Directory */}
+                {/* Manga archive destination */}
                 <div className="glass-panel p-6 rounded-[32px] border border-border-subtle relative overflow-hidden group lg:col-span-2">
                     <div className="absolute top-0 right-0 w-48 h-48 bg-purple-500/10 blur-[60px] rounded-full pointer-events-none group-hover:bg-purple-500/20 transition-colors" />
                     
@@ -50,15 +56,15 @@ export const DownloadSettings = () => {
                                 <Folder size={24} />
                             </div>
                             <div>
-                                <h3 className="text-foreground font-black text-lg">Staging Directory</h3>
-                                <p className="text-purple-400 text-[10px] font-bold uppercase tracking-widest">Temporary Download Cache</p>
+                                <h3 className="text-foreground font-black text-lg">Manga Download Destination</h3>
+                                <p className="text-purple-400 text-[10px] font-bold uppercase tracking-widest">Primary Library Storage</p>
                             </div>
                         </div>
                     </div>
                     
                     <div className="mt-6 bg-black/20 rounded-2xl p-4 border border-white/5 relative z-10">
                         <p className="text-foreground-dim text-xs font-mono break-all line-clamp-2">
-                            {downloadPath || 'Default (Same as Library)'}
+                            {effectiveDownloadPath || 'No manga archive selected'}
                         </p>
                     </div>
 

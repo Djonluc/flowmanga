@@ -5,7 +5,7 @@ import { useSettingsStore } from '../../stores/useSettingsStore';
 import clsx from 'clsx';
 import { useModalAccessibility } from '../../hooks/useModalAccessibility';
 
-import { Headphones, Globe, Sparkles, RefreshCw, ShieldAlert, Brain, Info, Activity, Database } from 'lucide-react';
+import { Headphones, Globe, Sparkles, RefreshCw, ShieldAlert, Brain, Info, Activity, Database, Plug } from 'lucide-react';
 
 const GeneralSettings = lazy(() => import('./GeneralSettings').then(module => ({ default: module.GeneralSettings })));
 const ReaderSettings = lazy(() => import('./ReaderSettings').then(module => ({ default: module.ReaderSettings })));
@@ -19,8 +19,9 @@ const MangaIntelligenceDebugger = lazy(() => import('./MangaIntelligenceDebugger
 const AboutSettings = lazy(() => import('./AboutSettings').then(module => ({ default: module.AboutSettings })));
 const DiagnosticsSettings = lazy(() => import('./DiagnosticsSettings').then(module => ({ default: module.DiagnosticsSettings })));
 const DataManagementSettings = lazy(() => import('./DataManagementSettings').then(module => ({ default: module.DataManagementSettings })));
+const IntegrationsSettings = lazy(() => import('./IntegrationsSettings').then(module => ({ default: module.IntegrationsSettings })));
 
-type SettingsTab = 'general' | 'reader' | 'appearance' | 'audio' | 'downloads' | 'sources' | 'automation' | 'updates' | 'intelligence' | 'diagnostics' | 'data' | 'about';
+type SettingsTab = 'general' | 'reader' | 'appearance' | 'audio' | 'downloads' | 'sources' | 'automation' | 'integrations' | 'updates' | 'intelligence' | 'diagnostics' | 'data' | 'about';
 
 export const SettingsModal = () => {
     const { isSettingsOpen, toggleSettings } = useSettingsStore();
@@ -45,6 +46,7 @@ export const SettingsModal = () => {
                 { id: 'sources', label: 'Sources', icon: Globe },
                 { id: 'downloads', label: 'Downloads', icon: Download },
                 { id: 'automation', label: 'Automation', icon: Sparkles },
+                { id: 'integrations', label: 'Integrations', icon: Plug },
             ]
         },
         {
@@ -169,6 +171,7 @@ export const SettingsModal = () => {
                                         {activeTab === 'appearance' && <AppearanceSettings />}
                                         {activeTab === 'downloads' && <DownloadSettings />}
                                         {activeTab === 'automation' && <AutomationSettings />}
+                                        {activeTab === 'integrations' && <IntegrationsSettings />}
                                         {activeTab === 'sources' && <SourcesSettings />}
                                         {activeTab === 'updates' && <UpdateSettings />}
                                         {activeTab === 'intelligence' && <MangaIntelligenceDebugger />}

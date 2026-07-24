@@ -1,3 +1,33 @@
+## FlowManga 2.5.9 Manga Library and Window Hotfix
+
+FlowManga 2.5.9 fixes downloaded manga being present on disk but missing from the installed application's Library, and fixes the app reopening in a compressed window.
+
+### Discord Rich Presence
+
+- Added an opt-in Discord desktop integration that can show the current manga, chapter, page progress, and elapsed reading time.
+- Added separate privacy switches for the manga title, reading progress, and timer.
+- Added a Discord connection test and Application ID configuration under Settings → Integrations.
+- Presence is cleared when the reader closes or the integration is disabled, and Discord connection failures never interrupt reading.
+
+### Fixes
+
+- Manga downloads now use the configured primary Manga Archive—the same folder the Library scans.
+- A download is marked complete only after its files, database record, chapters, and Library refresh are finished.
+- Locally scraped manga receive stable unique IDs, preventing unrelated downloads from colliding under the old `local` placeholder.
+- Rescanning a folder now attaches chapters to the existing series record instead of a transient scanner ID.
+- The download destination is clearly labeled as primary library storage, and changing it immediately scans existing manga.
+- Installed builds open maximized by default, ignore stale tiny saved dimensions, and enforce a minimum usable window size.
+
+### Existing downloads
+
+Existing files are not moved or deleted. If a manga was downloaded by an older build but is missing from the Library, select the folder containing its manga directories under Settings → Manga Archive; FlowManga will scan and restore it.
+
+### Installing
+
+Download `FlowManga_2.5.9_x64-setup.exe` from the GitHub release assets. Existing downloads, settings, paths, and library metadata are preserved.
+
+---
+
 ## FlowManga 2.5.8 Provider and Download Reliability Hotfix
 
 FlowManga 2.5.8 addresses the recoverable application errors identified in recent diagnostics and reduces repeated requests against unavailable providers.

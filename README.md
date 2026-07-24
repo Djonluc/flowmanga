@@ -73,6 +73,7 @@ FlowManga is a local-first Tauri 2 desktop application for reading, organizing, 
 ### Desktop integration
 
 - Tauri filesystem, SQL, dialog, shell, HTTP, and native window integrations.
+- Opt-in Discord Rich Presence with title, chapter/page progress, elapsed-time, and privacy controls.
 - Local SQLite metadata while original library files stay in place.
 - Windows NSIS release builds through the tagged GitHub Actions workflow.
 - Native update checks and versioned GitHub release notes.
@@ -198,6 +199,6 @@ flowmanga/
 [![YouTube](https://img.shields.io/badge/YouTube-@Djonluc-FF0000?style=flat-square&logo=youtube)](https://www.youtube.com/@Djonluc)
 [![Email](https://img.shields.io/badge/Email-djonstnix@gmail.com-5B8CFF?style=flat-square&logo=gmail)](mailto:djonstnix@gmail.com)
 
-**Version:** 2.5.8 · **Status:** active development
+**Version:** 2.5.9 · **Status:** active development
 
 </div>
