@@ -79,12 +79,29 @@ describe("DiscordPresenceService", () => {
     expect(JSON.stringify(activity)).not.toContain("Page 13");
   });
 
-  it("detects adult ratings, sources, tags, and titles", () => {
+  it("detects explicit ratings, adult-only sources, tags, and titles", () => {
     expect(isDiscordAdultContent({ rating: "explicit" })).toBe(true);
     expect(isDiscordAdultContent({ source: "E-Hentai" })).toBe(true);
-    expect(isDiscordAdultContent({ tags: ["full_color", "mature"] })).toBe(true);
+    expect(isDiscordAdultContent({ tags: ["full_color", "hentai"] })).toBe(true);
     expect(isDiscordAdultContent({ title: "A quiet fantasy adventure" })).toBe(
       false,
     );
+  });
+
+  it("does not hide titles for mature or questionable mainstream manga", () => {
+    expect(
+      isDiscordAdultContent({
+        source: "MangaDex",
+        rating: "mature",
+        tags: ["mature", "psychological"],
+      }),
+    ).toBe(false);
+    expect(
+      isDiscordAdultContent({
+        source: "AniList",
+        rating: "questionable",
+        tags: ["drama"],
+      }),
+    ).toBe(false);
   });
 });

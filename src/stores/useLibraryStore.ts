@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { getDb } from "../services/db";
 import { toast } from "../components/Toast";
 import { stableSeriesId } from "../utils/mangaStorage";
+import { ensureExplicitSourceTag } from "../services/AdultContentClassification";
 
 export interface ComicInfo {
   series?: string;
@@ -220,6 +221,20 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
     for (const s of series) {
       const chapters = chaptersBySeries.get(s.id) || [];
+      const storedTags = s.tags
+        ? s.tags.split(",").filter((tag: string) => tag)
+        : [];
+      const classifiedTags = ensureExplicitSourceTag(
+        storedTags,
+        s.source,
+        s.seriesUrl,
+      );
+      if (classifiedTags.length !== storedTags.length) {
+        await db.execute("UPDATE Series SET tags = ? WHERE id = ?", [
+          classifiedTags.join(","),
+          s.id,
+        ]);
+      }
 
       enrichedSeries.push({
         id: s.id,
@@ -230,7 +245,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         author: s.author,
         cover: s.coverPath,
         description: s.description,
-        tags: s.tags ? s.tags.split(",").filter((t: string) => t) : [],
+        tags: classifiedTags,
         source: s.source,
         mangaId: s.mangaId,
         seriesUrl: s.seriesUrl,

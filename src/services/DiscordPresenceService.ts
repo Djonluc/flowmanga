@@ -1,3 +1,5 @@
+import { isExplicitAdultSource } from "./AdultContentClassification";
+
 export interface DiscordReadingContext {
   title?: string;
   chapter?: string;
@@ -39,12 +41,10 @@ const discordText = (value: string) =>
 
 const adultSignals = [
   "18+",
-  "adult",
   "erotica",
   "erotic",
   "explicit",
   "hentai",
-  "mature",
   "nsfw",
   "porn",
   "smut",
@@ -55,19 +55,12 @@ export function isDiscordAdultContent(
 ): boolean {
   const rating = String(content.rating || "").toLowerCase();
   if (
-    ["adult", "explicit", "questionable", "mature", "18+", "e", "q"].includes(
-      rating,
-    )
+    ["explicit", "18+", "e"].includes(rating)
   ) {
     return true;
   }
 
-  const source = String(content.source || "").toLowerCase();
-  if (
-    ["e-hentai", "ehentai", "nhentai", "rule34", "rule 34"].some((signal) =>
-      source.includes(signal),
-    )
-  ) {
+  if (isExplicitAdultSource(content.source)) {
     return true;
   }
 

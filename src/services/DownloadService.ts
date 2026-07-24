@@ -4,6 +4,7 @@ import { useSettingsStore } from '../stores/useSettingsStore';
 import { getSankakuAuthHeaders } from './Sankaku';
 import { type DownloadJob } from '../types';
 import { isDownloadablePageImage } from './PageImageFilter';
+import { ensureExplicitSourceTag } from './AdultContentClassification';
 
 export class DownloadService {
     
@@ -34,12 +35,15 @@ export class DownloadService {
             // Preserve total pages tracked locally
             totalPages: existingMeta.totalPages || 0,
             // Do not wipe tags when incoming metadata omits them (object spread sets undefined)
-            tags:
+            tags: ensureExplicitSourceTag(
                 Array.isArray(metadata.tags) && metadata.tags.length > 0
                     ? metadata.tags
                     : Array.isArray(existingMeta.tags) && existingMeta.tags.length > 0
                       ? existingMeta.tags
                       : metadata.tags ?? existingMeta.tags ?? [],
+                metadata.source,
+                metadata.sourceUrl,
+            ),
         };
 
         // Determine Global Index from Existing

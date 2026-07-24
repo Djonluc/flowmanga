@@ -8,7 +8,8 @@ FlowManga 2.5.9 fixes downloaded manga being present on disk but missing from th
 - Added separate privacy switches for the manga title, reading progress, and timer.
 - Added a Discord connection test under Settings → Integrations.
 - Bundled the developer-owned FlowManga Discord identity and branded artwork so users never need to enter an Application ID.
-- Added an in-theme idle presence with app runtime, plus a privacy-safe “after-hours arc” status that never reveals adult titles or progress.
+- Added an in-theme idle presence with app runtime, plus a privacy-safe “after-hours arc” status that never reveals explicitly adult titles or progress.
+- Mature and questionable mainstream manga can still show their titles; downloads from adult-only sources are automatically tagged `hentai`, including existing library records.
 - Presence is cleared when the integration is disabled, and Discord connection failures never interrupt reading.
 
 ### Fixes

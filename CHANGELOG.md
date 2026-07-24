@@ -5,7 +5,8 @@
 - Added opt-in Discord Rich Presence for manga title, chapter, page progress, and elapsed reading time.
 - Added Discord privacy controls and a connection test under Settings → Integrations.
 - Bundled FlowManga's developer-owned Discord identity and branded artwork; regular users are never asked for an Application ID.
-- Added an in-theme idle presence with runtime and an automatic privacy-safe status for adult reading.
+- Added an in-theme idle presence with runtime and an automatic privacy-safe status for explicitly adult reading.
+- Distinguished mature mainstream manga from adult-only sources and automatically classified the latter with a `hentai` tag.
 
 ### Fixed
 
