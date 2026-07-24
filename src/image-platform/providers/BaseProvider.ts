@@ -15,6 +15,10 @@ function redactNetworkError(value: string): string {
   return value.replace(/([?&](?:api_key|access_token|token|password|user_id)=)[^&\s)]+/gi, '$1***');
 }
 
+function isTerminalRequestError(message: string): boolean {
+  return /HTTP error!? status: (?:400|401|403|404)|missing authentication|unauthorized|forbidden/i.test(message);
+}
+
 async function runWithProviderGate<T>(providerId: string, request: () => Promise<T>): Promise<T> {
   const { useSettingsStore } = await import('../../stores/useSettingsStore');
   const configuredInterval = useSettingsStore.getState().providerPolicies?.[providerId]?.minRequestIntervalMs || 0;
@@ -183,7 +187,7 @@ export abstract class BaseProvider implements ImageProvider {
           : error instanceof Error
             ? error.message
             : String(error));
-        if (retries > 1) {
+        if (retries > 1 && !isTerminalRequestError(errorMessage)) {
           console.warn(`[${this.id}] Fetch/Parse error: ${errorMessage}. Retrying in ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           delay *= 2;

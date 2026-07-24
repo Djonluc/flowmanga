@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { filterDownloadablePageUrls } from "../../PageImageFilter";
 import type {
   SourceProvider,
   SourceContent,
@@ -103,13 +104,14 @@ export class ManhuaPlusProvider implements SourceProvider {
         }
       });
 
-      if (images.length === 0) {
+      const pageImages = filterDownloadablePageUrls(images);
+      if (pageImages.length === 0) {
         throw new Error("No images parsed from AJAX HTML");
       }
 
-      console.log(`[ManhuaPlus] Successfully extracted ${images.length} sorted images!`);
+      console.log(`[ManhuaPlus] Successfully extracted ${pageImages.length} sorted images!`);
       return {
-        images: images.map((u, i) => ({ url: u, pageNumber: i + 1 })),
+        images: pageImages.map((u, i) => ({ url: u, pageNumber: i + 1 })),
         metadata: { sourceUrl: url, coverUrl },
       };
     } catch (err) {
@@ -137,6 +139,7 @@ export class ManhuaPlusProvider implements SourceProvider {
             ],
           },
         }).catch(() => []);
+        images = filterDownloadablePageUrls(images);
         if (images.length > 0) break;
         attempts++;
       }

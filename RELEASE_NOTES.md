@@ -1,3 +1,23 @@
+## FlowManga 2.5.8 Provider and Download Reliability Hotfix
+
+FlowManga 2.5.8 addresses the recoverable application errors identified in recent diagnostics and reduces repeated requests against unavailable providers.
+
+### Fixes
+
+- Automation and update checks no longer crash when a provider returns partial series data without a chapter array.
+- Manga downloads now reject loading indicators, comment placeholders, SVGs, icons, and other non-page assets.
+- ManhuaPlus filters invalid page assets during extraction and the downloader validates them again before saving.
+- Rule34 pauses further requests after saved API credentials are rejected and resumes automatically when those credentials change.
+- Zerochan enters a short cooldown after invalid HTML, 404, or blocked responses instead of flooding the source with retries.
+- Terminal HTTP 400, 401, 403, and 404 responses no longer receive retries that cannot succeed.
+- Added regression coverage for malformed series results and download-page validation.
+
+### Installing
+
+Download `FlowManga_2.5.8_x64-setup.exe` from the GitHub release assets. Existing downloads, settings, paths, and library metadata are preserved.
+
+---
+
 ## FlowManga 2.5.7 Windows Local Media Hotfix
 
 FlowManga 2.5.7 completes the installed-app fix for downloaded manga that could be located on disk but whose covers and pages were blocked inside the reader.

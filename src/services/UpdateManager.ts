@@ -95,8 +95,9 @@ export class UpdateManager {
                     }
                 }
 
-                if (!remoteFeed && result?.series) {
-                    remoteFeed = result.series.chapters.map(ch => ({
+                if (remoteFeed.length === 0 && result?.series) {
+                    const chapters = Array.isArray(result.series.chapters) ? result.series.chapters : [];
+                    remoteFeed = chapters.map(ch => ({
                         id: ch.id,
                         attributes: { chapter: ch.number, title: ch.title },
                         chUrl: ch.url,
@@ -113,7 +114,7 @@ export class UpdateManager {
              // console.log(`[UpdateManager] Found ${remoteFeed.length} potential chapters, checking vs local...`);
 
             // 3. Find Missing Chapters (All gaps, not just latest)
-            const existingChapterNums = new Set(series.books.map(b => b.meta.chapter));
+            const existingChapterNums = new Set((Array.isArray(series.books) ? series.books : []).map(b => b.meta.chapter));
             
             let missingChapters = remoteFeed.filter(remote => {
                 const remoteNum = remote.attributes.chapter || '0';

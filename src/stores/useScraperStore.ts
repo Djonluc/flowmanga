@@ -77,7 +77,8 @@ export const useScraperStore = create<ScraperState>((set, get) => ({
                     tags: result.series.tags ?? [],
                     mangaId: result.series.seriesUrl // Use URL as ID for non-MangaDex
                 };
-                feed = result.series.chapters.map(ch => ({
+                const chapters = Array.isArray(result.series.chapters) ? result.series.chapters : [];
+                feed = chapters.map(ch => ({
                     id: ch.id,
                     number: ch.number,
                     chUrl: ch.url,
@@ -108,7 +109,7 @@ export const useScraperStore = create<ScraperState>((set, get) => ({
             
             if (feed.length > 0) {
                 if (librarySeries) {
-                    const existingChapterNums = new Set(librarySeries.books.map(b => b.meta.chapter));
+                    const existingChapterNums = new Set((Array.isArray(librarySeries.books) ? librarySeries.books : []).map(b => b.meta.chapter));
                     const newChapters = feed.filter(c => {
                          const num = c.attributes?.chapter || c.number;
                          return !existingChapterNums.has(num);

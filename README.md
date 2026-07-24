@@ -198,6 +198,6 @@ flowmanga/
 [![YouTube](https://img.shields.io/badge/YouTube-@Djonluc-FF0000?style=flat-square&logo=youtube)](https://www.youtube.com/@Djonluc)
 [![Email](https://img.shields.io/badge/Email-djonstnix@gmail.com-5B8CFF?style=flat-square&logo=gmail)](mailto:djonstnix@gmail.com)
 
-**Version:** 2.5.7 · **Status:** active development
+**Version:** 2.5.8 · **Status:** active development
 
 </div>

@@ -16,6 +16,20 @@ export class ZerochanProvider extends BaseProvider {
     tagSearch: true,
   };
   domains = ["zerochan.net"];
+  private unavailableUntil = 0;
+  private lastFailureWarningAt = 0;
+
+  private canRequest(): boolean {
+    return Date.now() >= this.unavailableUntil;
+  }
+
+  private recordFailure(context: string, error: unknown): void {
+    this.unavailableUntil = Date.now() + 60_000;
+    if (Date.now() - this.lastFailureWarningAt > 60_000) {
+      console.warn(`[ZerochanProvider] ${context}; pausing requests for 60 seconds`, error);
+      this.lastFailureWarningAt = Date.now();
+    }
+  }
 
   private normalizeTag(tag: string): string {
     // Zerochan uses Space Capitalized strings or exact matches usually, but URL encode works
@@ -23,6 +37,7 @@ export class ZerochanProvider extends BaseProvider {
   }
 
   async search(query: SearchQuery, page: number): Promise<PlatformImage[]> {
+    if (!this.canRequest()) return [];
     const apiTags: string[] = [];
 
     for (const tag of query.positiveTags) {
@@ -40,24 +55,25 @@ export class ZerochanProvider extends BaseProvider {
     const url = `https://www.zerochan.net/${encodeURIComponent(tagStr)}?json=1&p=${page}`;
 
     try {
-      const data = await this.fetchJson<{items?: any[]}>(url);
+      const data = await this.fetchJson<{items?: any[]}>(url, {}, { retries: 1, headlessFallback: false });
       if (!data || !data.items) return [];
       return this.mapPosts(data.items);
     } catch (e) {
-      console.warn("[ZerochanProvider] API fetch failed", e);
+      this.recordFailure("API fetch failed", e);
       return [];
     }
   }
 
   async getDiscovery(page: number): Promise<PlatformImage[]> {
+    if (!this.canRequest()) return [];
     // Zerochan's homepage json returns the latest/trending posts
     const url = `https://www.zerochan.net/?json=1&p=${page}`;
     try {
-      const data = await this.fetchJson<{items?: any[]}>(url);
+      const data = await this.fetchJson<{items?: any[]}>(url, {}, { retries: 1, headlessFallback: false });
       if (!data || !data.items) return [];
       return this.mapPosts(data.items);
     } catch (e) {
-      console.warn("[ZerochanProvider] Discovery fetch failed", e);
+      this.recordFailure("Discovery fetch failed", e);
       return [];
     }
   }
@@ -68,14 +84,15 @@ export class ZerochanProvider extends BaseProvider {
   }
 
   async getById(id: string): Promise<PlatformImage | null> {
+    if (!this.canRequest()) return null;
     try {
       const url = `https://www.zerochan.net/${id}?json=1`;
-      const data = await this.fetchJson<any>(url);
+      const data = await this.fetchJson<any>(url, {}, { retries: 1, headlessFallback: false });
       if (!data || !data.id) return null;
       const posts = this.mapPosts([data]);
       return posts.length > 0 ? posts[0] : null;
     } catch (e) {
-      console.warn("[ZerochanProvider] getById failed", e);
+      this.recordFailure("Post lookup failed", e);
       return null;
     }
   }

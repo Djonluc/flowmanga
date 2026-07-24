@@ -3,6 +3,7 @@ import { readTextFile, writeTextFile, mkdir } from '@tauri-apps/plugin-fs';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { getSankakuAuthHeaders } from './Sankaku';
 import { type DownloadJob } from '../types';
+import { isDownloadablePageImage } from './PageImageFilter';
 
 export class DownloadService {
     
@@ -303,6 +304,14 @@ export class DownloadService {
         metadata: any,
         pageReferer?: string | null,
     ): Promise<string | null> {
+        const validImages = images.filter(isDownloadablePageImage);
+        if (validImages.length === 0) {
+            throw new Error(`No downloadable page images remained after filtering chapter ${chapterNum}`);
+        }
+        if (validImages.length !== images.length) {
+            console.warn(`[Download] Ignored ${images.length - validImages.length} non-page placeholder asset(s) in chapter ${chapterNum}.`);
+        }
+        images = validImages;
         const chPadded = parseFloat(chapterNum).toString().split('.')[0].padStart(3, '0');
         const { maxConcurrentPages } = useSettingsStore.getState();
 

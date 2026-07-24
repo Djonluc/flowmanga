@@ -1,3 +1,15 @@
+## FlowManga v2.5.8 - 2026-07-23
+
+### Fixed
+
+- Hardened automation and scraping against missing chapter arrays in partial provider responses.
+- Prevented placeholder SVGs, loading indicators, and decorative assets from being saved as manga pages.
+- Paused Rule34 requests after rejected credentials until the credentials change.
+- Added Zerochan failure cooldowns and stopped retrying terminal HTTP 4xx responses.
+- Added regression tests for provider-series normalization and page-asset filtering.
+
+---
+
 ## FlowManga v2.5.7 - 2026-07-21
 
 ### Fixed

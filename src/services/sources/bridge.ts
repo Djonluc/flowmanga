@@ -46,7 +46,7 @@ export function bridgeSeries(series: SourceSeries, _provider: SourceProvider): S
   const uniqueChapters: SeriesScrapedChapter[] = [];
   const seenNumbers = new Set<string>();
 
-  for (const ch of series.chapters) {
+  for (const ch of Array.isArray(series.chapters) ? series.chapters : []) {
     const num = ch.number || "0";
     if (!seenNumbers.has(num)) {
       seenNumbers.add(num);
@@ -94,7 +94,7 @@ export function bridgeAuto(
   series: SourceSeries | null,
   provider: SourceProvider
 ): ScrapeResult {
-  if (series && series.chapters.length > 0) {
+  if (series && Array.isArray(series.chapters) && series.chapters.length > 0) {
     // Series page — return chapter feed
     const result = bridgeSeries(series, provider);
     // Also attach metadata from the series for ImportModal

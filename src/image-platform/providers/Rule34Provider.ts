@@ -34,6 +34,7 @@ export class Rule34Provider extends BaseProvider {
     tagSearch: true,
   };
   domains = ["rule34.xxx"];
+  private rejectedCredentialSignature: string | null = null;
 
   async search(query: SearchQuery, page: number): Promise<PlatformImage[]> {
     const { useSettingsStore } = await import("../../stores/useSettingsStore");
@@ -45,6 +46,10 @@ export class Rule34Provider extends BaseProvider {
       console.warn("[Rule34Provider] No API credentials. Go to Settings → Sources to add your Rule34 User ID and API Key.");
       return [];
     }
+
+    const credentialSignature = `${auth.userId}:${auth.apiKey}`;
+    if (this.rejectedCredentialSignature === credentialSignature) return [];
+    if (this.rejectedCredentialSignature !== credentialSignature) this.rejectedCredentialSignature = null;
 
     // If the query specifically targets another provider, skip this one
     if (query.predicates["source"] && query.predicates["source"] !== this.id) {
@@ -86,6 +91,14 @@ export class Rule34Provider extends BaseProvider {
       });
       
       if (!Array.isArray(response)) {
+        const message = typeof response === "string" ? response : JSON.stringify(response);
+        if (/missing authentication|invalid (?:api|user|credential)|unauthorized/i.test(message)) {
+          this.rejectedCredentialSignature = credentialSignature;
+          const { diagnostics } = await import("../../services/DiagnosticsService");
+          diagnostics.providerAuth(this.id, false, message);
+          console.warn("[Rule34Provider] Saved API credentials were rejected. Update them in Settings → Sources; requests are paused until they change.");
+          return [];
+        }
         console.warn("[Rule34Provider] Unexpected response from API (not an array):", response);
         // Rule34 often returns a plain string for errors, like "Missing authentication."
         if (typeof response === "string") {
